@@ -88,3 +88,73 @@ export type CWTaskTemplate = {
   createdAt: string
   updatedAt: string
 }
+
+export type CWF1Config = {
+  returnWindowDays: number
+  updatedAt: string
+}
+
+export type CWTaskStatus = 'Assigned' | 'In Progress' | 'Pending' | 'Completed'
+
+export type CWTaskFieldValue = string | number | boolean | string[] | null
+
+export type CWTask = {
+  id: string
+  shopId: string
+  bayId?: string
+  registrationNo?: string
+  templateId: string
+  templateName: string
+  title: string
+  assignedToName: string
+  assignedToNames?: string[]
+  assignedRoleId?: string
+  status: CWTaskStatus
+  pendingReason?: string
+  plannedStartAt?: string
+  plannedEndAt?: string
+  dependsOnTaskIds?: string[]
+  dependencyOverrideReason?: string
+  fields: CWTaskField[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type CWTaskComment = {
+  id: string
+  taskId: string
+  authorName: string
+  message: string
+  createdAt: string
+}
+
+export type CWTaskAttachment = {
+  id: string
+  taskId: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  createdAt: string
+}
+
+export type CWPendingVehicleStatus = 'Pending' | 'Job Created'
+
+export type CWPendingVehicle = {
+  id: string
+  registrationNo: string
+  status: CWPendingVehicleStatus
+  arrivedAt: string
+  updatedAt: string
+}
+
+export type CWJobStatus = 'Active' | 'Test Drive Approved' | 'Job Finished'
+
+export type CWJob = {
+  id: string
+  registrationNo: string
+  shopIds: string[]
+  taskIds: string[]
+  status: CWJobStatus
+  createdAt: string
+  updatedAt: string
+}

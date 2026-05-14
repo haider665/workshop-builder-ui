@@ -183,7 +183,7 @@ export function RolesPage() {
             />
             <Box>
               <Typography variant="body2" color="text.secondary">
-                System roles are always present: Admin, Guard, Job Controller.
+                System roles are always present: Admin, Guard, Job Creation.
               </Typography>
             </Box>
           </Stack>

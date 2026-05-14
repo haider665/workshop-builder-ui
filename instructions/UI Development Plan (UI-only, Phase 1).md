@@ -10,7 +10,7 @@
 ## 1) Goals, Non-Goals, and Assumptions
 
 ### Goals
-- Build the complete **Phase 1 UI**: Admin, CRO, Guard, Job Controller, User Task Dashboard, Vehicle History, Employee Records, Notifications, and F1 reporting screens.
+- Build the complete **Phase 1 UI**: Admin, CRO, Guard, Job Creation, User Task Dashboard, Vehicle History, Employee Records, Notifications, and F1 reporting screens.
 - Enforce **role-based UI access** (route guards + module visibility) consistent with the SRS role matrix.
 - Implement **dynamic task forms** renderer (field types + required flags + partial save) driven by backend field definitions.
 - Build **tablet-optimized Guard UI** and tablet-friendly operational UIs.
@@ -35,7 +35,7 @@
 ### Fixed system roles
 - **Admin** (superuser)
 - **Guard** (gate)
-- **Job Controller** (orchestrator)
+- **Job Creation** (orchestrator)
 
 ### Admin-created optional roles (examples)
 - CRO, Technician, Service Advisor, Service Engineer, Custom Role
@@ -113,7 +113,7 @@
 ### Guard
 - `/guard` (single screen with Entry + Exit check flows; minimal navigation)
 
-### Job Controller
+### Job Creation
 - `/jc`
 - `/jc/pending-vehicles`
 - `/jc/jobs/new`
@@ -153,7 +153,7 @@ MVP implementation note:
 - Users/Roles: list/create/update
 - F1 config/report
 
-### Job Controller
+### Job Creation
 - pending vehicles
 - create job (potentially create job + tasks in one call)
 - availability endpoints:
@@ -258,7 +258,7 @@ MVP implementation note:
 
 ---
 
-### Milestone 5 — Job Controller Module (core orchestration UI)
+### Milestone 5 — Job Creation Module (core orchestration UI)
 **Output:** dashboards + job creation + dependency + gatepass/test drive UIs.
 - Dashboard listing active jobs/vehicles with counts by task status
 - Pending vehicles screen (from guard entries)
@@ -350,7 +350,7 @@ To proceed incrementally with minimal rework:
 1. Milestone 0 (foundation) — minimal shell + in-memory store
 2. Milestone 4 (Admin) — **first real product milestone**; defines shops/tasks/forms
 3. Milestone 6 (Task Dashboard) — validates the dynamic form renderer against Admin templates
-4. Milestone 5 (Job Controller) — orchestration and dependency logic
+4. Milestone 5 (Job Creation) — orchestration and dependency logic
 5. Milestone 2 (Guard) — integrates with job status/test drive UX
 6. Milestone 3 (CRO) — customer/vehicle/appointment workflows
 7. Milestones 7–9 (notifications + records + F1)

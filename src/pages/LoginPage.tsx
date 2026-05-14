@@ -36,7 +36,7 @@ export function LoginPage() {
   const [selectedRoles, setSelectedRoles] = useState<Record<Role, boolean>>({
     Admin: true,
     Guard: false,
-    'Job Controller': false,
+    'Job Creation': false,
     CRO: false,
     Technician: false,
     'Service Advisor': false,
@@ -117,7 +117,7 @@ export function LoginPage() {
 
             <FormControl component="fieldset">
               <FormGroup>
-                {ALL_ROLES.filter((r) => showAllRoles || ['Admin', 'Guard', 'Job Controller', 'CRO', 'Technician'].includes(r)).map(
+                {ALL_ROLES.filter((r) => showAllRoles || ['Admin', 'Guard', 'Job Creation', 'CRO', 'Technician'].includes(r)).map(
                   (role) => (
                     <FormControlLabel
                       key={role}

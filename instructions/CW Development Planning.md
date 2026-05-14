@@ -143,7 +143,7 @@ Simple module — build it fast.
 
 ---
 
-#### **PHASE 5 — Job Controller Module**
+#### **PHASE 5 — Job Creation Module**
 
 **Duration: 5 days — this is the most complex module**
 
@@ -162,7 +162,7 @@ Simple module — build it fast.
 
 **Next.js tasks:**
 
-* Job Controller dashboard — list of vehicles in workshop, status per vehicle  
+* Job Creation dashboard — list of vehicles in workshop, status per vehicle  
 * Create Job flow:  
   * Select vehicle from pending list  
   * Select shop(s)  
@@ -217,7 +217,7 @@ Simple module — build it fast.
 * Frappe has a built-in Email Queue — configure SMTP credentials from client  
 * Write Frappe Document Event hooks:  
   * On CW Job Task `after_insert` → send email to assigned users  
-  * On CW Job Task `on_update` (status change) → send email to Job Controller  
+  * On CW Job Task `on_update` (status change) → send email to Job Creation  
 * Email templates — assignment notification, status change notification  
 * These hooks go in `continental_works/hooks.py` and the controller files
 
@@ -240,7 +240,7 @@ Simple module — build it fast.
 **Next.js tasks:**
 
 * Vehicle history page — searchable by registration number, timeline of all visits  
-* Employee record page — accessible to Admin and Job Controller, shows task history per user with performance metrics
+* Employee record page — accessible to Admin and Job Creation, shows task history per user with performance metrics
 
 ---
 
@@ -250,7 +250,7 @@ Simple module — build it fast.
 
 **Backend tasks:**
 
-* Write API: `flag_f1_return` — when a vehicle comes back for the same issue, Job Controller or Admin links the new job to the original task, system sets F1 record to 0  
+* Write API: `flag_f1_return` — when a vehicle comes back for the same issue, Job Creation or Admin links the new job to the original task, system sets F1 record to 0  
 * Write API: `get_f1_report` — filterable by month, year, shop, user — returns F1 scores aggregated  
 * Write a scheduled Frappe job that checks for jobs created within N days for the same vehicle and same task type and flags them for review
 

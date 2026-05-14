@@ -1,14 +1,14 @@
 export type Role =
   | 'Admin'
   | 'Guard'
-  | 'Job Controller'
+  | 'Job Creation'
   | 'CRO'
   | 'Technician'
   | 'Service Advisor'
   | 'Service Engineer'
   | 'Custom Role'
 
-export const CORE_ROLES: Role[] = ['Admin', 'Guard', 'Job Controller']
+export const CORE_ROLES: Role[] = ['Admin', 'Guard', 'Job Creation']
 
 export const OPTIONAL_ROLES: Role[] = [
   'CRO',

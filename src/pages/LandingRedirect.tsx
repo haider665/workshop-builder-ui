@@ -3,7 +3,7 @@ import { useSessionStore } from '../store/sessionStore'
 
 function firstLanding(roles: string[]) {
   if (roles.includes('Admin')) return '/admin'
-  if (roles.includes('Job Controller')) return '/jc'
+  if (roles.includes('Job Creation')) return '/jc'
   if (roles.includes('Guard')) return '/guard'
   if (roles.includes('CRO')) return '/cro'
   return '/tasks'

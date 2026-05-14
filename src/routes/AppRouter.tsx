@@ -53,7 +53,7 @@ export function AppRouter() {
             <Route path="/guard" element={<GuardHome />} />
           </Route>
 
-          <Route element={<RequireRole anyOf={['Job Controller']} />}>
+          <Route element={<RequireRole anyOf={['Job Creation']} />}>
             <Route path="/jc" element={<JobControllerHome />} />
             <Route path="/jc/pending-vehicles" element={<PendingVehiclesPage />} />
             <Route path="/jc/jobs/new" element={<NewJobPage />} />
@@ -77,7 +77,7 @@ export function AppRouter() {
                   'Service Engineer',
                   'Custom Role',
                   'Admin',
-                  'Job Controller',
+                  'Job Creation',
                 ]}
               />
             }
@@ -87,12 +87,12 @@ export function AppRouter() {
             <Route path="/calendar" element={<CalendarPage />} />
           </Route>
 
-          <Route element={<RequireRole anyOf={['Admin', 'Job Controller', 'CRO']} />}>
+          <Route element={<RequireRole anyOf={['Admin', 'Job Creation', 'CRO']} />}>
             <Route path="/vehicle-history" element={<VehicleHistoryPage />} />
             <Route path="/vehicle-history/:registrationNo" element={<VehicleHistoryDetailPage />} />
           </Route>
 
-          <Route element={<RequireRole anyOf={['Admin', 'Job Controller']} />}>
+          <Route element={<RequireRole anyOf={['Admin', 'Job Creation']} />}>
             <Route path="/employee-records" element={<EmployeeRecordsPage />} />
             <Route path="/employee-records/:userId" element={<EmployeeRecordDetailPage />} />
           </Route>
