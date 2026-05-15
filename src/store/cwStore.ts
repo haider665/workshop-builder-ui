@@ -165,6 +165,12 @@ export type CreateJobWithTasksInput = {
   tasks: CreateJobTaskInput[]
 }
 
+export type SetJobTestDriveInput = {
+  driverName: string
+  driverNid: string
+  expectedReturnAt?: string
+}
+
 type CWState = {
   shops: CWShop[]
   bays: CWBay[]
@@ -220,6 +226,7 @@ type CWState = {
   createJob: (input: CreateJobInput) => CWJob
   createJobWithTasks: (input: CreateJobWithTasksInput) => CWJob
   setJobStatus: (jobId: string, status: CWJobStatus) => void
+  setJobTestDrive: (jobId: string, input: SetJobTestDriveInput) => void
   moveJobTask: (jobId: string, taskId: string, direction: 'up' | 'down') => void
 }
 
@@ -1267,6 +1274,34 @@ export const useCwStore = create<CWState>((set, get) => ({
           ? {
               ...j,
               status,
+              updatedAt: nowIso(),
+            }
+          : j,
+      ),
+    })
+  },
+
+  setJobTestDrive: (jobId, input) => {
+    const driverName = input.driverName.trim()
+    const driverNid = input.driverNid.trim()
+    if (!driverName) throw new Error('Driver name is required')
+    if (!driverNid) throw new Error('Driver NID is required')
+
+    const expectedReturnAt = input.expectedReturnAt?.trim() || undefined
+    if (expectedReturnAt) {
+      const parsed = Date.parse(expectedReturnAt)
+      if (!Number.isFinite(parsed)) throw new Error('Expected return must be a valid date/time')
+    }
+
+    set({
+      jobs: get().jobs.map((j) =>
+        j.id === jobId
+          ? {
+              ...j,
+              status: 'Test Drive Approved',
+              testDriveDriverName: driverName,
+              testDriveDriverNid: driverNid,
+              testDriveExpectedReturnAt: expectedReturnAt,
               updatedAt: nowIso(),
             }
           : j,

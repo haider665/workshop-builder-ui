@@ -71,7 +71,7 @@ export function PendingVehiclesPage() {
           </Button>
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          MVP note: this is temporary until the Guard module is implemented.
+          MVP note: pending vehicles created by Guard Entry.
         </Typography>
       </Paper>
 

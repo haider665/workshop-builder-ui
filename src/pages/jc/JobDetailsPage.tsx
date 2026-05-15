@@ -26,6 +26,13 @@ import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
 import type { CWJobStatus, CWTaskStatus } from '../../types/cw'
 
+function toIsoFromLocal(value: string) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toISOString()
+}
+
 function statusChip(status: CWTaskStatus) {
   if (status === 'Assigned') return <Chip size="small" color="info" label="Assigned" />
   if (status === 'In Progress') return <Chip size="small" color="primary" label="In Progress" />
@@ -48,12 +55,18 @@ export function JobDetailsPage() {
   const bays = useCwStore((s) => s.bays)
   const roles = useCwStore((s) => s.roles)
   const setJobStatus = useCwStore((s) => s.setJobStatus)
+  const setJobTestDrive = useCwStore((s) => s.setJobTestDrive)
   const moveJobTask = useCwStore((s) => s.moveJobTask)
   const setTaskDependencyOverride = useCwStore((s) => s.setTaskDependencyOverride)
 
   const [error, setError] = useState<string | null>(null)
   const [overrideOpenForTaskId, setOverrideOpenForTaskId] = useState<string | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
+
+  const [testDriveOpen, setTestDriveOpen] = useState(false)
+  const [testDriveDriverName, setTestDriveDriverName] = useState('')
+  const [testDriveDriverNid, setTestDriveDriverNid] = useState('')
+  const [testDriveExpectedReturnLocal, setTestDriveExpectedReturnLocal] = useState('')
 
   const job = useMemo(() => jobs.find((j) => j.id === jobId), [jobs, jobId])
 
@@ -148,7 +161,32 @@ export function JobDetailsPage() {
     if (!job) return
     try {
       setError(null)
+      if (next === 'Test Drive Approved') {
+        setTestDriveDriverName(job.testDriveDriverName ?? '')
+        setTestDriveDriverNid(job.testDriveDriverNid ?? '')
+        setTestDriveExpectedReturnLocal(
+          job.testDriveExpectedReturnAt ? new Date(job.testDriveExpectedReturnAt).toISOString().slice(0, 16) : '',
+        )
+        setTestDriveOpen(true)
+        return
+      }
       setJobStatus(job.id, next)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  function submitTestDrive() {
+    if (!job) return
+    try {
+      setError(null)
+      const expectedReturnAt = testDriveExpectedReturnLocal ? toIsoFromLocal(testDriveExpectedReturnLocal) : undefined
+      setJobTestDrive(job.id, {
+        driverName: testDriveDriverName,
+        driverNid: testDriveDriverNid,
+        expectedReturnAt,
+      })
+      setTestDriveOpen(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -353,6 +391,46 @@ export function JobDetailsPage() {
           </Button>
           <Button onClick={submitOverride} variant="contained">
             Apply Override
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={testDriveOpen} onClose={() => setTestDriveOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Approve test drive</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Required for Guard exit check.
+          </Typography>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              label="Driver full name"
+              value={testDriveDriverName}
+              onChange={(e) => setTestDriveDriverName(e.target.value)}
+              fullWidth
+              autoFocus
+              required
+            />
+            <TextField
+              label="Driver NID"
+              value={testDriveDriverNid}
+              onChange={(e) => setTestDriveDriverNid(e.target.value)}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Expected return"
+              type="datetime-local"
+              value={testDriveExpectedReturnLocal}
+              onChange={(e) => setTestDriveExpectedReturnLocal(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              fullWidth
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setTestDriveOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={submitTestDrive} disabled={!testDriveDriverName.trim() || !testDriveDriverNid.trim()}>
+            Approve
           </Button>
         </DialogActions>
       </Dialog>

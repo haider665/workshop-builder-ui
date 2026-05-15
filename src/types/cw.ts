@@ -155,6 +155,9 @@ export type CWJob = {
   shopIds: string[]
   taskIds: string[]
   status: CWJobStatus
+  testDriveDriverName?: string
+  testDriveDriverNid?: string
+  testDriveExpectedReturnAt?: string
   createdAt: string
   updatedAt: string
 }
