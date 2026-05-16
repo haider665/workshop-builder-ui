@@ -19,7 +19,9 @@ import { PendingVehiclesPage } from '../pages/jc/PendingVehiclesPage'
 import { CroHome } from '../pages/cro/CroHome'
 import { AppointmentsPage } from '../pages/cro/AppointmentsPage'
 import { CustomersPage } from '../pages/cro/CustomersPage'
+import { CustomerDetailPage } from '../pages/cro/CustomerDetailPage'
 import { VehiclesPage } from '../pages/cro/VehiclesPage'
+import { VehicleDetailPage } from '../pages/cro/VehicleDetailPage'
 import { WhatsappPage } from '../pages/cro/WhatsappPage'
 import { TasksHome } from '../pages/tasks/TasksHome'
 import { CalendarPage } from '../pages/tasks/CalendarPage'
@@ -63,7 +65,9 @@ export function AppRouter() {
           <Route element={<RequireRole anyOf={['CRO']} />}>
             <Route path="/cro" element={<CroHome />} />
             <Route path="/cro/customers" element={<CustomersPage />} />
+            <Route path="/cro/customers/:customerId" element={<CustomerDetailPage />} />
             <Route path="/cro/vehicles" element={<VehiclesPage />} />
+            <Route path="/cro/vehicles/:vehicleId" element={<VehicleDetailPage />} />
             <Route path="/cro/appointments" element={<AppointmentsPage />} />
             <Route path="/cro/whatsapp" element={<WhatsappPage />} />
           </Route>

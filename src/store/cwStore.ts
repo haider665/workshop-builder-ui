@@ -1,8 +1,12 @@
 import { create } from 'zustand'
 import type {
   CWF1Config,
+  CWAppointment,
+  CWAppointmentStatus,
   CWBay,
   CWBayStatus,
+  CWCustomer,
+  CWCustomerStatus,
   CWJob,
   CWJobStatus,
   CWPendingVehicle,
@@ -23,6 +27,8 @@ import type {
   CWTaskTemplateStatus,
   CWUser,
   CWUserStatus,
+  CWVehicle,
+  CWVehicleStatus,
 } from '../types/cw'
 
 function nowIso() {
@@ -89,6 +95,64 @@ export type UpdateUserInput = {
   password?: string
 }
 
+export type CreateCustomerInput = {
+  fullName: string
+  phone: string
+  email?: string
+  status?: CWCustomerStatus
+}
+
+export type UpdateCustomerInput = {
+  fullName: string
+  phone: string
+  email?: string
+  status: CWCustomerStatus
+}
+
+export type CreateVehicleInput = {
+  customerId: string
+  registrationNo: string
+  make?: string
+  model?: string
+  vin?: string
+  odometerKm?: number
+  status?: CWVehicleStatus
+}
+
+export type UpdateVehicleInput = {
+  customerId: string
+  registrationNo: string
+  make?: string
+  model?: string
+  vin?: string
+  odometerKm?: number
+  status: CWVehicleStatus
+}
+
+export type CreateAppointmentInput = {
+  customerId: string
+  vehicleId: string
+  scheduledAt?: string
+  concerns?: string
+  notes?: string
+  status?: CWAppointmentStatus
+  assignedRoleId?: string
+  assignedUserIds?: string[]
+  gateEntryId?: string
+}
+
+export type UpdateAppointmentInput = {
+  customerId: string
+  vehicleId: string
+  scheduledAt?: string
+  concerns: string
+  notes: string
+  status: CWAppointmentStatus
+  assignedRoleId?: string
+  assignedUserIds?: string[]
+  gateEntryId?: string
+}
+
 export type CreateTaskTemplateInput = {
   shopId: string
   name: string
@@ -137,6 +201,10 @@ export type SetTaskStatusInput = {
 
 export type CreatePendingVehicleInput = {
   registrationNo: string
+  customerId?: string
+  vehicleId?: string
+  appointmentId?: string
+  isTemporary?: boolean
 }
 
 export type CreateJobInput = {
@@ -176,6 +244,9 @@ type CWState = {
   bays: CWBay[]
   roles: CWRole[]
   users: CWUser[]
+  customers: CWCustomer[]
+  vehicles: CWVehicle[]
+  appointments: CWAppointment[]
   taskTemplates: CWTaskTemplate[]
   f1Config: CWF1Config
 
@@ -203,6 +274,17 @@ type CWState = {
   updateUser: (userId: string, input: UpdateUserInput) => void
   setUserStatus: (userId: string, status: CWUserStatus) => void
 
+  createCustomer: (input: CreateCustomerInput) => CWCustomer
+  updateCustomer: (customerId: string, input: UpdateCustomerInput) => void
+
+  createVehicle: (input: CreateVehicleInput) => CWVehicle
+  updateVehicle: (vehicleId: string, input: UpdateVehicleInput) => void
+
+  createAppointment: (input: CreateAppointmentInput) => CWAppointment
+  updateAppointment: (appointmentId: string, input: UpdateAppointmentInput) => void
+  setAppointmentStatus: (appointmentId: string, status: CWAppointmentStatus) => void
+  setAppointmentGateEntry: (appointmentId: string, gateEntryId: string | undefined) => void
+
   createTaskTemplate: (input: CreateTaskTemplateInput) => CWTaskTemplate
   updateTaskTemplate: (templateId: string, input: UpdateTaskTemplateInput) => void
   setTaskTemplateStatus: (templateId: string, status: CWTaskTemplateStatus) => void
@@ -223,6 +305,10 @@ type CWState = {
 
   createPendingVehicle: (input: CreatePendingVehicleInput) => CWPendingVehicle
   setPendingVehicleStatus: (pendingVehicleId: string, status: CWPendingVehicleStatus) => void
+  resolvePendingVehicle: (
+    pendingVehicleId: string,
+    input: { customerId: string; vehicleId: string; appointmentId: string },
+  ) => void
   createJob: (input: CreateJobInput) => CWJob
   createJobWithTasks: (input: CreateJobWithTasksInput) => CWJob
   setJobStatus: (jobId: string, status: CWJobStatus) => void
@@ -237,6 +323,35 @@ function normalizeRoleName(name: string) {
 function hasRoleName(roles: CWRole[], name: string, exceptId?: string) {
   const normalized = normalizeRoleName(name).toLowerCase()
   return roles.some((r) => r.id !== exceptId && r.name.toLowerCase() === normalized)
+}
+
+function normalizeEmail(email?: string) {
+  const v = (email ?? '').trim().toLowerCase()
+  return v || null
+}
+
+function normalizePhone(phone: string) {
+  return phone.trim().replace(/\s+/g, ' ')
+}
+
+function normalizeRegistrationNo(reg: string) {
+  return reg.trim().replace(/\s+/g, ' ').toUpperCase()
+}
+
+function hasCustomerPhone(customers: CWCustomer[], phone: string, exceptId?: string) {
+  const p = normalizePhone(phone)
+  return customers.some((c) => c.id !== exceptId && normalizePhone(c.phone) === p)
+}
+
+function hasCustomerEmail(customers: CWCustomer[], email?: string, exceptId?: string) {
+  const e = normalizeEmail(email)
+  if (!e) return false
+  return customers.some((c) => c.id !== exceptId && normalizeEmail(c.email) === e)
+}
+
+function hasVehicleReg(vehicles: CWVehicle[], reg: string, exceptId?: string) {
+  const r = normalizeRegistrationNo(reg)
+  return vehicles.some((v) => v.id !== exceptId && normalizeRegistrationNo(v.registrationNo) === r)
 }
 
 function seedSystemRoles(): CWRole[] {
@@ -350,6 +465,72 @@ function seedDemoData() {
     },
   ]
 
+  const reg1 = 'CWA-1001'
+  const reg2 = 'CWP-2002'
+
+  const customers: CWCustomer[] = [
+    {
+      id: newId(),
+      fullName: 'Ayesha Rahman',
+      phone: '01700000000',
+      email: 'ayesha@example.com',
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      fullName: 'Imran Hossain',
+      phone: '01800000000',
+      email: 'imran@example.com',
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+  ]
+
+  const vehicles: CWVehicle[] = [
+    {
+      id: newId(),
+      customerId: customers[0]!.id,
+      registrationNo: reg1,
+      make: 'Toyota',
+      model: 'Axio',
+      vin: 'VIN-DEMO-1001',
+      odometerKm: 65200,
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      customerId: customers[1]!.id,
+      registrationNo: reg2,
+      make: 'Honda',
+      model: 'Civic',
+      vin: 'VIN-DEMO-2002',
+      odometerKm: 40850,
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+  ]
+
+  const appointments: CWAppointment[] = [
+    {
+      id: newId(),
+      customerId: customers[0]!.id,
+      vehicleId: vehicles[0]!.id,
+      scheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      concerns: 'Engine noise, check brakes',
+      notes: 'Customer prefers morning slot',
+      status: 'Confirmed',
+      assignedUserIds: [],
+      createdAt: ts,
+      updatedAt: ts,
+    },
+  ]
+
   function threeDefaultFields(): CWTaskField[] {
     return [
       {
@@ -418,9 +599,6 @@ function seedDemoData() {
       options: f.options ? [...f.options] : undefined,
     }))
   }
-
-  const reg1 = 'CWA-1001'
-  const reg2 = 'CWP-2002'
 
   const oil = tplByName.get('Oil Change')!
   const prep = tplByName.get('Paint Prep')!
@@ -501,6 +679,9 @@ function seedDemoData() {
     bays,
     roles,
     users,
+    customers,
+    vehicles,
+    appointments,
     taskTemplates,
     tasks,
     taskFieldValues,
@@ -749,6 +930,260 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : u,
+      ),
+    })
+  },
+
+  createCustomer: (input) => {
+    const fullName = input.fullName.trim()
+    const phone = normalizePhone(input.phone)
+    const email = (input.email ?? '').trim()
+
+    if (!fullName) throw new Error('Customer name is required')
+    if (!phone) throw new Error('Phone is required')
+
+    const customers = get().customers
+    if (hasCustomerPhone(customers, phone)) throw new Error('Duplicate phone')
+    if (hasCustomerEmail(customers, email)) throw new Error('Duplicate email')
+
+    const ts = nowIso()
+    const customer: CWCustomer = {
+      id: newId(),
+      fullName,
+      phone,
+      email: email || undefined,
+      status: input.status ?? 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+
+    set({ customers: [customer, ...customers] })
+    return customer
+  },
+
+  updateCustomer: (customerId, input) => {
+    const fullName = input.fullName.trim()
+    const phone = normalizePhone(input.phone)
+    const email = (input.email ?? '').trim()
+
+    if (!fullName) throw new Error('Customer name is required')
+    if (!phone) throw new Error('Phone is required')
+
+    const customers = get().customers
+    if (hasCustomerPhone(customers, phone, customerId)) throw new Error('Duplicate phone')
+    if (hasCustomerEmail(customers, email, customerId)) throw new Error('Duplicate email')
+
+    set({
+      customers: customers.map((c) =>
+        c.id === customerId
+          ? {
+              ...c,
+              fullName,
+              phone,
+              email: email || undefined,
+              status: input.status,
+              updatedAt: nowIso(),
+            }
+          : c,
+      ),
+    })
+  },
+
+  createVehicle: (input) => {
+    const customerId = input.customerId
+    const registrationNo = normalizeRegistrationNo(input.registrationNo)
+    const make = (input.make ?? '').trim()
+    const model = (input.model ?? '').trim()
+    const vin = (input.vin ?? '').trim()
+    const odometerKm = input.odometerKm
+
+    if (!customerId) throw new Error('Customer is required')
+    if (!registrationNo) throw new Error('Registration no is required')
+
+    const customers = get().customers
+    if (!customers.some((c) => c.id === customerId)) throw new Error('Customer not found')
+
+    const vehicles = get().vehicles
+    if (hasVehicleReg(vehicles, registrationNo)) throw new Error('Duplicate registration')
+
+    if (typeof odometerKm === 'number' && !(odometerKm >= 0)) throw new Error('Invalid odometer')
+
+    const ts = nowIso()
+    const vehicle: CWVehicle = {
+      id: newId(),
+      customerId,
+      registrationNo,
+      make: make || undefined,
+      model: model || undefined,
+      vin: vin || undefined,
+      odometerKm: typeof odometerKm === 'number' ? odometerKm : undefined,
+      status: input.status ?? 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+
+    set({ vehicles: [vehicle, ...vehicles] })
+    return vehicle
+  },
+
+  updateVehicle: (vehicleId, input) => {
+    const customerId = input.customerId
+    const registrationNo = normalizeRegistrationNo(input.registrationNo)
+    const make = (input.make ?? '').trim()
+    const model = (input.model ?? '').trim()
+    const vin = (input.vin ?? '').trim()
+    const odometerKm = input.odometerKm
+
+    if (!customerId) throw new Error('Customer is required')
+    if (!registrationNo) throw new Error('Registration no is required')
+
+    const customers = get().customers
+    if (!customers.some((c) => c.id === customerId)) throw new Error('Customer not found')
+
+    const vehicles = get().vehicles
+    if (hasVehicleReg(vehicles, registrationNo, vehicleId)) throw new Error('Duplicate registration')
+    if (typeof odometerKm === 'number' && !(odometerKm >= 0)) throw new Error('Invalid odometer')
+
+    set({
+      vehicles: vehicles.map((v) =>
+        v.id === vehicleId
+          ? {
+              ...v,
+              customerId,
+              registrationNo,
+              make: make || undefined,
+              model: model || undefined,
+              vin: vin || undefined,
+              odometerKm: typeof odometerKm === 'number' ? odometerKm : undefined,
+              status: input.status,
+              updatedAt: nowIso(),
+            }
+          : v,
+      ),
+    })
+  },
+
+  createAppointment: (input) => {
+    if (!input.customerId) throw new Error('Customer is required')
+    if (!input.vehicleId) throw new Error('Vehicle is required')
+
+    const customers = get().customers
+    const vehicles = get().vehicles
+    if (!customers.some((c) => c.id === input.customerId)) throw new Error('Customer not found')
+    if (!vehicles.some((v) => v.id === input.vehicleId)) throw new Error('Vehicle not found')
+
+    const assignedRoleId = (input.assignedRoleId ?? '').trim() || undefined
+    if (assignedRoleId) {
+      const roles = get().roles
+      if (!roles.some((r) => r.id === assignedRoleId)) throw new Error('Role not found')
+    }
+
+    const assignedUserIds = (input.assignedUserIds ?? []).filter(Boolean)
+    if (assignedUserIds.length) {
+      const users = get().users
+      for (const userId of assignedUserIds) {
+        const u = users.find((x) => x.id === userId)
+        if (!u) throw new Error('User not found')
+        if (assignedRoleId && !u.roleIds.includes(assignedRoleId)) throw new Error('User does not match selected role')
+      }
+    }
+
+    const scheduledAt = (input.scheduledAt ?? '').trim()
+    if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new Error('Invalid scheduled date')
+
+    const ts = nowIso()
+    const appt: CWAppointment = {
+      id: newId(),
+      customerId: input.customerId,
+      vehicleId: input.vehicleId,
+      scheduledAt: scheduledAt || undefined,
+      concerns: (input.concerns ?? '').trim(),
+      notes: (input.notes ?? '').trim(),
+      status: input.status ?? 'Draft',
+      assignedRoleId,
+      assignedUserIds,
+      gateEntryId: input.gateEntryId,
+      createdAt: ts,
+      updatedAt: ts,
+    }
+
+    set({ appointments: [appt, ...get().appointments] })
+    return appt
+  },
+
+  updateAppointment: (appointmentId, input) => {
+    if (!input.customerId) throw new Error('Customer is required')
+    if (!input.vehicleId) throw new Error('Vehicle is required')
+
+    const customers = get().customers
+    const vehicles = get().vehicles
+    if (!customers.some((c) => c.id === input.customerId)) throw new Error('Customer not found')
+    if (!vehicles.some((v) => v.id === input.vehicleId)) throw new Error('Vehicle not found')
+
+    const assignedRoleId = (input.assignedRoleId ?? '').trim() || undefined
+    if (assignedRoleId) {
+      const roles = get().roles
+      if (!roles.some((r) => r.id === assignedRoleId)) throw new Error('Role not found')
+    }
+
+    const assignedUserIds = (input.assignedUserIds ?? []).filter(Boolean)
+    if (assignedUserIds.length) {
+      const users = get().users
+      for (const userId of assignedUserIds) {
+        const u = users.find((x) => x.id === userId)
+        if (!u) throw new Error('User not found')
+        if (assignedRoleId && !u.roleIds.includes(assignedRoleId)) throw new Error('User does not match selected role')
+      }
+    }
+
+    const scheduledAt = (input.scheduledAt ?? '').trim()
+    if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new Error('Invalid scheduled date')
+
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              customerId: input.customerId,
+              vehicleId: input.vehicleId,
+              scheduledAt: scheduledAt || undefined,
+              concerns: input.concerns.trim(),
+              notes: input.notes.trim(),
+              status: input.status,
+              assignedRoleId,
+              assignedUserIds,
+              gateEntryId: input.gateEntryId,
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  setAppointmentStatus: (appointmentId, status) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              status,
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  setAppointmentGateEntry: (appointmentId, gateEntryId) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              gateEntryId,
+              updatedAt: nowIso(),
+            }
+          : a,
       ),
     })
   },
@@ -1112,13 +1547,35 @@ export const useCwStore = create<CWState>((set, get) => ({
   },
 
   createPendingVehicle: (input) => {
-    const registrationNo = input.registrationNo.trim()
+    const registrationNo = normalizeRegistrationNo(input.registrationNo)
     if (!registrationNo) throw new Error('Registration no is required')
+
+    const existingActive = get().pendingVehicles.some(
+      (p) => normalizeRegistrationNo(p.registrationNo) === registrationNo && p.status === 'Pending',
+    )
+    if (existingActive) throw new Error('Active entry already exists for this registration')
+
+    if (input.customerId) {
+      const exists = get().customers.some((c) => c.id === input.customerId)
+      if (!exists) throw new Error('Customer not found')
+    }
+    if (input.vehicleId) {
+      const exists = get().vehicles.some((v) => v.id === input.vehicleId)
+      if (!exists) throw new Error('Vehicle not found')
+    }
+    if (input.appointmentId) {
+      const exists = get().appointments.some((a) => a.id === input.appointmentId)
+      if (!exists) throw new Error('Appointment not found')
+    }
 
     const ts = nowIso()
     const pending: CWPendingVehicle = {
       id: newId(),
       registrationNo,
+      customerId: input.customerId,
+      vehicleId: input.vehicleId,
+      appointmentId: input.appointmentId,
+      isTemporary: input.isTemporary,
       status: 'Pending',
       arrivedAt: ts,
       updatedAt: ts,
@@ -1134,6 +1591,42 @@ export const useCwStore = create<CWState>((set, get) => ({
           ? {
               ...p,
               status,
+              updatedAt: nowIso(),
+            }
+          : p,
+      ),
+    })
+  },
+
+  resolvePendingVehicle: (pendingVehicleId, input) => {
+    const pending = get().pendingVehicles.find((p) => p.id === pendingVehicleId)
+    if (!pending) throw new Error('Gate entry not found')
+    if (pending.status !== 'Pending') throw new Error('Gate entry not active')
+
+    const customer = get().customers.find((c) => c.id === input.customerId)
+    if (!customer) throw new Error('Customer not found')
+    const vehicle = get().vehicles.find((v) => v.id === input.vehicleId)
+    if (!vehicle) throw new Error('Vehicle not found')
+    const appt = get().appointments.find((a) => a.id === input.appointmentId)
+    if (!appt) throw new Error('Appointment not found')
+
+    if (vehicle.customerId !== customer.id) throw new Error('Vehicle does not belong to customer')
+    if (appt.customerId !== customer.id) throw new Error('Appointment customer mismatch')
+    if (appt.vehicleId !== vehicle.id) throw new Error('Appointment vehicle mismatch')
+
+    if (normalizeRegistrationNo(vehicle.registrationNo) !== normalizeRegistrationNo(pending.registrationNo)) {
+      throw new Error('Registration mismatch between gate entry and vehicle')
+    }
+
+    set({
+      pendingVehicles: get().pendingVehicles.map((p) =>
+        p.id === pendingVehicleId
+          ? {
+              ...p,
+              customerId: customer.id,
+              vehicleId: vehicle.id,
+              appointmentId: appt.id,
+              isTemporary: false,
               updatedAt: nowIso(),
             }
           : p,
@@ -1179,9 +1672,16 @@ export const useCwStore = create<CWState>((set, get) => ({
       taskIds.push(task.id)
     }
 
+    const pending = input.pendingVehicleId
+      ? get().pendingVehicles.find((p) => p.id === input.pendingVehicleId)
+      : undefined
+    const appointmentId = pending?.appointmentId
+
     const job: CWJob = {
       id: newId(),
       registrationNo,
+      pendingVehicleId: input.pendingVehicleId,
+      appointmentId,
       shopIds: [shop.id],
       taskIds,
       status: 'Active',
@@ -1198,6 +1698,18 @@ export const useCwStore = create<CWState>((set, get) => ({
               : p,
           )
         : get().pendingVehicles,
+      appointments: appointmentId
+        ? get().appointments.map((a) =>
+            a.id === appointmentId
+              ? {
+                  ...a,
+                  status: 'Job Created',
+                  gateEntryId: a.gateEntryId ?? pending?.id,
+                  updatedAt: nowIso(),
+                }
+              : a,
+          )
+        : get().appointments,
     })
 
     return job
@@ -1243,9 +1755,16 @@ export const useCwStore = create<CWState>((set, get) => ({
       .filter(Boolean) as string[])]
 
     const ts = nowIso()
+    const pending = input.pendingVehicleId
+      ? get().pendingVehicles.find((p) => p.id === input.pendingVehicleId)
+      : undefined
+    const appointmentId = pending?.appointmentId
+
     const job: CWJob = {
       id: newId(),
       registrationNo,
+      pendingVehicleId: input.pendingVehicleId,
+      appointmentId,
       shopIds,
       taskIds: createdTaskIds,
       status: 'Active',
@@ -1262,6 +1781,18 @@ export const useCwStore = create<CWState>((set, get) => ({
               : p,
           )
         : get().pendingVehicles,
+      appointments: appointmentId
+        ? get().appointments.map((a) =>
+            a.id === appointmentId
+              ? {
+                  ...a,
+                  status: 'Job Created',
+                  gateEntryId: a.gateEntryId ?? pending?.id,
+                  updatedAt: nowIso(),
+                }
+              : a,
+          )
+        : get().appointments,
     })
 
     return job

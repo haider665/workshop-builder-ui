@@ -137,13 +137,66 @@ export type CWTaskAttachment = {
   createdAt: string
 }
 
+export type CWCustomerStatus = 'Active' | 'Inactive'
+
+export type CWCustomer = {
+  id: string
+  fullName: string
+  phone: string
+  email?: string
+  status: CWCustomerStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type CWVehicleStatus = 'Active' | 'Inactive'
+
+export type CWVehicle = {
+  id: string
+  customerId: string
+  registrationNo: string
+  make?: string
+  model?: string
+  vin?: string
+  odometerKm?: number
+  status: CWVehicleStatus
+  createdAt: string
+  updatedAt: string
+}
+
 export type CWPendingVehicleStatus = 'Pending' | 'Job Created'
 
 export type CWPendingVehicle = {
   id: string
   registrationNo: string
+  customerId?: string
+  vehicleId?: string
+  appointmentId?: string
+  isTemporary?: boolean
   status: CWPendingVehicleStatus
   arrivedAt: string
+  updatedAt: string
+}
+
+export type CWAppointmentStatus =
+  | 'Draft'
+  | 'Confirmed'
+  | 'Vehicle Arrived'
+  | 'Job Created'
+  | 'Cancelled'
+
+export type CWAppointment = {
+  id: string
+  customerId: string
+  vehicleId: string
+  scheduledAt?: string
+  concerns: string
+  notes: string
+  status: CWAppointmentStatus
+  assignedRoleId?: string
+  assignedUserIds: string[]
+  gateEntryId?: string
+  createdAt: string
   updatedAt: string
 }
 
@@ -152,6 +205,8 @@ export type CWJobStatus = 'Active' | 'Test Drive Approved' | 'Job Finished'
 export type CWJob = {
   id: string
   registrationNo: string
+  pendingVehicleId?: string
+  appointmentId?: string
   shopIds: string[]
   taskIds: string[]
   status: CWJobStatus

@@ -54,6 +54,9 @@ export function JobDetailsPage() {
   const shops = useCwStore((s) => s.shops)
   const bays = useCwStore((s) => s.bays)
   const roles = useCwStore((s) => s.roles)
+  const users = useCwStore((s) => s.users)
+  const appointments = useCwStore((s) => s.appointments)
+  const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const setJobStatus = useCwStore((s) => s.setJobStatus)
   const setJobTestDrive = useCwStore((s) => s.setJobTestDrive)
   const moveJobTask = useCwStore((s) => s.moveJobTask)
@@ -69,6 +72,23 @@ export function JobDetailsPage() {
   const [testDriveExpectedReturnLocal, setTestDriveExpectedReturnLocal] = useState('')
 
   const job = useMemo(() => jobs.find((j) => j.id === jobId), [jobs, jobId])
+
+  const linkedAppointment = useMemo(() => {
+    if (!job) return undefined
+    if (job.appointmentId) return appointments.find((a) => a.id === job.appointmentId)
+
+    const pending = job.pendingVehicleId
+      ? pendingVehicles.find((p) => p.id === job.pendingVehicleId)
+      : undefined
+    const apptId = pending?.appointmentId
+    return apptId ? appointments.find((a) => a.id === apptId) : undefined
+  }, [appointments, job, pendingVehicles])
+
+  const userNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const u of users) map.set(u.id, u.fullName)
+    return map
+  }, [users])
 
   const jobTasks = useMemo(() => {
     if (!job) return []
@@ -175,6 +195,32 @@ export function JobDetailsPage() {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
+
+            {linkedAppointment ? (
+              <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', mb: 2 }}>
+                <Stack spacing={1}>
+                  <Typography sx={{ fontWeight: 900 }}>Linked appointment</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Status: <strong>{linkedAppointment.status}</strong>
+                    {linkedAppointment.scheduledAt ? ` • Scheduled: ${new Date(linkedAppointment.scheduledAt).toLocaleString()}` : ''}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Role:{' '}
+                    <strong>
+                      {linkedAppointment.assignedRoleId ? roleNameById.get(linkedAppointment.assignedRoleId) ?? '—' : '—'}
+                    </strong>
+                    {' • '}Users:{' '}
+                    <strong>
+                      {linkedAppointment.assignedUserIds?.length
+                        ? (linkedAppointment.assignedUserIds
+                            .map((id) => userNameById.get(id))
+                            .filter(Boolean) as string[]).join(', ') || '—'
+                        : '—'}
+                    </strong>
+                  </Typography>
+                </Stack>
+              </Paper>
+            ) : null}
 
   function submitTestDrive() {
     if (!job) return

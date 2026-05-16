@@ -64,6 +64,7 @@ export function NewJobPage() {
   const roles = useCwStore((s) => s.roles)
   const templates = useCwStore((s) => s.taskTemplates)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
+  const appointments = useCwStore((s) => s.appointments)
   const tasks = useCwStore((s) => s.tasks)
   const createJobWithTasks = useCwStore((s) => s.createJobWithTasks)
 
@@ -71,6 +72,12 @@ export function NewJobPage() {
   const pendingVehicle = pendingVehicleId
     ? pendingVehicles.find((p) => p.id === pendingVehicleId)
     : undefined
+
+  const linkedAppointment = useMemo(() => {
+    const id = pendingVehicle?.appointmentId
+    if (!id) return undefined
+    return appointments.find((a) => a.id === id)
+  }, [appointments, pendingVehicle?.appointmentId])
 
   const [registrationNo, setRegistrationNo] = useState('')
   const [shopId, setShopId] = useState('')
@@ -135,6 +142,25 @@ export function NewJobPage() {
     for (const u of users) map.set(u.id, u.fullName)
     return map
   }, [users])
+
+  const appointmentPrefillRoleId = (linkedAppointment?.assignedRoleId ?? '').trim() || undefined
+
+  const appointmentPrefillUserIds = useMemo(() => {
+    const ids = linkedAppointment?.assignedUserIds ?? []
+    if (!ids.length) return []
+    const active = new Set(users.filter((u) => u.status === 'Active').map((u) => u.id))
+    return ids.filter((id) => active.has(id))
+  }, [linkedAppointment?.assignedUserIds, users])
+
+  const appointmentPrefillSummary = useMemo(() => {
+    if (!appointmentPrefillRoleId && !appointmentPrefillUserIds.length) return null
+    const roleLabel = appointmentPrefillRoleId ? roleNameById.get(appointmentPrefillRoleId) ?? '—' : null
+    const userLabels = appointmentPrefillUserIds.map((id) => userNameById.get(id)).filter(Boolean) as string[]
+    const parts: string[] = []
+    if (roleLabel) parts.push(`Role: ${roleLabel}`)
+    if (userLabels.length) parts.push(`Users: ${userLabels.join(', ')}`)
+    return parts.length ? parts.join(' • ') : null
+  }, [appointmentPrefillRoleId, appointmentPrefillUserIds, roleNameById, userNameById])
 
   const bayNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -224,6 +250,15 @@ export function NewJobPage() {
     const startLocal = ''
     const endLocal = ''
 
+    const prefillRoleIds = appointmentPrefillRoleId ? [appointmentPrefillRoleId] : []
+    const prefillAssignedUserIds = appointmentPrefillUserIds.filter((id) => {
+      const u = users.find((x) => x.id === id)
+      if (!u) return false
+      if (u.shopIds.length && !u.shopIds.includes(selectedTemplate.shopId)) return false
+      if (prefillRoleIds.length && !prefillRoleIds.some((rid) => u.roleIds.includes(rid))) return false
+      return true
+    })
+
     setDraftTasks((prev) =>
       sanitizeDependsOn([
         ...prev,
@@ -233,8 +268,8 @@ export function NewJobPage() {
           templateId: selectedTemplate.id,
           startLocal,
           endLocal,
-          roleIds: [],
-          assignedUserIds: [],
+          roleIds: prefillRoleIds,
+          assignedUserIds: prefillAssignedUserIds,
           bayId: '',
           dependsOnKeys: [],
         },
@@ -329,6 +364,11 @@ export function NewJobPage() {
             <Typography variant="body2" color="text.secondary">
               {pendingVehicleId ? 'Pre-filled from pending vehicles.' : 'Enter registration number.'}
             </Typography>
+            {appointmentPrefillSummary ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                From appointment: {appointmentPrefillSummary}
+              </Typography>
+            ) : null}
           </Box>
 
           <TextField

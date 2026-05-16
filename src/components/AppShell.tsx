@@ -35,9 +35,10 @@ import { useSessionStore } from '../store/sessionStore'
 const drawerWidth = 280
 
 type NavItem = {
+  kind: 'section' | 'link'
   label: string
-  to: string
-  icon: ReactElement
+  to?: string
+  icon?: ReactElement
   anyOfRoles: Role[]
 }
 
@@ -52,39 +53,51 @@ export function AppShell() {
   const navItems = useMemo<NavItem[]>(
     () => [
       {
+        kind: 'link',
         label: 'Admin',
         to: '/admin',
         icon: <AdminPanelSettings />,
         anyOfRoles: ['Admin'],
       },
-      { label: 'Job Creation', to: '/jc', icon: <Settings />, anyOfRoles: ['Job Creation'] },
-      { label: 'Guard', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
-      { label: 'CRO', to: '/cro', icon: <People />, anyOfRoles: ['CRO'] },
+      { kind: 'link', label: 'Job Creation', to: '/jc', icon: <Settings />, anyOfRoles: ['Job Creation'] },
+      { kind: 'link', label: 'Guard', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
+
+      { kind: 'section', label: 'CRO', anyOfRoles: ['CRO'] },
+      { kind: 'link', label: 'CRO Home', to: '/cro', icon: <People />, anyOfRoles: ['CRO'] },
+      { kind: 'link', label: 'Customers', to: '/cro/customers', icon: <People />, anyOfRoles: ['CRO'] },
+      { kind: 'link', label: 'Vehicles', to: '/cro/vehicles', icon: <DirectionsCar />, anyOfRoles: ['CRO'] },
+      { kind: 'link', label: 'Appointments', to: '/cro/appointments', icon: <CalendarMonth />, anyOfRoles: ['CRO'] },
+
       {
+        kind: 'link',
         label: 'My Tasks',
         to: '/tasks',
         icon: <Assignment />,
         anyOfRoles: ['Technician', 'Service Advisor', 'Service Engineer', 'Custom Role', 'Job Creation', 'Admin'],
       },
       {
+        kind: 'link',
         label: 'Calendar',
         to: '/calendar',
         icon: <CalendarMonth />,
         anyOfRoles: ['Technician', 'Service Advisor', 'Service Engineer', 'Custom Role', 'Job Creation', 'Admin'],
       },
       {
+        kind: 'link',
         label: 'Vehicle History',
         to: '/vehicle-history',
         icon: <DirectionsCar />,
         anyOfRoles: ['Admin', 'Job Creation', 'CRO'],
       },
       {
+        kind: 'link',
         label: 'Employee Records',
         to: '/employee-records',
         icon: <ReceiptLong />,
         anyOfRoles: ['Admin', 'Job Creation'],
       },
       {
+        kind: 'link',
         label: 'Notifications',
         to: '/notifications',
         icon: <Badge />,
@@ -94,9 +107,7 @@ export function AppShell() {
     [],
   )
 
-  const allowedItems = navItems.filter(
-    (item) => user && item.anyOfRoles.some((r) => user.roles.includes(r)),
-  )
+  const allowedItems = navItems.filter((item) => user && item.anyOfRoles.some((r) => user.roles.includes(r)))
 
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -114,12 +125,23 @@ export function AppShell() {
       <Divider />
       <List sx={{ px: 1, py: 1 }}>
         {allowedItems.map((item) => {
-          const selected = location.pathname === item.to || location.pathname.startsWith(item.to + '/')
+          if (item.kind === 'section') {
+            return (
+              <Box key={`section:${item.label}`} sx={{ px: 2, py: 1.25 }}>
+                <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 800, letterSpacing: 0.6 }}>
+                  {item.label}
+                </Typography>
+              </Box>
+            )
+          }
+
+          const to = item.to ?? '#'
+          const selected = location.pathname === to || location.pathname.startsWith(to + '/')
           return (
             <ListItemButton
-              key={item.to}
+              key={to}
               component={RouterLink}
-              to={item.to}
+              to={to}
               selected={selected}
               onClick={() => setMobileOpen(false)}
               sx={{ borderRadius: 2, mx: 1, my: 0.5 }}
@@ -163,7 +185,9 @@ export function AppShell() {
             </IconButton>
           ) : null}
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            {allowedItems.find((i) => location.pathname.startsWith(i.to))?.label ?? 'Home'}
+            {allowedItems
+              .filter((i) => i.kind === 'link')
+              .find((i) => location.pathname.startsWith(i.to ?? ''))?.label ?? 'Home'}
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
           <Button variant="outlined" onClick={logout}>

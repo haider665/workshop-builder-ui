@@ -28,13 +28,17 @@ type ExitResult = {
 }
 
 function normalizeKey(value: string) {
-  return value.trim().toLowerCase()
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
 export function GuardHome() {
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const jobs = useCwStore((s) => s.jobs)
+  const vehicles = useCwStore((s) => s.vehicles)
+  const appointments = useCwStore((s) => s.appointments)
   const createPendingVehicle = useCwStore((s) => s.createPendingVehicle)
+  const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
+  const setAppointmentGateEntry = useCwStore((s) => s.setAppointmentGateEntry)
 
   const [step, setStep] = useState<Step>('idle')
   const [registrationNo, setRegistrationNo] = useState('')
@@ -88,11 +92,48 @@ export function GuardHome() {
   function confirmEntry() {
     try {
       setError(null)
-      const created = createPendingVehicle({ registrationNo: normalizedReg.toUpperCase() })
+
+      const reg = normalizedReg.toUpperCase()
+      const vehicle = vehicles.find((v) => normalizeKey(v.registrationNo) === normalizeKey(reg))
+
+      const appt = vehicle
+        ? appointments
+            .filter((a) => a.vehicleId === vehicle.id)
+            .filter((a) => a.status !== 'Cancelled' && a.status !== 'Job Created')
+            .slice()
+            .sort((a, b) => {
+              if (a.status !== b.status) {
+                if (a.status === 'Confirmed') return -1
+                if (b.status === 'Confirmed') return 1
+                if (a.status === 'Draft') return -1
+                if (b.status === 'Draft') return 1
+              }
+              return b.updatedAt.localeCompare(a.updatedAt)
+            })
+            .at(0) ?? null
+        : null
+
+      const created = createPendingVehicle({
+        registrationNo: reg,
+        customerId: appt?.customerId ?? vehicle?.customerId,
+        vehicleId: appt?.vehicleId ?? vehicle?.id,
+        appointmentId: appt?.id,
+        isTemporary: !vehicle,
+      })
+
+      if (appt) {
+        setAppointmentStatus(appt.id, 'Vehicle Arrived')
+        setAppointmentGateEntry(appt.id, created.id)
+      }
+
       setEntryCreated(created)
       setRegistrationNo('')
       setStep('idle')
-      setSuccessMessage(`Entry logged: ${created.registrationNo}`)
+
+      if (created.isTemporary) setSuccessMessage(`Temporary entry logged: ${created.registrationNo}`)
+      else if (created.appointmentId) setSuccessMessage(`Entry linked to appointment: ${created.registrationNo}`)
+      else setSuccessMessage(`Entry logged: ${created.registrationNo}`)
+
       setSuccessOpen(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
