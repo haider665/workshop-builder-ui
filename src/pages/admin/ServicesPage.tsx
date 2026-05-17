@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Chip,
-  Divider,
   FormControl,
   InputLabel,
   MenuItem,
@@ -190,7 +189,7 @@ export function ServicesPage() {
           <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'primary.main' }}>
             <Typography sx={{ fontWeight: 900, mb: 2 }}>New Service</Typography>
             <Stack spacing={2}>
-              <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
                 <TextField label="Code" size="small" value={code} onChange={(e) => setCode(e.target.value)} sx={{ flex: '1 1 120px' }} />
                 <FormControl size="small" sx={{ flex: '1 1 200px' }}>
                   <InputLabel>Category</InputLabel>
@@ -200,7 +199,7 @@ export function ServicesPage() {
                 </FormControl>
                 <TextField label="Description" size="small" value={description} onChange={(e) => setDescription(e.target.value)} sx={{ flex: '2 1 300px' }} />
               </Stack>
-              <Stack direction="row" spacing={1.5} alignItems="flex-end" flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <TextField
                   label="Time (hrs)"
                   size="small"
@@ -236,7 +235,7 @@ export function ServicesPage() {
         )}
 
         {/* ── Filters ── */}
-        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
           <TextField
             size="small"
             label="Search code or description"
@@ -290,7 +289,7 @@ export function ServicesPage() {
                     <TableCell align="right"><TextField size="small" type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} sx={{ width: 100 }} /></TableCell>
                     <TableCell>—</TableCell>
                     <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                         <Button size="small" variant="contained" onClick={submitEdit}>Save</Button>
                         <Button size="small" onClick={() => setEditId(null)}>Cancel</Button>
                       </Stack>
@@ -320,7 +319,7 @@ export function ServicesPage() {
                       />
                     </TableCell>
                     <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                         <Button size="small" onClick={() => startEdit(s.id)}>Edit</Button>
                         <Button
                           size="small"

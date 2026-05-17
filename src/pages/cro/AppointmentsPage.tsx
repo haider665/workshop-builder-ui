@@ -50,7 +50,7 @@ const ALL_STATUSES: CWAppointmentStatus[] = [
   'Customer Approved',
   'Customer Rejected',
   'Job Created',
-  'In Progress',
+  'Service Processing',
   'Closed',
 ]
 

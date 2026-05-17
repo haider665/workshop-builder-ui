@@ -99,7 +99,7 @@ export function ConcernsPage() {
         {/* ── Add Category ── */}
         <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
           <Typography sx={{ fontWeight: 900, mb: 2 }}>Add Concern Category</Typography>
-          <Stack direction="row" spacing={1.5} alignItems="flex-start">
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
             <TextField
               label="Category name"
               size="small"
@@ -116,7 +116,7 @@ export function ConcernsPage() {
         {/* ── Add Concern ── */}
         <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
           <Typography sx={{ fontWeight: 900, mb: 2 }}>Add Concern Item</Typography>
-          <Stack direction="row" spacing={1.5} alignItems="flex-start">
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
             <FormControl size="small" sx={{ minWidth: 200 }}>
               <InputLabel>Category</InputLabel>
               <Select

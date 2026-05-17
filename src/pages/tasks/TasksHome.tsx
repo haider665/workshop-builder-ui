@@ -82,7 +82,7 @@ export function TasksHome() {
 
   // SA appointments (assigned to this user or unassigned SA Review)
   const currentUser = useMemo(
-    () => (user ? users.find((u) => u.name === user.name) ?? null : null),
+    () => (user ? users.find((u) => u.fullName === user.name) ?? null : null),
     [users, user],
   )
   const SA_ACTIVE: CWAppointmentStatus[] = ['SA Review', 'Customer Notified', 'Customer Approved']

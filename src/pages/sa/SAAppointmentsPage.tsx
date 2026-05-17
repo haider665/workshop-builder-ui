@@ -66,7 +66,7 @@ export function SAAppointmentsPage() {
 
   // Resolve current session user → store user (by name)
   const currentUser = useMemo(
-    () => (sessionUser ? users.find((u) => u.name === sessionUser.name) ?? null : null),
+    () => (sessionUser ? users.find((u) => u.fullName === sessionUser.name) ?? null : null),
     [users, sessionUser],
   )
 
@@ -112,7 +112,7 @@ export function SAAppointmentsPage() {
       <Stack spacing={2}>
         {/* Filters */}
         <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: 'center' }}>
             <TextField
               size="small"
               label="Search"

@@ -325,7 +325,7 @@ export function NewAppointmentPage() {
                   </Stack>
                   <Stack spacing={0.5} sx={{ flex: '1 1 200px' }}>
                     <Typography variant="caption" color="text.secondary">Customer</Typography>
-                    <Stack direction="row" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                       <Typography sx={{ fontWeight: 700 }}>{selectedCustomer?.fullName ?? '—'}</Typography>
                       {selectedCustomer?.email && (
                         <Typography variant="caption" color="text.secondary">{selectedCustomer.email}</Typography>
@@ -406,7 +406,7 @@ export function NewAppointmentPage() {
             )}
 
             {/* Add concern row */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="flex-start">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
               <Autocomplete
                 multiple
                 size="small"
@@ -447,7 +447,7 @@ export function NewAppointmentPage() {
         {/* ── Service Requests ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
               {serviceItems.length > 0 && (
                 <Tooltip title="Total labour estimate">
@@ -516,7 +516,7 @@ export function NewAppointmentPage() {
             )}
 
             {/* Add service row */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="flex-start">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
               <Autocomplete
                 multiple
                 size="small"
@@ -574,7 +574,7 @@ export function NewAppointmentPage() {
                 <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
                   Date
                 </Typography>
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Button
                     variant="outlined"
                     size="small"
@@ -589,7 +589,7 @@ export function NewAppointmentPage() {
                     value={slotDate}
                     onChange={(e) => setSlotDate(e.target.value)}
                     sx={{ width: 200 }}
-                    inputProps={{ min: localDateToday() }}
+                    slotProps={{ htmlInput: { min: localDateToday() } }}
                   />
                   <Button
                     variant="outlined"
@@ -612,7 +612,7 @@ export function NewAppointmentPage() {
                 <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
                   Slot
                 </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                   {HOURS.map((h) => {
                     const booked = bookedSlots.has(h)
                     const selected = slotTime === h
@@ -675,7 +675,7 @@ export function NewAppointmentPage() {
         </Paper>
 
         {/* ── Actions ── */}
-        <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+        <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
           <Button variant="outlined" onClick={() => navigate('/cro/appointments')}>
             Cancel
           </Button>
