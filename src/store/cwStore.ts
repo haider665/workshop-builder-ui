@@ -2,9 +2,15 @@ import { create } from 'zustand'
 import type {
   CWF1Config,
   CWAppointment,
+  CWAppointmentConcernItem,
+  CWAppointmentServiceItem,
   CWAppointmentStatus,
   CWBay,
   CWBayStatus,
+  CWConcern,
+  CWConcernCategory,
+  CWConcernCategoryStatus,
+  CWConcernStatus,
   CWCustomer,
   CWCustomerStatus,
   CWJob,
@@ -13,6 +19,9 @@ import type {
   CWPendingVehicleStatus,
   CWRole,
   CWRoleStatus,
+  CWService,
+  CWServiceStatus,
+  CWServiceWorkStatus,
   CWShop,
   CWShopStatus,
   CWShopType,
@@ -29,6 +38,7 @@ import type {
   CWUserStatus,
   CWVehicle,
   CWVehicleStatus,
+  CWWhatsappLog,
 } from '../types/cw'
 
 function nowIso() {
@@ -129,26 +139,50 @@ export type UpdateVehicleInput = {
   status: CWVehicleStatus
 }
 
+export type CreateAppointmentConcernItemInput = {
+  concernId: string
+  concernName: string
+  remark: string
+}
+export type CreateAppointmentServiceItemInput = {
+  serviceId: string
+  serviceCode: string
+  serviceDescription: string
+  timeHrs: number
+  ratePerHr: number
+  price: number
+  remark: string
+  addedBySA?: boolean
+}
+
 export type CreateAppointmentInput = {
   customerId: string
   vehicleId: string
+  slotDate?: string
+  slotTime?: string
   scheduledAt?: string
   concerns?: string
   notes?: string
   status?: CWAppointmentStatus
   assignedRoleId?: string
+  assignedServiceAdvisorId?: string
   assignedUserIds?: string[]
   gateEntryId?: string
+  concernItems?: CreateAppointmentConcernItemInput[]
+  serviceItems?: CreateAppointmentServiceItemInput[]
 }
 
 export type UpdateAppointmentInput = {
   customerId: string
   vehicleId: string
+  slotDate?: string
+  slotTime?: string
   scheduledAt?: string
   concerns: string
   notes: string
   status: CWAppointmentStatus
   assignedRoleId?: string
+  assignedServiceAdvisorId?: string
   assignedUserIds?: string[]
   gateEntryId?: string
 }
@@ -230,6 +264,7 @@ export type CreateJobTaskInput = {
 export type CreateJobWithTasksInput = {
   registrationNo: string
   pendingVehicleId?: string
+  appointmentId?: string
   tasks: CreateJobTaskInput[]
 }
 
@@ -237,6 +272,80 @@ export type SetJobTestDriveInput = {
   driverName: string
   driverNid: string
   expectedReturnAt?: string
+}
+
+// ─── Concerns ─────────────────────────────────────────────────────────────────
+
+export type CreateConcernCategoryInput = { name: string }
+export type UpdateConcernCategoryInput = { name: string; status: CWConcernCategoryStatus }
+export type CreateConcernInput = { categoryId: string; name: string }
+export type UpdateConcernInput = { name: string; status: CWConcernStatus }
+
+// ─── Services ─────────────────────────────────────────────────────────────────
+
+export type CreateServiceInput = {
+  code: string
+  category: string
+  description: string
+  timeHrs: number
+  ratePerHr: number
+  price: number
+  status?: CWServiceStatus
+}
+export type UpdateServiceInput = {
+  code: string
+  category: string
+  description: string
+  timeHrs: number
+  ratePerHr: number
+  price: number
+  status: CWServiceStatus
+}
+
+// ─── Appointment workflow ──────────────────────────────────────────────────────
+
+export type AddAppointmentConcernInput = {
+  appointmentId: string
+  concernId: string
+  concernName: string
+  remark: string
+}
+export type UpdateAppointmentConcernInput = { remark: string }
+export type AddAppointmentServiceInput = {
+  appointmentId: string
+  serviceId: string
+  serviceCode: string
+  serviceDescription: string
+  timeHrs: number
+  ratePerHr: number
+  price: number
+  remark: string
+  addedBySA?: boolean
+}
+export type UpdateAppointmentServiceInput = {
+  remark: string
+  price: number
+  addedBySA?: boolean
+}
+export type AddWhatsappLogInput = {
+  appointmentId: string
+  message: string
+  direction: 'outbound' | 'inbound'
+  authorName: string
+}
+export type SetCustomerApprovalInput = {
+  appointmentId: string
+  status: 'Approved' | 'Rejected'
+  note?: string
+}
+
+export type UpdateServiceItemAssignmentInput = {
+  appointmentId: string
+  serviceItemId: string
+  assignedUserIds?: string[]
+  plannedStartAt?: string
+  plannedEndAt?: string
+  workStatus?: CWServiceWorkStatus
 }
 
 type CWState = {
@@ -249,6 +358,9 @@ type CWState = {
   appointments: CWAppointment[]
   taskTemplates: CWTaskTemplate[]
   f1Config: CWF1Config
+  concernCategories: CWConcernCategory[]
+  concerns: CWConcern[]
+  services: CWService[]
 
   tasks: CWTask[]
   taskFieldValues: Record<string, Record<string, CWTaskFieldValue>>
@@ -284,6 +396,17 @@ type CWState = {
   updateAppointment: (appointmentId: string, input: UpdateAppointmentInput) => void
   setAppointmentStatus: (appointmentId: string, status: CWAppointmentStatus) => void
   setAppointmentGateEntry: (appointmentId: string, gateEntryId: string | undefined) => void
+  addAppointmentConcern: (input: AddAppointmentConcernInput) => CWAppointmentConcernItem
+  removeAppointmentConcern: (appointmentId: string, itemId: string) => void
+  updateAppointmentConcernRemark: (appointmentId: string, itemId: string, remark: string) => void
+  addAppointmentService: (input: AddAppointmentServiceInput) => CWAppointmentServiceItem
+  removeAppointmentService: (appointmentId: string, itemId: string) => void
+  updateAppointmentService: (appointmentId: string, itemId: string, input: UpdateAppointmentServiceInput) => void
+  addWhatsappLog: (input: AddWhatsappLogInput) => CWWhatsappLog
+  setCustomerApproval: (input: SetCustomerApprovalInput) => void
+  updateServiceItemAssignment: (input: UpdateServiceItemAssignmentInput) => void
+  assignSAToAppointment: (appointmentId: string, userId: string | undefined) => void
+  addSATaskToAppointment: (appointmentId: string, taskId: string) => void
 
   createTaskTemplate: (input: CreateTaskTemplateInput) => CWTaskTemplate
   updateTaskTemplate: (templateId: string, input: UpdateTaskTemplateInput) => void
@@ -314,6 +437,17 @@ type CWState = {
   setJobStatus: (jobId: string, status: CWJobStatus) => void
   setJobTestDrive: (jobId: string, input: SetJobTestDriveInput) => void
   moveJobTask: (jobId: string, taskId: string, direction: 'up' | 'down') => void
+
+  // Concern admin
+  createConcernCategory: (input: CreateConcernCategoryInput) => CWConcernCategory
+  updateConcernCategory: (id: string, input: UpdateConcernCategoryInput) => void
+  createConcern: (input: CreateConcernInput) => CWConcern
+  updateConcern: (id: string, input: UpdateConcernInput) => void
+
+  // Service admin
+  createService: (input: CreateServiceInput) => CWService
+  updateService: (id: string, input: UpdateServiceInput) => void
+  setServiceStatus: (id: string, status: CWServiceStatus) => void
 }
 
 function normalizeRoleName(name: string) {
@@ -525,6 +659,11 @@ function seedDemoData() {
       concerns: 'Engine noise, check brakes',
       notes: 'Customer prefers morning slot',
       status: 'Confirmed',
+      concernItems: [],
+      serviceItems: [],
+      customerApprovalStatus: 'Pending',
+      whatsappLogs: [],
+      saTaskIds: [],
       assignedUserIds: [],
       createdAt: ts,
       updatedAt: ts,
@@ -690,6 +829,327 @@ function seedDemoData() {
 
 const DEMO_SEED = seedDemoData()
 
+function seedConcernsData(): { concernCategories: CWConcernCategory[]; concerns: CWConcern[] } {
+  const ts = nowIso()
+  const rawCategories = [
+    'Sheet Metal',
+    'Water Leaks',
+    'Handles / Locks / Mechanisms',
+    'Mirror Function',
+    'Front Glass Wiping & Washing',
+    'Rear Glass Wiping & Washing',
+    'Lighting',
+    'Seating',
+    'Climate Control Function',
+    'Interior Trim',
+  ]
+  const concernCategories: CWConcernCategory[] = rawCategories.map((name) => ({
+    id: newId(),
+    name,
+    status: 'Active',
+    createdAt: ts,
+    updatedAt: ts,
+  }))
+
+  const catByName = new Map(concernCategories.map((c) => [c.name, c] as const))
+
+  const rawConcerns: [string, string][] = [
+    ['Sheet Metal', 'Hard to Open – Front Side Door'],
+    ['Sheet Metal', 'Hard to Open – Hood'],
+    ['Sheet Metal', 'Hard to Open – Rear Side Door'],
+    ['Sheet Metal', 'Hard to Open – Trunk'],
+    ['Water Leaks', 'Water Leak Around Windshield'],
+    ['Water Leaks', 'Water Leak Around Front Side Door/Window'],
+    ['Water Leaks', 'Water Leak Around Rear Side Door/Window'],
+    ['Water Leaks', 'Water Leak Around Back Window'],
+    ['Water Leaks', 'Water Leak Around Sliding Rear Window'],
+    ['Water Leaks', 'Water Leak Around Trunk/Hatchback/Liftgate/Rear Cargo Door'],
+    ['Water Leaks', 'Other Water Leaks (Sealing Issues Only)'],
+    ['Handles / Locks / Mechanisms', 'Hood Latch Broken/Inoperable'],
+    ['Handles / Locks / Mechanisms', 'Ignition Switch Troubles'],
+    ['Handles / Locks / Mechanisms', 'Interior Door Handle Troubles'],
+    ['Handles / Locks / Mechanisms', 'Key Troubles'],
+    ['Handles / Locks / Mechanisms', 'Exterior Door Lock Controls – Power'],
+    ['Handles / Locks / Mechanisms', 'Exterior Door Handle Troubles'],
+    ['Mirror Function', 'Exterior Mirror Troubles'],
+    ['Mirror Function', 'Interior Mirror Troubles'],
+    ['Front Glass Wiping & Washing', 'Front Wiper Trouble'],
+    ['Front Glass Wiping & Washing', 'Other Wiper/Washer Troubles (Including Leaks)'],
+    ['Rear Glass Wiping & Washing', 'Rear Window Washer Troubles'],
+    ['Lighting', 'Lights not Working – Exterior'],
+    ['Lighting', 'Headlamp Aim/Alignment'],
+    ['Lighting', 'Other Lighting Troubles (Including Leaks/Condensation)'],
+    ['Seating', 'Other Seating Troubles'],
+    ['Seating', 'Rear Seat Squeak/Rattle'],
+    ['Seating', 'Seat Adjustment Troubles'],
+    ['Seating', 'Seat Squeaks and Rattles'],
+    ['Climate Control Function', 'A/C does not Work'],
+    ['Climate Control Function', 'A/C Front – Does not Work'],
+    ['Climate Control Function', 'A/C Rear – Does not Work'],
+    ['Climate Control Function', 'A/C does not Maintain Temperature'],
+    ['Climate Control Function', 'A/C Slow to Cool'],
+    ['Climate Control Function', 'A/C not Cold Enough'],
+    ['Climate Control Function', 'A/C Water Leak/Condensation Troubles'],
+    ['Climate Control Function', 'A/C Heater/Defroster Odour'],
+    ['Climate Control Function', 'Other Temperature Control Troubles'],
+    ['Climate Control Function', 'Windshield Defrost/Defogging Slow to Clear'],
+    ['Climate Control Function', 'Windshield Defrost/Defogging does not Work'],
+    ['Climate Control Function', 'Back Window Defrost/Defogging does not Work'],
+  ]
+
+  const concerns: CWConcern[] = rawConcerns.map(([catName, name]) => {
+    const cat = catByName.get(catName)!
+    return {
+      id: newId(),
+      categoryId: cat.id,
+      name,
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+  })
+
+  return { concernCategories, concerns }
+}
+
+function seedServicesData(): CWService[] {
+  const ts = nowIso()
+  type Raw = [string, string, string, number, number, number]
+  const raw: Raw[] = [
+    ['Periodic Maintenance', 'PMS-001', '1,000 km Initial Service', 1, 1500, 1500],
+    ['Periodic Maintenance', 'PMS-005', '5,000 km Periodic Maintenance', 1.2, 1500, 1800],
+    ['Periodic Maintenance', 'PMS-010', '10,000 km Periodic Maintenance', 1.5, 1500, 2250],
+    ['Periodic Maintenance', 'PMS-020', '20,000 km Major Service', 2, 1500, 3000],
+    ['Periodic Maintenance', 'PMS-030', '30,000 km Major Service', 2.2, 1500, 3300],
+    ['Periodic Maintenance', 'PMS-040', '40,000 km Major Service', 2.5, 1500, 3750],
+    ['Periodic Maintenance', 'PMS-050', '50,000 km Major Service', 2.5, 1500, 3750],
+    ['Periodic Maintenance', 'PMS-060', '60,000 km Major Service', 3, 1500, 4500],
+    ['Periodic Maintenance', 'PMS-070', '70,000 km Service', 2.5, 1500, 3750],
+    ['Periodic Maintenance', 'PMS-080', '80,000 km Service', 3, 1500, 4500],
+    ['Periodic Maintenance', 'PMS-100', '100,000 km Major Service (Timing Belt etc.)', 4, 1500, 6000],
+    ['Periodic Maintenance', 'PMS-110', 'Engine Oil & Filter Replacement', 0.5, 1500, 750],
+    ['Periodic Maintenance', 'PMS-120', 'Oil Filter Only Replacement', 0.3, 1500, 450],
+    ['Periodic Maintenance', 'PMS-130', 'Fuel Filter Replacement', 0.5, 1500, 750],
+    ['Periodic Maintenance', 'PMS-140', 'Air Filter Replacement', 0.3, 1500, 450],
+    ['Periodic Maintenance', 'PMS-150', 'Cabin/AC Filter Replacement', 0.3, 1500, 450],
+    ['Periodic Maintenance', 'PMS-160', 'Coolant Replacement & Bleeding', 1, 1500, 1500],
+    ['Periodic Maintenance', 'PMS-170', 'Brake Fluid Flush & Replacement', 1, 1500, 1500],
+    ['Periodic Maintenance', 'PMS-180', 'Transmission Fluid Change (ATF)', 1, 1500, 1500],
+    ['Periodic Maintenance', 'PMS-190', 'Differential Oil Change', 0.8, 1500, 1200],
+    ['Engine', 'ENG-001', 'Spark Plug Replacement (4 cyl)', 0.5, 1500, 750],
+    ['Engine', 'ENG-002', 'Spark Plug Replacement (6 cyl)', 0.8, 1500, 1200],
+    ['Engine', 'ENG-003', 'Spark Plug Replacement (8 cyl)', 1, 1500, 1500],
+    ['Engine', 'ENG-004', 'Ignition Coil Replacement (per piece)', 0.4, 1500, 600],
+    ['Engine', 'ENG-005', 'Air Intake Hose Replacement', 0.5, 1500, 750],
+    ['Engine', 'ENG-006', 'Fuel Injector Cleaning (per set – 4 cyl)', 1.5, 1500, 2250],
+    ['Engine', 'ENG-007', 'Fuel Injector Replacement (per piece)', 0.8, 1500, 1200],
+    ['Engine', 'ENG-008', 'Engine Oil Pan Removal & Reseal', 2, 1500, 3000],
+    ['Engine', 'ENG-009', 'Valve Cover Gasket Replacement (4 cyl)', 1.5, 1500, 2250],
+    ['Engine', 'ENG-010', 'Cylinder Head Gasket Replacement (4 cyl)', 6, 1500, 9000],
+    ['Engine', 'ENG-011', 'Cylinder Head Gasket Replacement (6 cyl)', 8, 1500, 12000],
+    ['Engine', 'ENG-012', 'Timing Belt Replacement (4 cyl)', 3, 1500, 4500],
+    ['Engine', 'ENG-013', 'Timing Belt Replacement (6 cyl)', 4, 1500, 6000],
+    ['Engine', 'ENG-014', 'Timing Chain Replacement (4 cyl)', 5, 1500, 7500],
+    ['Engine', 'ENG-015', 'Water Pump Replacement', 2, 1500, 3000],
+    ['Engine', 'ENG-016', 'Radiator Replacement', 1.5, 1500, 2250],
+    ['Engine', 'ENG-017', 'Thermostat Replacement', 0.8, 1500, 1200],
+    ['Engine', 'ENG-018', 'Engine Mount Replacement (per piece)', 1, 1500, 1500],
+    ['Engine', 'ENG-019', 'Oil Pump Replacement', 4, 1500, 6000],
+    ['Engine', 'ENG-020', 'Engine Overhaul (4 cyl) – Complete Rebuild', 20, 1500, 30000],
+    ['Engine', 'ENG-021', 'Engine Overhaul (6 cyl) – Complete Rebuild', 25, 1500, 37500],
+    ['Engine', 'ENG-022', 'Engine Overhaul (8 cyl) – Complete Rebuild', 30, 1500, 45000],
+    ['Engine', 'ENG-023', 'Turbocharger Replacement (single)', 5, 1500, 7500],
+    ['Engine', 'ENG-024', 'Turbocharger Cleaning & Service', 3, 1500, 4500],
+    ['Engine', 'ENG-025', 'EGR Valve Cleaning', 1.5, 1500, 2250],
+    ['Engine', 'ENG-026', 'EGR Valve Replacement', 2, 1500, 3000],
+    ['Engine', 'ENG-027', 'Intake Manifold Cleaning (Carbon Clean)', 2.5, 1500, 3750],
+    ['Engine', 'ENG-028', 'Throttle Body Cleaning', 0.8, 1500, 1200],
+    ['Engine', 'ENG-029', 'Engine Removal & Refit (4 cyl)', 8, 1500, 12000],
+    ['Engine', 'ENG-030', 'Engine Removal & Refit (6 cyl)', 10, 1500, 15000],
+    ['Engine', 'ENG-031', 'Engine Removal & Refit (8 cyl)', 12, 1500, 18000],
+    ['Engine', 'ENG-032', 'Alternator Replacement', 1.2, 1500, 1800],
+    ['Engine', 'ENG-033', 'Starter Motor Replacement', 1, 1500, 1500],
+    ['Engine', 'ENG-034', 'Drive Belt / Serpentine Belt Replacement', 0.5, 1500, 750],
+    ['Engine', 'ENG-035', 'Crankshaft Seal Replacement', 4, 1500, 6000],
+    ['Engine', 'ENG-036', 'Camshaft Seal Replacement', 3, 1500, 4500],
+    ['Engine', 'ENG-037', 'Head Skimming & Reassembly (labour only)', 5, 1500, 7500],
+    ['Engine', 'ENG-038', 'Piston Ring Replacement (4 cyl)', 12, 1500, 18000],
+    ['Engine', 'ENG-039', 'Oil Change + Filter + Gasket Reseal Package', 1, 1500, 1500],
+    ['Engine', 'ENG-040', 'Cooling System Pressure Test & Inspection', 0.5, 1500, 750],
+    ['Transmission', 'TRN-001', 'Manual Transmission Oil Change', 1, 1500, 1500],
+    ['Transmission', 'TRN-002', 'Automatic Transmission ATF Change', 1, 1500, 1500],
+    ['Transmission', 'TRN-003', 'CVT Fluid Replacement', 1.5, 1500, 2250],
+    ['Transmission', 'TRN-004', 'Clutch Overhaul (Disc, Cover, Bearing)', 3.5, 1500, 5250],
+    ['Transmission', 'TRN-005', 'Clutch Master Cylinder Replacement', 1.2, 1500, 1800],
+    ['Transmission', 'TRN-006', 'Clutch Slave Cylinder Replacement', 1, 1500, 1500],
+    ['Transmission', 'TRN-007', 'Gear Shift Cable Replacement', 1.5, 1500, 2250],
+    ['Transmission', 'TRN-008', 'Transmission Mount Replacement', 1, 1500, 1500],
+    ['Transmission', 'TRN-009', 'Transmission Removal & Refit (M/T)', 6, 1500, 9000],
+    ['Transmission', 'TRN-010', 'Transmission Removal & Refit (A/T)', 8, 1500, 12000],
+    ['Transmission', 'TRN-011', 'Transmission Overhaul (M/T – 5 speed)', 15, 1500, 22500],
+    ['Transmission', 'TRN-012', 'Transmission Overhaul (A/T – 4/5 speed)', 20, 1500, 30000],
+    ['Transmission', 'TRN-013', 'Transmission Overhaul (CVT)', 22, 1500, 33000],
+    ['Transmission', 'TRN-014', 'Transfer Case Oil Change', 0.8, 1500, 1200],
+    ['Transmission', 'TRN-015', 'Transfer Case Overhaul', 8, 1500, 12000],
+    ['Transmission', 'TRN-016', 'Propeller Shaft U-Joint Replacement', 1.5, 1500, 2250],
+    ['Transmission', 'TRN-017', 'Propeller Shaft Replacement', 2.5, 1500, 3750],
+    ['Transmission', 'TRN-018', 'Differential Oil Change', 1, 1500, 1500],
+    ['Transmission', 'TRN-019', 'Differential Overhaul (Front)', 10, 1500, 15000],
+    ['Transmission', 'TRN-020', 'Differential Overhaul (Rear)', 12, 1500, 18000],
+    ['Transmission', 'TRN-021', 'Driveshaft Replacement (per side)', 2, 1500, 3000],
+    ['Transmission', 'TRN-022', 'CV Joint Boot Replacement (per side)', 1.2, 1500, 1800],
+    ['Transmission', 'TRN-023', 'Axle Seal Replacement (per side)', 1, 1500, 1500],
+    ['Transmission', 'TRN-024', '4WD Hub Service', 1.5, 1500, 2250],
+    ['Transmission', 'TRN-025', 'Transmission Control Module Reset / Reprogram', 1, 1500, 1500],
+    ['Suspension', 'SUS-001', 'Front Shock Absorber Replacement (pair)', 2, 1500, 3000],
+    ['Suspension', 'SUS-002', 'Rear Shock Absorber Replacement (pair)', 1.5, 1500, 2250],
+    ['Suspension', 'SUS-003', 'Front Coil Spring Replacement (pair)', 2, 1500, 3000],
+    ['Suspension', 'SUS-004', 'Rear Coil Spring Replacement (pair)', 1.5, 1500, 2250],
+    ['Suspension', 'SUS-005', 'Front Lower Arm Replacement (per side)', 1.5, 1500, 2250],
+    ['Suspension', 'SUS-006', 'Rear Control Arm Replacement (per side)', 1.2, 1500, 1800],
+    ['Suspension', 'SUS-007', 'Ball Joint Replacement (per side)', 1, 1500, 1500],
+    ['Suspension', 'SUS-008', 'Tie Rod End Replacement (per side)', 0.8, 1500, 1200],
+    ['Suspension', 'SUS-009', 'Rack End Replacement (per side)', 1, 1500, 1500],
+    ['Suspension', 'SUS-010', 'Steering Rack Overhaul', 8, 1500, 12000],
+    ['Suspension', 'SUS-011', 'Steering Rack Boot Replacement', 1, 1500, 1500],
+    ['Suspension', 'SUS-012', 'Steering Column Replacement', 2.5, 1500, 3750],
+    ['Suspension', 'SUS-013', 'Steering Pump Replacement', 2, 1500, 3000],
+    ['Suspension', 'SUS-014', 'Wheel Alignment (4-wheel)', 1, 1500, 1500],
+    ['Suspension', 'SUS-015', 'Wheel Balancing (per wheel)', 0.3, 1500, 450],
+    ['Suspension', 'SUS-016', 'Power Steering Fluid Flush', 1, 1500, 1500],
+    ['Suspension', 'SUS-017', 'Stabilizer Link Replacement (per side)', 0.8, 1500, 1200],
+    ['Suspension', 'SUS-018', 'Suspension Bush Replacement (per arm)', 1.2, 1500, 1800],
+    ['Suspension', 'SUS-019', 'Front Hub Bearing Replacement (per side)', 2, 1500, 3000],
+    ['Suspension', 'SUS-020', 'Rear Hub Bearing Replacement (per side)', 1.8, 1500, 2700],
+    ['Suspension', 'SUS-021', 'Knuckle Replacement (per side)', 2.5, 1500, 3750],
+    ['Suspension', 'SUS-022', 'Strut Mount Replacement (per side)', 1.5, 1500, 2250],
+    ['Suspension', 'SUS-023', 'Wheel Bearing Greasing', 1, 1500, 1500],
+    ['Suspension', 'SUS-024', 'Control Arm Bushing Press Service', 1.2, 1500, 1800],
+    ['Suspension', 'SUS-025', 'Steering Angle Sensor Calibration', 0.8, 1500, 1200],
+    ['Suspension', 'SUS-026', 'Steering Wheel Replacement', 0.5, 1500, 750],
+    ['Suspension', 'SUS-027', 'Shock Mount Bushing Replacement', 1, 1500, 1500],
+    ['Suspension', 'SUS-028', 'Power Steering Hose Replacement', 1.5, 1500, 2250],
+    ['Suspension', 'SUS-029', 'Suspension Inspection Package', 0.8, 1500, 1200],
+    ['Suspension', 'SUS-030', 'Steering Freeplay Adjustment', 0.5, 1500, 750],
+    ['Brakes', 'BRK-001', 'Front Brake Pad Replacement', 1, 1500, 1500],
+    ['Brakes', 'BRK-002', 'Rear Brake Pad Replacement', 1, 1500, 1500],
+    ['Brakes', 'BRK-003', 'Front Disc Rotor Skimming (pair)', 1.5, 1500, 2250],
+    ['Brakes', 'BRK-004', 'Rear Disc Rotor Skimming (pair)', 1.5, 1500, 2250],
+    ['Brakes', 'BRK-005', 'Front Brake Disc Replacement (pair)', 2, 1500, 3000],
+    ['Brakes', 'BRK-006', 'Rear Brake Disc Replacement (pair)', 2, 1500, 3000],
+    ['Brakes', 'BRK-007', 'Brake Shoe Replacement (rear drum)', 2, 1500, 3000],
+    ['Brakes', 'BRK-008', 'Brake Drum Skimming (pair)', 1.5, 1500, 2250],
+    ['Brakes', 'BRK-009', 'Brake Caliper Overhaul (per side)', 2, 1500, 3000],
+    ['Brakes', 'BRK-010', 'Brake Caliper Pin Greasing', 0.8, 1500, 1200],
+    ['Brakes', 'BRK-011', 'Brake Hose Replacement (per side)', 1, 1500, 1500],
+    ['Brakes', 'BRK-012', 'Brake Master Cylinder Replacement', 2, 1500, 3000],
+    ['Brakes', 'BRK-013', 'Brake Booster Replacement', 2.5, 1500, 3750],
+    ['Brakes', 'BRK-014', 'Brake Fluid Flush', 1, 1500, 1500],
+    ['Brakes', 'BRK-015', 'ABS Sensor Replacement (per side)', 1, 1500, 1500],
+    ['Brakes', 'BRK-016', 'ABS Module Replacement', 3, 1500, 4500],
+    ['Brakes', 'BRK-017', 'Parking Brake Adjustment', 0.5, 1500, 750],
+    ['Brakes', 'BRK-018', 'Parking Brake Cable Replacement', 2, 1500, 3000],
+    ['Brakes', 'BRK-019', 'Brake System Bleeding (full vehicle)', 1.5, 1500, 2250],
+    ['Brakes', 'BRK-020', 'Brake Inspection Package', 0.5, 1500, 750],
+    ['Electrical', 'ELE-001', 'Battery Replacement & System Reset', 0.5, 1500, 750],
+    ['Electrical', 'ELE-002', 'Alternator Replacement', 1.5, 1500, 2250],
+    ['Electrical', 'ELE-003', 'Starter Motor Replacement', 1.2, 1500, 1800],
+    ['Electrical', 'ELE-004', 'ECU Diagnostic Scan (GTS+)', 0.5, 1500, 750],
+    ['Electrical', 'ELE-005', 'ECU Reprogramming / Update', 1, 1500, 1500],
+    ['Electrical', 'ELE-006', 'Wiring Harness Repair (minor)', 1, 1500, 1500],
+    ['Electrical', 'ELE-007', 'Wiring Harness Replacement (major)', 6, 1500, 9000],
+    ['Electrical', 'ELE-008', 'Fuse Box Replacement', 1.5, 1500, 2250],
+    ['Electrical', 'ELE-009', 'Relay Replacement', 0.5, 1500, 750],
+    ['Electrical', 'ELE-010', 'Headlight Bulb Replacement (per bulb)', 0.3, 1500, 450],
+    ['Electrical', 'ELE-011', 'Headlight Assembly Replacement', 1.5, 1500, 2250],
+    ['Electrical', 'ELE-012', 'Tail Lamp Assembly Replacement', 1, 1500, 1500],
+    ['Electrical', 'ELE-013', 'Fog Lamp Installation (pair)', 1.5, 1500, 2250],
+    ['Electrical', 'ELE-014', 'Horn Replacement', 0.5, 1500, 750],
+    ['Electrical', 'ELE-015', 'Power Window Motor Replacement', 1.5, 1500, 2250],
+    ['Electrical', 'ELE-016', 'Door Lock Actuator Replacement', 1, 1500, 1500],
+    ['Electrical', 'ELE-017', 'Instrument Cluster Replacement', 2, 1500, 3000],
+    ['Electrical', 'ELE-018', 'Sensor Replacement (O2, MAF, etc.)', 1, 1500, 1500],
+    ['Electrical', 'ELE-019', 'Camera / Parking Sensor Installation', 2, 1500, 3000],
+    ['Electrical', 'ELE-020', 'Audio Head Unit Replacement', 1.5, 1500, 2250],
+    ['Electrical', 'ELE-021', 'Speaker Installation (pair)', 1, 1500, 1500],
+    ['Electrical', 'ELE-022', 'Navigation System Installation', 2.5, 1500, 3750],
+    ['Electrical', 'ELE-023', 'Immobilizer / Key Programming', 1, 1500, 1500],
+    ['Electrical', 'ELE-024', 'Hybrid System Diagnostic', 2, 1500, 3000],
+    ['Electrical', 'ELE-025', 'EV Battery Pack Removal & Refit', 6, 1500, 9000],
+    ['HVAC', 'AC-001', 'AC Gas Recharge & Leak Check', 1.5, 1500, 2250],
+    ['HVAC', 'AC-002', 'AC Compressor Replacement', 3, 1500, 4500],
+    ['HVAC', 'AC-003', 'AC Condenser Replacement', 2, 1500, 3000],
+    ['HVAC', 'AC-004', 'Evaporator Cleaning', 2.5, 1500, 3750],
+    ['HVAC', 'AC-005', 'Evaporator Replacement', 4, 1500, 6000],
+    ['HVAC', 'AC-006', 'Expansion Valve Replacement', 2, 1500, 3000],
+    ['HVAC', 'AC-007', 'Blower Motor Replacement', 1.5, 1500, 2250],
+    ['HVAC', 'AC-008', 'Cabin Filter Replacement', 0.3, 1500, 450],
+    ['HVAC', 'AC-009', 'Heater Core Replacement', 5, 1500, 7500],
+    ['HVAC', 'AC-010', 'AC Pipe / Hose Replacement', 1.5, 1500, 2250],
+    ['HVAC', 'AC-011', 'AC Control Panel Replacement', 1, 1500, 1500],
+    ['HVAC', 'AC-012', 'Cooling Coil Service', 2.5, 1500, 3750],
+    ['HVAC', 'AC-013', 'AC Pressure Test', 0.8, 1500, 1200],
+    ['HVAC', 'AC-014', 'HVAC System Calibration', 1, 1500, 1500],
+    ['HVAC', 'AC-015', 'AC Full Service Package', 4, 1500, 6000],
+    ['Body & Paint', 'BDP-001', 'Front Bumper Paint', 3, 1500, 4500],
+    ['Body & Paint', 'BDP-002', 'Rear Bumper Paint', 3, 1500, 4500],
+    ['Body & Paint', 'BDP-003', 'Door Paint (per door)', 3.5, 1500, 5250],
+    ['Body & Paint', 'BDP-004', 'Fender Paint (per fender)', 3, 1500, 4500],
+    ['Body & Paint', 'BDP-005', 'Hood Paint', 4, 1500, 6000],
+    ['Body & Paint', 'BDP-006', 'Trunk Paint', 3.5, 1500, 5250],
+    ['Body & Paint', 'BDP-007', 'Roof Paint', 4.5, 1500, 6750],
+    ['Body & Paint', 'BDP-008', 'Full Body Paint', 40, 1500, 60000],
+    ['Body & Paint', 'BDP-009', 'Panel Replacement (per panel)', 3, 1500, 4500],
+    ['Body & Paint', 'BDP-010', 'Dent Removal (minor)', 1.5, 1500, 2250],
+    ['Body & Paint', 'BDP-011', 'Dent Removal (major)', 4, 1500, 6000],
+    ['Body & Paint', 'BDP-012', 'Scratch Removal & Polish (per panel)', 1.5, 1500, 2250],
+    ['Body & Paint', 'BDP-013', 'Underbody Coating', 3, 1500, 4500],
+    ['Body & Paint', 'BDP-014', 'Rust Treatment (per panel)', 2, 1500, 3000],
+    ['Body & Paint', 'BDP-015', 'Paintless Dent Removal (per panel)', 2, 1500, 3000],
+    ['Body & Paint', 'BDP-016', 'Windshield Frame Paint', 3, 1500, 4500],
+    ['Body & Paint', 'BDP-017', 'Door Handle Paint (set of 4)', 2, 1500, 3000],
+    ['Body & Paint', 'BDP-018', 'Mirror Housing Paint (pair)', 1.5, 1500, 2250],
+    ['Body & Paint', 'BDP-019', 'Alloy Wheel Paint (per wheel)', 2, 1500, 3000],
+    ['Body & Paint', 'BDP-020', 'Body Inspection Package', 1, 1500, 1500],
+    ['Glass & Trim', 'GLS-001', 'Windshield Replacement', 2.5, 1500, 3750],
+    ['Glass & Trim', 'GLS-002', 'Rear Glass Replacement', 2.5, 1500, 3750],
+    ['Glass & Trim', 'GLS-003', 'Side Glass Replacement (per glass)', 1.5, 1500, 2250],
+    ['Glass & Trim', 'GLS-004', 'Quarter Glass Replacement', 1.5, 1500, 2250],
+    ['Glass & Trim', 'GLS-005', 'Window Regulator Replacement', 1.5, 1500, 2250],
+    ['Glass & Trim', 'GLS-006', 'Sunroof Glass Replacement', 3, 1500, 4500],
+    ['Glass & Trim', 'GLS-007', 'Door Trim Removal & Refitting', 1, 1500, 1500],
+    ['Glass & Trim', 'GLS-008', 'Dashboard Removal & Refitting', 4, 1500, 6000],
+    ['Glass & Trim', 'GLS-009', 'Seat Removal & Refitting (per seat)', 1, 1500, 1500],
+    ['Glass & Trim', 'GLS-010', 'Interior Trim Fitting (full car)', 5, 1500, 7500],
+    ['Inspection', 'INS-001', 'Pre-Purchase Inspection (with GTS+)', 2, 1500, 3000],
+    ['Inspection', 'INS-002', 'Paint Thickness & Auction Report Check', 1.5, 1500, 2250],
+    ['Inspection', 'INS-003', 'Full Vehicle Diagnostic Scan', 1.5, 1500, 2250],
+    ['Inspection', 'INS-004', 'Safety Inspection Package', 1, 1500, 1500],
+    ['Inspection', 'INS-005', 'Emission Test & Report', 1, 1500, 1500],
+    ['Inspection', 'INS-006', 'Suspension & Brake Health Check', 1, 1500, 1500],
+    ['Inspection', 'INS-007', 'Airbag & Safety Systems Diagnostic', 1.2, 1500, 1800],
+    ['Inspection', 'INS-008', 'Battery Health Test', 0.5, 1500, 750],
+    ['Inspection', 'INS-009', 'Road Test & Performance Check', 1, 1500, 1500],
+    ['Inspection', 'INS-010', 'Comprehensive Inspection Package', 3, 1500, 4500],
+  ]
+
+  return raw.map(([category, code, description, timeHrs, ratePerHr, price]) => ({
+    id: newId(),
+    code,
+    category,
+    description,
+    timeHrs,
+    ratePerHr,
+    price,
+    status: 'Active' as CWServiceStatus,
+    createdAt: ts,
+    updatedAt: ts,
+  }))
+}
+
+const CONCERNS_SEED = seedConcernsData()
+const SERVICES_SEED = seedServicesData()
+
 function normalizeOptions(options?: string[]) {
   if (!options) return undefined
   const cleaned = options
@@ -714,6 +1174,9 @@ function reindexFields(fields: CWTaskField[]) {
 // MVP rule: in-memory only. No persistence.
 export const useCwStore = create<CWState>((set, get) => ({
   ...DEMO_SEED,
+  concernCategories: CONCERNS_SEED.concernCategories,
+  concerns: CONCERNS_SEED.concerns,
+  services: SERVICES_SEED,
   f1Config: {
     returnWindowDays: 7,
     updatedAt: nowIso(),
@@ -1096,10 +1559,33 @@ export const useCwStore = create<CWState>((set, get) => ({
       id: newId(),
       customerId: input.customerId,
       vehicleId: input.vehicleId,
+      slotDate: input.slotDate,
+      slotTime: input.slotTime,
       scheduledAt: scheduledAt || undefined,
       concerns: (input.concerns ?? '').trim(),
       notes: (input.notes ?? '').trim(),
       status: input.status ?? 'Draft',
+      concernItems: (input.concernItems ?? []).map((c) => ({
+        id: newId(),
+        concernId: c.concernId,
+        concernName: c.concernName,
+        remark: c.remark.trim(),
+      })),
+      serviceItems: (input.serviceItems ?? []).map((s) => ({
+        id: newId(),
+        serviceId: s.serviceId,
+        serviceCode: s.serviceCode,
+        serviceDescription: s.serviceDescription,
+        timeHrs: s.timeHrs,
+        ratePerHr: s.ratePerHr,
+        price: s.price,
+        remark: s.remark.trim(),
+        addedBySA: s.addedBySA ?? false,
+      })),
+      customerApprovalStatus: 'Pending',
+      whatsappLogs: [],
+      saTaskIds: [],
+      assignedServiceAdvisorId: input.assignedServiceAdvisorId,
       assignedRoleId,
       assignedUserIds,
       gateEntryId: input.gateEntryId,
@@ -1146,10 +1632,13 @@ export const useCwStore = create<CWState>((set, get) => ({
               ...a,
               customerId: input.customerId,
               vehicleId: input.vehicleId,
+              slotDate: input.slotDate,
+              slotTime: input.slotTime,
               scheduledAt: scheduledAt || undefined,
               concerns: input.concerns.trim(),
               notes: input.notes.trim(),
               status: input.status,
+              assignedServiceAdvisorId: input.assignedServiceAdvisorId,
               assignedRoleId,
               assignedUserIds,
               gateEntryId: input.gateEntryId,
@@ -1184,6 +1673,278 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : a,
+      ),
+    })
+  },
+
+  addAppointmentConcern: (input) => {
+    const item: CWAppointmentConcernItem = {
+      id: newId(),
+      concernId: input.concernId,
+      concernName: input.concernName,
+      remark: input.remark.trim(),
+    }
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? { ...a, concernItems: [...a.concernItems, item], updatedAt: nowIso() }
+          : a,
+      ),
+    })
+    return item
+  },
+
+  removeAppointmentConcern: (appointmentId, itemId) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? { ...a, concernItems: a.concernItems.filter((i) => i.id !== itemId), updatedAt: nowIso() }
+          : a,
+      ),
+    })
+  },
+
+  updateAppointmentConcernRemark: (appointmentId, itemId, remark) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              concernItems: a.concernItems.map((i) =>
+                i.id === itemId ? { ...i, remark: remark.trim() } : i,
+              ),
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  addAppointmentService: (input) => {
+    const item: CWAppointmentServiceItem = {
+      id: newId(),
+      serviceId: input.serviceId,
+      serviceCode: input.serviceCode,
+      serviceDescription: input.serviceDescription,
+      timeHrs: input.timeHrs,
+      ratePerHr: input.ratePerHr,
+      price: input.price,
+      remark: input.remark.trim(),
+      addedBySA: input.addedBySA ?? false,
+    }
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? { ...a, serviceItems: [...a.serviceItems, item], updatedAt: nowIso() }
+          : a,
+      ),
+    })
+    return item
+  },
+
+  removeAppointmentService: (appointmentId, itemId) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? { ...a, serviceItems: a.serviceItems.filter((i) => i.id !== itemId), updatedAt: nowIso() }
+          : a,
+      ),
+    })
+  },
+
+  updateAppointmentService: (appointmentId, itemId, input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              serviceItems: a.serviceItems.map((i) =>
+                i.id === itemId
+                  ? { ...i, remark: input.remark.trim(), price: input.price, addedBySA: input.addedBySA ?? i.addedBySA }
+                  : i,
+              ),
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  addWhatsappLog: (input) => {
+    const log: CWWhatsappLog = {
+      id: newId(),
+      sentAt: nowIso(),
+      direction: input.direction,
+      authorName: input.authorName,
+      message: input.message.trim(),
+    }
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? { ...a, whatsappLogs: [...a.whatsappLogs, log], updatedAt: nowIso() }
+          : a,
+      ),
+    })
+    return log
+  },
+
+  setCustomerApproval: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              customerApprovalStatus: input.status,
+              customerApprovalNote: (input.note ?? '').trim() || undefined,
+              status: input.status === 'Approved' ? 'Customer Approved' : 'Customer Rejected',
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  assignSAToAppointment: (appointmentId, userId) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? { ...a, assignedServiceAdvisorId: userId ?? undefined, updatedAt: nowIso() }
+          : a,
+      ),
+    })
+  },
+
+  addSATaskToAppointment: (appointmentId, taskId) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              saTaskIds: [...(a.saTaskIds ?? []), taskId],
+              status: 'SA Review',
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  updateServiceItemAssignment: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              serviceItems: a.serviceItems.map((s) =>
+                s.id === input.serviceItemId
+                  ? {
+                      ...s,
+                      ...(input.assignedUserIds !== undefined && { assignedUserIds: input.assignedUserIds }),
+                      ...(input.plannedStartAt !== undefined && { plannedStartAt: input.plannedStartAt }),
+                      ...(input.plannedEndAt !== undefined && { plannedEndAt: input.plannedEndAt }),
+                      ...(input.workStatus !== undefined && { workStatus: input.workStatus }),
+                    }
+                  : s,
+              ),
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  // ─── Concern Admin ──────────────────────────────────────────────────────────
+
+  createConcernCategory: (input) => {
+    const name = input.name.trim()
+    if (!name) throw new Error('Category name is required')
+    const ts = nowIso()
+    const cat: CWConcernCategory = { id: newId(), name, status: 'Active', createdAt: ts, updatedAt: ts }
+    set({ concernCategories: [cat, ...get().concernCategories] })
+    return cat
+  },
+
+  updateConcernCategory: (id, input) => {
+    const name = input.name.trim()
+    if (!name) throw new Error('Category name is required')
+    set({
+      concernCategories: get().concernCategories.map((c) =>
+        c.id === id ? { ...c, name, status: input.status, updatedAt: nowIso() } : c,
+      ),
+    })
+  },
+
+  createConcern: (input) => {
+    const name = input.name.trim()
+    if (!name) throw new Error('Concern name is required')
+    if (!input.categoryId) throw new Error('Category is required')
+    const ts = nowIso()
+    const concern: CWConcern = {
+      id: newId(),
+      categoryId: input.categoryId,
+      name,
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ concerns: [concern, ...get().concerns] })
+    return concern
+  },
+
+  updateConcern: (id, input) => {
+    const name = input.name.trim()
+    if (!name) throw new Error('Concern name is required')
+    set({
+      concerns: get().concerns.map((c) =>
+        c.id === id ? { ...c, name, status: input.status, updatedAt: nowIso() } : c,
+      ),
+    })
+  },
+
+  // ─── Service Admin ──────────────────────────────────────────────────────────
+
+  createService: (input) => {
+    const ts = nowIso()
+    const svc: CWService = {
+      id: newId(),
+      code: input.code.trim(),
+      category: input.category.trim(),
+      description: input.description.trim(),
+      timeHrs: input.timeHrs,
+      ratePerHr: input.ratePerHr,
+      price: input.price,
+      status: input.status ?? 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ services: [svc, ...get().services] })
+    return svc
+  },
+
+  updateService: (id, input) => {
+    set({
+      services: get().services.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              code: input.code.trim(),
+              category: input.category.trim(),
+              description: input.description.trim(),
+              timeHrs: input.timeHrs,
+              ratePerHr: input.ratePerHr,
+              price: input.price,
+              status: input.status,
+              updatedAt: nowIso(),
+            }
+          : s,
+      ),
+    })
+  },
+
+  setServiceStatus: (id, status) => {
+    set({
+      services: get().services.map((s) =>
+        s.id === id ? { ...s, status, updatedAt: nowIso() } : s,
       ),
     })
   },
@@ -1758,7 +2519,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     const pending = input.pendingVehicleId
       ? get().pendingVehicles.find((p) => p.id === input.pendingVehicleId)
       : undefined
-    const appointmentId = pending?.appointmentId
+    const appointmentId = input.appointmentId ?? pending?.appointmentId
 
     const job: CWJob = {
       id: newId(),

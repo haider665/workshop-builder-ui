@@ -1,0 +1,67 @@
+BODY ENGINEERING,
+SHEET METAL,
+1,Hard to Open-Front Side Door
+2,Hard to Open-Hood
+3,Hard to Open-Rear Side Door
+4,Hard to Open-Trunk
+,
+WATER LEAKS,
+1,Water Leak Around Windshield
+2,Water Leak Around Front Side Door/Window
+3,Water Leak Around Rear Side Door/Window
+4,Water Leak Around Back Window
+5,Water Leak Around Sliding Rear Window
+6,Water Leak Around Trunk/Hatchback/Liftgate/Rear Cargo Door
+7,Other Water Leaks (Sealing Issues Only)
+,
+HANDLES/LOCKS/MECHS,
+1,Hood Latch Broken/Inoperable
+2,Ignition Switch Troubles
+3,Interior Door Handle Troubles
+4,Key Troubles
+5,Exterior Door Lock Controls-Power
+6,Exterior Door Handle Troubles
+,
+EXTERIOR ORNAMENT,
+MIRROR FUNCTION,
+1,Exterior Mirror Troubles
+2,Interior Mirror Troubles
+,
+FRONT GLASS WIPING & WASHING,
+1,Front Wiper Trouble
+2,Other Wiper/Washer Troubles (Including Leaks)
+,
+REAR GLASS WIPING & WASHING,
+1,Rear Window Washer Troubles
+,
+LIGHTING,
+1,Lights not Working-Exterior
+2,Headlamp Aim/Alignment
+3,Other Lighting Troubles (Including Leaks/Condensation
+,
+"INTERIOR TRIM
+Leaks/Condensation",
+SEATING,
+1,Other Seating Troubles
+2,Rear Seat Squeak/Rattle
+3,Seat Adjustment Troubles - Unspecified
+4,Seat Squeaks and Rattles - Unspecified
+,
+CLIMATE CONTROL FUNCTION,
+1,A/C does not Work
+2,A/C Front-Does not Work
+3,A/C Rear-Does not Work
+4,A/C does not Maintain Temperature
+5,A/C Slow to Cool
+6,A/C not Cold Enough
+7,A/C Water Leak/Condensation Troubles
+8,A/C Heater/Defroster Odour
+9,Other Temperature Control Troubles
+10,Front Temperature Control Troubles
+11,Rear Temperature Control Troubles
+12,Windshield/Defrost Uneven Clearning
+13,Windshield Defrost/Defogging Slow to Clear
+14,Back Window Defrost/Defogging Uneven Clearing
+15,Back Window Defrost/Defogging Slow to Clear
+16,Windshield Defrost/Defogging does not Work
+17,Back Window Defrost/Defogging does not Work

@@ -71,6 +71,16 @@ export function AdminHome() {
             desc: 'Configure return window and view reports.',
             to: '/admin/f1',
           },
+          {
+            title: 'Concerns',
+            desc: 'Manage concern categories and items used in appointments.',
+            to: '/admin/concerns',
+          },
+          {
+            title: 'Services',
+            desc: 'Manage services catalogue with BDT pricing.',
+            to: '/admin/services',
+          },
         ].map((card) => (
           <Card key={card.to} variant="outlined" sx={{ height: '100%' }}>
             <CardActionArea component={RouterLink} to={card.to} sx={{ height: '100%' }}>

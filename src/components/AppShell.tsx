@@ -62,11 +62,18 @@ export function AppShell() {
       { kind: 'link', label: 'Job Creation', to: '/jc', icon: <Settings />, anyOfRoles: ['Job Creation'] },
       { kind: 'link', label: 'Guard', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
 
+      { kind: 'section', label: 'Service Advisor', anyOfRoles: ['Service Advisor'] },
+      { kind: 'link', label: 'My Appointments', to: '/sa/appointments', icon: <CalendarMonth />, anyOfRoles: ['Service Advisor'] },
+      { kind: 'link', label: 'Jobs', to: '/jc/jobs/new', icon: <Settings />, anyOfRoles: ['Service Advisor'] },
+
       { kind: 'section', label: 'CRO', anyOfRoles: ['CRO'] },
       { kind: 'link', label: 'CRO Home', to: '/cro', icon: <People />, anyOfRoles: ['CRO'] },
       { kind: 'link', label: 'Customers', to: '/cro/customers', icon: <People />, anyOfRoles: ['CRO'] },
       { kind: 'link', label: 'Vehicles', to: '/cro/vehicles', icon: <DirectionsCar />, anyOfRoles: ['CRO'] },
       { kind: 'link', label: 'Appointments', to: '/cro/appointments', icon: <CalendarMonth />, anyOfRoles: ['CRO'] },
+      { kind: 'section', label: 'Admin Config', anyOfRoles: ['Admin'] },
+      { kind: 'link', label: 'Concerns', to: '/admin/concerns', icon: <AdminPanelSettings />, anyOfRoles: ['Admin'] },
+      { kind: 'link', label: 'Services', to: '/admin/services', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
 
       {
         kind: 'link',

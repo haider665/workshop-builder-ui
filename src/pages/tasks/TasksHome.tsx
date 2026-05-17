@@ -21,7 +21,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useSessionStore } from '../../store/sessionStore'
 import { useCwStore } from '../../store/cwStore'
-import type { CWTask, CWTaskStatus, CWTaskTemplate } from '../../types/cw'
+import type { CWAppointmentStatus, CWTask, CWTaskStatus, CWTaskTemplate } from '../../types/cw'
 import { tasksService } from '../../services/tasks/tasksService'
 
 function statusChip(status: CWTaskStatus) {
@@ -73,6 +73,32 @@ export function TasksHome() {
   const tasks = useCwStore((s) => s.tasks)
   const shops = useCwStore((s) => s.shops)
   const templates = useCwStore((s) => s.taskTemplates)
+  const appointments = useCwStore((s) => s.appointments)
+  const vehicles = useCwStore((s) => s.vehicles)
+  const customers = useCwStore((s) => s.customers)
+  const users = useCwStore((s) => s.users)
+
+  const isSA = user?.roles.includes('Service Advisor') ?? false
+
+  // SA appointments (assigned to this user or unassigned SA Review)
+  const currentUser = useMemo(
+    () => (user ? users.find((u) => u.name === user.name) ?? null : null),
+    [users, user],
+  )
+  const SA_ACTIVE: CWAppointmentStatus[] = ['SA Review', 'Customer Notified', 'Customer Approved']
+  const saAppointments = useMemo(() => {
+    if (!isSA) return []
+    return appointments.filter((a) => {
+      if (!SA_ACTIVE.includes(a.status as CWAppointmentStatus)) return false
+      if (currentUser) {
+        return (
+          a.assignedServiceAdvisorId === currentUser.id ||
+          (!a.assignedServiceAdvisorId && a.status === 'SA Review')
+        )
+      }
+      return true
+    })
+  }, [appointments, isSA, currentUser])
 
   const [templateId, setTemplateId] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
@@ -131,6 +157,84 @@ export function TasksHome() {
           {error}
         </Alert>
       ) : null}
+
+      {/* ── SA Appointments ── */}
+      {isSA && (
+        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden', mb: 2 }}>
+          <Stack direction="row" spacing={1} sx={{ p: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Appointments</Typography>
+            <Chip size="small" label={`${saAppointments.length}`} color={saAppointments.length > 0 ? 'info' : 'default'} />
+          </Stack>
+          <Divider />
+          {saAppointments.length === 0 ? (
+            <Box sx={{ p: 3 }}>
+              <Typography color="text.secondary" variant="body2">No active appointments assigned to you.</Typography>
+            </Box>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 800 }}>Vehicle</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Slot</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Services</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {saAppointments.map((appt) => {
+                  const v = vehicles.find((x) => x.id === appt.vehicleId)
+                  const c = customers.find((x) => x.id === appt.customerId)
+                  const statusColorMap: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
+                    'SA Review': 'info',
+                    'Customer Notified': 'warning',
+                    'Customer Approved': 'success',
+                  }
+                  return (
+                    <TableRow
+                      key={appt.id}
+                      hover
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/cro/appointments/${appt.id}`)}
+                    >
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                          {v?.registrationNo ?? '—'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {[v?.make, v?.model].filter(Boolean).join(' ') || '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{c?.fullName ?? '—'}</Typography>
+                        <Typography variant="caption" color="text.secondary">{c?.phone ?? ''}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{appt.slotDate ?? '—'}</Typography>
+                        {appt.slotTime && (
+                          <Typography variant="caption" color="text.secondary">{appt.slotTime}</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{appt.serviceItems.length} service{appt.serviceItems.length !== 1 ? 's' : ''}</Typography>
+                        <Typography variant="caption" color="text.secondary">{appt.concernItems.length} concern{appt.concernItems.length !== 1 ? 's' : ''}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={appt.status}
+                          size="small"
+                          color={statusColorMap[appt.status] ?? 'default'}
+                          sx={{ fontWeight: 700 }}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </Paper>
+      )}
 
       <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', mb: 2 }}>
         <Stack spacing={1.5}>

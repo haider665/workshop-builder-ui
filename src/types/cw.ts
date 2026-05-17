@@ -178,24 +178,121 @@ export type CWPendingVehicle = {
   updatedAt: string
 }
 
+// ─── Concerns (Admin-managed) ────────────────────────────────────────────────
+
+export type CWConcernCategoryStatus = 'Active' | 'Inactive'
+
+export type CWConcernCategory = {
+  id: string
+  name: string
+  status: CWConcernCategoryStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type CWConcernStatus = 'Active' | 'Inactive'
+
+export type CWConcern = {
+  id: string
+  categoryId: string
+  name: string
+  status: CWConcernStatus
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Services (Admin-managed, seeded from CSV) ────────────────────────────────
+
+export type CWServiceStatus = 'Active' | 'Inactive'
+
+export type CWService = {
+  id: string
+  code: string
+  category: string
+  description: string
+  timeHrs: number
+  ratePerHr: number
+  price: number
+  status: CWServiceStatus
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Appointment concern / service line items ─────────────────────────────────
+
+export type CWAppointmentConcernItem = {
+  id: string
+  concernId: string
+  concernName: string
+  remark: string
+}
+
+export type CWServiceWorkStatus = 'Pending' | 'In Progress' | 'Completed'
+
+export type CWAppointmentServiceItem = {
+  id: string
+  serviceId: string
+  serviceCode: string
+  serviceDescription: string
+  timeHrs: number
+  ratePerHr: number
+  price: number
+  remark: string
+  addedBySA: boolean
+  // Service process assignment
+  workStatus?: CWServiceWorkStatus
+  assignedUserIds?: string[]
+  plannedStartAt?: string
+  plannedEndAt?: string
+}
+
+export type CWWhatsappLog = {
+  id: string
+  sentAt: string
+  direction: 'outbound' | 'inbound'
+  authorName: string
+  message: string
+}
+
 export type CWAppointmentStatus =
   | 'Draft'
   | 'Confirmed'
+  | 'SA Review'
+  | 'SA Reviewed'
+  | 'Customer Notified'
+  | 'Customer Approved'
+  | 'Customer Rejected'
+  | 'Service Processing'
   | 'Vehicle Arrived'
   | 'Job Created'
   | 'Cancelled'
+  | 'Closed'
 
 export type CWAppointment = {
   id: string
   customerId: string
   vehicleId: string
-  scheduledAt?: string
+  /** Legacy free-text concerns (kept for backward compat) */
   concerns: string
   notes: string
+  slotDate?: string
+  slotTime?: string
+  scheduledAt?: string
   status: CWAppointmentStatus
+  // Structured concern/service items
+  concernItems: CWAppointmentConcernItem[]
+  serviceItems: CWAppointmentServiceItem[]
+  // Customer approval
+  customerApprovalStatus: 'Pending' | 'Approved' | 'Rejected'
+  customerApprovalNote?: string
+  whatsappLogs: CWWhatsappLog[]
+  // Assignment
+  assignedServiceAdvisorId?: string
   assignedRoleId?: string
   assignedUserIds: string[]
   gateEntryId?: string
+  /** Task IDs for SA review tasks */
+  saTaskIds: string[]
   createdAt: string
   updatedAt: string
 }

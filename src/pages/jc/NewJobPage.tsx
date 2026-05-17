@@ -65,19 +65,21 @@ export function NewJobPage() {
   const templates = useCwStore((s) => s.taskTemplates)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const appointments = useCwStore((s) => s.appointments)
+  const vehicles = useCwStore((s) => s.vehicles)
   const tasks = useCwStore((s) => s.tasks)
   const createJobWithTasks = useCwStore((s) => s.createJobWithTasks)
 
   const pendingVehicleId = params.get('pendingVehicleId') ?? undefined
+  const appointmentIdParam = params.get('appointmentId') ?? undefined
   const pendingVehicle = pendingVehicleId
     ? pendingVehicles.find((p) => p.id === pendingVehicleId)
     : undefined
 
   const linkedAppointment = useMemo(() => {
-    const id = pendingVehicle?.appointmentId
+    const id = appointmentIdParam ?? pendingVehicle?.appointmentId
     if (!id) return undefined
     return appointments.find((a) => a.id === id)
-  }, [appointments, pendingVehicle?.appointmentId])
+  }, [appointments, appointmentIdParam, pendingVehicle?.appointmentId])
 
   const [registrationNo, setRegistrationNo] = useState('')
   const [shopId, setShopId] = useState('')
@@ -242,6 +244,18 @@ export function NewJobPage() {
     if (pendingVehicle?.registrationNo) setRegistrationNo(pendingVehicle.registrationNo)
   }, [pendingVehicle])
 
+  // Pre-fill regNo from appointmentId param
+  const appointmentVehicle = useMemo(() => {
+    if (!linkedAppointment) return undefined
+    return vehicles.find((v) => v.id === linkedAppointment.vehicleId)
+  }, [linkedAppointment, vehicles])
+
+  useEffect(() => {
+    if (appointmentIdParam && appointmentVehicle?.registrationNo) {
+      setRegistrationNo(appointmentVehicle.registrationNo)
+    }
+  }, [appointmentIdParam, appointmentVehicle])
+
   function addTask() {
     const selectedTemplate = templates.find((t) => t.id === templateId)
     if (!selectedTemplate) return
@@ -341,6 +355,7 @@ export function NewJobPage() {
       const job = createJobWithTasks({
         registrationNo,
         pendingVehicleId,
+        appointmentId: appointmentIdParam,
         tasks: tasksInput,
       })
       navigate(`/jc/jobs/${job.id}`)
@@ -362,7 +377,7 @@ export function NewJobPage() {
           <Box>
             <Typography sx={{ fontWeight: 900 }}>Vehicle</Typography>
             <Typography variant="body2" color="text.secondary">
-              {pendingVehicleId ? 'Pre-filled from pending vehicles.' : 'Enter registration number.'}
+              {pendingVehicleId ? 'Pre-filled from pending vehicles.' : appointmentIdParam ? 'Pre-filled from appointment.' : 'Enter registration number.'}
             </Typography>
             {appointmentPrefillSummary ? (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -376,7 +391,7 @@ export function NewJobPage() {
             value={registrationNo}
             onChange={(e) => setRegistrationNo(e.target.value)}
             fullWidth
-            disabled={!!pendingVehicleId}
+            disabled={!!pendingVehicleId || !!appointmentIdParam}
           />
 
           <Divider />
