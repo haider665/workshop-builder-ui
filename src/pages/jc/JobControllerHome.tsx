@@ -13,29 +13,44 @@ function fmtDate(iso?: string) {
 function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
   const map: Record<string, 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error'> = {
     'New': 'info',
-    'JC Assigning Diagnosis': 'info',
-    'Diagnosis In Progress': 'primary',
-    'Diagnosis Complete': 'warning',
+    'SA Inspection': 'primary',
+    'SA Reviewed': 'warning',
     'Customer Notified': 'warning',
     'Customer Approved': 'success',
     'Customer Rejected': 'error',
-    'JC Assigning Services': 'info',
+    'Diagnosis Assigned': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'success',
+    'Service Approval Pending': 'warning',
+    'Service Approved': 'success',
+    'Service Assigned': 'info',
     'Service In Progress': 'primary',
-    'Closed': 'success',
+    'Service Complete': 'success',
+    'Payment Pending': 'warning',
+    'Payment Done': 'success',
+    'Released': 'success',
   }
   return map[status] ?? 'default'
 }
 
+// JC sees everything except Released (finished)
 const JC_RELEVANT_STATUSES: CWAppointmentStatus[] = [
   'New',
-  'JC Assigning Diagnosis',
-  'Diagnosis In Progress',
-  'Diagnosis Complete',
+  'SA Inspection',
+  'SA Reviewed',
   'Customer Notified',
   'Customer Approved',
   'Customer Rejected',
-  'JC Assigning Services',
+  'Diagnosis Assigned',
+  'Diagnosis In Progress',
+  'Diagnosis Complete',
+  'Service Approval Pending',
+  'Service Approved',
+  'Service Assigned',
   'Service In Progress',
+  'Service Complete',
+  'Payment Pending',
+  'Payment Done',
 ]
 
 export function JobControllerHome() {
@@ -54,7 +69,7 @@ export function JobControllerHome() {
   )
 
   const needsAction = useMemo(
-    () => relevant.filter((a) => ['New', 'JC Assigning Diagnosis', 'Customer Approved', 'JC Assigning Services'].includes(a.status)),
+    () => relevant.filter((a) => ['Customer Approved', 'Service Approved'].includes(a.status)),
     [relevant],
   )
 

@@ -18,12 +18,11 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
-
+import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 
 function fmtBDT(n: number) {
   return `BDT ${n.toLocaleString('en-BD')}`
 }
-
 
 function fmtDateTime(iso?: string) {
   if (!iso) return '—'
@@ -32,8 +31,31 @@ function fmtDateTime(iso?: string) {
   })
 }
 
-type ConcernForm = Record<string, { saUserId: string; startLocal: string; endLocal: string }>
-type ServiceForm = Record<string, { saUserId: string; bayId: string; startLocal: string; endLocal: string }>
+type ConcernForm = Record<string, { seUserId: string; bayId: string; startLocal: string; endLocal: string }>
+type ServiceForm = Record<string, { seUserId: string; bayId: string; startLocal: string; endLocal: string }>
+
+function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
+  const map: Record<string, 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error'> = {
+    'New': 'info',
+    'SA Inspection': 'primary',
+    'SA Reviewed': 'warning',
+    'Customer Notified': 'warning',
+    'Customer Approved': 'success',
+    'Customer Rejected': 'error',
+    'Diagnosis Assigned': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'success',
+    'Service Approval Pending': 'warning',
+    'Service Approved': 'success',
+    'Service Assigned': 'info',
+    'Service In Progress': 'primary',
+    'Service Complete': 'success',
+    'Payment Pending': 'warning',
+    'Payment Done': 'success',
+    'Released': 'success',
+  }
+  return map[status] ?? 'default'
+}
 
 export function JCAppointmentPage() {
   const { appointmentId } = useParams<{ appointmentId: string }>()
@@ -44,8 +66,9 @@ export function JCAppointmentPage() {
   const users = useCwStore((s) => s.users)
   const bays = useCwStore((s) => s.bays)
   const assignConcernDiagnosis = useCwStore((s) => s.assignConcernDiagnosis)
-  const assignServiceSA = useCwStore((s) => s.assignServiceSA)
+  const assignServiceSE = useCwStore((s) => s.assignServiceSE)
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
+  const pushTimeline = useCwStore((s) => s.pushTimeline)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -55,7 +78,7 @@ export function JCAppointmentPage() {
   const vehicle = useMemo(() => (appt ? vehicles.find((v) => v.id === appt.vehicleId) : null), [vehicles, appt])
   const customer = useMemo(() => (appt ? customers.find((c) => c.id === appt.customerId) : null), [customers, appt])
 
-  const saUsers = useMemo(
+  const seUsers = useMemo(
     () => users.filter((u) => u.status === 'Active' && u.roleIds.length > 0),
     [users],
   )
@@ -86,30 +109,10 @@ export function JCAppointmentPage() {
     )
   }
 
-  const isDiagnosisPhase = ['New', 'JC Assigning Diagnosis'].includes(appt.status)
-  const isServicePhase = ['Customer Approved', 'JC Assigning Services'].includes(appt.status)
-
-  function getConcernFormVal(id: string) {
-    return concernForm[id] ?? { saUserId: '', startLocal: '', endLocal: '' }
-  }
-
-  function getServiceFormVal(id: string) {
-    return serviceForm[id] ?? { saUserId: '', bayId: '', startLocal: '', endLocal: '' }
-  }
-
-  function updateConcernForm(id: string, partial: Partial<ConcernForm[string]>) {
-    setConcernForm((prev) => ({
-      ...prev,
-      [id]: { ...getConcernFormVal(id), ...partial },
-    }))
-  }
-
-  function updateServiceForm(id: string, partial: Partial<ServiceForm[string]>) {
-    setServiceForm((prev) => ({
-      ...prev,
-      [id]: { ...getServiceFormVal(id), ...partial },
-    }))
-  }
+  // Phase 1: Customer Approved → assign SE+bay to CONCERNS only → Diagnosis Assigned
+  const isDiagnosisPhase = appt.status === 'Customer Approved'
+  // Phase 2: Service Approved → assign SE+bay to SERVICES only → Service Assigned
+  const isServicePhase = appt.status === 'Service Approved'
 
   function toIso(local: string) {
     if (!local) return ''
@@ -117,72 +120,68 @@ export function JCAppointmentPage() {
     return Number.isNaN(d.getTime()) ? '' : d.toISOString()
   }
 
-  function submitDiagnosisAssignments() {
+  function getConcernFormVal(id: string) {
+    return concernForm[id] ?? { seUserId: '', bayId: '', startLocal: '', endLocal: '' }
+  }
+
+  function getServiceFormVal(id: string) {
+    return serviceForm[id] ?? { seUserId: '', bayId: '', startLocal: '', endLocal: '' }
+  }
+
+  function submitDiagnosisAssignment() {
     try {
       setError(null)
       for (const c of appt!.concernItems) {
         const form = getConcernFormVal(c.id)
-        if (!form.saUserId) throw new Error(`Select SA for concern: ${c.concernName}`)
+        if (!form.seUserId) throw new Error(`Select SE for concern: ${c.concernName}`)
+        if (!form.bayId) throw new Error(`Select Bay for concern: ${c.concernName}`)
         const start = toIso(form.startLocal)
         const end = toIso(form.endLocal)
         if (!start || !end) throw new Error(`Set time window for concern: ${c.concernName}`)
-        if (Date.parse(end) <= Date.parse(start)) throw new Error(`End must be after start for: ${c.concernName}`)
 
         assignConcernDiagnosis({
           appointmentId: appt!.id,
           concernItemId: c.id,
-          saUserId: form.saUserId,
+          seUserId: form.seUserId,
+          bayId: form.bayId,
           startAt: start,
           endAt: end,
         })
       }
-      setAppointmentStatus(appt!.id, 'Diagnosis In Progress')
+
+      setAppointmentStatus(appt!.id, 'Diagnosis Assigned')
+      pushTimeline(appt!.id, { actor: 'JC', action: 'SE + Bay assigned to all concerns for diagnosis' })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
 
-  function submitServiceAssignments() {
+  function submitServiceAssignment() {
     try {
       setError(null)
       for (const s of appt!.serviceItems) {
         const form = getServiceFormVal(s.id)
-        if (!form.saUserId) throw new Error(`Select SA for service: ${s.serviceDescription}`)
-        const start = toIso(form.startLocal)
-        const end = toIso(form.endLocal)
+        if (!form.seUserId) throw new Error(`Select SE for service: ${s.serviceDescription}`)
+        if (!form.bayId) throw new Error(`Select Bay for service: ${s.serviceDescription}`)
 
-        assignServiceSA({
+        assignServiceSE({
           appointmentId: appt!.id,
           serviceItemId: s.id,
-          saUserId: form.saUserId,
-          bayId: form.bayId || undefined,
-          startAt: start || undefined,
-          endAt: end || undefined,
+          seUserId: form.seUserId,
+          bayId: form.bayId,
+          startAt: toIso(form.startLocal) || undefined,
+          endAt: toIso(form.endLocal) || undefined,
         })
       }
-      setAppointmentStatus(appt!.id, 'Service In Progress')
+
+      setAppointmentStatus(appt!.id, 'Service Assigned')
+      pushTimeline(appt!.id, { actor: 'JC', action: 'SE + Bay assigned to all services' })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
 
   const totalBDT = appt.serviceItems.reduce((sum, s) => sum + s.price, 0)
-
-  function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
-    const map: Record<string, 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error'> = {
-      'New': 'info',
-      'JC Assigning Diagnosis': 'info',
-      'Diagnosis In Progress': 'primary',
-      'Diagnosis Complete': 'warning',
-      'Customer Notified': 'warning',
-      'Customer Approved': 'success',
-      'Customer Rejected': 'error',
-      'JC Assigning Services': 'info',
-      'Service In Progress': 'primary',
-      'Closed': 'success',
-    }
-    return map[status] ?? 'default'
-  }
 
   return (
     <Page title="JC — Appointment" subtitle={`#${appt.id.slice(0, 8)}`}>
@@ -207,6 +206,12 @@ export function JCAppointmentPage() {
               <Typography variant="caption" color="text.secondary">{customer?.phone ?? ''}</Typography>
             </Box>
             <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" color="text.secondary">SA</Typography>
+              <Typography sx={{ fontWeight: 700 }}>
+                {appt.assignedSAUserId ? (userNameById.get(appt.assignedSAUserId) ?? '—') : '—'}
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1 }}>
               <Typography variant="body2" color="text.secondary">Status</Typography>
               <Chip label={appt.status} size="small" color={statusColor(appt.status)} sx={{ fontWeight: 700, mt: 0.5 }} />
             </Box>
@@ -215,18 +220,14 @@ export function JCAppointmentPage() {
               <Typography sx={{ fontWeight: 700 }}>{fmtBDT(totalBDT)}</Typography>
             </Box>
           </Stack>
-          {appt.concerns && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              Notes: {appt.concerns}
-            </Typography>
-          )}
         </Paper>
 
-        {/* ── Concerns List ── */}
+        {/* ── Workflow Timeline ── */}
+        <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
+
+        {/* ── Concerns Summary ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>
-            Concerns ({appt.concernItems.length})
-          </Typography>
+          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Concerns ({appt.concernItems.length})</Typography>
           {appt.concernItems.length === 0 ? (
             <Typography variant="body2" color="text.secondary">No concerns listed.</Typography>
           ) : (
@@ -235,7 +236,8 @@ export function JCAppointmentPage() {
                 <TableRow sx={{ bgcolor: 'action.hover' }}>
                   <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Remark</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Assigned SA</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Assigned SE</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Bay</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Time Window</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
                 </TableRow>
@@ -245,7 +247,8 @@ export function JCAppointmentPage() {
                   <TableRow key={c.id}>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 700 }}>{c.concernName}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{c.remark || '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{c.assignedSAUserId ? (userNameById.get(c.assignedSAUserId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell><Typography variant="body2">{c.assignedSEUserId ? (userNameById.get(c.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell><Typography variant="body2">{c.bayId ? (bayNameById.get(c.bayId) ?? '—') : '—'}</Typography></TableCell>
                     <TableCell>
                       <Typography variant="caption">
                         {c.plannedStartAt ? `${fmtDateTime(c.plannedStartAt)} → ${fmtDateTime(c.plannedEndAt)}` : '—'}
@@ -253,12 +256,7 @@ export function JCAppointmentPage() {
                     </TableCell>
                     <TableCell>
                       {c.workStatus ? (
-                        <Chip
-                          label={c.workStatus}
-                          size="small"
-                          color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'}
-                          sx={{ fontWeight: 700 }}
-                        />
+                        <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
                       ) : '—'}
                     </TableCell>
                   </TableRow>
@@ -268,11 +266,9 @@ export function JCAppointmentPage() {
           )}
         </Paper>
 
-        {/* ── Services List ── */}
+        {/* ── Services Summary ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>
-            Services ({appt.serviceItems.length})
-          </Typography>
+          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Services ({appt.serviceItems.length})</Typography>
           {appt.serviceItems.length === 0 ? (
             <Typography variant="body2" color="text.secondary">No services listed.</Typography>
           ) : (
@@ -281,7 +277,7 @@ export function JCAppointmentPage() {
                 <TableRow sx={{ bgcolor: 'action.hover' }}>
                   <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Price</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Assigned SA</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Assigned SE</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Bay</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
                 </TableRow>
@@ -294,16 +290,11 @@ export function JCAppointmentPage() {
                       <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
                     </TableCell>
                     <TableCell><Typography variant="body2">{fmtBDT(s.price)}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{s.assignedSAUserId ? (userNameById.get(s.assignedSAUserId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell><Typography variant="body2">{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{s.bayId ? (bayNameById.get(s.bayId) ?? '—') : '—'}</Typography></TableCell>
                     <TableCell>
                       {s.workStatus ? (
-                        <Chip
-                          label={s.workStatus}
-                          size="small"
-                          color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'}
-                          sx={{ fontWeight: 700 }}
-                        />
+                        <Chip label={s.workStatus} size="small" color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
                       ) : '—'}
                     </TableCell>
                   </TableRow>
@@ -313,14 +304,14 @@ export function JCAppointmentPage() {
           )}
         </Paper>
 
-        {/* ── Phase 1: Diagnosis Assignment (JC assigns SA per concern) ── */}
+        {/* ── Phase 1: Assign SE + Bay to CONCERNS (Diagnosis) ── */}
         {isDiagnosisPhase && appt.concernItems.length > 0 && (
-          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 0.5, color: 'info.main' }}>
-              Phase 1 — Assign SA for Diagnosis
+          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 0.5, color: 'warning.main' }}>
+              Assign SE + Bay for Diagnosis
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Assign a Service Advisor and time window to each concern for diagnosis.
+              Customer approved. Assign SE and Bay to each concern for diagnosis.
             </Typography>
 
             <Stack spacing={2}>
@@ -332,33 +323,29 @@ export function JCAppointmentPage() {
                       {c.concernName}
                       {c.remark && <Typography component="span" variant="caption" color="text.secondary"> — {c.remark}</Typography>}
                     </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.5 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
                       <TextField
-                        select
-                        size="small"
-                        label="Service Advisor"
-                        value={form.saUserId}
-                        onChange={(e) => updateConcernForm(c.id, { saUserId: e.target.value })}
+                        select size="small" label="Service Engineer"
+                        value={form.seUserId}
+                        onChange={(e) => setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), seUserId: e.target.value } }))}
                       >
-                        <MenuItem value="">— Select SA —</MenuItem>
-                        {saUsers.map((u) => (
-                          <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                        ))}
+                        <MenuItem value="">— Select SE —</MenuItem>
+                        {seUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
                       </TextField>
                       <TextField
-                        size="small"
-                        label="Start Time"
-                        type="datetime-local"
-                        value={form.startLocal}
-                        onChange={(e) => updateConcernForm(c.id, { startLocal: e.target.value })}
+                        select size="small" label="Bay"
+                        value={form.bayId}
+                        onChange={(e) => setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), bayId: e.target.value } }))}
+                      >
+                        <MenuItem value="">— Select Bay —</MenuItem>
+                        {activeBays.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
+                      </TextField>
+                      <TextField size="small" label="Start Time" type="datetime-local" value={form.startLocal}
+                        onChange={(e) => setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), startLocal: e.target.value } }))}
                         slotProps={{ inputLabel: { shrink: true } }}
                       />
-                      <TextField
-                        size="small"
-                        label="End Time"
-                        type="datetime-local"
-                        value={form.endLocal}
-                        onChange={(e) => updateConcernForm(c.id, { endLocal: e.target.value })}
+                      <TextField size="small" label="End Time" type="datetime-local" value={form.endLocal}
+                        onChange={(e) => setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), endLocal: e.target.value } }))}
                         slotProps={{ inputLabel: { shrink: true } }}
                       />
                     </Box>
@@ -368,27 +355,21 @@ export function JCAppointmentPage() {
             </Stack>
 
             <Box sx={{ mt: 2.5 }}>
-              <Button
-                variant="contained"
-                color="info"
-                size="large"
-                onClick={submitDiagnosisAssignments}
-                sx={{ fontWeight: 900 }}
-              >
-                Assign & Start Diagnosis
+              <Button variant="contained" color="warning" size="large" onClick={submitDiagnosisAssignment} sx={{ fontWeight: 900 }}>
+                Assign SE & Start Diagnosis
               </Button>
             </Box>
           </Paper>
         )}
 
-        {/* ── Phase 2: Service Assignment (JC assigns SA + bay per service) ── */}
+        {/* ── Phase 2: Assign SE + Bay to SERVICES ── */}
         {isServicePhase && appt.serviceItems.length > 0 && (
           <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
             <Typography sx={{ fontWeight: 900, mb: 0.5, color: 'success.main' }}>
-              Phase 2 — Assign SA + Bay for Services
+              Assign SE + Bay for Services
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Customer approved. Assign Service Advisor, bay, and optionally time to each service.
+              Services approved. Assign SE and Bay to each service.
             </Typography>
 
             <Stack spacing={2}>
@@ -402,43 +383,27 @@ export function JCAppointmentPage() {
                     </Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
                       <TextField
-                        select
-                        size="small"
-                        label="Service Advisor"
-                        value={form.saUserId}
-                        onChange={(e) => updateServiceForm(s.id, { saUserId: e.target.value })}
+                        select size="small" label="Service Engineer"
+                        value={form.seUserId}
+                        onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), seUserId: e.target.value } }))}
                       >
-                        <MenuItem value="">— Select SA —</MenuItem>
-                        {saUsers.map((u) => (
-                          <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                        ))}
+                        <MenuItem value="">— Select SE —</MenuItem>
+                        {seUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
                       </TextField>
                       <TextField
-                        select
-                        size="small"
-                        label="Bay"
+                        select size="small" label="Bay"
                         value={form.bayId}
-                        onChange={(e) => updateServiceForm(s.id, { bayId: e.target.value })}
+                        onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), bayId: e.target.value } }))}
                       >
-                        <MenuItem value="">— None —</MenuItem>
-                        {activeBays.map((b) => (
-                          <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
-                        ))}
+                        <MenuItem value="">— Select Bay —</MenuItem>
+                        {activeBays.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
                       </TextField>
-                      <TextField
-                        size="small"
-                        label="Start (optional)"
-                        type="datetime-local"
-                        value={form.startLocal}
-                        onChange={(e) => updateServiceForm(s.id, { startLocal: e.target.value })}
+                      <TextField size="small" label="Start (optional)" type="datetime-local" value={form.startLocal}
+                        onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), startLocal: e.target.value } }))}
                         slotProps={{ inputLabel: { shrink: true } }}
                       />
-                      <TextField
-                        size="small"
-                        label="End (optional)"
-                        type="datetime-local"
-                        value={form.endLocal}
-                        onChange={(e) => updateServiceForm(s.id, { endLocal: e.target.value })}
+                      <TextField size="small" label="End (optional)" type="datetime-local" value={form.endLocal}
+                        onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), endLocal: e.target.value } }))}
                         slotProps={{ inputLabel: { shrink: true } }}
                       />
                     </Box>
@@ -448,52 +413,55 @@ export function JCAppointmentPage() {
             </Stack>
 
             <Box sx={{ mt: 2.5 }}>
-              <Button
-                variant="contained"
-                color="success"
-                size="large"
-                onClick={submitServiceAssignments}
-                sx={{ fontWeight: 900 }}
-              >
-                Assign & Start Services
+              <Button variant="contained" color="success" size="large" onClick={submitServiceAssignment} sx={{ fontWeight: 900 }}>
+                Assign SE & Start Services
               </Button>
             </Box>
           </Paper>
         )}
 
-        {/* ── Status messages for non-actionable states ── */}
-        {appt.status === 'Diagnosis In Progress' && (
-          <Paper sx={{ border: '1px solid', borderColor: 'primary.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 700, color: 'primary.main' }}>
-              ⏳ Diagnosis is in progress — waiting for SA to complete and notify customer.
-            </Typography>
-          </Paper>
+        {/* ── Status info ── */}
+        {appt.status === 'SA Inspection' && (
+          <Alert severity="info">SA is performing vehicle inspection.</Alert>
+        )}
+        {appt.status === 'SA Reviewed' && (
+          <Alert severity="info">SA reviewed — awaiting customer communication.</Alert>
         )}
         {appt.status === 'Customer Notified' && (
-          <Paper sx={{ border: '1px solid', borderColor: 'warning.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 700, color: 'warning.main' }}>
-              📱 Customer has been notified — waiting for approval.
-            </Typography>
-          </Paper>
+          <Alert severity="warning">Customer notified — waiting for approval.</Alert>
         )}
         {appt.status === 'Customer Rejected' && (
-          <Paper sx={{ border: '1px solid', borderColor: 'error.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 700, color: 'error.main' }}>
-              ❌ Customer rejected — SA may re-diagnose or revise.
-            </Typography>
-          </Paper>
+          <Alert severity="error">Customer rejected. SA may re-negotiate.</Alert>
+        )}
+        {appt.status === 'Diagnosis Assigned' && (
+          <Alert severity="info">SE assigned for diagnosis — waiting for technicians.</Alert>
+        )}
+        {appt.status === 'Diagnosis In Progress' && (
+          <Alert severity="info">Diagnosis in progress — technicians working.</Alert>
+        )}
+        {appt.status === 'Diagnosis Complete' && (
+          <Alert severity="success">Diagnosis complete — SA reviewing services.</Alert>
+        )}
+        {appt.status === 'Service Approval Pending' && (
+          <Alert severity="warning">Service approval sent to customer.</Alert>
+        )}
+        {appt.status === 'Service Assigned' && (
+          <Alert severity="info">SE assigned for services — waiting for technicians.</Alert>
         )}
         {appt.status === 'Service In Progress' && (
-          <Paper sx={{ border: '1px solid', borderColor: 'primary.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 700, color: 'primary.main' }}>
-              🔧 Services in progress — waiting for SA and technicians to complete all work.
-            </Typography>
-          </Paper>
+          <Alert severity="info">Services in progress — technicians working.</Alert>
         )}
-        {appt.status === 'Closed' && (
-          <Paper sx={{ border: '1px solid', borderColor: 'success.main', p: 2.5 }}>
-            <Chip label="✓ Appointment Closed" color="success" sx={{ fontWeight: 700 }} />
-          </Paper>
+        {appt.status === 'Service Complete' && (
+          <Alert severity="success">Services complete — SA handling payment.</Alert>
+        )}
+        {appt.status === 'Payment Pending' && (
+          <Alert severity="warning">Payment pending.</Alert>
+        )}
+        {appt.status === 'Payment Done' && (
+          <Alert severity="success">Payment done — gate pass issued.</Alert>
+        )}
+        {appt.status === 'Released' && (
+          <Alert severity="success">Vehicle released.</Alert>
         )}
       </Stack>
     </Page>

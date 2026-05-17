@@ -47,9 +47,9 @@ export function PendingVehiclesPage() {
 
   function apptChip(status: string) {
     if (status === 'New') return <Chip size="small" color="info" label="New" />
-    if (status === 'Diagnosis In Progress') return <Chip size="small" color="primary" label="Diagnosis" />
-    if (status === 'Service In Progress') return <Chip size="small" color="primary" label="Service" />
-    if (status === 'Closed') return <Chip size="small" color="success" label="Closed" />
+    if (status === 'SA Inspection') return <Chip size="small" color="primary" label="Inspection" />
+    if (status === 'Payment Done') return <Chip size="small" color="success" label="Paid" />
+    if (status === 'Released') return <Chip size="small" color="success" label="Released" />
     return <Chip size="small" color="default" label={status} />
   }
 

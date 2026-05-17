@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
@@ -18,43 +19,34 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Add, Send, WhatsApp } from '@mui/icons-material'
+import { Send } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
-import { useSessionStore } from '../../store/sessionStore'
-import type { CWConcernWorkStatus, CWService, CWServiceWorkStatus } from '../../types/cw'
+import { WorkflowTimeline } from '../../components/WorkflowTimeline'
+import type { CWInspectionCheck } from '../../types/cw'
 
 function fmtBDT(n: number) {
   return `BDT ${n.toLocaleString('en-BD')}`
 }
 
-function fmtDateTime(iso?: string) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-GB', {
-    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-  })
-}
-
 export function SAAppointmentDetailPage() {
   const { appointmentId } = useParams<{ appointmentId: string }>()
 
-  const sessionUser = useSessionStore((s) => s.user)
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
   const users = useCwStore((s) => s.users)
-  const bays = useCwStore((s) => s.bays)
-  const assignConcernTechnicians = useCwStore((s) => s.assignConcernTechnicians)
-  const setConcernWorkStatus = useCwStore((s) => s.setConcernWorkStatus)
-  const assignServiceTechnicians = useCwStore((s) => s.assignServiceTechnicians)
-  const updateServiceItemAssignment = useCwStore((s) => s.updateServiceItemAssignment)
+  const services = useCwStore((s) => s.services)
+  const submitInspection = useCwStore((s) => s.submitInspection)
+  const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
   const addWhatsappLog = useCwStore((s) => s.addWhatsappLog)
   const setCustomerApproval = useCwStore((s) => s.setCustomerApproval)
-  const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
-  const services = useCwStore((s) => s.services)
   const addAppointmentService = useCwStore((s) => s.addAppointmentService)
+  const addAppointmentConcern = useCwStore((s) => s.addAppointmentConcern)
+  const pushTimeline = useCwStore((s) => s.pushTimeline)
+  const confirmPayment = useCwStore((s) => s.confirmPayment)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -64,618 +56,442 @@ export function SAAppointmentDetailPage() {
   const vehicle = useMemo(() => (appt ? vehicles.find((v) => v.id === appt.vehicleId) : null), [vehicles, appt])
   const customer = useMemo(() => (appt ? customers.find((c) => c.id === appt.customerId) : null), [customers, appt])
 
-
-
   const userNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const u of users) map.set(u.id, u.fullName)
     return map
   }, [users])
 
-  const bayNameById = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const b of bays) map.set(b.id, b.name)
-    return map
-  }, [bays])
+  const activeServices = useMemo(() => services.filter((s) => s.status === 'Active'), [services])
+  const concerns = useCwStore((s) => s.concerns)
+  const activeConcerns = useMemo(() => concerns.filter((c) => c.status === 'Active'), [concerns])
 
-  const activeUsers = useMemo(() => users.filter((u) => u.status === 'Active'), [users])
+  // Inspection state
+  const [inspChecks, setInspChecks] = useState<CWInspectionCheck[]>(appt?.inspectionChecks ?? [])
 
-  // Concern technician assignment form: { [concernItemId]: string[] }
-  const [concernTechForm, setConcernTechForm] = useState<Record<string, string[]>>({})
-  // Service technician assignment form
-  const [serviceTechForm, setServiceTechForm] = useState<Record<string, string[]>>({})
-
-  // WhatsApp
+  // WhatsApp dialog
   const [waDialogOpen, setWaDialogOpen] = useState(false)
   const [waMessage, setWaMessage] = useState('')
+  const [waDialogPurpose, setWaDialogPurpose] = useState<'concern-approval' | 'service-approval' | 'payment'>('concern-approval')
 
-  // Customer approval
+  // Approval dialog
   const [approvalNote, setApprovalNote] = useState('')
 
-  // Add service form
-  const [selectedService, setSelectedService] = useState<CWService | null>(null)
-  const [serviceRemark, setServiceRemark] = useState('')
-
-  const activeServices = useMemo(
-    () => services.filter((s) => s.status === 'Active'),
-    [services],
-  )
+  // Add concern/service forms
+  const [addConcernId, setAddConcernId] = useState('')
+  const [addConcernRemark, setAddConcernRemark] = useState('')
+  const [addServiceId, setAddServiceId] = useState('')
+  const [addServiceRemark, setAddServiceRemark] = useState('')
 
   if (!appt) {
     return (
-      <Page title="Appointment Not Found">
+      <Page title="SA — Not Found">
         <Alert severity="error">Appointment not found.</Alert>
       </Page>
     )
   }
 
-  const isDiagnosisPhase = ['Diagnosis In Progress', 'Diagnosis Complete', 'Customer Notified', 'Customer Approved', 'Customer Rejected', 'JC Assigning Services', 'Service In Progress', 'Closed'].includes(appt.status)
-  const isDiagnosisDone = appt.status === 'Diagnosis Complete'
-  const isNotified = appt.status === 'Customer Notified'
-  const isServicePhase = ['Service In Progress', 'Closed'].includes(appt.status)
+  const isInspection = appt.status === 'SA Inspection'
+  const isReviewed = appt.status === 'SA Reviewed'
+  const isCustomerNotified = appt.status === 'Customer Notified'
+  const isDiagnosisComplete = appt.status === 'Diagnosis Complete'
+  const isServiceApprovalPending = appt.status === 'Service Approval Pending'
+  const isServiceComplete = appt.status === 'Service Complete'
+  const isPaymentPending = appt.status === 'Payment Pending'
 
-  // Show ALL concern/service items that have an SA assigned (no user filtering)
-  const myConcerns = appt.concernItems.filter((c) => c.assignedSAUserId)
-  const myServices = appt.serviceItems.filter((s) => s.assignedSAUserId)
+  // SA can send WhatsApp for initial concern approval
+  const canSendConcernWA = isReviewed
+  // SA can send WhatsApp for service approval after diagnosis
+  const canSendServiceWA = isDiagnosisComplete
+  // SA can approve/reject (1st round: concerns, 2nd round: services)
+  const canApprove = isCustomerNotified || isServiceApprovalPending
+  // SA can send payment WA
+  const canSendPaymentWA = isServiceComplete
+  // SA can confirm payment
+  const canConfirmPayment = isPaymentPending
 
-  function saveConcernTechnicians(concernItemId: string) {
-    const techIds = concernTechForm[concernItemId] ?? []
-    if (!techIds.length) return
-    assignConcernTechnicians({
+  function toggleCheck(id: string) {
+    setInspChecks((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, checked: !c.checked } : c)),
+    )
+  }
+
+  function handleSubmitInspection() {
+    submitInspection({
       appointmentId: appt!.id,
-      concernItemId,
-      technicianUserIds: techIds,
+      checks: inspChecks,
+      actorName: userNameById.get(appt!.assignedSAUserId ?? '') ?? 'SA',
     })
   }
 
-  function handleConcernStatus(concernItemId: string, status: CWConcernWorkStatus) {
-    setConcernWorkStatus({
-      appointmentId: appt!.id,
-      concernItemId,
-      status,
-    })
-    // Check if ALL concerns are completed → auto-transition
-    if (status === 'Completed') {
-      const updated = appt!.concernItems.map((c) =>
-        c.id === concernItemId ? { ...c, workStatus: 'Completed' as const } : c,
-      )
-      if (updated.every((c) => c.workStatus === 'Completed')) {
-        setAppointmentStatus(appt!.id, 'Diagnosis Complete')
-      }
+  function openWhatsApp(purpose: 'concern-approval' | 'service-approval' | 'payment') {
+    setWaDialogPurpose(purpose)
+    const name = customer?.fullName ?? 'Customer'
+    const reg = vehicle?.registrationNo ?? ''
+
+    if (purpose === 'concern-approval') {
+      const concernList = appt!.concernItems.map((c) => `• ${c.concernName}`).join('\n')
+      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nConcerns:\n${concernList}\n\nProposed Services:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm.`)
+    } else if (purpose === 'service-approval') {
+      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nAfter diagnosis, the following services are recommended:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm to proceed.`)
+    } else {
+      const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nAll services completed.\n\nTotal Due: ${fmtBDT(total)}\n\nPlease make payment to collect your vehicle.`)
     }
-  }
-
-  function saveServiceTechnicians(serviceItemId: string) {
-    const techIds = serviceTechForm[serviceItemId] ?? []
-    if (!techIds.length) return
-    assignServiceTechnicians({
-      appointmentId: appt!.id,
-      serviceItemId,
-      technicianUserIds: techIds,
-    })
-  }
-
-  function handleServiceStatus(serviceItemId: string, status: CWServiceWorkStatus) {
-    updateServiceItemAssignment({
-      appointmentId: appt!.id,
-      serviceItemId,
-      workStatus: status,
-    })
-    // Check if ALL services completed → auto-close
-    if (status === 'Completed') {
-      const updated = appt!.serviceItems.map((s) =>
-        s.id === serviceItemId ? { ...s, workStatus: 'Completed' as const } : s,
-      )
-      if (updated.every((s) => s.workStatus === 'Completed')) {
-        setAppointmentStatus(appt!.id, 'Closed')
-      }
-    }
-  }
-
-  function openWhatsApp() {
-    const parts = []
-    parts.push(`*Diagnosis Summary*`)
-    if (customer) parts.push(`Customer: ${customer.fullName}`)
-    if (vehicle) parts.push(`Vehicle: ${vehicle.registrationNo} - ${vehicle.make ?? ''} ${vehicle.model ?? ''}`)
-    parts.push(`\n*Concerns Diagnosed:*`)
-    appt!.concernItems.forEach((c, i) => {
-      parts.push(`${i + 1}. ${c.concernName}${c.remark ? ` — ${c.remark}` : ''}`)
-    })
-    parts.push(`\n*Services Recommended:*`)
-    appt!.serviceItems.forEach((s, i) => {
-      parts.push(`${i + 1}. ${s.serviceDescription} — ${fmtBDT(s.price)}`)
-    })
-    const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
-    parts.push(`\n*Total Estimate: ${fmtBDT(total)}*`)
-    parts.push(`\nPlease confirm your approval.`)
-    setWaMessage(parts.join('\n'))
     setWaDialogOpen(true)
   }
 
   function sendWhatsapp() {
-    if (!waMessage.trim()) return
     addWhatsappLog({
       appointmentId: appt!.id,
-      message: waMessage.trim(),
       direction: 'outbound',
-      authorName: sessionUser?.name ?? 'SA',
+      authorName: userNameById.get(appt!.assignedSAUserId ?? '') ?? 'SA',
+      message: waMessage.trim(),
     })
-    setAppointmentStatus(appt!.id, 'Customer Notified')
+
+    if (waDialogPurpose === 'concern-approval') {
+      setAppointmentStatus(appt!.id, 'Customer Notified')
+      pushTimeline(appt!.id, { actor: 'SA', action: 'WhatsApp sent for concern/service approval' })
+    } else if (waDialogPurpose === 'service-approval') {
+      setAppointmentStatus(appt!.id, 'Service Approval Pending')
+      pushTimeline(appt!.id, { actor: 'SA', action: 'WhatsApp sent for service approval (post-diagnosis)' })
+    } else {
+      setAppointmentStatus(appt!.id, 'Payment Pending')
+      pushTimeline(appt!.id, { actor: 'SA', action: 'WhatsApp sent for payment' })
+    }
+
     setWaDialogOpen(false)
     setWaMessage('')
   }
 
-  function handleApproval(decision: 'Approved' | 'Rejected') {
-    setCustomerApproval({
-      appointmentId: appt!.id,
-      status: decision,
-      note: approvalNote.trim() || undefined,
-    })
+  function handleApproval(status: 'Approved' | 'Rejected') {
+    setCustomerApproval({ appointmentId: appt!.id, status, note: approvalNote.trim() || undefined })
+
+    if (status === 'Approved') {
+      if (isCustomerNotified) {
+        // 1st approval → goes to JC for diagnosis assignment
+        setAppointmentStatus(appt!.id, 'Customer Approved')
+        pushTimeline(appt!.id, { actor: 'SA', action: 'Customer approved concerns — ready for JC diagnosis assignment' })
+      } else if (isServiceApprovalPending) {
+        // 2nd approval → goes to JC for service assignment
+        setAppointmentStatus(appt!.id, 'Service Approved')
+        pushTimeline(appt!.id, { actor: 'SA', action: 'Customer approved services — ready for JC service assignment' })
+      }
+    } else {
+      setAppointmentStatus(appt!.id, 'Customer Rejected')
+      pushTimeline(appt!.id, { actor: 'SA', action: `Customer rejected${approvalNote.trim() ? `: ${approvalNote.trim()}` : ''}` })
+    }
+    setApprovalNote('')
   }
 
-  function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
-    const map: Record<string, 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error'> = {
-      'Diagnosis In Progress': 'primary',
-      'Diagnosis Complete': 'warning',
-      'Customer Notified': 'warning',
-      'Customer Approved': 'success',
-      'Customer Rejected': 'error',
-      'Service In Progress': 'primary',
-      'Closed': 'success',
-    }
-    return map[status] ?? 'default'
+  function handleConfirmPayment() {
+    confirmPayment({ appointmentId: appt!.id, actorName: 'SA' })
+  }
+
+  function handleAddConcern() {
+    const concern = activeConcerns.find((c) => c.id === addConcernId)
+    if (!concern) return
+    addAppointmentConcern({
+      appointmentId: appt!.id,
+      concernId: concern.id,
+      concernName: concern.name,
+      remark: addConcernRemark.trim(),
+    })
+    pushTimeline(appt!.id, { actor: 'SA', action: `Added concern: ${concern.name}` })
+    setAddConcernId('')
+    setAddConcernRemark('')
+  }
+
+  function handleAddService() {
+    const svc = activeServices.find((s) => s.id === addServiceId)
+    if (!svc) return
+    addAppointmentService({
+      appointmentId: appt!.id,
+      serviceId: svc.id,
+      serviceCode: svc.code,
+      serviceDescription: svc.description,
+      timeHrs: svc.timeHrs,
+      ratePerHr: svc.ratePerHr,
+      price: svc.timeHrs * svc.ratePerHr,
+      remark: addServiceRemark.trim(),
+      addedBySA: true,
+    })
+    pushTimeline(appt!.id, { actor: 'SA', action: `Added service: ${svc.description}` })
+    setAddServiceId('')
+    setAddServiceRemark('')
   }
 
   return (
-    <Page title="SA — Appointment" subtitle={`#${appt.id.slice(0, 8)}`}>
+    <Page title={`SA — ${vehicle?.registrationNo ?? 'Appointment'}`} subtitle={customer?.fullName ?? ''}>
       <Stack spacing={2.5}>
-        {/* ── Summary ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" color="text.secondary">Vehicle</Typography>
-              <Typography sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                {vehicle?.registrationNo ?? '—'}
+        {/* ── Header ── */}
+        <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
+            <Box>
+              <Typography sx={{ fontWeight: 900, fontSize: '1.1rem' }}>
+                {vehicle?.registrationNo} · {vehicle?.make} {vehicle?.model}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {[vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || '—'}
+              <Typography variant="body2" color="text.secondary">
+                Customer: {customer?.fullName} · {customer?.phone}
               </Typography>
             </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" color="text.secondary">Customer</Typography>
-              <Typography sx={{ fontWeight: 700 }}>{customer?.fullName ?? '—'}</Typography>
-              <Typography variant="caption" color="text.secondary">{customer?.phone ?? ''}</Typography>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" color="text.secondary">Status</Typography>
-              <Chip label={appt.status} size="small" color={statusColor(appt.status)} sx={{ fontWeight: 700, mt: 0.5 }} />
-            </Box>
+            <Box sx={{ flexGrow: 1 }} />
+            <Chip label={appt.status} color="primary" sx={{ fontWeight: 800 }} />
           </Stack>
         </Paper>
 
-        {/* ── Diagnosis Phase: Assign Technicians & Track ── */}
-        {isDiagnosisPhase && myConcerns.length > 0 && (
-          <Paper sx={{ border: '2px solid', borderColor: 'primary.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 0.5, color: 'primary.main' }}>
-              Diagnosis — My Assigned Concerns
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Assign technicians and track diagnosis progress.
-            </Typography>
+        {/* ── Timeline ── */}
+        <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
-            <Stack spacing={2}>
-              {myConcerns.map((c) => {
-                const hasTechs = c.assignedTechnicianUserIds && c.assignedTechnicianUserIds.length > 0
-                const techForm = concernTechForm[c.id] ?? []
-                return (
-                  <Box key={c.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{c.concernName}</Typography>
-                        {c.remark && <Typography variant="caption" color="text.secondary">{c.remark}</Typography>}
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          {c.plannedStartAt ? `${fmtDateTime(c.plannedStartAt)} → ${fmtDateTime(c.plannedEndAt)}` : ''}
-                        </Typography>
-                      </Box>
-                      {c.workStatus && (
-                        <Chip
-                          label={c.workStatus}
-                          size="small"
-                          color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'}
-                          sx={{ fontWeight: 700 }}
-                        />
-                      )}
-                    </Box>
-
-                    {!hasTechs ? (
-                      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                        <TextField
-                          select
-                          size="small"
-                          label="Assign Technicians"
-                          value={techForm}
-                          onChange={(e) => {
-                            const v = e.target.value
-                            const ids = Array.isArray(v) ? (v as string[]) : [String(v)]
-                            setConcernTechForm((p) => ({ ...p, [c.id]: ids.filter(Boolean) }))
-                          }}
-                          slotProps={{ select: { multiple: true, renderValue: (s) => (s as string[]).map((id) => userNameById.get(id)).filter(Boolean).join(', ') || '—' } }}
-                          sx={{ minWidth: 240 }}
-                        >
-                          {activeUsers.map((u) => (
-                            <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                          ))}
-                        </TextField>
-                        <Button
-                          variant="contained"
-                          size="small"
-                          disabled={!techForm.length}
-                          onClick={() => saveConcernTechnicians(c.id)}
-                        >
-                          Save
-                        </Button>
-                      </Box>
-                    ) : (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Technicians:</Typography>
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          {(c.assignedTechnicianUserIds ?? []).map((id) => userNameById.get(id)).filter(Boolean).join(', ')}
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                          {c.workStatus !== 'In Progress' && c.workStatus !== 'Completed' && (
-                            <Button size="small" variant="outlined" color="primary"
-                              onClick={() => handleConcernStatus(c.id, 'In Progress')}
-                            >
-                              Start Work
-                            </Button>
-                          )}
-                          {c.workStatus === 'In Progress' && (
-                            <>
-                              <Button size="small" variant="outlined" color="warning"
-                                onClick={() => handleConcernStatus(c.id, 'Pending')}
-                              >
-                                Pause
-                              </Button>
-                              <Button size="small" variant="contained" color="success"
-                                onClick={() => handleConcernStatus(c.id, 'Completed')}
-                              >
-                                Complete
-                              </Button>
-                            </>
-                          )}
-                          {c.workStatus === 'Completed' && (
-                            <Chip label="✓ Completed" color="success" size="small" sx={{ fontWeight: 700 }} />
-                          )}
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                )
-              })}
+        {/* ── Inspection Checklist ── */}
+        {isInspection && inspChecks.length > 0 && (
+          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'info.main' }}>
+              Vehicle Inspection Checklist ({inspChecks.filter((c) => c.checked).length}/{inspChecks.length})
+            </Typography>
+            <Stack spacing={1}>
+              {inspChecks.map((check) => (
+                <Box key={check.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Checkbox checked={check.checked} onChange={() => toggleCheck(check.id)} />
+                  <Typography variant="body2" sx={{ fontWeight: check.checked ? 700 : 400 }}>
+                    {check.label}
+                  </Typography>
+                </Box>
+              ))}
             </Stack>
           </Paper>
         )}
 
-        {/* ── Add Services (after diagnosis, before sending to customer) ── */}
-        {(isDiagnosisDone || isNotified) && (
-          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 0.5, color: 'info.main' }}>
-              Add Services
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Add recommended services based on diagnosis findings. These will be included in the WhatsApp message to customer.
-            </Typography>
-
-            {/* Current services list */}
-            {appt.serviceItems.length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Current Services ({appt.serviceItems.length})</Typography>
-                {appt.serviceItems.map((s) => (
-                  <Box key={s.id} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="body2">{s.serviceDescription} <Typography component="span" variant="caption" color="text.secondary">{s.serviceCode}</Typography></Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>BDT {s.price.toLocaleString('en-BD')}</Typography>
-                  </Box>
+        {/* ── Concerns ── */}
+        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
+          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Concerns ({appt.concernItems.length})</Typography>
+          {appt.concernItems.length > 0 && (
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Remark</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {appt.concernItems.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>{c.concernName}</TableCell>
+                    <TableCell>{c.remark || '—'}</TableCell>
+                    <TableCell>
+                      {c.workStatus ? (
+                        <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} />
+                      ) : '—'}
+                    </TableCell>
+                  </TableRow>
                 ))}
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1 }}>
-                  <Typography sx={{ fontWeight: 900 }}>Total: BDT {appt.serviceItems.reduce((sum, s) => sum + s.price, 0).toLocaleString('en-BD')}</Typography>
-                </Box>
-              </Box>
-            )}
-
-            {/* Add service form */}
-            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <TextField
-                select
-                size="small"
-                label="Service"
-                value={selectedService?.id ?? ''}
-                onChange={(e) => {
-                  const svc = activeServices.find((s) => s.id === e.target.value) ?? null
-                  setSelectedService(svc)
-                }}
-                sx={{ minWidth: 280 }}
-              >
-                <MenuItem value="">— Select service —</MenuItem>
-                {activeServices.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.description} · {s.code} · BDT {s.price.toLocaleString('en-BD')}
-                  </MenuItem>
-                ))}
+              </TableBody>
+            </Table>
+          )}
+          {/* Add concern (during inspection) */}
+          {isInspection && (
+            <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+              <TextField select size="small" label="Add Concern" value={addConcernId}
+                onChange={(e) => setAddConcernId(e.target.value)} sx={{ minWidth: 200 }}>
+                <MenuItem value="">— Select —</MenuItem>
+                {activeConcerns.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
               </TextField>
-              <TextField
-                size="small"
-                label="Remark"
-                value={serviceRemark}
-                onChange={(e) => setServiceRemark(e.target.value)}
-                sx={{ minWidth: 180 }}
-              />
-              <Button
-                variant="contained"
-                color="info"
-                startIcon={<Add />}
-                disabled={!selectedService}
-                onClick={() => {
-                  if (!selectedService) return
-                  addAppointmentService({
-                    appointmentId: appt!.id,
-                    serviceId: selectedService.id,
-                    serviceCode: selectedService.code,
-                    serviceDescription: selectedService.description,
-                    timeHrs: selectedService.timeHrs,
-                    ratePerHr: selectedService.ratePerHr,
-                    price: selectedService.price,
-                    remark: serviceRemark.trim(),
-                    addedBySA: true,
-                  })
-                  setSelectedService(null)
-                  setServiceRemark('')
-                }}
-              >
-                Add
-              </Button>
-            </Box>
+              <TextField size="small" label="Remark" value={addConcernRemark}
+                onChange={(e) => setAddConcernRemark(e.target.value)} />
+              <Button variant="contained" size="small" onClick={handleAddConcern} disabled={!addConcernId}>Add</Button>
+            </Stack>
+          )}
+        </Paper>
+
+        {/* ── Services ── */}
+        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
+          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Services ({appt.serviceItems.length})</Typography>
+          {appt.serviceItems.length > 0 && (
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Price</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {appt.serviceItems.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription}</Typography>
+                      <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
+                    </TableCell>
+                    <TableCell>{fmtBDT(s.price)}</TableCell>
+                    <TableCell>
+                      {s.workStatus ? (
+                        <Chip label={s.workStatus} size="small" color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'} />
+                      ) : '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {/* Add service (during inspection) */}
+          {isInspection && (
+            <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+              <TextField select size="small" label="Add Service" value={addServiceId}
+                onChange={(e) => setAddServiceId(e.target.value)} sx={{ minWidth: 250 }}>
+                <MenuItem value="">— Select —</MenuItem>
+                {activeServices.map((s) => <MenuItem key={s.id} value={s.id}>{s.description} ({s.code})</MenuItem>)}
+              </TextField>
+              <TextField size="small" label="Remark" value={addServiceRemark}
+                onChange={(e) => setAddServiceRemark(e.target.value)} />
+              <Button variant="contained" size="small" onClick={handleAddService} disabled={!addServiceId}>Add</Button>
+            </Stack>
+          )}
+        </Paper>
+
+        {/* ── Submit Inspection ── */}
+        {isInspection && (
+          <Button variant="contained" color="info" size="large" fullWidth
+            sx={{ fontWeight: 900, py: 1.5 }} onClick={handleSubmitInspection}>
+            Submit Inspection
+          </Button>
+        )}
+
+        {/* ── WhatsApp: Concern Approval (1st round) ── */}
+        {canSendConcernWA && (
+          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'info.main' }}>
+              Send WhatsApp for Customer Approval
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Review complete. Send concerns and services to customer for approval.
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('concern-approval')}>
+              Compose WhatsApp
+            </Button>
           </Paper>
         )}
 
-        {/* ── Diagnosis Complete: WhatsApp + Approval ── */}
-        {(isDiagnosisDone || isNotified) && (
+        {/* ── WhatsApp: Service Approval (2nd round, after diagnosis) ── */}
+        {canSendServiceWA && (
           <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
             <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
-              Diagnosis Complete — Customer Communication
+              Diagnosis Complete — Send Service Approval
             </Typography>
-
-            {isDiagnosisDone && (
-              <Box sx={{ mb: 2.5 }}>
-                <Button
-                  variant="contained"
-                  color="success"
-                  startIcon={<WhatsApp />}
-                  onClick={openWhatsApp}
-                  sx={{ fontWeight: 700 }}
-                >
-                  Send WhatsApp to Customer
-                </Button>
-              </Box>
-            )}
-
-            {/* WhatsApp log */}
-            {appt.whatsappLogs.length > 0 && (
-              <Box sx={{ mb: 2.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Messages</Typography>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>Direction</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>Message</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {appt.whatsappLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell><Typography variant="caption">{fmtDateTime(log.sentAt)}</Typography></TableCell>
-                        <TableCell>
-                          <Chip label={log.direction} size="small" color={log.direction === 'outbound' ? 'success' : 'default'} />
-                        </TableCell>
-                        <TableCell><Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{log.message}</Typography></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
-
-            {/* Customer Approval toggle */}
-            {isNotified && appt.customerApprovalStatus === 'Pending' && (
-              <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
-                <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Customer Approval</Typography>
-                <Stack spacing={2}>
-                  <TextField
-                    size="small"
-                    label="Note (optional)"
-                    value={approvalNote}
-                    onChange={(e) => setApprovalNote(e.target.value)}
-                    sx={{ maxWidth: 400 }}
-                  />
-                  <Stack direction="row" spacing={1}>
-                    <Button variant="contained" color="success" onClick={() => handleApproval('Approved')}>
-                      Mark Approved
-                    </Button>
-                    <Button variant="outlined" color="error" onClick={() => handleApproval('Rejected')}>
-                      Mark Rejected
-                    </Button>
-                  </Stack>
-                </Stack>
-              </Box>
-            )}
-
-            {appt.customerApprovalStatus === 'Approved' && (
-              <Box sx={{ mt: 2, p: 1.5, bgcolor: 'success.50', border: '1px solid', borderColor: 'success.200', borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.dark' }}>
-                  ✓ Customer approved — JC will assign services next.
-                </Typography>
-              </Box>
-            )}
-            {appt.customerApprovalStatus === 'Rejected' && (
-              <Box sx={{ mt: 2, p: 1.5, bgcolor: 'warning.50', border: '1px solid', borderColor: 'warning.200', borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: 'warning.dark' }}>
-                  ❌ Customer rejected.
-                </Typography>
-                {appt.customerApprovalNote && (
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>Note: {appt.customerApprovalNote}</Typography>
-                )}
-              </Box>
-            )}
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              SE completed diagnosis and may have added services. Send updated list to customer.
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('service-approval')}>
+              Compose WhatsApp (Services)
+            </Button>
           </Paper>
         )}
 
-        {/* ── Service Phase: Assign Technicians & Track ── */}
-        {isServicePhase && myServices.length > 0 && (
-          <Paper sx={{ border: '2px solid', borderColor: 'primary.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 0.5, color: 'primary.main' }}>
-              Service Phase — My Assigned Services
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Assign technicians and track service progress.
-            </Typography>
+        {/* ── Customer Approval (both rounds) ── */}
 
-            <Stack spacing={2}>
-              {myServices.map((s) => {
-                const hasTechs = s.assignedUserIds && s.assignedUserIds.length > 0
-                const techForm = serviceTechForm[s.id] ?? []
-                return (
-                  <Box key={s.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription}</Typography>
-                        <Typography variant="caption" color="text.secondary">{s.serviceCode} · {fmtBDT(s.price)}</Typography>
-                        {s.bayId && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            Bay: {bayNameById.get(s.bayId) ?? '—'}
-                          </Typography>
-                        )}
-                      </Box>
-                      {s.workStatus && (
-                        <Chip
-                          label={s.workStatus}
-                          size="small"
-                          color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'}
-                          sx={{ fontWeight: 700 }}
-                        />
-                      )}
-                    </Box>
+        {/* ── WhatsApp: Payment (after services complete) ── */}
+        {canSendPaymentWA && (
+          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+              Services Complete — Send Payment Request
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              All services finished. Send payment request to customer.
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('payment')}>
+              Compose WhatsApp (Payment)
+            </Button>
+          </Paper>
+        )}
 
-                    {!hasTechs ? (
-                      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                        <TextField
-                          select
-                          size="small"
-                          label="Assign Technicians"
-                          value={techForm}
-                          onChange={(e) => {
-                            const v = e.target.value
-                            const ids = Array.isArray(v) ? (v as string[]) : [String(v)]
-                            setServiceTechForm((p) => ({ ...p, [s.id]: ids.filter(Boolean) }))
-                          }}
-                          slotProps={{ select: { multiple: true, renderValue: (sel) => (sel as string[]).map((id) => userNameById.get(id)).filter(Boolean).join(', ') || '—' } }}
-                          sx={{ minWidth: 240 }}
-                        >
-                          {activeUsers.map((u) => (
-                            <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                          ))}
-                        </TextField>
-                        <Button
-                          variant="contained"
-                          size="small"
-                          disabled={!techForm.length}
-                          onClick={() => saveServiceTechnicians(s.id)}
-                        >
-                          Save
-                        </Button>
-                      </Box>
-                    ) : (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Technicians:</Typography>
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          {(s.assignedUserIds ?? []).map((id) => userNameById.get(id)).filter(Boolean).join(', ')}
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                          {s.workStatus !== 'In Progress' && s.workStatus !== 'Completed' && (
-                            <Button size="small" variant="outlined" color="primary"
-                              onClick={() => handleServiceStatus(s.id, 'In Progress')}
-                            >
-                              Start Work
-                            </Button>
-                          )}
-                          {s.workStatus === 'In Progress' && (
-                            <>
-                              <Button size="small" variant="outlined" color="warning"
-                                onClick={() => handleServiceStatus(s.id, 'Pending')}
-                              >
-                                Pause
-                              </Button>
-                              <Button size="small" variant="contained" color="success"
-                                onClick={() => handleServiceStatus(s.id, 'Completed')}
-                              >
-                                Complete
-                              </Button>
-                            </>
-                          )}
-                          {s.workStatus === 'Completed' && (
-                            <Chip label="✓ Completed" color="success" size="small" sx={{ fontWeight: 700 }} />
-                          )}
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                )
-              })}
+        {/* ── Confirm Payment ── */}
+        {canConfirmPayment && (
+          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'success.main' }}>
+              Confirm Payment Received
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Gate pass will be auto-issued upon confirmation.
+            </Typography>
+            <Button variant="contained" color="success" size="large" onClick={handleConfirmPayment}
+              sx={{ fontWeight: 900 }}>
+              Payment Received — Issue Gate Pass
+            </Button>
+          </Paper>
+        )}
+
+        {/* ── WhatsApp Message Log ── */}
+        {appt.whatsappLogs.length > 0 && (
+          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1.5 }}>
+              WhatsApp Messages ({appt.whatsappLogs.length})
+            </Typography>
+            <Stack spacing={1.5}>
+              {appt.whatsappLogs.slice().reverse().map((log) => (
+                <Box key={log.id} sx={{
+                  p: 1.5,
+                  borderRadius: 1.5,
+                  bgcolor: log.direction === 'outbound' ? 'success.50' : 'grey.50',
+                  border: '1px solid',
+                  borderColor: log.direction === 'outbound' ? 'success.200' : 'divider',
+                  borderLeft: '4px solid',
+                  borderLeftColor: log.direction === 'outbound' ? 'success.main' : 'info.main',
+                }}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 800 }}>
+                      {log.authorName}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {log.direction === 'outbound' ? '→ Customer' : '← Customer'}
+                    </Typography>
+                    <Box sx={{ flexGrow: 1 }} />
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(log.sentAt).toLocaleString()}
+                    </Typography>
+                  </Stack>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {log.message}
+                  </Typography>
+                </Box>
+              ))}
             </Stack>
           </Paper>
         )}
 
-        {appt.status === 'Closed' && (
-          <Paper sx={{ border: '1px solid', borderColor: 'success.main', p: 2.5 }}>
-            <Chip label="✓ Appointment Closed" color="success" sx={{ fontWeight: 700 }} />
+        {/* ── Customer Approval (both rounds) ── */}
+        {canApprove && (
+          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'success.main' }}>
+              {isCustomerNotified ? 'Record Customer Approval (Concerns)' : 'Record Customer Approval (Services)'}
+            </Typography>
+            <TextField label="Customer Note (optional)" value={approvalNote}
+              onChange={(e) => setApprovalNote(e.target.value)} fullWidth multiline minRows={2} sx={{ mb: 1.5 }} />
+            <Stack direction="row" spacing={1.5}>
+              <Button variant="contained" color="success" onClick={() => handleApproval('Approved')}>Approve</Button>
+              <Button variant="outlined" color="error" onClick={() => handleApproval('Rejected')}>Reject</Button>
+            </Stack>
           </Paper>
         )}
       </Stack>
 
-      {/* WhatsApp compose dialog */}
+      {/* WhatsApp Dialog */}
       <Dialog open={waDialogOpen} onClose={() => setWaDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, alignItems: 'center' }}>
-            <WhatsApp color="success" />
-            <Typography sx={{ fontWeight: 700 }}>Send WhatsApp Message</Typography>
-          </Box>
-        </DialogTitle>
+        <DialogTitle>Compose WhatsApp Message</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            {customer?.phone && (
-              <Typography variant="body2" color="text.secondary">
-                To: {customer.phone} ({customer.fullName})
-              </Typography>
-            )}
-            <TextField
-              label="Message"
-              multiline
-              minRows={6}
-              fullWidth
-              value={waMessage}
-              onChange={(e) => setWaMessage(e.target.value)}
-            />
-          </Stack>
+          <TextField value={waMessage} onChange={(e) => setWaMessage(e.target.value)}
+            fullWidth multiline minRows={8} sx={{ mt: 1 }} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWaDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<Send />}
-            onClick={sendWhatsapp}
-            disabled={!waMessage.trim()}
-          >
-            Log &amp; Send
+          <Button variant="contained" color="success" startIcon={<Send />} onClick={sendWhatsapp} disabled={!waMessage.trim()}>
+            Send
           </Button>
         </DialogActions>
       </Dialog>

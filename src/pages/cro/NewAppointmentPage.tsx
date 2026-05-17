@@ -71,8 +71,14 @@ export function NewAppointmentPage() {
   const services = useCwStore((s) => s.services)
   const appointments = useCwStore((s) => s.appointments)
   const createAppointment = useCwStore((s) => s.createAppointment)
+  const users = useCwStore((s) => s.users)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const resolvePendingVehicle = useCwStore((s) => s.resolvePendingVehicle)
+
+  const saUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && u.roleIds.length > 0),
+    [users],
+  )
 
   // Vehicle selection
   const initVehicleId = searchParams.get('vehicleId') ?? ''
@@ -101,6 +107,7 @@ export function NewAppointmentPage() {
   const [slotTime, setSlotTime] = useState('')
   const [notes, setNotes] = useState('')
   const [gateEntryId, setGateEntryId] = useState(searchParams.get('pendingVehicleId') ?? '')
+  const [saUserId, setSaUserId] = useState('')
 
   const [error, setError] = useState<string | null>(null)
 
@@ -195,7 +202,7 @@ export function NewAppointmentPage() {
         vehicleId,
         slotDate: slotDate || undefined,
         slotTime: slotTime || undefined,
-        status: 'New',
+        assignedSAUserId: saUserId || undefined,
         notes: notes.trim(),
         concernItems: [
           ...concernItems.map((i) => ({
@@ -634,6 +641,19 @@ export function NewAppointmentPage() {
 
               {/* Service Advisor + Notes */}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  select
+                  size="small"
+                  label="Assign Service Advisor"
+                  value={saUserId}
+                  onChange={(e) => setSaUserId(e.target.value)}
+                  sx={{ flex: '1 1 200px' }}
+                >
+                  <MenuItem value="">— None —</MenuItem>
+                  {saUsers.map((u) => (
+                    <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                  ))}
+                </TextField>
                 <TextField
                   size="small"
                   label="Additional Note"

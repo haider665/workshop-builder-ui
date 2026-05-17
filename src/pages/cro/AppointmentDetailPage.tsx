@@ -4,9 +4,6 @@ import {
   Chip,
   Paper,
   Stack,
-  Step,
-  StepLabel,
-  Stepper,
   Table,
   TableBody,
   TableCell,
@@ -17,6 +14,7 @@ import {
 import { useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
+import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { useCwStore } from '../../store/cwStore'
 
 function fmtBDT(n: number) {
@@ -35,42 +33,26 @@ function fmtDateTime(iso?: string) {
   })
 }
 
-const FLOW_STEPS = [
-  'New',
-  'Diagnosis',
-  'Customer Approval',
-  'Service',
-  'Closed',
-]
-
-function activeStep(status: string): number {
-  switch (status) {
-    case 'New':
-    case 'JC Assigning Diagnosis': return 0
-    case 'Diagnosis In Progress':
-    case 'Diagnosis Complete': return 1
-    case 'Customer Notified':
-    case 'Customer Approved':
-    case 'Customer Rejected': return 2
-    case 'JC Assigning Services':
-    case 'Service In Progress': return 3
-    case 'Closed': return 4
-    default: return 0
-  }
-}
 
 function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
   const map: Record<string, 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error'> = {
     'New': 'info',
-    'JC Assigning Diagnosis': 'info',
-    'Diagnosis In Progress': 'primary',
-    'Diagnosis Complete': 'warning',
+    'SA Inspection': 'primary',
+    'SA Reviewed': 'warning',
     'Customer Notified': 'warning',
     'Customer Approved': 'success',
     'Customer Rejected': 'error',
-    'JC Assigning Services': 'info',
+    'Diagnosis Assigned': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'success',
+    'Service Approval Pending': 'warning',
+    'Service Approved': 'success',
+    'Service Assigned': 'info',
     'Service In Progress': 'primary',
-    'Closed': 'success',
+    'Service Complete': 'success',
+    'Payment Pending': 'warning',
+    'Payment Done': 'success',
+    Released: 'success',
   }
   return map[status] ?? 'default'
 }
@@ -117,16 +99,8 @@ export function AppointmentDetailPage() {
   return (
     <Page title="Appointment" subtitle={`#${appt.id.slice(0, 8)}`}>
       <Stack spacing={2.5}>
-        {/* ── Status Stepper ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Stepper activeStep={activeStep(appt.status)} alternativeLabel>
-            {FLOW_STEPS.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
-        </Paper>
+        {/* ── Workflow Timeline ── */}
+        <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
         {/* ── Summary ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
@@ -194,7 +168,7 @@ export function AppointmentDetailPage() {
                   <TableRow key={c.id}>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 700 }}>{c.concernName}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{c.remark || '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{c.assignedSAUserId ? (userNameById.get(c.assignedSAUserId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell><Typography variant="body2">{c.assignedSEUserId ? (userNameById.get(c.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
                     <TableCell>
                       <Typography variant="caption">
                         {c.plannedStartAt ? `${fmtDateTime(c.plannedStartAt)} → ${fmtDateTime(c.plannedEndAt)}` : '—'}
@@ -202,7 +176,7 @@ export function AppointmentDetailPage() {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {(c.assignedTechnicianUserIds ?? []).map((id) => userNameById.get(id)).filter(Boolean).join(', ') || '—'}
+                        {c.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || '—'}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -249,11 +223,11 @@ export function AppointmentDetailPage() {
                       <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
                     </TableCell>
                     <TableCell><Typography variant="body2">{fmtBDT(s.price)}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{s.assignedSAUserId ? (userNameById.get(s.assignedSAUserId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell><Typography variant="body2">{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{s.bayId ? (bayNameById.get(s.bayId) ?? '—') : '—'}</Typography></TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {(s.assignedUserIds ?? []).map((id) => userNameById.get(id)).filter(Boolean).join(', ') || '—'}
+                        {s.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || '—'}
                       </Typography>
                     </TableCell>
                     <TableCell>

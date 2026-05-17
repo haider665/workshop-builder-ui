@@ -79,14 +79,13 @@ export function TasksHome() {
 
   const isSA = user?.roles.includes('Service Advisor') ?? false
 
-  // SA appointments (no user filtering — show all with SA assignments)
-  const SA_ACTIVE: CWAppointmentStatus[] = ['Diagnosis In Progress', 'Diagnosis Complete', 'Customer Notified', 'Customer Approved', 'Customer Rejected', 'JC Assigning Services', 'Service In Progress', 'Closed']
+  // SA appointments (show all with SA assignment at appointment level)
+  const SA_ACTIVE: CWAppointmentStatus[] = ['SA Inspection', 'SA Reviewed', 'Customer Notified', 'Customer Approved', 'Customer Rejected', 'Diagnosis Assigned', 'Diagnosis In Progress', 'Diagnosis Complete', 'Service Approval Pending', 'Service Approved', 'Service Assigned', 'Service In Progress', 'Service Complete', 'Payment Pending', 'Payment Done']
   const saAppointments = useMemo(() => {
     if (!isSA) return []
     return appointments.filter((a) => {
       if (!SA_ACTIVE.includes(a.status as CWAppointmentStatus)) return false
-      return a.concernItems.some((c) => c.assignedSAUserId) ||
-        a.serviceItems.some((s) => s.assignedSAUserId)
+      return !!a.assignedSAUserId
     })
   }, [appointments, isSA])
 
@@ -176,8 +175,8 @@ export function TasksHome() {
                   const v = vehicles.find((x) => x.id === appt.vehicleId)
                   const c = customers.find((x) => x.id === appt.customerId)
                   const statusColorMap: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error' | 'primary'> = {
-                    'Diagnosis In Progress': 'primary',
-                    'Diagnosis Complete': 'warning',
+                    'SA Inspection': 'primary',
+                    'SA Reviewed': 'warning',
                     'Customer Notified': 'warning',
                     'Customer Approved': 'success',
                     'Service In Progress': 'primary',

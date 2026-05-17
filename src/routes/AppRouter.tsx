@@ -29,6 +29,8 @@ import { VehicleDetailPage } from '../pages/cro/VehicleDetailPage'
 import { WhatsappPage } from '../pages/cro/WhatsappPage'
 import { SAAppointmentsPage } from '../pages/sa/SAAppointmentsPage'
 import { SAAppointmentDetailPage } from '../pages/sa/SAAppointmentDetailPage'
+import { SEAppointmentsPage } from '../pages/se/SEAppointmentsPage'
+import { SEAppointmentDetailPage } from '../pages/se/SEAppointmentDetailPage'
 import { JCAppointmentPage } from '../pages/jc/JCAppointmentPage'
 import { TasksHome } from '../pages/tasks/TasksHome'
 import { CalendarPage } from '../pages/tasks/CalendarPage'
@@ -38,6 +40,8 @@ import { EmployeeRecordDetailPage } from '../pages/records/EmployeeRecordDetailP
 import { EmployeeRecordsPage } from '../pages/records/EmployeeRecordsPage'
 import { VehicleHistoryDetailPage } from '../pages/records/VehicleHistoryDetailPage'
 import { VehicleHistoryPage } from '../pages/records/VehicleHistoryPage'
+import { TechnicianDashboardPage } from '../pages/technician/TechnicianDashboardPage'
+import { TechnicianTaskPage } from '../pages/technician/TechnicianTaskPage'
 
 export function AppRouter() {
   return (
@@ -95,6 +99,16 @@ export function AppRouter() {
           <Route element={<RequireRole anyOf={['Service Advisor']} />}>
             <Route path="/sa/appointments" element={<SAAppointmentsPage />} />
             <Route path="/sa/appointments/:appointmentId" element={<SAAppointmentDetailPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['Service Engineer']} />}>
+            <Route path="/se/appointments" element={<SEAppointmentsPage />} />
+            <Route path="/se/appointments/:appointmentId" element={<SEAppointmentDetailPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['Technician']} />}>
+            <Route path="/technician" element={<TechnicianDashboardPage />} />
+            <Route path="/technician/task/:appointmentId/:itemType/:itemId" element={<TechnicianTaskPage />} />
           </Route>
 
           <Route

@@ -14,6 +14,7 @@ import type {
   CWConcernWorkStatus,
   CWCustomer,
   CWCustomerStatus,
+  CWInspectionCheck,
   CWJob,
   CWJobStatus,
   CWPendingVehicle,
@@ -35,6 +36,7 @@ import type {
   CWTaskStatus,
   CWTaskTemplate,
   CWTaskTemplateStatus,
+  CWTimelineEvent,
   CWUser,
   CWUserStatus,
   CWVehicle,
@@ -166,6 +168,7 @@ export type CreateAppointmentInput = {
   notes?: string
   status?: CWAppointmentStatus
   gateEntryId?: string
+  assignedSAUserId?: string
   concernItems?: CreateAppointmentConcernItemInput[]
   serviceItems?: CreateAppointmentServiceItemInput[]
 }
@@ -337,7 +340,6 @@ export type SetCustomerApprovalInput = {
 export type UpdateServiceItemAssignmentInput = {
   appointmentId: string
   serviceItemId: string
-  assignedUserIds?: string[]
   plannedStartAt?: string
   plannedEndAt?: string
   workStatus?: CWServiceWorkStatus
@@ -348,7 +350,8 @@ export type UpdateServiceItemAssignmentInput = {
 export type AssignConcernDiagnosisInput = {
   appointmentId: string
   concernItemId: string
-  saUserId: string
+  seUserId: string
+  bayId?: string
   startAt: string
   endAt: string
 }
@@ -365,10 +368,10 @@ export type SetConcernWorkStatusInput = {
   status: CWConcernWorkStatus
 }
 
-export type AssignServiceSAInput = {
+export type AssignServiceSEInput = {
   appointmentId: string
   serviceItemId: string
-  saUserId: string
+  seUserId: string
   bayId?: string
   startAt?: string
   endAt?: string
@@ -378,6 +381,46 @@ export type AssignServiceTechniciansInput = {
   appointmentId: string
   serviceItemId: string
   technicianUserIds: string[]
+}
+
+export type SubmitInspectionInput = {
+  appointmentId: string
+  checks: CWInspectionCheck[]
+  actorName: string
+}
+
+// ─── Technician timer inputs ──────────────────────────────────────────────────
+
+export type TechnicianTimerInput = {
+  appointmentId: string
+  itemId: string
+  itemType: 'concern' | 'service'
+  techAssignmentId: string
+}
+
+export type CompleteTechnicianTimerInput = TechnicianTimerInput & {
+  notes?: string
+}
+
+// ─── Phase completion inputs ──────────────────────────────────────────────────
+
+export type SubmitDiagnosisCompleteInput = {
+  appointmentId: string
+  actorName: string
+}
+
+export type SubmitServiceCompleteInput = {
+  appointmentId: string
+  actorName: string
+}
+
+export type ConfirmPaymentInput = {
+  appointmentId: string
+  actorName: string
+}
+
+export type ReleaseVehicleInput = {
+  appointmentId: string
 }
 
 type CWState = {
@@ -438,12 +481,26 @@ type CWState = {
   setCustomerApproval: (input: SetCustomerApprovalInput) => void
   updateServiceItemAssignment: (input: UpdateServiceItemAssignmentInput) => void
 
-  // New flow: JC assigns SA to concerns/services, SA assigns technicians
+  // New flow: JC assigns SE to concerns/services, SE assigns technicians
   assignConcernDiagnosis: (input: AssignConcernDiagnosisInput) => void
   assignConcernTechnicians: (input: AssignConcernTechniciansInput) => void
   setConcernWorkStatus: (input: SetConcernWorkStatusInput) => void
-  assignServiceSA: (input: AssignServiceSAInput) => void
+  assignServiceSE: (input: AssignServiceSEInput) => void
   assignServiceTechnicians: (input: AssignServiceTechniciansInput) => void
+  submitInspection: (input: SubmitInspectionInput) => void
+  pushTimeline: (appointmentId: string, event: Omit<CWTimelineEvent, 'id' | 'timestamp'>) => void
+
+  // V4: Technician timer actions
+  startTechnicianTimer: (input: TechnicianTimerInput) => void
+  pauseTechnicianTimer: (input: TechnicianTimerInput) => void
+  resumeTechnicianTimer: (input: TechnicianTimerInput) => void
+  completeTechnicianTimer: (input: CompleteTechnicianTimerInput) => void
+
+  // V4: Phase completion actions
+  submitDiagnosisComplete: (input: SubmitDiagnosisCompleteInput) => void
+  submitServiceComplete: (input: SubmitServiceCompleteInput) => void
+  confirmPayment: (input: ConfirmPaymentInput) => void
+  releaseVehicle: (input: ReleaseVehicleInput) => void
 
   createTaskTemplate: (input: CreateTaskTemplateInput) => CWTaskTemplate
   updateTaskTemplate: (templateId: string, input: UpdateTaskTemplateInput) => void
@@ -468,7 +525,7 @@ type CWState = {
   setPendingVehicleStatus: (pendingVehicleId: string, status: CWPendingVehicleStatus) => void
   resolvePendingVehicle: (
     pendingVehicleId: string,
-    input: { customerId: string; vehicleId: string; appointmentId: string },
+    input: { customerId: string; vehicleId: string; appointmentId?: string },
   ) => void
   createJob: (input: CreateJobInput) => CWJob
   createJobWithTasks: (input: CreateJobWithTasksInput) => CWJob
@@ -590,12 +647,14 @@ function seedDemoData() {
     ...seedSystemRoles(),
     { id: newId(), name: 'Technician', status: 'Active', isSystem: false, createdAt: ts, updatedAt: ts },
     { id: newId(), name: 'SA', status: 'Active', isSystem: false, createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'SE', status: 'Active', isSystem: false, createdAt: ts, updatedAt: ts },
     { id: newId(), name: 'CRE', status: 'Active', isSystem: false, createdAt: ts, updatedAt: ts },
   ]
 
   const roleByName = new Map(roles.map((r) => [r.name, r] as const))
   const techRole = roleByName.get('Technician')!
   const saRole = roleByName.get('SA')!
+  const seRole = roleByName.get('SE')!
   const creRole = roleByName.get('CRE')!
 
   const users: CWUser[] = [
@@ -629,6 +688,18 @@ function seedDemoData() {
       email: 'demo.cre@cw.local',
       mobile: '0000000002',
       roleIds: [creRole.id],
+      shopIds: [autoShop.id, paintShop.id, bodyShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      fullName: 'Demo SE',
+      email: 'demo.se@cw.local',
+      mobile: '0000000003',
+      roleIds: [seRole.id],
       shopIds: [autoShop.id, paintShop.id, bodyShop.id],
       status: 'Active',
       password: 'demo',
@@ -697,10 +768,13 @@ function seedDemoData() {
       concerns: 'Engine noise, check brakes',
       notes: 'Customer prefers morning slot',
       status: 'New',
+      inspectionChecks: [],
       concernItems: [],
       serviceItems: [],
       customerApprovalStatus: 'Pending',
       whatsappLogs: [],
+      timeline: [{ id: newId(), timestamp: ts, actor: 'System', action: 'Seed appointment created' }],
+      paymentStatus: 'Pending',
       createdAt: ts,
       updatedAt: ts,
     },
@@ -1625,6 +1699,18 @@ export const useCwStore = create<CWState>((set, get) => ({
     if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new Error('Invalid scheduled date')
 
     const ts = nowIso()
+
+    const defaultChecks: CWInspectionCheck[] = [
+      { id: newId(), label: 'Health Check', checked: false },
+      { id: newId(), label: 'Brake Check', checked: false },
+      { id: newId(), label: 'Exhaust Check', checked: false },
+      { id: newId(), label: 'Engine Check', checked: false },
+      { id: newId(), label: 'Suspension Check', checked: false },
+      { id: newId(), label: 'Electrical Check', checked: false },
+      { id: newId(), label: 'Tyre Check', checked: false },
+      { id: newId(), label: 'Body Condition', checked: false },
+    ]
+
     const appt: CWAppointment = {
       id: newId(),
       customerId: input.customerId,
@@ -1634,12 +1720,15 @@ export const useCwStore = create<CWState>((set, get) => ({
       scheduledAt: scheduledAt || undefined,
       concerns: (input.concerns ?? '').trim(),
       notes: (input.notes ?? '').trim(),
-      status: input.status ?? 'New',
+      status: input.assignedSAUserId ? 'SA Inspection' : (input.status ?? 'New'),
+      assignedSAUserId: input.assignedSAUserId,
+      inspectionChecks: defaultChecks,
       concernItems: (input.concernItems ?? []).map((c) => ({
         id: newId(),
         concernId: c.concernId,
         concernName: c.concernName,
         remark: c.remark.trim(),
+        technicianAssignments: [],
       })),
       serviceItems: (input.serviceItems ?? []).map((s) => ({
         id: newId(),
@@ -1651,10 +1740,15 @@ export const useCwStore = create<CWState>((set, get) => ({
         price: s.price,
         remark: s.remark.trim(),
         addedBySA: s.addedBySA ?? false,
+        technicianAssignments: [],
       })),
       customerApprovalStatus: 'Pending',
       whatsappLogs: [],
+      timeline: [
+        { id: newId(), timestamp: ts, actor: 'CRO', action: 'Appointment created' },
+      ],
       gateEntryId: input.gateEntryId,
+      paymentStatus: 'Pending',
       createdAt: ts,
       updatedAt: ts,
     }
@@ -1730,6 +1824,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       concernId: input.concernId,
       concernName: input.concernName,
       remark: input.remark.trim(),
+      technicianAssignments: [],
     }
     set({
       appointments: get().appointments.map((a) =>
@@ -1778,6 +1873,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       price: input.price,
       remark: input.remark.trim(),
       addedBySA: input.addedBySA ?? false,
+      technicianAssignments: [],
     }
     set({
       appointments: get().appointments.map((a) =>
@@ -1851,7 +1947,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     })
   },
 
-  // ─── New flow: JC/SA assignment actions ─────────────────────────────────────
+  // ─── New flow: JC assigns SE to concerns/services, SE assigns technicians ────
 
   assignConcernDiagnosis: (input) => {
     set({
@@ -1863,7 +1959,8 @@ export const useCwStore = create<CWState>((set, get) => ({
                 c.id === input.concernItemId
                   ? {
                       ...c,
-                      assignedSAUserId: input.saUserId,
+                      assignedSEUserId: input.seUserId,
+                      bayId: input.bayId,
                       plannedStartAt: input.startAt,
                       plannedEndAt: input.endAt,
                       workStatus: 'Pending' as const,
@@ -1878,6 +1975,12 @@ export const useCwStore = create<CWState>((set, get) => ({
   },
 
   assignConcernTechnicians: (input) => {
+    const newAssignments = input.technicianUserIds.map((uid) => ({
+      id: newId(),
+      technicianUserId: uid,
+      status: 'Assigned' as const,
+      totalPausedMs: 0,
+    }))
     set({
       appointments: get().appointments.map((a) =>
         a.id === input.appointmentId
@@ -1885,7 +1988,7 @@ export const useCwStore = create<CWState>((set, get) => ({
               ...a,
               concernItems: a.concernItems.map((c) =>
                 c.id === input.concernItemId
-                  ? { ...c, assignedTechnicianUserIds: input.technicianUserIds }
+                  ? { ...c, technicianAssignments: [...c.technicianAssignments, ...newAssignments] }
                   : c,
               ),
               updatedAt: nowIso(),
@@ -1913,7 +2016,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     })
   },
 
-  assignServiceSA: (input) => {
+  assignServiceSE: (input) => {
     set({
       appointments: get().appointments.map((a) =>
         a.id === input.appointmentId
@@ -1923,7 +2026,7 @@ export const useCwStore = create<CWState>((set, get) => ({
                 s.id === input.serviceItemId
                   ? {
                       ...s,
-                      assignedSAUserId: input.saUserId,
+                      assignedSEUserId: input.seUserId,
                       bayId: input.bayId,
                       plannedStartAt: input.startAt,
                       plannedEndAt: input.endAt,
@@ -1939,6 +2042,12 @@ export const useCwStore = create<CWState>((set, get) => ({
   },
 
   assignServiceTechnicians: (input) => {
+    const newAssignments = input.technicianUserIds.map((uid) => ({
+      id: newId(),
+      technicianUserId: uid,
+      status: 'Assigned' as const,
+      totalPausedMs: 0,
+    }))
     set({
       appointments: get().appointments.map((a) =>
         a.id === input.appointmentId
@@ -1946,10 +2055,243 @@ export const useCwStore = create<CWState>((set, get) => ({
               ...a,
               serviceItems: a.serviceItems.map((s) =>
                 s.id === input.serviceItemId
-                  ? { ...s, assignedUserIds: input.technicianUserIds }
+                  ? { ...s, technicianAssignments: [...s.technicianAssignments, ...newAssignments] }
                   : s,
               ),
               updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  submitInspection: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              inspectionChecks: input.checks,
+              status: 'SA Reviewed' as const,
+              timeline: [
+                ...a.timeline,
+                { id: newId(), timestamp: nowIso(), actor: input.actorName, action: 'Inspection completed', details: `${input.checks.filter((c) => c.checked).length}/${input.checks.length} checks passed` },
+              ],
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  pushTimeline: (appointmentId, event) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              timeline: [
+                ...a.timeline,
+                { ...event, id: newId(), timestamp: nowIso() },
+              ],
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  // ─── V4: Technician timer actions ─────────────────────────────────────────
+
+  startTechnicianTimer: (input) => {
+    const now = nowIso()
+    set({
+      appointments: get().appointments.map((a) => {
+        if (a.id !== input.appointmentId) return a
+        const mapTech = (ta: { id: string }[]) =>
+          ta.map((t: any) =>
+            t.id === input.techAssignmentId
+              ? { ...t, status: 'In Progress' as const, startedAt: t.startedAt ?? now }
+              : t,
+          )
+        return {
+          ...a,
+          concernItems: input.itemType === 'concern'
+            ? a.concernItems.map((c) => c.id === input.itemId ? { ...c, technicianAssignments: mapTech(c.technicianAssignments), workStatus: 'In Progress' as const } : c)
+            : a.concernItems,
+          serviceItems: input.itemType === 'service'
+            ? a.serviceItems.map((s) => s.id === input.itemId ? { ...s, technicianAssignments: mapTech(s.technicianAssignments), workStatus: 'In Progress' as const } : s)
+            : a.serviceItems,
+          updatedAt: now,
+        }
+      }),
+    })
+  },
+
+  pauseTechnicianTimer: (input) => {
+    const now = nowIso()
+    set({
+      appointments: get().appointments.map((a) => {
+        if (a.id !== input.appointmentId) return a
+        const mapTech = (ta: any[]) =>
+          ta.map((t: any) =>
+            t.id === input.techAssignmentId
+              ? { ...t, status: 'Paused' as const, pausedAt: now }
+              : t,
+          )
+        return {
+          ...a,
+          concernItems: input.itemType === 'concern'
+            ? a.concernItems.map((c) => c.id === input.itemId ? { ...c, technicianAssignments: mapTech(c.technicianAssignments) } : c)
+            : a.concernItems,
+          serviceItems: input.itemType === 'service'
+            ? a.serviceItems.map((s) => s.id === input.itemId ? { ...s, technicianAssignments: mapTech(s.technicianAssignments) } : s)
+            : a.serviceItems,
+          updatedAt: now,
+        }
+      }),
+    })
+  },
+
+  resumeTechnicianTimer: (input) => {
+    const now = nowIso()
+    set({
+      appointments: get().appointments.map((a) => {
+        if (a.id !== input.appointmentId) return a
+        const mapTech = (ta: any[]) =>
+          ta.map((t: any) => {
+            if (t.id !== input.techAssignmentId) return t
+            const pausedMs = t.pausedAt ? Date.now() - new Date(t.pausedAt).getTime() : 0
+            return { ...t, status: 'In Progress' as const, pausedAt: undefined, totalPausedMs: (t.totalPausedMs || 0) + pausedMs }
+          })
+        return {
+          ...a,
+          concernItems: input.itemType === 'concern'
+            ? a.concernItems.map((c) => c.id === input.itemId ? { ...c, technicianAssignments: mapTech(c.technicianAssignments) } : c)
+            : a.concernItems,
+          serviceItems: input.itemType === 'service'
+            ? a.serviceItems.map((s) => s.id === input.itemId ? { ...s, technicianAssignments: mapTech(s.technicianAssignments) } : s)
+            : a.serviceItems,
+          updatedAt: now,
+        }
+      }),
+    })
+  },
+
+  completeTechnicianTimer: (input) => {
+    const now = nowIso()
+    set({
+      appointments: get().appointments.map((a) => {
+        if (a.id !== input.appointmentId) return a
+        const mapTech = (ta: any[]) =>
+          ta.map((t: any) => {
+            if (t.id !== input.techAssignmentId) return t
+            // If paused, accumulate final pause duration
+            const pausedMs = t.pausedAt ? Date.now() - new Date(t.pausedAt).getTime() : 0
+            return {
+              ...t,
+              status: 'Completed' as const,
+              completedAt: now,
+              pausedAt: undefined,
+              totalPausedMs: (t.totalPausedMs || 0) + pausedMs,
+              notes: input.notes ?? t.notes,
+            }
+          })
+
+        // Auto-mark item as Completed if all technicians are done
+        const markItemComplete = (item: any) => {
+          const updated = mapTech(item.technicianAssignments)
+          const allDone = updated.every((t: any) => t.status === 'Completed')
+          return { ...item, technicianAssignments: updated, workStatus: allDone ? 'Completed' as const : item.workStatus }
+        }
+
+        return {
+          ...a,
+          concernItems: input.itemType === 'concern'
+            ? a.concernItems.map((c) => c.id === input.itemId ? markItemComplete(c) : c)
+            : a.concernItems,
+          serviceItems: input.itemType === 'service'
+            ? a.serviceItems.map((s) => s.id === input.itemId ? markItemComplete(s) : s)
+            : a.serviceItems,
+          updatedAt: now,
+        }
+      }),
+    })
+  },
+
+  // ─── V4: Phase completion actions ─────────────────────────────────────────
+
+  submitDiagnosisComplete: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              status: 'Diagnosis Complete' as const,
+              timeline: [
+                ...a.timeline,
+                { id: newId(), timestamp: nowIso(), actor: input.actorName, action: 'Diagnosis completed — reviewing services' },
+              ],
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  submitServiceComplete: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              status: 'Service Complete' as const,
+              timeline: [
+                ...a.timeline,
+                { id: newId(), timestamp: nowIso(), actor: input.actorName, action: 'All services completed' },
+              ],
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  confirmPayment: (input) => {
+    const now = nowIso()
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              status: 'Payment Done' as const,
+              paymentStatus: 'Done' as const,
+              gatePassIssuedAt: now,
+              timeline: [
+                ...a.timeline,
+                { id: newId(), timestamp: now, actor: input.actorName, action: 'Payment confirmed — gate pass issued' },
+              ],
+              updatedAt: now,
+            }
+          : a,
+      ),
+    })
+  },
+
+  releaseVehicle: (input) => {
+    const now = nowIso()
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              status: 'Released' as const,
+              releasedAt: now,
+              timeline: [
+                ...a.timeline,
+                { id: newId(), timestamp: now, actor: 'Guard', action: 'Vehicle released from premises' },
+              ],
+              updatedAt: now,
             }
           : a,
       ),
@@ -1966,7 +2308,6 @@ export const useCwStore = create<CWState>((set, get) => ({
                 s.id === input.serviceItemId
                   ? {
                       ...s,
-                      ...(input.assignedUserIds !== undefined && { assignedUserIds: input.assignedUserIds }),
                       ...(input.plannedStartAt !== undefined && { plannedStartAt: input.plannedStartAt }),
                       ...(input.plannedEndAt !== undefined && { plannedEndAt: input.plannedEndAt }),
                       ...(input.workStatus !== undefined && { workStatus: input.workStatus }),
@@ -2601,7 +2942,7 @@ export const useCwStore = create<CWState>((set, get) => ({
             a.id === appointmentId
               ? {
                   ...a,
-                  status: 'JC Assigning Diagnosis' as const,
+                  status: 'SA Inspection' as const,
                   gateEntryId: a.gateEntryId ?? pending?.id,
                   updatedAt: nowIso(),
                 }
@@ -2684,7 +3025,7 @@ export const useCwStore = create<CWState>((set, get) => ({
             a.id === appointmentId
               ? {
                   ...a,
-                  status: 'JC Assigning Diagnosis' as const,
+                  status: 'SA Inspection' as const,
                   gateEntryId: a.gateEntryId ?? pending?.id,
                   updatedAt: nowIso(),
                 }

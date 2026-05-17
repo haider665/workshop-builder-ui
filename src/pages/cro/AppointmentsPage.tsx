@@ -30,30 +30,44 @@ function includesLoose(haystack: string, needle: string) {
 function statusColor(status: string): 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' {
   const map: Record<string, 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info'> = {
     'New': 'info',
-    'JC Assigning Diagnosis': 'info',
-    'Diagnosis In Progress': 'primary',
-    'Diagnosis Complete': 'warning',
+    'SA Inspection': 'primary',
+    'SA Reviewed': 'warning',
     'Customer Notified': 'warning',
     'Customer Approved': 'success',
     'Customer Rejected': 'error',
-    'JC Assigning Services': 'info',
+    'Diagnosis Assigned': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'success',
+    'Service Approval Pending': 'warning',
+    'Service Approved': 'success',
+    'Service Assigned': 'info',
     'Service In Progress': 'primary',
-    Closed: 'success',
+    'Service Complete': 'success',
+    'Payment Pending': 'warning',
+    'Payment Done': 'success',
+    Released: 'success',
   }
   return map[status] ?? 'default'
 }
 
 const ALL_STATUSES: CWAppointmentStatus[] = [
   'New',
-  'JC Assigning Diagnosis',
-  'Diagnosis In Progress',
-  'Diagnosis Complete',
+  'SA Inspection',
+  'SA Reviewed',
   'Customer Notified',
   'Customer Approved',
   'Customer Rejected',
-  'JC Assigning Services',
+  'Diagnosis Assigned',
+  'Diagnosis In Progress',
+  'Diagnosis Complete',
+  'Service Approval Pending',
+  'Service Approved',
+  'Service Assigned',
   'Service In Progress',
-  'Closed',
+  'Service Complete',
+  'Payment Pending',
+  'Payment Done',
+  'Released',
 ]
 
 export function AppointmentsPage() {

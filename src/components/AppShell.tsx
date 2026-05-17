@@ -63,8 +63,14 @@ export function AppShell() {
       { kind: 'link', label: 'Guard', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
 
       { kind: 'section', label: 'Service Advisor', anyOfRoles: ['Service Advisor'] },
-      { kind: 'link', label: 'My Appointments', to: '/sa/appointments', icon: <CalendarMonth />, anyOfRoles: ['Service Advisor'] },
+      { kind: 'link', label: 'SA Appointments', to: '/sa/appointments', icon: <CalendarMonth />, anyOfRoles: ['Service Advisor'] },
       { kind: 'link', label: 'Jobs', to: '/jc/jobs/new', icon: <Settings />, anyOfRoles: ['Service Advisor'] },
+
+      { kind: 'section', label: 'Service Engineer', anyOfRoles: ['Service Engineer'] },
+      { kind: 'link', label: 'SE Appointments', to: '/se/appointments', icon: <CalendarMonth />, anyOfRoles: ['Service Engineer'] },
+
+      { kind: 'section', label: 'Technician', anyOfRoles: ['Technician'] },
+      { kind: 'link', label: 'My Tasks', to: '/technician', icon: <CalendarMonth />, anyOfRoles: ['Technician'] },
 
       { kind: 'section', label: 'CRO', anyOfRoles: ['CRO'] },
       { kind: 'link', label: 'CRO Home', to: '/cro', icon: <People />, anyOfRoles: ['CRO'] },

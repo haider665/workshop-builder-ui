@@ -38,6 +38,7 @@ export function GuardHome() {
   const appointments = useCwStore((s) => s.appointments)
   const createPendingVehicle = useCwStore((s) => s.createPendingVehicle)
   const setAppointmentGateEntry = useCwStore((s) => s.setAppointmentGateEntry)
+  const releaseVehicle = useCwStore((s) => s.releaseVehicle)
 
   const [step, setStep] = useState<Step>('idle')
   const [registrationNo, setRegistrationNo] = useState('')
@@ -98,7 +99,7 @@ export function GuardHome() {
       const appt = vehicle
         ? appointments
             .filter((a) => a.vehicleId === vehicle.id)
-            .filter((a) => a.status !== 'Closed')
+            .filter((a) => a.status !== 'Released')
             .slice()
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
             .at(0) ?? null
@@ -137,9 +138,43 @@ export function GuardHome() {
       return
     }
 
-    const job = latestJob
     const pending = latestPending
+    const job = latestJob
 
+    // Check appointment-based exit (V4 flow)
+    const vehicle = vehicles.find((v) => normalizeKey(v.registrationNo) === regKey)
+    const appt = vehicle
+      ? appointments
+          .filter((a) => a.vehicleId === vehicle.id)
+          .slice()
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+          .at(0) ?? null
+      : null
+
+    if (appt) {
+      if (appt.status === 'Payment Done' || appt.status === 'Released') {
+        setExitResult({
+          allowed: true,
+          reason: appt.status === 'Released' ? 'Already released' : `Payment done — Gate pass issued at ${appt.gatePassIssuedAt ? new Date(appt.gatePassIssuedAt).toLocaleString() : '—'}`,
+          job: job ?? undefined,
+          pending: pending ?? undefined,
+        })
+        setStep('exit-result')
+        return
+      }
+
+      // Appointment exists but not ready
+      setExitResult({
+        allowed: false,
+        reason: `Appointment status: ${appt.status}`,
+        job: job ?? undefined,
+        pending: pending ?? undefined,
+      })
+      setStep('exit-result')
+      return
+    }
+
+    // Legacy job-based check
     if (!job) {
       setExitResult({
         allowed: false,
@@ -315,9 +350,24 @@ export function GuardHome() {
                   </Paper>
                 ) : null}
 
-                <Button variant="contained" size="large" onClick={reset} sx={{ py: 1.75, fontWeight: 900 }}>
-                  New
-                </Button>
+                <Stack direction="row" spacing={2}>
+                  {exitResult.allowed && (() => {
+                    const veh = vehicles.find((v) => normalizeKey(v.registrationNo) === regKey)
+                    const relAppt = veh
+                      ? appointments.find((a) => a.vehicleId === veh.id && a.status === 'Payment Done')
+                      : null
+                    return relAppt ? (
+                      <Button variant="contained" color="success" size="large"
+                        onClick={() => { releaseVehicle({ appointmentId: relAppt.id }); reset() }}
+                        sx={{ py: 1.75, fontWeight: 900, flex: 1 }}>
+                        Release Vehicle
+                      </Button>
+                    ) : null
+                  })()}
+                  <Button variant="contained" size="large" onClick={reset} sx={{ py: 1.75, fontWeight: 900, flex: 1 }}>
+                    New
+                  </Button>
+                </Stack>
               </Stack>
             </Paper>
           ) : null}

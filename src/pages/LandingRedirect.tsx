@@ -6,6 +6,9 @@ function firstLanding(roles: string[]) {
   if (roles.includes('Job Creation')) return '/jc'
   if (roles.includes('Guard')) return '/guard'
   if (roles.includes('CRO')) return '/cro'
+  if (roles.includes('Service Advisor')) return '/sa/appointments'
+  if (roles.includes('Service Engineer')) return '/se/appointments'
+  if (roles.includes('Technician')) return '/technician'
   return '/tasks'
 }
 

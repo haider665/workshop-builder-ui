@@ -23,26 +23,42 @@ import { useCwStore } from '../../store/cwStore'
 import type { CWAppointmentStatus } from '../../types/cw'
 
 const SA_STATUSES: CWAppointmentStatus[] = [
-  'Diagnosis In Progress',
-  'Diagnosis Complete',
+  'SA Inspection',
+  'SA Reviewed',
   'Customer Notified',
   'Customer Approved',
   'Customer Rejected',
+  'Diagnosis Assigned',
+  'Diagnosis In Progress',
+  'Diagnosis Complete',
+  'Service Approval Pending',
+  'Service Approved',
+  'Service Assigned',
   'Service In Progress',
-  'Closed',
+  'Service Complete',
+  'Payment Pending',
+  'Payment Done',
 ]
 
 function statusColor(
   status: string,
 ): 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' {
   const map: Record<string, 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info'> = {
-    'Diagnosis In Progress': 'primary',
-    'Diagnosis Complete': 'warning',
+    'SA Inspection': 'primary',
+    'SA Reviewed': 'warning',
     'Customer Notified': 'warning',
     'Customer Approved': 'success',
     'Customer Rejected': 'error',
+    'Diagnosis Assigned': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'success',
+    'Service Approval Pending': 'warning',
+    'Service Approved': 'success',
+    'Service Assigned': 'info',
     'Service In Progress': 'primary',
-    'Closed': 'success',
+    'Service Complete': 'success',
+    'Payment Pending': 'warning',
+    'Payment Done': 'success',
   }
   return map[status] ?? 'default'
 }
@@ -66,13 +82,12 @@ export function SAAppointmentsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CWAppointmentStatus | 'All'>('All')
 
-  // All SA-relevant appointments (any that have SA assignments, no user filtering)
+  // All SA-relevant appointments (assigned to an SA at appointment level)
   const relevant = useMemo(
     () =>
       appointments.filter((a) => {
         if (!SA_STATUSES.includes(a.status as CWAppointmentStatus)) return false
-        return a.concernItems.some((c) => c.assignedSAUserId) ||
-          a.serviceItems.some((s) => s.assignedSAUserId)
+        return !!a.assignedSAUserId
       }),
     [appointments],
   )

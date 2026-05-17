@@ -24,7 +24,6 @@ export function CroHome() {
   const vehicles = useCwStore((s) => s.vehicles)
   const createCustomer = useCwStore((s) => s.createCustomer)
   const createVehicle = useCwStore((s) => s.createVehicle)
-  const createAppointment = useCwStore((s) => s.createAppointment)
   const resolvePendingVehicle = useCwStore((s) => s.resolvePendingVehicle)
 
   const [selectedGateEntryId, setSelectedGateEntryId] = useState<string | null>(null)
@@ -36,9 +35,7 @@ export function CroHome() {
   const [model, setModel] = useState('')
   const [vin, setVin] = useState('')
   const [odometerKm, setOdometerKm] = useState('')
-  const [scheduledAt, setScheduledAt] = useState('')
-  const [concerns, setConcerns] = useState('')
-  const [notes, setNotes] = useState('')
+
 
   const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null)
   const [createdVehicleId, setCreatedVehicleId] = useState<string | null>(null)
@@ -84,9 +81,6 @@ export function CroHome() {
     setModel('')
     setVin('')
     setOdometerKm('')
-    setScheduledAt('')
-    setConcerns('')
-    setNotes('')
 
     setCreatedCustomerId(null)
     setCreatedVehicleId(null)
@@ -100,9 +94,7 @@ export function CroHome() {
     setModel('')
     setVin('')
     setOdometerKm('')
-    setScheduledAt('')
-    setConcerns('')
-    setNotes('')
+
     setCreatedCustomerId(null)
     setCreatedVehicleId(null)
   }
@@ -114,20 +106,9 @@ export function CroHome() {
       if (!selectedGateEntry.isTemporary) throw new Error('Gate entry already resolved')
       if (!selectedKnownVehicle || !selectedKnownCustomer) throw new Error('No existing vehicle found for this registration')
 
-      const createdAppointment = createAppointment({
-        customerId: selectedKnownCustomer.id,
-        vehicleId: selectedKnownVehicle.id,
-        scheduledAt: scheduledAt.trim() || undefined,
-        concerns: concerns.trim(),
-        notes: notes.trim(),
-        status: 'New',
-        gateEntryId: selectedGateEntry.id,
-      })
-
       resolvePendingVehicle(selectedGateEntry.id, {
         customerId: selectedKnownCustomer.id,
         vehicleId: selectedKnownVehicle.id,
-        appointmentId: createdAppointment.id,
       })
 
       setSuccessMessage(`Walk-in resolved (existing): ${selectedGateEntry.registrationNo}`)
@@ -158,7 +139,7 @@ export function CroHome() {
     }
   }
 
-  function submitNewVehicle() {
+  function submitNewVehicleAndResolve() {
     try {
       setError(null)
       if (!selectedGateEntry) throw new Error('Select walk-in gate entry')
@@ -178,34 +159,9 @@ export function CroHome() {
         odometerKm: odo,
       })
 
-      setCreatedVehicleId(createdVehicle.id)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  function submitNewAppointmentAndResolve() {
-    try {
-      setError(null)
-      if (!selectedGateEntry) throw new Error('Select walk-in gate entry')
-      if (!selectedGateEntry.isTemporary) throw new Error('Gate entry already resolved')
-      if (!createdCustomerId) throw new Error('Create customer first')
-      if (!createdVehicleId) throw new Error('Create vehicle first')
-
-      const createdAppointment = createAppointment({
-        customerId: createdCustomerId,
-        vehicleId: createdVehicleId,
-        scheduledAt: scheduledAt.trim() || undefined,
-        concerns: concerns.trim() || undefined,
-        notes: notes.trim() || undefined,
-        status: 'New',
-        gateEntryId: selectedGateEntry.id,
-      })
-
       resolvePendingVehicle(selectedGateEntry.id, {
         customerId: createdCustomerId,
-        vehicleId: createdVehicleId,
-        appointmentId: createdAppointment.id,
+        vehicleId: createdVehicle.id,
       })
 
       setSuccessMessage(`Walk-in resolved (new): ${selectedGateEntry.registrationNo}`)
@@ -333,25 +289,9 @@ export function CroHome() {
                   </Typography>
                 </Paper>
 
-                <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography sx={{ fontWeight: 900 }}>Appointment</Typography>
-                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mt: 1.5 }}>
-                    <TextField
-                      label="Scheduled at (optional)"
-                      value={scheduledAt}
-                      onChange={(e) => setScheduledAt(e.target.value)}
-                      type="datetime-local"
-                      slotProps={{ inputLabel: { shrink: true } }}
-                      fullWidth
-                    />
-                    <TextField label="Concerns (optional)" value={concerns} onChange={(e) => setConcerns(e.target.value)} fullWidth />
-                    <TextField label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth />
-                  </Stack>
-
-                  <Button variant="contained" size="large" onClick={submitExistingWalkIn} sx={{ mt: 2, fontWeight: 900 }}>
-                    Create appointment + resolve walk-in
-                  </Button>
-                </Paper>
+                <Button variant="contained" size="large" onClick={submitExistingWalkIn} sx={{ mt: 2, fontWeight: 900 }}>
+                  Resolve walk-in
+                </Button>
               </Stack>
             ) : (
               <Stack spacing={2}>
@@ -406,38 +346,12 @@ export function CroHome() {
 
                   <Button
                     variant="contained"
-                    onClick={submitNewVehicle}
-                    sx={{ mt: 2, fontWeight: 900 }}
-                    disabled={!createdCustomerId || Boolean(createdVehicleId)}
-                  >
-                    {createdVehicleId ? 'Vehicle created' : 'Create vehicle'}
-                  </Button>
-                </Paper>
-
-                <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography sx={{ fontWeight: 900 }}>3) Appointment</Typography>
-                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mt: 1.5 }}>
-                    <TextField
-                      label="Scheduled at (optional)"
-                      value={scheduledAt}
-                      onChange={(e) => setScheduledAt(e.target.value)}
-                      type="datetime-local"
-                      slotProps={{ inputLabel: { shrink: true } }}
-                      fullWidth
-                      disabled={!createdVehicleId}
-                    />
-                    <TextField label="Concerns (optional)" value={concerns} onChange={(e) => setConcerns(e.target.value)} fullWidth disabled={!createdVehicleId} />
-                    <TextField label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth disabled={!createdVehicleId} />
-                  </Stack>
-
-                  <Button
-                    variant="contained"
                     size="large"
-                    onClick={submitNewAppointmentAndResolve}
+                    onClick={submitNewVehicleAndResolve}
                     sx={{ mt: 2, fontWeight: 900 }}
-                    disabled={!createdVehicleId}
+                    disabled={!createdCustomerId}
                   >
-                    Create appointment + resolve walk-in
+                    Create vehicle + resolve walk-in
                   </Button>
                 </Paper>
               </Stack>

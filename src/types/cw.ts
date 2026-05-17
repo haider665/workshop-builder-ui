@@ -220,6 +220,21 @@ export type CWService = {
   updatedAt: string
 }
 
+// ─── Per-technician assignment with timer ──────────────────────────────────────
+
+export type CWTechnicianAssignmentStatus = 'Assigned' | 'In Progress' | 'Paused' | 'Completed'
+
+export type CWTechnicianAssignment = {
+  id: string
+  technicianUserId: string
+  status: CWTechnicianAssignmentStatus
+  startedAt?: string
+  pausedAt?: string
+  completedAt?: string
+  totalPausedMs: number
+  notes?: string
+}
+
 // ─── Appointment concern / service line items ─────────────────────────────────
 
 export type CWConcernWorkStatus = 'Pending' | 'In Progress' | 'Completed'
@@ -229,12 +244,13 @@ export type CWAppointmentConcernItem = {
   concernId: string
   concernName: string
   remark: string
-  // JC assigns:
-  assignedSAUserId?: string
+  // JC assigns SE + bay:
+  assignedSEUserId?: string
+  bayId?: string
   plannedStartAt?: string
   plannedEndAt?: string
-  // SA assigns:
-  assignedTechnicianUserIds?: string[]
+  // SE assigns technicians:
+  technicianAssignments: CWTechnicianAssignment[]
   workStatus?: CWConcernWorkStatus
 }
 
@@ -250,12 +266,12 @@ export type CWAppointmentServiceItem = {
   price: number
   remark: string
   addedBySA: boolean
-  // JC assigns:
-  assignedSAUserId?: string
+  // JC assigns SE + bay:
+  assignedSEUserId?: string
   bayId?: string
-  // SA assigns:
+  // SE assigns technicians:
+  technicianAssignments: CWTechnicianAssignment[]
   workStatus?: CWServiceWorkStatus
-  assignedUserIds?: string[]
   plannedStartAt?: string
   plannedEndAt?: string
 }
@@ -268,17 +284,45 @@ export type CWWhatsappLog = {
   message: string
 }
 
+// ─── Inspection checklist ─────────────────────────────────────────────────────
+
+export type CWInspectionCheck = {
+  id: string
+  label: string
+  checked: boolean
+  note?: string
+}
+
+// ─── Timeline ─────────────────────────────────────────────────────────────────
+
+export type CWTimelineEvent = {
+  id: string
+  timestamp: string
+  actor: string
+  action: string
+  details?: string
+}
+
+// ─── 16-status workflow ───────────────────────────────────────────────────────
+
 export type CWAppointmentStatus =
   | 'New'
-  | 'JC Assigning Diagnosis'
-  | 'Diagnosis In Progress'
-  | 'Diagnosis Complete'
+  | 'SA Inspection'
+  | 'SA Reviewed'
   | 'Customer Notified'
   | 'Customer Approved'
   | 'Customer Rejected'
-  | 'JC Assigning Services'
+  | 'Diagnosis Assigned'
+  | 'Diagnosis In Progress'
+  | 'Diagnosis Complete'
+  | 'Service Approval Pending'
+  | 'Service Approved'
+  | 'Service Assigned'
   | 'Service In Progress'
-  | 'Closed'
+  | 'Service Complete'
+  | 'Payment Pending'
+  | 'Payment Done'
+  | 'Released'
 
 export type CWAppointment = {
   id: string
@@ -291,15 +335,25 @@ export type CWAppointment = {
   slotTime?: string
   scheduledAt?: string
   status: CWAppointmentStatus
+  // CRO assigns SA
+  assignedSAUserId?: string
+  // SA inspection
+  inspectionChecks: CWInspectionCheck[]
   // Structured concern/service items
   concernItems: CWAppointmentConcernItem[]
   serviceItems: CWAppointmentServiceItem[]
-  // Customer approval
+  // Customer approval (used for both approval rounds)
   customerApprovalStatus: 'Pending' | 'Approved' | 'Rejected'
   customerApprovalNote?: string
   whatsappLogs: CWWhatsappLog[]
+  // Workflow timeline
+  timeline: CWTimelineEvent[]
   // Gate entry link
   gateEntryId?: string
+  // Payment & release
+  paymentStatus: 'Pending' | 'Done'
+  gatePassIssuedAt?: string
+  releasedAt?: string
   createdAt: string
   updatedAt: string
 }
