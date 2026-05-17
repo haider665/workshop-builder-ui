@@ -19,26 +19,30 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
-import { useSessionStore } from '../../store/sessionStore'
+
 import type { CWAppointmentStatus } from '../../types/cw'
 
 const SA_STATUSES: CWAppointmentStatus[] = [
-  'SA Review',
+  'Diagnosis In Progress',
+  'Diagnosis Complete',
   'Customer Notified',
   'Customer Approved',
   'Customer Rejected',
-  'Job Created',
+  'Service In Progress',
+  'Closed',
 ]
 
 function statusColor(
   status: string,
 ): 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' {
   const map: Record<string, 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info'> = {
-    'SA Review': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'warning',
     'Customer Notified': 'warning',
     'Customer Approved': 'success',
     'Customer Rejected': 'error',
-    'Job Created': 'primary',
+    'Service In Progress': 'primary',
+    'Closed': 'success',
   }
   return map[status] ?? 'default'
 }
@@ -54,37 +58,23 @@ function fmtDate(iso?: string) {
 
 export function SAAppointmentsPage() {
   const navigate = useNavigate()
-  const sessionUser = useSessionStore((s) => s.user)
 
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
-  const users = useCwStore((s) => s.users)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CWAppointmentStatus | 'All'>('All')
 
-  // Resolve current session user → store user (by name)
-  const currentUser = useMemo(
-    () => (sessionUser ? users.find((u) => u.fullName === sessionUser.name) ?? null : null),
-    [users, sessionUser],
-  )
-
-  // All SA-relevant appointments (assigned to me OR in SA statuses unassigned)
+  // All SA-relevant appointments (any that have SA assignments, no user filtering)
   const relevant = useMemo(
     () =>
       appointments.filter((a) => {
         if (!SA_STATUSES.includes(a.status as CWAppointmentStatus)) return false
-        if (currentUser) {
-          // Show mine + unassigned in SA Review
-          return (
-            a.assignedServiceAdvisorId === currentUser.id ||
-            (!a.assignedServiceAdvisorId && a.status === 'SA Review')
-          )
-        }
-        return true
+        return a.concernItems.some((c) => c.assignedSAUserId) ||
+          a.serviceItems.some((s) => s.assignedSAUserId)
       }),
-    [appointments, currentUser],
+    [appointments],
   )
 
   const filtered = useMemo(() => {
@@ -153,7 +143,7 @@ export function SAAppointmentsPage() {
                   <TableCell sx={{ fontWeight: 800 }}>Vehicle</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Slot</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Services</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Concerns / Services</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Created</TableCell>
                 </TableRow>
@@ -168,7 +158,7 @@ export function SAAppointmentsPage() {
                       key={appt.id}
                       hover
                       sx={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/cro/appointments/${appt.id}`)}
+                      onClick={() => navigate(`/sa/appointments/${appt.id}`)}
                     >
                       <TableCell>
                         <Stack>
@@ -201,16 +191,14 @@ export function SAAppointmentsPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Stack>
-                          <Typography variant="body2">
-                            {appt.serviceItems.length} service{appt.serviceItems.length !== 1 ? 's' : ''}
+                        <Typography variant="body2">
+                          {appt.concernItems.length}C / {appt.serviceItems.length}S
+                        </Typography>
+                        {total > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            {fmtBDT(total)}
                           </Typography>
-                          {total > 0 && (
-                            <Typography variant="caption" color="text.secondary">
-                              {fmtBDT(total)}
-                            </Typography>
-                          )}
-                        </Stack>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Chip

@@ -37,7 +37,6 @@ export function GuardHome() {
   const vehicles = useCwStore((s) => s.vehicles)
   const appointments = useCwStore((s) => s.appointments)
   const createPendingVehicle = useCwStore((s) => s.createPendingVehicle)
-  const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
   const setAppointmentGateEntry = useCwStore((s) => s.setAppointmentGateEntry)
 
   const [step, setStep] = useState<Step>('idle')
@@ -99,17 +98,9 @@ export function GuardHome() {
       const appt = vehicle
         ? appointments
             .filter((a) => a.vehicleId === vehicle.id)
-            .filter((a) => a.status !== 'Cancelled' && a.status !== 'Job Created')
+            .filter((a) => a.status !== 'Closed')
             .slice()
-            .sort((a, b) => {
-              if (a.status !== b.status) {
-                if (a.status === 'Confirmed') return -1
-                if (b.status === 'Confirmed') return 1
-                if (a.status === 'Draft') return -1
-                if (b.status === 'Draft') return 1
-              }
-              return b.updatedAt.localeCompare(a.updatedAt)
-            })
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
             .at(0) ?? null
         : null
 
@@ -122,7 +113,6 @@ export function GuardHome() {
       })
 
       if (appt) {
-        setAppointmentStatus(appt.id, 'Vehicle Arrived')
         setAppointmentGateEntry(appt.id, created.id)
       }
 

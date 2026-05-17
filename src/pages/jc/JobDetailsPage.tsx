@@ -5,7 +5,9 @@ import {
   ButtonGroup,
   Chip,
   Divider,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -54,13 +56,13 @@ export function JobDetailsPage() {
   const shops = useCwStore((s) => s.shops)
   const bays = useCwStore((s) => s.bays)
   const roles = useCwStore((s) => s.roles)
-  const users = useCwStore((s) => s.users)
   const appointments = useCwStore((s) => s.appointments)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const setJobStatus = useCwStore((s) => s.setJobStatus)
   const setJobTestDrive = useCwStore((s) => s.setJobTestDrive)
   const moveJobTask = useCwStore((s) => s.moveJobTask)
   const setTaskDependencyOverride = useCwStore((s) => s.setTaskDependencyOverride)
+  const setTaskSourceConcern = useCwStore((s) => s.setTaskSourceConcern)
 
   const [error, setError] = useState<string | null>(null)
   const [overrideOpenForTaskId, setOverrideOpenForTaskId] = useState<string | null>(null)
@@ -84,11 +86,7 @@ export function JobDetailsPage() {
     return apptId ? appointments.find((a) => a.id === apptId) : undefined
   }, [appointments, job, pendingVehicles])
 
-  const userNameById = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const u of users) map.set(u.id, u.fullName)
-    return map
-  }, [users])
+
 
   const jobTasks = useMemo(() => {
     if (!job) return []
@@ -205,18 +203,8 @@ export function JobDetailsPage() {
                     {linkedAppointment.scheduledAt ? ` • Scheduled: ${new Date(linkedAppointment.scheduledAt).toLocaleString()}` : ''}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Role:{' '}
-                    <strong>
-                      {linkedAppointment.assignedRoleId ? roleNameById.get(linkedAppointment.assignedRoleId) ?? '—' : '—'}
-                    </strong>
-                    {' • '}Users:{' '}
-                    <strong>
-                      {linkedAppointment.assignedUserIds?.length
-                        ? (linkedAppointment.assignedUserIds
-                            .map((id) => userNameById.get(id))
-                            .filter(Boolean) as string[]).join(', ') || '—'
-                        : '—'}
-                    </strong>
+                    Concerns: <strong>{linkedAppointment.concernItems.length}</strong>
+                    {' • '}Services: <strong>{linkedAppointment.serviceItems.length}</strong>
                   </Typography>
                 </Stack>
               </Paper>
@@ -303,11 +291,57 @@ export function JobDetailsPage() {
         </Stack>
       </Paper>
 
+      {linkedAppointment && linkedAppointment.concernItems.length > 0 && (
+        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
+          <Typography sx={{ fontWeight: 900, mb: 0.5 }}>Job Card — Concerns</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Concerns captured at diagnosis. Decompose into tasks and link each task to its source concern below.
+          </Typography>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Remark</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Tasks linked</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {linkedAppointment.concernItems.map((c, idx) => {
+                const linkedTasks = jobTasks.filter((t) => t.sourceConcernId === c.id)
+                return (
+                  <TableRow key={c.id}>
+                    <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{c.concernName}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{c.remark || '—'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      {linkedTasks.length > 0 ? (
+                        <Stack spacing={0.5}>
+                          {linkedTasks.map((t) => (
+                            <Chip key={t.id} size="small" label={t.title} color="primary" />
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" color="text.disabled">None yet</Typography>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </Paper>
+      )}
+
       <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
         <Box sx={{ p: 2 }}>
           <Typography sx={{ fontWeight: 900 }}>Tasks</Typography>
           <Typography variant="body2" color="text.secondary">
-            Tasks created from templates.
+            Tasks created from templates. Use Source Concern to link each task back to the job card.
           </Typography>
         </Box>
         <Divider />
@@ -322,6 +356,7 @@ export function JobDetailsPage() {
               <TableCell>Role</TableCell>
               <TableCell>Assignee</TableCell>
               <TableCell>Planned</TableCell>
+              {linkedAppointment && linkedAppointment.concernItems.length > 0 && <TableCell>Source Concern</TableCell>}
               <TableCell align="right">Order</TableCell>
               <TableCell align="right">Open</TableCell>
             </TableRow>
@@ -373,6 +408,22 @@ export function JobDetailsPage() {
                       ? `${new Date(t.plannedStartAt).toLocaleString()} → ${new Date(t.plannedEndAt).toLocaleTimeString()}`
                       : '—'}
                   </TableCell>
+                  {linkedAppointment && linkedAppointment.concernItems.length > 0 && (
+                    <TableCell sx={{ minWidth: 160 }}>
+                      <Select
+                        size="small"
+                        displayEmpty
+                        value={t.sourceConcernId ?? ''}
+                        onChange={(e) => setTaskSourceConcern(t.id, e.target.value || null)}
+                        sx={{ fontSize: '0.75rem', minWidth: 140 }}
+                      >
+                        <MenuItem value=""><em>None</em></MenuItem>
+                        {linkedAppointment.concernItems.map((c) => (
+                          <MenuItem key={c.id} value={c.id}>{c.concernName}</MenuItem>
+                        ))}
+                      </Select>
+                    </TableCell>
+                  )}
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                       <Button
@@ -405,7 +456,7 @@ export function JobDetailsPage() {
             })}
             {jobTasks.length ? null : (
               <TableRow>
-                <TableCell colSpan={9}>
+                <TableCell colSpan={linkedAppointment && linkedAppointment.concernItems.length > 0 ? 10 : 9}>
                   <Typography variant="body2" color="text.secondary">
                     No tasks linked.
                   </Typography>

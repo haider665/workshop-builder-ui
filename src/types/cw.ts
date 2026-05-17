@@ -115,6 +115,8 @@ export type CWTask = {
   plannedEndAt?: string
   dependsOnTaskIds?: string[]
   dependencyOverrideReason?: string
+  /** ID of the appointment concern this task was created from (JC decomposition) */
+  sourceConcernId?: string
   fields: CWTaskField[]
   createdAt: string
   updatedAt: string
@@ -220,11 +222,20 @@ export type CWService = {
 
 // ─── Appointment concern / service line items ─────────────────────────────────
 
+export type CWConcernWorkStatus = 'Pending' | 'In Progress' | 'Completed'
+
 export type CWAppointmentConcernItem = {
   id: string
   concernId: string
   concernName: string
   remark: string
+  // JC assigns:
+  assignedSAUserId?: string
+  plannedStartAt?: string
+  plannedEndAt?: string
+  // SA assigns:
+  assignedTechnicianUserIds?: string[]
+  workStatus?: CWConcernWorkStatus
 }
 
 export type CWServiceWorkStatus = 'Pending' | 'In Progress' | 'Completed'
@@ -239,7 +250,10 @@ export type CWAppointmentServiceItem = {
   price: number
   remark: string
   addedBySA: boolean
-  // Service process assignment
+  // JC assigns:
+  assignedSAUserId?: string
+  bayId?: string
+  // SA assigns:
   workStatus?: CWServiceWorkStatus
   assignedUserIds?: string[]
   plannedStartAt?: string
@@ -255,17 +269,15 @@ export type CWWhatsappLog = {
 }
 
 export type CWAppointmentStatus =
-  | 'Draft'
-  | 'Confirmed'
-  | 'SA Review'
-  | 'SA Reviewed'
+  | 'New'
+  | 'JC Assigning Diagnosis'
+  | 'Diagnosis In Progress'
+  | 'Diagnosis Complete'
   | 'Customer Notified'
   | 'Customer Approved'
   | 'Customer Rejected'
-  | 'Service Processing'
-  | 'Vehicle Arrived'
-  | 'Job Created'
-  | 'Cancelled'
+  | 'JC Assigning Services'
+  | 'Service In Progress'
   | 'Closed'
 
 export type CWAppointment = {
@@ -286,13 +298,8 @@ export type CWAppointment = {
   customerApprovalStatus: 'Pending' | 'Approved' | 'Rejected'
   customerApprovalNote?: string
   whatsappLogs: CWWhatsappLog[]
-  // Assignment
-  assignedServiceAdvisorId?: string
-  assignedRoleId?: string
-  assignedUserIds: string[]
+  // Gate entry link
   gateEntryId?: string
-  /** Task IDs for SA review tasks */
-  saTaskIds: string[]
   createdAt: string
   updatedAt: string
 }

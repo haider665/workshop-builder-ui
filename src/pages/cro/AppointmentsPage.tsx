@@ -29,28 +29,30 @@ function includesLoose(haystack: string, needle: string) {
 
 function statusColor(status: string): 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' {
   const map: Record<string, 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info'> = {
-    Draft: 'default',
-    Confirmed: 'primary',
-    'SA Review': 'info',
+    'New': 'info',
+    'JC Assigning Diagnosis': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'warning',
     'Customer Notified': 'warning',
     'Customer Approved': 'success',
     'Customer Rejected': 'error',
-    'Job Created': 'primary',
-    'In Progress': 'info',
+    'JC Assigning Services': 'info',
+    'Service In Progress': 'primary',
     Closed: 'success',
   }
   return map[status] ?? 'default'
 }
 
 const ALL_STATUSES: CWAppointmentStatus[] = [
-  'Draft',
-  'Confirmed',
-  'SA Review',
+  'New',
+  'JC Assigning Diagnosis',
+  'Diagnosis In Progress',
+  'Diagnosis Complete',
   'Customer Notified',
   'Customer Approved',
   'Customer Rejected',
-  'Job Created',
-  'Service Processing',
+  'JC Assigning Services',
+  'Service In Progress',
   'Closed',
 ]
 

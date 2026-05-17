@@ -28,6 +28,8 @@ import { VehiclesPage } from '../pages/cro/VehiclesPage'
 import { VehicleDetailPage } from '../pages/cro/VehicleDetailPage'
 import { WhatsappPage } from '../pages/cro/WhatsappPage'
 import { SAAppointmentsPage } from '../pages/sa/SAAppointmentsPage'
+import { SAAppointmentDetailPage } from '../pages/sa/SAAppointmentDetailPage'
+import { JCAppointmentPage } from '../pages/jc/JCAppointmentPage'
 import { TasksHome } from '../pages/tasks/TasksHome'
 import { CalendarPage } from '../pages/tasks/CalendarPage'
 import { TaskDetailPage } from '../pages/tasks/TaskDetailPage'
@@ -65,6 +67,7 @@ export function AppRouter() {
           <Route element={<RequireRole anyOf={['Job Creation']} />}>
             <Route path="/jc" element={<JobControllerHome />} />
             <Route path="/jc/pending-vehicles" element={<PendingVehiclesPage />} />
+            <Route path="/jc/appointments/:appointmentId" element={<JCAppointmentPage />} />
           </Route>
 
           {/* Job creation + detail: accessible to Job Creation, Service Advisor, and CRO */}
@@ -91,6 +94,7 @@ export function AppRouter() {
 
           <Route element={<RequireRole anyOf={['Service Advisor']} />}>
             <Route path="/sa/appointments" element={<SAAppointmentsPage />} />
+            <Route path="/sa/appointments/:appointmentId" element={<SAAppointmentDetailPage />} />
           </Route>
 
           <Route

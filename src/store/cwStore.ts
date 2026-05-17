@@ -11,6 +11,7 @@ import type {
   CWConcernCategory,
   CWConcernCategoryStatus,
   CWConcernStatus,
+  CWConcernWorkStatus,
   CWCustomer,
   CWCustomerStatus,
   CWJob,
@@ -164,9 +165,6 @@ export type CreateAppointmentInput = {
   concerns?: string
   notes?: string
   status?: CWAppointmentStatus
-  assignedRoleId?: string
-  assignedServiceAdvisorId?: string
-  assignedUserIds?: string[]
   gateEntryId?: string
   concernItems?: CreateAppointmentConcernItemInput[]
   serviceItems?: CreateAppointmentServiceItemInput[]
@@ -181,9 +179,6 @@ export type UpdateAppointmentInput = {
   concerns: string
   notes: string
   status: CWAppointmentStatus
-  assignedRoleId?: string
-  assignedServiceAdvisorId?: string
-  assignedUserIds?: string[]
   gateEntryId?: string
 }
 
@@ -348,6 +343,43 @@ export type UpdateServiceItemAssignmentInput = {
   workStatus?: CWServiceWorkStatus
 }
 
+// ─── New flow: JC/SA assignment inputs ─────────────────────────────────────────
+
+export type AssignConcernDiagnosisInput = {
+  appointmentId: string
+  concernItemId: string
+  saUserId: string
+  startAt: string
+  endAt: string
+}
+
+export type AssignConcernTechniciansInput = {
+  appointmentId: string
+  concernItemId: string
+  technicianUserIds: string[]
+}
+
+export type SetConcernWorkStatusInput = {
+  appointmentId: string
+  concernItemId: string
+  status: CWConcernWorkStatus
+}
+
+export type AssignServiceSAInput = {
+  appointmentId: string
+  serviceItemId: string
+  saUserId: string
+  bayId?: string
+  startAt?: string
+  endAt?: string
+}
+
+export type AssignServiceTechniciansInput = {
+  appointmentId: string
+  serviceItemId: string
+  technicianUserIds: string[]
+}
+
 type CWState = {
   shops: CWShop[]
   bays: CWBay[]
@@ -405,8 +437,13 @@ type CWState = {
   addWhatsappLog: (input: AddWhatsappLogInput) => CWWhatsappLog
   setCustomerApproval: (input: SetCustomerApprovalInput) => void
   updateServiceItemAssignment: (input: UpdateServiceItemAssignmentInput) => void
-  assignSAToAppointment: (appointmentId: string, userId: string | undefined) => void
-  addSATaskToAppointment: (appointmentId: string, taskId: string) => void
+
+  // New flow: JC assigns SA to concerns/services, SA assigns technicians
+  assignConcernDiagnosis: (input: AssignConcernDiagnosisInput) => void
+  assignConcernTechnicians: (input: AssignConcernTechniciansInput) => void
+  setConcernWorkStatus: (input: SetConcernWorkStatusInput) => void
+  assignServiceSA: (input: AssignServiceSAInput) => void
+  assignServiceTechnicians: (input: AssignServiceTechniciansInput) => void
 
   createTaskTemplate: (input: CreateTaskTemplateInput) => CWTaskTemplate
   updateTaskTemplate: (templateId: string, input: UpdateTaskTemplateInput) => void
@@ -425,6 +462,7 @@ type CWState = {
   addTaskComment: (taskId: string, authorName: string, message: string) => CWTaskComment
   addTaskAttachment: (taskId: string, file: File) => CWTaskAttachment
   setTaskDependencyOverride: (taskId: string, reason: string | null) => void
+  setTaskSourceConcern: (taskId: string, concernId: string | null) => void
 
   createPendingVehicle: (input: CreatePendingVehicleInput) => CWPendingVehicle
   setPendingVehicleStatus: (pendingVehicleId: string, status: CWPendingVehicleStatus) => void
@@ -658,13 +696,11 @@ function seedDemoData() {
       scheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       concerns: 'Engine noise, check brakes',
       notes: 'Customer prefers morning slot',
-      status: 'Confirmed',
+      status: 'New',
       concernItems: [],
       serviceItems: [],
       customerApprovalStatus: 'Pending',
       whatsappLogs: [],
-      saTaskIds: [],
-      assignedUserIds: [],
       createdAt: ts,
       updatedAt: ts,
     },
@@ -1585,22 +1621,6 @@ export const useCwStore = create<CWState>((set, get) => ({
     if (!customers.some((c) => c.id === input.customerId)) throw new Error('Customer not found')
     if (!vehicles.some((v) => v.id === input.vehicleId)) throw new Error('Vehicle not found')
 
-    const assignedRoleId = (input.assignedRoleId ?? '').trim() || undefined
-    if (assignedRoleId) {
-      const roles = get().roles
-      if (!roles.some((r) => r.id === assignedRoleId)) throw new Error('Role not found')
-    }
-
-    const assignedUserIds = (input.assignedUserIds ?? []).filter(Boolean)
-    if (assignedUserIds.length) {
-      const users = get().users
-      for (const userId of assignedUserIds) {
-        const u = users.find((x) => x.id === userId)
-        if (!u) throw new Error('User not found')
-        if (assignedRoleId && !u.roleIds.includes(assignedRoleId)) throw new Error('User does not match selected role')
-      }
-    }
-
     const scheduledAt = (input.scheduledAt ?? '').trim()
     if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new Error('Invalid scheduled date')
 
@@ -1614,7 +1634,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       scheduledAt: scheduledAt || undefined,
       concerns: (input.concerns ?? '').trim(),
       notes: (input.notes ?? '').trim(),
-      status: input.status ?? 'Draft',
+      status: input.status ?? 'New',
       concernItems: (input.concernItems ?? []).map((c) => ({
         id: newId(),
         concernId: c.concernId,
@@ -1634,10 +1654,6 @@ export const useCwStore = create<CWState>((set, get) => ({
       })),
       customerApprovalStatus: 'Pending',
       whatsappLogs: [],
-      saTaskIds: [],
-      assignedServiceAdvisorId: input.assignedServiceAdvisorId,
-      assignedRoleId,
-      assignedUserIds,
       gateEntryId: input.gateEntryId,
       createdAt: ts,
       updatedAt: ts,
@@ -1656,22 +1672,6 @@ export const useCwStore = create<CWState>((set, get) => ({
     if (!customers.some((c) => c.id === input.customerId)) throw new Error('Customer not found')
     if (!vehicles.some((v) => v.id === input.vehicleId)) throw new Error('Vehicle not found')
 
-    const assignedRoleId = (input.assignedRoleId ?? '').trim() || undefined
-    if (assignedRoleId) {
-      const roles = get().roles
-      if (!roles.some((r) => r.id === assignedRoleId)) throw new Error('Role not found')
-    }
-
-    const assignedUserIds = (input.assignedUserIds ?? []).filter(Boolean)
-    if (assignedUserIds.length) {
-      const users = get().users
-      for (const userId of assignedUserIds) {
-        const u = users.find((x) => x.id === userId)
-        if (!u) throw new Error('User not found')
-        if (assignedRoleId && !u.roleIds.includes(assignedRoleId)) throw new Error('User does not match selected role')
-      }
-    }
-
     const scheduledAt = (input.scheduledAt ?? '').trim()
     if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new Error('Invalid scheduled date')
 
@@ -1688,9 +1688,6 @@ export const useCwStore = create<CWState>((set, get) => ({
               concerns: input.concerns.trim(),
               notes: input.notes.trim(),
               status: input.status,
-              assignedServiceAdvisorId: input.assignedServiceAdvisorId,
-              assignedRoleId,
-              assignedUserIds,
               gateEntryId: input.gateEntryId,
               updatedAt: nowIso(),
             }
@@ -1854,24 +1851,104 @@ export const useCwStore = create<CWState>((set, get) => ({
     })
   },
 
-  assignSAToAppointment: (appointmentId, userId) => {
+  // ─── New flow: JC/SA assignment actions ─────────────────────────────────────
+
+  assignConcernDiagnosis: (input) => {
     set({
       appointments: get().appointments.map((a) =>
-        a.id === appointmentId
-          ? { ...a, assignedServiceAdvisorId: userId ?? undefined, updatedAt: nowIso() }
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              concernItems: a.concernItems.map((c) =>
+                c.id === input.concernItemId
+                  ? {
+                      ...c,
+                      assignedSAUserId: input.saUserId,
+                      plannedStartAt: input.startAt,
+                      plannedEndAt: input.endAt,
+                      workStatus: 'Pending' as const,
+                    }
+                  : c,
+              ),
+              updatedAt: nowIso(),
+            }
           : a,
       ),
     })
   },
 
-  addSATaskToAppointment: (appointmentId, taskId) => {
+  assignConcernTechnicians: (input) => {
     set({
       appointments: get().appointments.map((a) =>
-        a.id === appointmentId
+        a.id === input.appointmentId
           ? {
               ...a,
-              saTaskIds: [...(a.saTaskIds ?? []), taskId],
-              status: 'SA Review',
+              concernItems: a.concernItems.map((c) =>
+                c.id === input.concernItemId
+                  ? { ...c, assignedTechnicianUserIds: input.technicianUserIds }
+                  : c,
+              ),
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  setConcernWorkStatus: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              concernItems: a.concernItems.map((c) =>
+                c.id === input.concernItemId
+                  ? { ...c, workStatus: input.status }
+                  : c,
+              ),
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  assignServiceSA: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              serviceItems: a.serviceItems.map((s) =>
+                s.id === input.serviceItemId
+                  ? {
+                      ...s,
+                      assignedSAUserId: input.saUserId,
+                      bayId: input.bayId,
+                      plannedStartAt: input.startAt,
+                      plannedEndAt: input.endAt,
+                      workStatus: 'Pending' as const,
+                    }
+                  : s,
+              ),
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  assignServiceTechnicians: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              serviceItems: a.serviceItems.map((s) =>
+                s.id === input.serviceItemId
+                  ? { ...s, assignedUserIds: input.technicianUserIds }
+                  : s,
+              ),
               updatedAt: nowIso(),
             }
           : a,
@@ -2298,6 +2375,16 @@ export const useCwStore = create<CWState>((set, get) => ({
     })
   },
 
+  setTaskSourceConcern: (taskId, concernId) => {
+    set({
+      tasks: get().tasks.map((t) =>
+        t.id === taskId
+          ? { ...t, sourceConcernId: concernId ?? undefined, updatedAt: nowIso() }
+          : t,
+      ),
+    })
+  },
+
   setTaskFieldValue: (taskId, fieldId, value) => {
     const existing = get().taskFieldValues[taskId] ?? {}
     set({
@@ -2514,7 +2601,7 @@ export const useCwStore = create<CWState>((set, get) => ({
             a.id === appointmentId
               ? {
                   ...a,
-                  status: 'Job Created',
+                  status: 'JC Assigning Diagnosis' as const,
                   gateEntryId: a.gateEntryId ?? pending?.id,
                   updatedAt: nowIso(),
                 }
@@ -2597,7 +2684,7 @@ export const useCwStore = create<CWState>((set, get) => ({
             a.id === appointmentId
               ? {
                   ...a,
-                  status: 'Job Created',
+                  status: 'JC Assigning Diagnosis' as const,
                   gateEntryId: a.gateEntryId ?? pending?.id,
                   updatedAt: nowIso(),
                 }

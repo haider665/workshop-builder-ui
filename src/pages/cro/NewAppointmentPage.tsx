@@ -69,8 +69,6 @@ export function NewAppointmentPage() {
   const concerns = useCwStore((s) => s.concerns)
   const concernCategories = useCwStore((s) => s.concernCategories)
   const services = useCwStore((s) => s.services)
-  const users = useCwStore((s) => s.users)
-  const roles = useCwStore((s) => s.roles)
   const appointments = useCwStore((s) => s.appointments)
   const createAppointment = useCwStore((s) => s.createAppointment)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
@@ -101,18 +99,11 @@ export function NewAppointmentPage() {
   // Appointment info
   const [slotDate, setSlotDate] = useState(localDateToday())
   const [slotTime, setSlotTime] = useState('')
-  const [saUserId, setSaUserId] = useState('')
   const [notes, setNotes] = useState('')
   const [gateEntryId, setGateEntryId] = useState(searchParams.get('pendingVehicleId') ?? '')
 
   const [error, setError] = useState<string | null>(null)
 
-  // SA users
-  const saRole = useMemo(() => roles.find((r) => r.name === 'SA' || r.name === 'Service Advisor'), [roles])
-  const saUsers = useMemo(
-    () => (saRole ? users.filter((u) => u.roleIds.includes(saRole.id) && u.status === 'Active') : []),
-    [users, saRole],
-  )
 
   // Booked slots on selected date
   const bookedSlots = useMemo(() => {
@@ -204,8 +195,7 @@ export function NewAppointmentPage() {
         vehicleId,
         slotDate: slotDate || undefined,
         slotTime: slotTime || undefined,
-        status: 'Draft',
-        assignedServiceAdvisorId: saUserId || undefined,
+        status: 'New',
         notes: notes.trim(),
         concernItems: [
           ...concernItems.map((i) => ({
@@ -644,22 +634,6 @@ export function NewAppointmentPage() {
 
               {/* Service Advisor + Notes */}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <FormControl size="small" sx={{ flex: '1 1 240px' }}>
-                  <InputLabel>Service Advisor</InputLabel>
-                  <Select
-                    label="Service Advisor"
-                    value={saUserId}
-                    onChange={(e) => setSaUserId(e.target.value)}
-                  >
-                    <MenuItem value="">— None —</MenuItem>
-                    {saUsers.map((u) => (
-                      <MenuItem key={u.id} value={u.id}>
-                        {u.fullName} · {u.mobile}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
                 <TextField
                   size="small"
                   label="Additional Note"

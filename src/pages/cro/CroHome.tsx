@@ -120,7 +120,7 @@ export function CroHome() {
         scheduledAt: scheduledAt.trim() || undefined,
         concerns: concerns.trim(),
         notes: notes.trim(),
-        status: 'Vehicle Arrived',
+        status: 'New',
         gateEntryId: selectedGateEntry.id,
       })
 
@@ -198,7 +198,7 @@ export function CroHome() {
         scheduledAt: scheduledAt.trim() || undefined,
         concerns: concerns.trim() || undefined,
         notes: notes.trim() || undefined,
-        status: 'Vehicle Arrived',
+        status: 'New',
         gateEntryId: selectedGateEntry.id,
       })
 
