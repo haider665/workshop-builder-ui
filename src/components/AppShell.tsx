@@ -61,7 +61,8 @@ export function AppShell() {
         anyOfRoles: ['Admin'],
       },
       { kind: 'link', label: 'Job Creation', to: '/jc', icon: <Settings />, anyOfRoles: ['Job Creation'] },
-      { kind: 'link', label: 'Guard', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
+      { kind: 'link', label: 'Bay Management', to: '/admin/bays', icon: <Settings />, anyOfRoles: ['Job Creation'] },
+      { kind: 'link', label: 'Gatepass', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
 
       { kind: 'section', label: 'Service Advisor', anyOfRoles: ['Service Advisor'] },
       { kind: 'link', label: 'SA Appointments', to: '/sa/appointments', icon: <CalendarMonth />, anyOfRoles: ['Service Advisor'] },
@@ -74,15 +75,16 @@ export function AppShell() {
       { kind: 'link', label: 'My Tasks', to: '/technician', icon: <CalendarMonth />, anyOfRoles: ['Technician'] },
 
       { kind: 'section', label: 'CRE', anyOfRoles: ['CRE'] },
-      { kind: 'link', label: 'CRE Home', to: '/cre', icon: <People />, anyOfRoles: ['CRE'] },
-      { kind: 'link', label: 'Customers', to: '/cre/customers', icon: <People />, anyOfRoles: ['CRE'] },
-      { kind: 'link', label: 'Vehicles', to: '/cre/vehicles', icon: <DirectionsCar />, anyOfRoles: ['CRE'] },
-      { kind: 'link', label: 'Appointments', to: '/cre/appointments', icon: <CalendarMonth />, anyOfRoles: ['CRE'] },
+      { kind: 'link', label: 'Dashboard', to: '/cre', icon: <People />, anyOfRoles: ['CRE'] },
+      { kind: 'link', label: 'Manage Customer', to: '/cre/customers', icon: <People />, anyOfRoles: ['CRE'] },
+      { kind: 'link', label: 'Manage Vehicles', to: '/cre/vehicles', icon: <DirectionsCar />, anyOfRoles: ['CRE'] },
+      { kind: 'link', label: 'Appointment Calendar', to: '/cre/appointments', icon: <CalendarMonth />, anyOfRoles: ['CRE'] },
       { kind: 'section', label: 'Admin Config', anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Concerns', to: '/admin/concerns', icon: <AdminPanelSettings />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Services', to: '/admin/services', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Teams', to: '/admin/teams', icon: <Groups />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Parts', to: '/admin/parts', icon: <Settings />, anyOfRoles: ['Admin'] },
+      { kind: 'link', label: 'Part Requests', to: '/admin/part-requests', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
 
       {
         kind: 'link',

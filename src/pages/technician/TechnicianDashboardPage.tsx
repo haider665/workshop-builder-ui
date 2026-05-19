@@ -1,5 +1,4 @@
 import {
-  Alert,
   Chip,
   MenuItem,
   Paper,
@@ -53,9 +52,12 @@ export function TechnicianDashboardPage() {
     return cwUser?.id ?? null
   }, [sessionUser, techUsers])
 
+  // Auto-select first technician if no match
   const [manualUserId, setManualUserId] = useState<string>('')
 
-  const currentUserId = autoMatchedId ?? (manualUserId || null)
+  // If no auto-match and no manual selection yet, auto-pick first tech
+  const effectiveManualId = manualUserId || (autoMatchedId ? '' : techUsers[0]?.id ?? '')
+  const currentUserId = autoMatchedId ?? (effectiveManualId || null)
 
   const myTasks = useMemo(() => {
     if (!currentUserId) return []
@@ -118,16 +120,17 @@ export function TechnicianDashboardPage() {
   return (
     <Page title="My Tasks" subtitle="Your assigned concern and service tasks.">
       <Stack spacing={3}>
-        {!autoMatchedId && (
-          <Alert severity="info" sx={{ mb: 1 }}>
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              Your login name doesn't match a registered technician. Select your identity:
+        {/* Technician identity selector — always visible */}
+        <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              Viewing as:
             </Typography>
             <TextField
               select
               size="small"
-              label="Select Technician"
-              value={manualUserId}
+              label="Technician"
+              value={currentUserId ?? ''}
               onChange={(e) => setManualUserId(e.target.value)}
               sx={{ minWidth: 260 }}
             >
@@ -135,8 +138,13 @@ export function TechnicianDashboardPage() {
                 <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
               ))}
             </TextField>
-          </Alert>
-        )}
+            {currentUserId && (
+              <Typography variant="body2" color="text.secondary">
+                {myTasks.length} task{myTasks.length !== 1 ? 's' : ''} assigned
+              </Typography>
+            )}
+          </Stack>
+        </Paper>
 
         {/* Active */}
         <Paper sx={{ border: '2px solid', borderColor: 'primary.main', p: 2.5 }}>

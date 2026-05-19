@@ -48,6 +48,7 @@ export function SAAppointmentDetailPage() {
   const addAppointmentConcern = useCwStore((s) => s.addAppointmentConcern)
   const pushTimeline = useCwStore((s) => s.pushTimeline)
   const confirmPayment = useCwStore((s) => s.confirmPayment)
+  const partRequests = useCwStore((s) => s.partRequests)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -125,18 +126,45 @@ export function SAAppointmentDetailPage() {
     const reg = vehicle?.registrationNo ?? ''
 
     if (purpose === 'concern-approval') {
-      const concernList = appt!.concernItems.map((c) => `• ${c.concernName}`).join('\n')
+      const concernBlock = appt!.concernItems.map((c) => {
+        let block = `• ${c.concernName}`
+        if (c.remark) block += `\n  Note: ${c.remark}`
+        return block
+      }).join('\n')
       const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
       const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
-      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nConcerns:\n${concernList}\n\nProposed Services:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm.`)
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nConcerns:\n${concernBlock}\n\nProposed Services:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm.`)
     } else if (purpose === 'service-approval') {
-      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
-      const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
-      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nAfter diagnosis, the following services are recommended:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm to proceed.`)
+      const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
+      const concernBlock = appt!.concernItems.map((c) => {
+        const lines: string[] = [`• ${c.concernName}`]
+        if (c.diagnosisRemark) lines.push(`  Diagnosis: ${c.diagnosisRemark}`)
+        const cServices = (c.serviceIds ?? []).map((sid) => services.find((s) => s.id === sid)).filter(Boolean)
+        if (cServices.length > 0) {
+          lines.push(`  Services: ${cServices.map((s) => s ? `${s.code} (${fmtBDT(s.price)})` : '').join(', ')}`)
+        }
+        const cParts = allParts.filter((pr) => pr.concernItemId === c.id)
+        if (cParts.length > 0) {
+          lines.push(`  Parts: ${cParts.map((pr) => `${pr.partName} x${pr.quantity ?? 1}${typeof pr.price === 'number' ? ` (${fmtBDT(pr.price)})` : ''}${pr.deliveryDate ? ` ETA: ${pr.deliveryDate}` : ''}`).join(', ')}`)
+        }
+        return lines.join('\n')
+      }).join('\n\n')
+      const globalServices = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
+      const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const grandTotal = serviceTotal + partsTotal
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nDiagnosis Report:\n${concernBlock}\n\nAll Services:\n${globalServices}\n\nServices Total: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts Total: ${fmtBDT(partsTotal)}` : ''}\nGrand Total: ${fmtBDT(grandTotal)}\n\nPlease confirm to proceed.`)
     } else {
+      const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
       const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
-      const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
-      setWaMessage(`Dear ${name},\n\nGreat news! Your vehicle ${reg} is ready for pickup.\n\nCompleted Services:\n${serviceList}\n\nTotal Due: ${fmtBDT(total)}\n\nPickup Hours: 9:00 AM - 6:00 PM (Sat-Thu)\n\nPlease make payment at the cashier counter to collect your vehicle. We accept Cash, Card, and Mobile Banking.\n\nThank you for choosing Continental Workshop!`)
+      const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
+      const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const grandTotal = serviceTotal + partsTotal
+      let partBlock = ''
+      if (allParts.length > 0) {
+        partBlock = `\n\nParts Used:\n${allParts.map((pr) => `• ${pr.partName} x${pr.quantity ?? 1}${typeof pr.price === 'number' ? ` — ${fmtBDT(pr.price * (pr.quantity ?? 1))}` : ''}`).join('\n')}`
+      }
+      setWaMessage(`Dear ${name},\n\nGreat news! Your vehicle ${reg} is ready for pickup.\n\nCompleted Services:\n${serviceList}${partBlock}\n\nServices: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts: ${fmtBDT(partsTotal)}` : ''}\nTotal Due: ${fmtBDT(grandTotal)}\n\nPickup Hours: 9:00 AM - 6:00 PM (Sat-Thu)\n\nPlease make payment at the cashier counter to collect your vehicle. We accept Cash, Card, and Mobile Banking.\n\nThank you for choosing Continental Workshop!`)
     }
     setWaDialogOpen(true)
   }
@@ -210,9 +238,9 @@ export function SAAppointmentDetailPage() {
       serviceId: svc.id,
       serviceCode: svc.code,
       serviceDescription: svc.description,
-      timeHrs: svc.timeHrs,
+      processTimeMins: svc.processTimeMins,
       ratePerHr: svc.ratePerHr,
-      price: svc.timeHrs * svc.ratePerHr,
+      price: svc.price,
       remark: addServiceRemark.trim(),
       addedBySA: true,
     })
@@ -255,28 +283,64 @@ export function SAAppointmentDetailPage() {
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
           <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Concerns ({appt.concernItems.length})</Typography>
           {appt.concernItems.length > 0 && (
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Remark</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {appt.concernItems.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>{c.concernName}</TableCell>
-                    <TableCell>{c.remark || '—'}</TableCell>
-                    <TableCell>
+            <Stack spacing={2}>
+              {appt.concernItems.map((c) => {
+                const concernServices = (c.serviceIds ?? []).map((sid) => services.find((s) => s.id === sid)).filter(Boolean)
+                const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
+                return (
+                  <Box key={c.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: c.workStatus === 'Completed' ? 'success.main' : 'divider' }}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography sx={{ fontWeight: 800 }}>{c.concernName}</Typography>
                       {c.workStatus ? (
                         <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} />
-                      ) : '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      ) : null}
+                    </Stack>
+                    {c.remark && <Typography variant="body2" color="text.secondary">{c.remark}</Typography>}
+                    {c.diagnosisRemark && (
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        <strong>SE Diagnosis:</strong> {c.diagnosisRemark}
+                      </Typography>
+                    )}
+
+                    {/* Services linked to this concern */}
+                    {concernServices.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.main' }}>Services:</Typography>
+                        <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                          {concernServices.map((svc) => svc && (
+                            <Chip key={svc.id} size="small" label={`${svc.code} · ${fmtBDT(svc.price)}`} color="info" variant="outlined" />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {/* Parts for this concern */}
+                    {concernParts.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'secondary.main' }}>Parts:</Typography>
+                        <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                          {concernParts.map((pr) => (
+                            <Stack key={pr.id} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', px: 1, py: 0.5, bgcolor: 'white', borderRadius: 0.5, border: '1px solid', borderColor: 'divider' }}>
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{pr.partName}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Qty: {pr.quantity ?? 1}{pr.partNumber ? ` · #${pr.partNumber}` : ''}
+                                  {typeof pr.price === 'number' ? ` · ${fmtBDT(pr.price)}` : ''}
+                                  {pr.deliveryDate ? ` · ETA: ${pr.deliveryDate}` : ''}
+                                </Typography>
+                              </Box>
+                              <Chip size="small" label={pr.status}
+                                color={pr.status === 'Fulfilled' ? 'success' : pr.status === 'Labeled' ? 'info' : pr.status === 'Rejected' ? 'error' : 'warning'}
+                              />
+                            </Stack>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+                  </Box>
+                )
+              })}
+            </Stack>
           )}
           {/* Add concern (during inspection) */}
           {isInspection && (

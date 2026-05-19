@@ -10,6 +10,7 @@ import { ServicesPage } from '../pages/admin/ServicesPage'
 import { BaysPage } from '../pages/admin/BaysPage'
 import { F1Page } from '../pages/admin/F1Page'
 import { PartsPage } from '../pages/admin/PartsPage'
+import { PartRequestsPage } from '../pages/admin/PartRequestsPage'
 import { RolesPage } from '../pages/admin/RolesPage'
 import { ShopsPage } from '../pages/admin/ShopsPage'
 import { TaskTemplatesPage } from '../pages/admin/TaskTemplatesPage'
@@ -29,6 +30,7 @@ import { CustomerDetailPage } from '../pages/cro/CustomerDetailPage'
 import { VehiclesPage } from '../pages/cro/VehiclesPage'
 import { VehicleDetailPage } from '../pages/cro/VehicleDetailPage'
 import { CreateVehiclePage } from '../pages/cro/CreateVehiclePage'
+import { CreateCustomerPage } from '../pages/cro/CreateCustomerPage'
 import { WhatsappPage } from '../pages/cro/WhatsappPage'
 import { SAAppointmentsPage } from '../pages/sa/SAAppointmentsPage'
 import { SAAppointmentDetailPage } from '../pages/sa/SAAppointmentDetailPage'
@@ -67,6 +69,7 @@ export function AppRouter() {
             <Route path="/admin/services" element={<ServicesPage />} />
             <Route path="/admin/teams" element={<TeamsPage />} />
             <Route path="/admin/parts" element={<PartsPage />} />
+            <Route path="/admin/part-requests" element={<PartRequestsPage />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Guard']} />}>
@@ -88,6 +91,7 @@ export function AppRouter() {
           <Route element={<RequireRole anyOf={['CRE']} />}>
             <Route path="/cre" element={<CroHome />} />
             <Route path="/cre/customers" element={<CustomersPage />} />
+            <Route path="/cre/customers/new" element={<CreateCustomerPage />} />
             <Route path="/cre/customers/:customerId" element={<CustomerDetailPage />} />
             <Route path="/cre/vehicles" element={<VehiclesPage />} />
             <Route path="/cre/vehicles/new" element={<CreateVehiclePage />} />

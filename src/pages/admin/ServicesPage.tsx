@@ -54,7 +54,7 @@ export function ServicesPage() {
   const [code, setCode] = useState('')
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
-  const [timeHrs, setTimeHrs] = useState('')
+  const [processTimeMins, setProcessTimeMins] = useState('')
   const [ratePerHr, setRatePerHr] = useState('1500')
   const [price, setPrice] = useState('')
 
@@ -63,7 +63,7 @@ export function ServicesPage() {
   const [editCode, setEditCode] = useState('')
   const [editCategory, setEditCategory] = useState('')
   const [editDescription, setEditDescription] = useState('')
-  const [editTimeHrs, setEditTimeHrs] = useState('')
+  const [editProcessTimeMins, setEditProcessTimeMins] = useState('')
   const [editRatePerHr, setEditRatePerHr] = useState('')
   const [editPrice, setEditPrice] = useState('')
 
@@ -88,7 +88,7 @@ export function ServicesPage() {
   }, [services, filterCat, filterQuery])
 
   function autoPrice() {
-    const t = parseFloat(timeHrs)
+    const t = parseFloat(processTimeMins)
     const r = parseFloat(ratePerHr)
     if (!isNaN(t) && !isNaN(r)) setPrice(String(Math.round(t * r)))
   }
@@ -99,14 +99,14 @@ export function ServicesPage() {
       if (!code.trim()) throw new Error('Code is required')
       if (!category) throw new Error('Category is required')
       if (!description.trim()) throw new Error('Description is required')
-      const t = parseFloat(timeHrs)
+      const t = parseFloat(processTimeMins)
       const r = parseFloat(ratePerHr)
       const p = parseFloat(price)
-      if (isNaN(t) || t <= 0) throw new Error('Valid time (hrs) is required')
+      if (isNaN(t) || t <= 0) throw new Error('Valid process time (mins) is required')
       if (isNaN(r) || r <= 0) throw new Error('Valid rate/hr is required')
       if (isNaN(p) || p <= 0) throw new Error('Valid price is required')
-      const svc = createService({ code: code.trim(), category, description: description.trim(), timeHrs: t, ratePerHr: r, price: p })
-      setCode(''); setCategory(''); setDescription(''); setTimeHrs(''); setRatePerHr('1500'); setPrice('')
+      const svc = createService({ code: code.trim(), category, description: description.trim(), processTimeMins: t, ratePerHr: r, price: p })
+      setCode(''); setCategory(''); setDescription(''); setProcessTimeMins(''); setRatePerHr('1500'); setPrice('')
       setAddOpen(false)
       setSuccessMessage(`Service created: ${svc.code}`)
       setSuccessOpen(true)
@@ -122,7 +122,7 @@ export function ServicesPage() {
     setEditCode(s.code)
     setEditCategory(s.category)
     setEditDescription(s.description)
-    setEditTimeHrs(String(s.timeHrs))
+    setEditProcessTimeMins(String(s.processTimeMins))
     setEditRatePerHr(String(s.ratePerHr))
     setEditPrice(String(s.price))
     setError(null)
@@ -134,20 +134,20 @@ export function ServicesPage() {
       if (!editId) return
       const svc = services.find((x) => x.id === editId)
       if (!svc) return
-      const t = parseFloat(editTimeHrs)
+      const t = parseFloat(editProcessTimeMins)
       const r = parseFloat(editRatePerHr)
       const p = parseFloat(editPrice)
       if (!editCode.trim()) throw new Error('Code is required')
       if (!editCategory) throw new Error('Category is required')
       if (!editDescription.trim()) throw new Error('Description is required')
-      if (isNaN(t) || t <= 0) throw new Error('Valid time (hrs) is required')
+      if (isNaN(t) || t <= 0) throw new Error('Valid process time (mins) is required')
       if (isNaN(r) || r <= 0) throw new Error('Valid rate/hr is required')
       if (isNaN(p) || p <= 0) throw new Error('Valid price is required')
       updateService(editId, {
         code: editCode.trim(),
         category: editCategory,
         description: editDescription.trim(),
-        timeHrs: t,
+        processTimeMins: t,
         ratePerHr: r,
         price: p,
         status: svc.status,
@@ -201,11 +201,11 @@ export function ServicesPage() {
               </Stack>
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <TextField
-                  label="Time (hrs)"
+                  label="Process Time (mins)"
                   size="small"
                   type="number"
-                  value={timeHrs}
-                  onChange={(e) => setTimeHrs(e.target.value)}
+                  value={processTimeMins}
+                  onChange={(e) => setProcessTimeMins(e.target.value)}
                   onBlur={autoPrice}
                   sx={{ flex: '1 1 100px' }}
                 />
@@ -264,7 +264,7 @@ export function ServicesPage() {
                 <TableCell sx={{ fontWeight: 800 }}>Code</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Time (hrs)</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800 }}>Process Time (mins)</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>Rate/hr</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>Price (BDT)</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
@@ -284,7 +284,7 @@ export function ServicesPage() {
                       </FormControl>
                     </TableCell>
                     <TableCell><TextField size="small" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} sx={{ minWidth: 200 }} /></TableCell>
-                    <TableCell align="right"><TextField size="small" type="number" value={editTimeHrs} onChange={(e) => setEditTimeHrs(e.target.value)} sx={{ width: 80 }} /></TableCell>
+                    <TableCell align="right"><TextField size="small" type="number" value={editProcessTimeMins} onChange={(e) => setEditProcessTimeMins(e.target.value)} sx={{ width: 80 }} /></TableCell>
                     <TableCell align="right"><TextField size="small" type="number" value={editRatePerHr} onChange={(e) => setEditRatePerHr(e.target.value)} sx={{ width: 90 }} /></TableCell>
                     <TableCell align="right"><TextField size="small" type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} sx={{ width: 100 }} /></TableCell>
                     <TableCell>—</TableCell>
@@ -306,7 +306,7 @@ export function ServicesPage() {
                       <Chip size="small" label={s.category} variant="outlined" />
                     </TableCell>
                     <TableCell>{s.description}</TableCell>
-                    <TableCell align="right">{s.timeHrs}</TableCell>
+                    <TableCell align="right">{s.processTimeMins}</TableCell>
                     <TableCell align="right">{fmt(s.ratePerHr)}</TableCell>
                     <TableCell align="right">
                       <Typography sx={{ fontWeight: 700 }}>{fmt(s.price)}</Typography>

@@ -43,7 +43,7 @@ export function LoginPage() {
     'Service Engineer': false,
     'Custom Role': false,
   })
-  const [showAllRoles, setShowAllRoles] = useState(false)
+  const [showAllRoles, setShowAllRoles] = useState(true)
 
   const activeRoles = useMemo(
     () => normalizeRoles(selectedRoles),

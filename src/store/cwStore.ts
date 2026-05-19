@@ -14,6 +14,10 @@ import type {
   CWConcernWorkStatus,
   CWCustomer,
   CWCustomerStatus,
+  CWCustomerType,
+  CWAddress,
+  CWOccupation,
+  CWCorporateInfo,
   CWInspectionCheck,
   CWJob,
   CWJobStatus,
@@ -120,6 +124,18 @@ export type CreateCustomerInput = {
   phone: string
   email?: string
   status?: CWCustomerStatus
+  type?: CWCustomerType
+  address?: CWAddress
+  occupation?: CWOccupation
+  whatsappLink?: string
+  facebookLink?: string
+  linkedinLink?: string
+  googleLink?: string
+  corporate?: CWCorporateInfo
+  isSelfDriven?: boolean
+  driverName?: string
+  driverPhone?: string
+  isPersonalUse?: boolean
 }
 
 export type UpdateCustomerInput = {
@@ -180,7 +196,7 @@ export type CreateAppointmentServiceItemInput = {
   serviceId: string
   serviceCode: string
   serviceDescription: string
-  timeHrs: number
+  processTimeMins: number
   ratePerHr: number
   price: number
   remark: string
@@ -305,7 +321,7 @@ export type SetJobTestDriveInput = {
 
 export type CreateConcernCategoryInput = { name: string }
 export type UpdateConcernCategoryInput = { name: string; status: CWConcernCategoryStatus }
-export type CreateConcernInput = { categoryId: string; name: string; estimatedTimeHrs?: number }
+export type CreateConcernInput = { categoryId: string; name: string; processTimeMins?: number }
 export type UpdateConcernInput = { name: string; status: CWConcernStatus }
 
 // ─── Services ─────────────────────────────────────────────────────────────────
@@ -314,7 +330,7 @@ export type CreateServiceInput = {
   code: string
   category: string
   description: string
-  timeHrs: number
+  processTimeMins: number
   ratePerHr: number
   price: number
   status?: CWServiceStatus
@@ -323,7 +339,7 @@ export type UpdateServiceInput = {
   code: string
   category: string
   description: string
-  timeHrs: number
+  processTimeMins: number
   ratePerHr: number
   price: number
   status: CWServiceStatus
@@ -372,6 +388,7 @@ export type LabelPartRequestInput = {
   quantity: number
   deliveryDate?: string
   labeledBy: string
+  status?: CWPartRequestStatus
 }
 
 // ─── Appointment workflow ──────────────────────────────────────────────────────
@@ -388,7 +405,7 @@ export type AddAppointmentServiceInput = {
   serviceId: string
   serviceCode: string
   serviceDescription: string
-  timeHrs: number
+  processTimeMins: number
   ratePerHr: number
   price: number
   remark: string
@@ -548,6 +565,8 @@ type CWState = {
   addAppointmentConcern: (input: AddAppointmentConcernInput) => CWAppointmentConcernItem
   removeAppointmentConcern: (appointmentId: string, itemId: string) => void
   updateAppointmentConcernRemark: (appointmentId: string, itemId: string, remark: string) => void
+  updateConcernItemServices: (appointmentId: string, itemId: string, serviceIds: string[]) => void
+  updateConcernDiagnosisRemark: (appointmentId: string, itemId: string, remark: string) => void
   addAppointmentService: (input: AddAppointmentServiceInput) => CWAppointmentServiceItem
   removeAppointmentService: (appointmentId: string, itemId: string) => void
   updateAppointmentService: (appointmentId: string, itemId: string, input: UpdateAppointmentServiceInput) => void
@@ -1540,12 +1559,12 @@ function seedServicesData(): CWService[] {
     ['Inspection', 'INS-010', 'Comprehensive Inspection Package', 3, 1500, 4500],
   ]
 
-  return raw.map(([category, code, description, timeHrs, ratePerHr, price]) => ({
+  return raw.map(([category, code, description, timeHrsRaw, ratePerHr, price]) => ({
     id: newId(),
     code,
     category,
     description,
-    timeHrs,
+    processTimeMins: Math.round((timeHrsRaw as number) * 60),
     ratePerHr,
     price,
     status: 'Active' as CWServiceStatus,
@@ -1826,6 +1845,18 @@ export const useCwStore = create<CWState>((set, get) => ({
       fullName,
       phone,
       email: email || undefined,
+      type: input.type ?? 'Individual',
+      address: input.address,
+      occupation: input.occupation,
+      whatsappLink: input.whatsappLink,
+      facebookLink: input.facebookLink,
+      linkedinLink: input.linkedinLink,
+      googleLink: input.googleLink,
+      corporate: input.corporate,
+      isSelfDriven: input.isSelfDriven,
+      driverName: input.driverName,
+      driverPhone: input.driverPhone,
+      isPersonalUse: input.isPersonalUse,
       status: input.status ?? 'Active',
       createdAt: ts,
       updatedAt: ts,
@@ -2028,6 +2059,39 @@ export const useCwStore = create<CWState>((set, get) => ({
       { id: newId(), category: 'Rear View', section: 'Glass', label: 'Rear windshield', checked: false },
       { id: newId(), category: 'Rear View', section: 'Trunk', label: 'Trunk/tailgate condition', checked: false },
       { id: newId(), category: 'Rear View', section: 'Exhaust', label: 'Exhaust tip condition', checked: false },
+      // Interior View
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'All Switches', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'AC System', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Horn', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Rear View Mirror', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Tissue Box', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Floor Mat', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Seat Cover', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Glove Compartment Function', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Reverse Camera', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Cigarette Lighter & Ashtray', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Room Light', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Illuminated Sun Visor', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Strap & Buckle Holder', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Sunroof Mechanism', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Stereo System', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Air Freshener', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Console Box', checked: false },
+      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Bonnet Operation', checked: false },
+      // MIL Status
+      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'ABS (Anti-lock Braking System)', checked: false },
+      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Airbag', checked: false },
+      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Warning Triangle', checked: false },
+      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Check Engine', checked: false },
+      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Battery Warning', checked: false },
+      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Oil Pressure Warning', checked: false },
+      // Photos
+      { id: newId(), category: 'Photos', section: 'Mileage & Fuel', label: 'Current Mileage', checked: false },
+      { id: newId(), category: 'Photos', section: 'Mileage & Fuel', label: 'Current Fuel Level', checked: false },
+      { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Front side photo', checked: false },
+      { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Rear side photo', checked: false },
+      { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Right side photo', checked: false },
+      { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Left side photo', checked: false },
     ]
 
     const appt: CWAppointment = {
@@ -2056,7 +2120,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         serviceId: s.serviceId,
         serviceCode: s.serviceCode,
         serviceDescription: s.serviceDescription,
-        timeHrs: s.timeHrs,
+        processTimeMins: s.processTimeMins,
         ratePerHr: s.ratePerHr,
         price: s.price,
         remark: s.remark.trim(),
@@ -2140,11 +2204,14 @@ export const useCwStore = create<CWState>((set, get) => ({
   },
 
   addAppointmentConcern: (input) => {
+    // Lookup concern definition for processTimeMins
+    const concernDef = get().concerns.find((c) => c.id === input.concernId)
     const item: CWAppointmentConcernItem = {
       id: newId(),
       concernId: input.concernId,
       concernName: input.concernName,
       remark: input.remark.trim(),
+      processTimeMins: concernDef?.processTimeMins,
       technicianAssignments: [],
     }
     set({
@@ -2183,13 +2250,45 @@ export const useCwStore = create<CWState>((set, get) => ({
     })
   },
 
+  updateConcernItemServices: (appointmentId, itemId, serviceIds) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              concernItems: a.concernItems.map((i) =>
+                i.id === itemId ? { ...i, serviceIds } : i,
+              ),
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  updateConcernDiagnosisRemark: (appointmentId, itemId, remark) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              concernItems: a.concernItems.map((i) =>
+                i.id === itemId ? { ...i, diagnosisRemark: remark } : i,
+              ),
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
   addAppointmentService: (input) => {
     const item: CWAppointmentServiceItem = {
       id: newId(),
       serviceId: input.serviceId,
       serviceCode: input.serviceCode,
       serviceDescription: input.serviceDescription,
-      timeHrs: input.timeHrs,
+      processTimeMins: input.processTimeMins,
       ratePerHr: input.ratePerHr,
       price: input.price,
       remark: input.remark.trim(),
@@ -2672,7 +2771,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       id: newId(),
       categoryId: input.categoryId,
       name,
-      estimatedTimeHrs: input.estimatedTimeHrs,
+      processTimeMins: input.processTimeMins,
       status: 'Active',
       createdAt: ts,
       updatedAt: ts,
@@ -2700,7 +2799,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       code: input.code.trim(),
       category: input.category.trim(),
       description: input.description.trim(),
-      timeHrs: input.timeHrs,
+      processTimeMins: input.processTimeMins,
       ratePerHr: input.ratePerHr,
       price: input.price,
       status: input.status ?? 'Active',
@@ -2720,7 +2819,7 @@ export const useCwStore = create<CWState>((set, get) => ({
               code: input.code.trim(),
               category: input.category.trim(),
               description: input.description.trim(),
-              timeHrs: input.timeHrs,
+              processTimeMins: input.processTimeMins,
               ratePerHr: input.ratePerHr,
               price: input.price,
               status: input.status,
@@ -3168,15 +3267,17 @@ export const useCwStore = create<CWState>((set, get) => ({
     if (!customer) throw new Error('Customer not found')
     const vehicle = get().vehicles.find((v) => v.id === input.vehicleId)
     if (!vehicle) throw new Error('Vehicle not found')
-    const appt = get().appointments.find((a) => a.id === input.appointmentId)
-    if (!appt) throw new Error('Appointment not found')
 
     if (vehicle.customerId !== customer.id) throw new Error('Vehicle does not belong to customer')
-    if (appt.customerId !== customer.id) throw new Error('Appointment customer mismatch')
-    if (appt.vehicleId !== vehicle.id) throw new Error('Appointment vehicle mismatch')
 
-    if (normalizeRegistrationNo(vehicle.registrationNo) !== normalizeRegistrationNo(pending.registrationNo)) {
-      throw new Error('Registration mismatch between gate entry and vehicle')
+    // Appointment is optional — walk-ins may not have one
+    let appointmentId: string | undefined
+    if (input.appointmentId) {
+      const appt = get().appointments.find((a) => a.id === input.appointmentId)
+      if (!appt) throw new Error('Appointment not found')
+      if (appt.customerId !== customer.id) throw new Error('Appointment customer mismatch')
+      if (appt.vehicleId !== vehicle.id) throw new Error('Appointment vehicle mismatch')
+      appointmentId = appt.id
     }
 
     set({
@@ -3186,8 +3287,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               ...p,
               customerId: customer.id,
               vehicleId: vehicle.id,
-              appointmentId: appt.id,
+              appointmentId,
               isTemporary: false,
+              status: 'Resolved' as CWPendingVehicleStatus,
               updatedAt: nowIso(),
             }
           : p,
@@ -3527,7 +3629,7 @@ export const useCwStore = create<CWState>((set, get) => ({
               quantity: input.quantity,
               deliveryDate: input.deliveryDate,
               labeledBy: input.labeledBy,
-              status: 'Labeled' as const,
+              status: input.status ?? ('Labeled' as const),
               updatedAt: nowIso(),
             }
           : r,

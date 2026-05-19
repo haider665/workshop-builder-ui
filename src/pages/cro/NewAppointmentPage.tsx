@@ -99,7 +99,7 @@ export function NewAppointmentPage() {
 
   // Services state
   const [serviceItems, setServiceItems] = useState<
-    { id: string; serviceId: string; serviceCode: string; serviceDescription: string; timeHrs: number; ratePerHr: number; price: number; remark: string }[]
+    { id: string; serviceId: string; serviceCode: string; serviceDescription: string; processTimeMins: number; ratePerHr: number; price: number; remark: string }[]
   >([])
   const [selServices, setSelServices] = useState<CWService[]>([])
   const [serviceRemark, setServiceRemark] = useState('')
@@ -162,7 +162,7 @@ export function NewAppointmentPage() {
         serviceId: s.id,
         serviceCode: s.code,
         serviceDescription: s.description,
-        timeHrs: s.timeHrs,
+        processTimeMins: s.processTimeMins,
         ratePerHr: s.ratePerHr,
         price: s.price,
         remark,
@@ -192,7 +192,7 @@ export function NewAppointmentPage() {
         serviceId: s.id,
         serviceCode: s.code,
         serviceDescription: s.description,
-        timeHrs: s.timeHrs,
+        processTimeMins: s.processTimeMins,
         ratePerHr: s.ratePerHr,
         price: s.price,
         remark: serviceRemark.trim(),
@@ -219,7 +219,7 @@ export function NewAppointmentPage() {
             serviceId: i.serviceId,
             serviceCode: i.serviceCode,
             serviceDescription: i.serviceDescription,
-            timeHrs: i.timeHrs,
+            processTimeMins: i.processTimeMins,
             ratePerHr: i.ratePerHr,
             price: i.price,
             remark: i.remark,
@@ -260,10 +260,10 @@ export function NewAppointmentPage() {
       subtitle="Create new appointment from here"
       actions={
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" size="small" onClick={() => navigate('/cre/vehicles')}>
+          <Button variant="outlined" size="small" onClick={() => navigate('/cre/vehicles/new')}>
             Add new vehicle
           </Button>
-          <Button variant="outlined" size="small" onClick={() => navigate('/cre/customers')}>
+          <Button variant="outlined" size="small" onClick={() => navigate('/cre/customers/new')}>
             Add new customer
           </Button>
         </Stack>
@@ -487,7 +487,7 @@ export function NewAppointmentPage() {
                         <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Typography variant="body2">{item.timeHrs} hrs</Typography>
+                        <Typography variant="body2">{item.processTimeMins} mins</Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Typography sx={{ fontWeight: 700 }}>{item.price.toLocaleString('en-BD')}</Typography>
@@ -538,7 +538,7 @@ export function NewAppointmentPage() {
                     <Stack>
                       <Typography variant="body2">{o.description}</Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {o.code} · {o.timeHrs}h · BDT {o.price.toLocaleString('en-BD')}
+                        {o.code} · {o.processTimeMins}m · BDT {o.price.toLocaleString('en-BD')}
                       </Typography>
                     </Stack>
                   </li>

@@ -10,6 +10,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Typography,
@@ -32,6 +33,8 @@ export function VehiclesPage() {
   const [query, setQuery] = useState('')
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage] = useState('')
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
 
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c] as const)), [customers])
 
@@ -52,6 +55,11 @@ export function VehiclesPage() {
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [vehicles, query, customerById])
+
+  const paginatedVehicles = useMemo(
+    () => filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filtered, page, rowsPerPage],
+  )
 
   return (
     <Page
@@ -104,7 +112,7 @@ export function VehiclesPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filtered.map((v) => {
+                {paginatedVehicles.map((v) => {
                   const c = customerById.get(v.customerId)
                   const modelDisplay = v.model || v.modelVariant || '—'
                   const brandDisplay = v.make || ''
@@ -138,6 +146,15 @@ export function VehiclesPage() {
               </TableBody>
             </Table>
           )}
+          <TablePagination
+            component="div"
+            count={filtered.length}
+            page={page}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0) }}
+            rowsPerPageOptions={[10, 25, 50]}
+          />
         </Paper>
       </Stack>
     </Page>

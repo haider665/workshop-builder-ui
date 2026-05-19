@@ -24,6 +24,8 @@ const TABS = [
   'Right View',
   'Left View',
   'Rear View',
+  'Interior View',
+  'Photos',
 ] as const
 
 const CONDITIONS: CWInspectionCondition[] = ['Good', 'Warning', 'Bad']

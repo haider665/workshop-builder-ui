@@ -4,8 +4,9 @@ import {
   Button,
   Chip,
   Divider,
+  MenuItem,
   Paper,
-  Snackbar,
+
   Stack,
   Table,
   TableBody,
@@ -75,23 +76,13 @@ export function CroHome() {
   const vehicles = useCwStore((s) => s.vehicles)
   const appointments = useCwStore((s) => s.appointments)
   const users = useCwStore((s) => s.users)
-  const createCustomer = useCwStore((s) => s.createCustomer)
-  const createVehicle = useCwStore((s) => s.createVehicle)
-  const resolvePendingVehicle = useCwStore((s) => s.resolvePendingVehicle)
+
 
   const [selectedGateEntryId, setSelectedGateEntryId] = useState<string | null>(null)
-  const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [customerEmail, setCustomerEmail] = useState('')
-  const [make, setMake] = useState('')
-  const [model, setModel] = useState('')
-  const [vin, setVin] = useState('')
-  const [odometerKm, setOdometerKm] = useState('')
+  const [make, setMake] = useState('') // repurposed: holds selected vehicleId
   const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null)
 
   const [error, setError] = useState<string | null>(null)
-  const [successOpen, setSuccessOpen] = useState(false)
-  const [successMessage, setSuccessMessage] = useState('')
 
   // Stats
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -139,71 +130,13 @@ export function CroHome() {
 
   function resetForm() {
     setSelectedGateEntryId(null)
-    setCustomerName('')
-    setCustomerPhone('')
-    setCustomerEmail('')
     setMake('')
-    setModel('')
-    setVin('')
-    setOdometerKm('')
     setCreatedCustomerId(null)
   }
 
   function submitExistingWalkIn() {
-    try {
-      setError(null)
-      if (!selectedGateEntry || !selectedKnownVehicle || !selectedKnownCustomer) throw new Error('No existing vehicle found')
-      resolvePendingVehicle(selectedGateEntry.id, {
-        customerId: selectedKnownCustomer.id,
-        vehicleId: selectedKnownVehicle.id,
-      })
-      setSuccessMessage(`Walk-in resolved: ${selectedGateEntry.registrationNo}`)
-      setSuccessOpen(true)
-      resetForm()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  function submitNewCustomer() {
-    try {
-      setError(null)
-      if (!customerName.trim()) throw new Error('Customer name required')
-      if (!customerPhone.trim()) throw new Error('Customer phone required')
-      const created = createCustomer({
-        fullName: customerName.trim(),
-        phone: customerPhone.trim(),
-        email: customerEmail.trim() || undefined,
-      })
-      setCreatedCustomerId(created.id)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  function submitNewVehicleAndResolve() {
-    try {
-      setError(null)
-      if (!selectedGateEntry || !createdCustomerId) throw new Error('Create customer first')
-      const odo = odometerKm.trim() ? Number(odometerKm.trim()) : undefined
-      const createdVehicle = createVehicle({
-        customerId: createdCustomerId,
-        registrationNo: selectedGateEntry.registrationNo,
-        make: make.trim() || undefined,
-        model: model.trim() || undefined,
-        vin: vin.trim() || undefined,
-        odometerKm: odo,
-      })
-      resolvePendingVehicle(selectedGateEntry.id, {
-        customerId: createdCustomerId,
-        vehicleId: createdVehicle.id,
-      })
-      setSuccessMessage(`Walk-in resolved (new): ${selectedGateEntry.registrationNo}`)
-      setSuccessOpen(true)
-      resetForm()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
+    if (!selectedGateEntry || !selectedKnownVehicle) return
+    navigate(`/cre/appointments/new?vehicleId=${selectedKnownVehicle.id}&pendingVehicleId=${selectedGateEntry.id}`)
   }
 
   // All appointments sorted by date
@@ -214,12 +147,6 @@ export function CroHome() {
 
   return (
     <Page title="CRE Dashboard" subtitle="Customer Relationship Executive">
-      <Snackbar open={successOpen} onClose={() => setSuccessOpen(false)} autoHideDuration={2500} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
-          {successMessage}
-        </Alert>
-      </Snackbar>
-
       <Stack spacing={3}>
         {/* Stats */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -307,33 +234,96 @@ export function CroHome() {
                     </Typography>
                   </Paper>
                   <Button variant="contained" size="large" onClick={submitExistingWalkIn} sx={{ fontWeight: 900 }}>
-                    Resolve walk-in
+                    Create Appointment for Walk-in
                   </Button>
                 </Stack>
               ) : (
                 <Stack spacing={2}>
+                  <Alert severity="info" sx={{ fontWeight: 600 }}>
+                    No existing vehicle found for <strong>{selectedGateEntry.registrationNo}</strong>. Select an existing customer & vehicle or create new ones.
+                  </Alert>
+
+                  {/* Select existing customer */}
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <Typography sx={{ fontWeight: 700, mb: 1.5 }}>1) Customer</Typography>
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                      <TextField label="Full name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} fullWidth disabled={!!createdCustomerId} />
-                      <TextField label="Phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} fullWidth disabled={!!createdCustomerId} />
-                      <TextField label="Email (optional)" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} fullWidth disabled={!!createdCustomerId} />
-                    </Stack>
-                    <Button variant="contained" onClick={submitNewCustomer} sx={{ mt: 2, fontWeight: 900 }} disabled={!!createdCustomerId}>
-                      {createdCustomerId ? 'Customer created ✓' : 'Create customer'}
+                    <TextField
+                      select size="small" label="Select Existing Customer" fullWidth
+                      value={createdCustomerId ?? ''}
+                      onChange={(e) => setCreatedCustomerId(e.target.value || null)}
+                    >
+                      <MenuItem value="">— Select —</MenuItem>
+                      {customers.slice().sort((a, b) => a.fullName.localeCompare(b.fullName)).map((c) => (
+                        <MenuItem key={c.id} value={c.id}>{c.fullName} · {c.phone}</MenuItem>
+                      ))}
+                    </TextField>
+                    <Button
+                      variant="outlined" size="small" sx={{ mt: 1.5, fontWeight: 700 }}
+                      onClick={() => navigate('/cre/customers/new')}
+                    >
+                      + Create New Customer
                     </Button>
                   </Paper>
+
+                  {/* Select existing vehicle or create */}
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <Typography sx={{ fontWeight: 700, mb: 1.5 }}>2) Vehicle</Typography>
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                      <TextField label="Make" value={make} onChange={(e) => setMake(e.target.value)} fullWidth disabled={!createdCustomerId} />
-                      <TextField label="Model" value={model} onChange={(e) => setModel(e.target.value)} fullWidth disabled={!createdCustomerId} />
-                      <TextField label="VIN" value={vin} onChange={(e) => setVin(e.target.value)} fullWidth disabled={!createdCustomerId} />
-                      <TextField label="Odometer km" value={odometerKm} onChange={(e) => setOdometerKm(e.target.value)} fullWidth disabled={!createdCustomerId} />
-                    </Stack>
-                    <Button variant="contained" size="large" onClick={submitNewVehicleAndResolve} sx={{ mt: 2, fontWeight: 900 }} disabled={!createdCustomerId}>
-                      Create vehicle + resolve
-                    </Button>
+                    {createdCustomerId ? (
+                      <>
+                        {(() => {
+                          const custVehicles = vehicles.filter((v) => v.customerId === createdCustomerId)
+                          if (custVehicles.length === 0) {
+                            return (
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                No vehicles for this customer.
+                              </Typography>
+                            )
+                          }
+                          return (
+                            <TextField
+                              select size="small" label="Select Vehicle" fullWidth
+                              value={make}
+                              onChange={(e) => setMake(e.target.value)}
+                              sx={{ mb: 1 }}
+                            >
+                              <MenuItem value="">— Select —</MenuItem>
+                              {custVehicles.map((v) => (
+                                <MenuItem key={v.id} value={v.id}>
+                                  {v.registrationNo} · {[v.make, v.model].filter(Boolean).join(' ') || '—'}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          )
+                        })()}
+                        <Stack direction="row" spacing={1.5}>
+                          <Button
+                            variant="outlined" size="small" sx={{ fontWeight: 700 }}
+                            onClick={() => navigate('/cre/vehicles/new')}
+                          >
+                            + Create New Vehicle
+                          </Button>
+                          <Button
+                            variant="contained" size="large"
+                            onClick={() => {
+                              try {
+                                setError(null)
+                                if (!createdCustomerId) throw new Error('Select customer first')
+                                const vehicleId = make
+                                if (!vehicleId) throw new Error('Select a vehicle')
+                                navigate(`/cre/appointments/new?vehicleId=${vehicleId}&pendingVehicleId=${selectedGateEntry!.id}`)
+                              } catch (e) {
+                                setError(e instanceof Error ? e.message : String(e))
+                              }
+                            }}
+                            sx={{ fontWeight: 900 }}
+                            disabled={!make}
+                          >
+                            Create Appointment for Walk-in
+                          </Button>
+                        </Stack>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">Select a customer first.</Typography>
+                    )}
                   </Paper>
                 </Stack>
               )}

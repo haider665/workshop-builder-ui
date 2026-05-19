@@ -15,6 +15,7 @@ import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
+import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import type { CWConcernWorkStatus, CWServiceWorkStatus } from '../../types/cw'
 
 function fmtBDT(n: number) {
@@ -41,6 +42,8 @@ export function SEAppointmentDetailPage() {
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
   const partRequests = useCwStore((s) => s.partRequests)
   const createPartRequest = useCwStore((s) => s.createPartRequest)
+  const updateConcernItemServices = useCwStore((s) => s.updateConcernItemServices)
+  const updateConcernDiagnosisRemark = useCwStore((s) => s.updateConcernDiagnosisRemark)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -72,16 +75,24 @@ export function SEAppointmentDetailPage() {
 
   const [concernTechForm, setConcernTechForm] = useState<Record<string, string[]>>({})
   const [serviceTechForm, setServiceTechForm] = useState<Record<string, string[]>>({})
-  const [concernRemarks, setConcernRemarks] = useState<Record<string, string>>({})
+  const [concernRemarks, setConcernRemarks] = useState<Record<string, string>>(() => {
+    // Init from persisted diagnosis remarks
+    const init: Record<string, string> = {}
+    if (appt) {
+      for (const c of appt.concernItems) {
+        if (c.diagnosisRemark) init[c.id] = c.diagnosisRemark
+      }
+    }
+    return init
+  })
   const [serviceRemarks, setServiceRemarks] = useState<Record<string, string>>({})
 
   // Add service form
   const [addServiceId, setAddServiceId] = useState('')
   const [addServiceRemark, setAddServiceRemark] = useState('')
 
-  // Part request form
-  const [partRequestName, setPartRequestName] = useState('')
-  const [partRequestQty, setPartRequestQty] = useState('1')
+  // Part request form (per-concern)
+  const [partRequestForm, setPartRequestForm] = useState<Record<string, { name: string; qty: string }>>({})
 
   if (!appt) {
     return (
@@ -148,9 +159,9 @@ export function SEAppointmentDetailPage() {
       serviceId: svc.id,
       serviceCode: svc.code,
       serviceDescription: svc.description,
-      timeHrs: svc.timeHrs,
+      processTimeMins: svc.processTimeMins,
       ratePerHr: svc.ratePerHr,
-      price: svc.timeHrs * svc.ratePerHr,
+      price: svc.price,
       remark: addServiceRemark.trim(),
       addedBySA: false,
     })
@@ -184,6 +195,16 @@ export function SEAppointmentDetailPage() {
         {/* Timeline */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
+        {/* SA Health Check Report (readonly) */}
+        {appt.inspectionChecks.length > 0 && (
+          <Paper sx={{ border: '1px solid', borderColor: 'info.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'info.main' }}>
+              SA Health Check Report
+            </Typography>
+            <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
+          </Paper>
+        )}
+
         {/* ── Concern Diagnosis ── */}
         {(isDiagnosisPhase || isDiagnosisComplete) && myConcerns.length > 0 && (
           <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
@@ -191,8 +212,12 @@ export function SEAppointmentDetailPage() {
               Concern Diagnosis ({myConcerns.length})
             </Typography>
             <Stack spacing={2}>
-              {myConcerns.map((c) => (
-                <Box key={c.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              {myConcerns.map((c) => {
+                const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
+                const prForm = partRequestForm[c.id] ?? { name: '', qty: '1' }
+                const isConcernDone = c.workStatus === 'Completed'
+                return (
+                <Box key={c.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: isConcernDone ? 'success.main' : 'divider' }}>
                   <Typography sx={{ fontWeight: 800 }}>{c.concernName}</Typography>
                   {c.remark && <Typography variant="body2" color="text.secondary">{c.remark}</Typography>}
                   {c.bayId && <Typography variant="caption" color="text.secondary">Bay: {bayNameById.get(c.bayId) ?? '—'}</Typography>}
@@ -212,13 +237,18 @@ export function SEAppointmentDetailPage() {
                     </Stack>
                   )}
 
-                  {isDiagnosisPhase && (
+                  {/* Active diagnosis controls — assign techs, remark, done */}
+                  {isDiagnosisPhase && !isConcernDone && (
                     <Stack spacing={1} sx={{ mt: 1 }}>
                       <TextField
                         size="small"
                         label="SE Remark"
                         value={concernRemarks[c.id] ?? ''}
                         onChange={(e) => setConcernRemarks((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                        onBlur={() => {
+                          const text = concernRemarks[c.id]?.trim() ?? ''
+                          updateConcernDiagnosisRemark(appt.id, c.id, text)
+                        }}
                         fullWidth
                         multiline
                         rows={2}
@@ -245,91 +275,122 @@ export function SEAppointmentDetailPage() {
                       </Stack>
                     </Stack>
                   )}
+
+                  {/* ── After concern completed: Add services + parts ── */}
+                  {isDiagnosisPhase && isConcernDone && (
+                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed', borderColor: 'divider' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 800, color: 'success.main', mb: 1 }}>
+                        ✓ Concern Completed — Add Services & Parts
+                      </Typography>
+
+                      {/* Services for this concern */}
+                      <TextField
+                        select size="small" label="Services for this concern"
+                        value={c.serviceIds ?? []}
+                        onChange={(e) => updateConcernItemServices(appt.id, c.id, e.target.value as unknown as string[])}
+                        slotProps={{ select: { multiple: true } }}
+                        fullWidth
+                        sx={{ mb: 1 }}
+                      >
+                        {activeServices.map((s) => (
+                          <MenuItem key={s.id} value={s.id}>{s.code} — {s.description} ({fmtBDT(s.price)})</MenuItem>
+                        ))}
+                      </TextField>
+                      {(c.serviceIds?.length ?? 0) > 0 && (
+                        <Stack direction="row" spacing={0.5} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
+                          {c.serviceIds!.map((sid) => {
+                            const svc = services.find((s) => s.id === sid)
+                            return svc ? <Chip key={sid} size="small" label={`${svc.code} · ${fmtBDT(svc.price)}`} color="info" /> : null
+                          })}
+                        </Stack>
+                      )}
+
+                      {/* Parts for this concern — existing */}
+                      {concernParts.length > 0 && (
+                        <Stack spacing={0.5} sx={{ mb: 1 }}>
+                          {concernParts.map((pr) => (
+                            <Box key={pr.id} sx={{ p: 1, bgcolor: 'white', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{pr.partName}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Qty: {pr.quantity ?? 1}{pr.partNumber ? ` · #${pr.partNumber}` : ''}
+                                    {typeof pr.price === 'number' ? ` · BDT ${pr.price}` : ''}
+                                    {pr.deliveryDate ? ` · ETA: ${pr.deliveryDate}` : ''}
+                                  </Typography>
+                                </Box>
+                                <Chip
+                                  size="small"
+                                  label={pr.status}
+                                  color={pr.status === 'Fulfilled' ? 'success' : pr.status === 'Labeled' ? 'info' : pr.status === 'Rejected' ? 'error' : 'warning'}
+                                />
+                              </Stack>
+                            </Box>
+                          ))}
+                        </Stack>
+                      )}
+
+                      {/* Add new part request for this concern */}
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+                        <TextField
+                          size="small" label="Part Name"
+                          value={prForm.name}
+                          onChange={(e) => setPartRequestForm((prev) => ({ ...prev, [c.id]: { ...prForm, name: e.target.value } }))}
+                          sx={{ minWidth: 200 }}
+                          placeholder="e.g. Brake Pad Set"
+                        />
+                        <TextField
+                          size="small" label="Qty" type="number"
+                          value={prForm.qty}
+                          onChange={(e) => setPartRequestForm((prev) => ({ ...prev, [c.id]: { ...prForm, qty: e.target.value } }))}
+                          sx={{ width: 70 }}
+                        />
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          size="small"
+                          onClick={() => {
+                            if (!prForm.name.trim()) return
+                            createPartRequest({
+                              appointmentId: appt!.id,
+                              concernItemId: c.id,
+                              partName: prForm.name.trim(),
+                              quantity: Number(prForm.qty) || 1,
+                              requestedBy: 'SE',
+                            })
+                            pushTimeline(appt!.id, { actor: 'SE', action: `Requested part "${prForm.name.trim()}" for concern "${c.concernName}"` })
+                            setPartRequestForm((prev) => ({ ...prev, [c.id]: { name: '', qty: '1' } }))
+                          }}
+                          disabled={!prForm.name.trim()}
+                        >
+                          Request Part
+                        </Button>
+                      </Stack>
+                    </Box>
+                  )}
                 </Box>
-              ))}
-            </Stack>
+              )})}            </Stack>
 
             {/* Submit Diagnosis Complete */}
-            {isDiagnosisPhase && allConcernsDone && (
-              <Button
-                variant="contained" color="warning" fullWidth size="large"
-                sx={{ fontWeight: 900, mt: 2.5, py: 1.5 }}
-                onClick={handleSubmitDiagnosisComplete}
-              >
-                Submit Diagnosis Complete
-              </Button>
-            )}
-          </Paper>
-        )}
-
-        {/* ── Part Requests (during diagnosis) ── */}
-        {isDiagnosisPhase && (
-          <Paper sx={{ border: '2px solid', borderColor: 'secondary.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1, color: 'secondary.main' }}>
-              Part Requests
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Request parts needed for diagnosis and repair.
-            </Typography>
-
-            {/* Existing requests for this appointment */}
-            {partRequests.filter((pr) => pr.appointmentId === appointmentId).length > 0 && (
-              <Stack spacing={1} sx={{ mb: 2 }}>
-                {partRequests.filter((pr) => pr.appointmentId === appointmentId).map((pr) => (
-                  <Box key={pr.id} sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{pr.partName}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Qty: {pr.quantity ?? 1}{pr.partNumber ? ` · #${pr.partNumber}` : ''}
-                          {typeof pr.price === 'number' ? ` · BDT ${pr.price}` : ''}
-                        </Typography>
-                      </Box>
-                      <Chip
-                        size="small"
-                        label={pr.status}
-                        color={pr.status === 'Fulfilled' ? 'success' : pr.status === 'Labeled' ? 'info' : pr.status === 'Rejected' ? 'error' : 'warning'}
-                      />
-                    </Stack>
-                  </Box>
-                ))}
-              </Stack>
-            )}
-
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-              <TextField
-                size="small" label="Part Name"
-                value={partRequestName}
-                onChange={(e) => setPartRequestName(e.target.value)}
-                sx={{ minWidth: 220 }}
-                placeholder="e.g. Brake Pad Set"
-              />
-              <TextField
-                size="small" label="Qty" type="number"
-                value={partRequestQty}
-                onChange={(e) => setPartRequestQty(e.target.value)}
-                sx={{ width: 80 }}
-              />
-              <Button
-                variant="contained"
-                color="secondary"
-                onClick={() => {
-                  if (!partRequestName.trim()) return
-                  createPartRequest({
-                    appointmentId: appt!.id,
-                    partName: partRequestName.trim(),
-                    quantity: Number(partRequestQty) || 1,
-                    requestedBy: 'SE',
-                  })
-                  pushTimeline(appt!.id, { actor: 'SE', action: `Requested part: ${partRequestName.trim()}` })
-                  setPartRequestName('')
-                  setPartRequestQty('1')
-                }}
-                disabled={!partRequestName.trim()}
-              >
-                Request
-              </Button>
-            </Stack>
+            {isDiagnosisPhase && allConcernsDone && (() => {
+              const pendingParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.status === 'Requested')
+              if (pendingParts.length > 0) {
+                return (
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    Cannot submit diagnosis: {pendingParts.length} part request(s) still pending admin labeling.
+                  </Alert>
+                )
+              }
+              return (
+                <Button
+                  variant="contained" color="warning" fullWidth size="large"
+                  sx={{ fontWeight: 900, mt: 2.5, py: 1.5 }}
+                  onClick={handleSubmitDiagnosisComplete}
+                >
+                  Submit Diagnosis Complete
+                </Button>
+              )
+            })()}
           </Paper>
         )}
 

@@ -59,7 +59,7 @@ export function ConcernsPage() {
       setError(null)
       if (!newConcernCatId) throw new Error('Select a category')
       const estHrs = newConcernEstTime.trim() ? Number(newConcernEstTime.trim()) : undefined
-      const c = createConcern({ categoryId: newConcernCatId, name: newConcernName, estimatedTimeHrs: estHrs })
+      const c = createConcern({ categoryId: newConcernCatId, name: newConcernName, processTimeMins: estHrs })
       setNewConcernName('')
       setNewConcernEstTime('')
       setSuccessMessage(`Concern created: ${c.name}`)
@@ -144,7 +144,7 @@ export function ConcernsPage() {
               sx={{ flex: 1 }}
             />
             <TextField
-              label="Est. Time (hrs)"
+              label="Process Time (mins)"
               type="number"
               value={newConcernEstTime}
               onChange={(e) => setNewConcernEstTime(e.target.value)}
@@ -211,7 +211,7 @@ export function ConcernsPage() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Est. Time (hrs)</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Process Time (mins)</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
               </TableRow>
@@ -227,7 +227,7 @@ export function ConcernsPage() {
                   <TableCell>{c.name}</TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {typeof c.estimatedTimeHrs === 'number' ? `${c.estimatedTimeHrs}h` : '—'}
+                      {typeof c.processTimeMins === 'number' ? `${c.processTimeMins}m` : '—'}
                     </Typography>
                   </TableCell>
                   <TableCell>

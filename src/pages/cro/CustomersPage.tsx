@@ -11,6 +11,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   ToggleButton,
@@ -39,6 +40,8 @@ export function CustomersPage() {
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
 
   // Quick-create form (inline)
   const [showCreate, setShowCreate] = useState(false)
@@ -70,6 +73,19 @@ export function CustomersPage() {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [customers, typeFilter, query])
 
+  // Reset page when filter changes
+  const prevFilterRef = `${typeFilter}|${query}`
+  const [prevFilter, setPrevFilter] = useState(prevFilterRef)
+  if (prevFilterRef !== prevFilter) {
+    setPrevFilter(prevFilterRef)
+    if (page !== 0) setPage(0)
+  }
+
+  const paginatedCustomers = useMemo(
+    () => filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filtered, page, rowsPerPage],
+  )
+
   function vehicleCount(customerId: string) {
     return vehicles.filter((v) => v.customerId === customerId).length
   }
@@ -97,7 +113,7 @@ export function CustomersPage() {
         <Button
           variant="contained"
           startIcon={<Add />}
-          onClick={() => setShowCreate((v) => !v)}
+          onClick={() => navigate('/cre/customers/new')}
           sx={{ fontWeight: 700, borderRadius: 2, px: 3 }}
         >
           Create New Customer
@@ -180,7 +196,7 @@ export function CustomersPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filtered.map((c) => (
+                {paginatedCustomers.map((c) => (
                   <TableRow key={c.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/cre/customers/${c.id}`)}>
                     <TableCell sx={{ fontWeight: 700 }}>{c.fullName}</TableCell>
                     <TableCell>
@@ -205,6 +221,15 @@ export function CustomersPage() {
               </TableBody>
             </Table>
           )}
+          <TablePagination
+            component="div"
+            count={filtered.length}
+            page={page}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0) }}
+            rowsPerPageOptions={[10, 25, 50]}
+          />
         </Paper>
       </Stack>
     </Page>

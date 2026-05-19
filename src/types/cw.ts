@@ -221,7 +221,7 @@ export type CWVehicle = {
   updatedAt: string
 }
 
-export type CWPendingVehicleStatus = 'Pending' | 'Job Created'
+export type CWPendingVehicleStatus = 'Pending' | 'Resolved' | 'Job Created'
 
 export type CWPendingVehicle = {
   id: string
@@ -253,7 +253,7 @@ export type CWConcern = {
   id: string
   categoryId: string
   name: string
-  estimatedTimeHrs?: number
+  processTimeMins?: number
   status: CWConcernStatus
   createdAt: string
   updatedAt: string
@@ -268,7 +268,7 @@ export type CWService = {
   code: string
   category: string
   description: string
-  timeHrs: number
+  processTimeMins: number
   ratePerHr: number
   price: number
   status: CWServiceStatus
@@ -301,6 +301,11 @@ export type CWAppointmentConcernItem = {
   concernId: string
   concernName: string
   remark: string
+  // Process time in minutes (from concern definition)
+  processTimeMins?: number
+  diagnosisRemark?: string
+  // Services linked to this concern
+  serviceIds?: string[]
   // JC assigns SE + bay:
   assignedSEUserId?: string
   bayId?: string
@@ -318,7 +323,7 @@ export type CWAppointmentServiceItem = {
   serviceId: string
   serviceCode: string
   serviceDescription: string
-  timeHrs: number
+  processTimeMins: number
   ratePerHr: number
   price: number
   remark: string

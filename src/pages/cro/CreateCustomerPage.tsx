@@ -1,0 +1,374 @@
+import {
+  Button,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Radio,
+  RadioGroup,
+  Select,
+  Stack,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from '@mui/material'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Page } from '../../components/Page'
+import { useCwStore } from '../../store/cwStore'
+import type { CWCustomerType } from '../../types/cw'
+
+const DIVISIONS = ['Dhaka', 'Chattogram', 'Rajshahi', 'Khulna', 'Sylhet', 'Rangpur', 'Barishal', 'Mymensingh']
+const CITIES = ['Dhaka', 'Chattogram', 'Gazipur', 'Narayanganj', 'Comilla', 'Sylhet', 'Rajshahi', 'Khulna', 'Rangpur']
+const OCCUPATION_TYPES = ['Business', 'Service', 'Government', 'Student', 'Retired', 'Other']
+
+type ParentCompanyMode = 'none' | 'existing' | 'new'
+
+export function CreateCustomerPage() {
+  const navigate = useNavigate()
+  const createCustomer = useCwStore((s) => s.createCustomer)
+  const vehicles = useCwStore((s) => s.vehicles)
+
+  const [customerType, setCustomerType] = useState<CWCustomerType>('Individual')
+  const [error, setError] = useState<string | null>(null)
+
+  // Contact
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+
+  // Address
+  const [division, setDivision] = useState('')
+  const [city, setCity] = useState('')
+  const [postalCode, setPostalCode] = useState('')
+  const [street, setStreet] = useState('')
+
+  // Occupation (Individual)
+  const [occupationType, setOccupationType] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [designation, setDesignation] = useState('')
+
+  // Vehicle linking
+  const [vehicleId, setVehicleId] = useState('')
+
+  // Socials
+  const [whatsappLink, setWhatsappLink] = useState('')
+  const [facebookLink, setFacebookLink] = useState('')
+  const [linkedinLink, setLinkedinLink] = useState('')
+  const [googleLink, setGoogleLink] = useState('')
+
+  // Corporate fields
+  const [corpNote, setCorpNote] = useState('')
+  const [corpSocialMedia, setCorpSocialMedia] = useState('')
+  const [parentMode, setParentMode] = useState<ParentCompanyMode>('none')
+  const [parentCompanyName, setParentCompanyName] = useState('')
+  const [parentDivision, setParentDivision] = useState('')
+  const [parentDistrict, setParentDistrict] = useState('')
+  const [parentPostalCode, setParentPostalCode] = useState('')
+  const [parentAddressLine, setParentAddressLine] = useState('')
+  const [transportOfficerName, setTransportOfficerName] = useState('')
+  const [transportOfficerPhone, setTransportOfficerPhone] = useState('')
+  const [transportOfficerEmail, setTransportOfficerEmail] = useState('')
+  const [transportManagerName, setTransportManagerName] = useState('')
+  const [transportManagerPhone, setTransportManagerPhone] = useState('')
+  const [transportManagerEmail, setTransportManagerEmail] = useState('')
+
+  function handleSubmit() {
+    try {
+      setError(null)
+      if (!fullName.trim()) throw new Error('Name is required')
+      if (!phone.trim()) throw new Error('Phone number is required')
+
+      createCustomer({
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        type: customerType,
+        address: (division || city || postalCode || street)
+          ? { division, city, postalCode, street }
+          : undefined,
+        occupation: customerType === 'Individual' && (occupationType || companyName || designation)
+          ? { type: occupationType, companyName, designation }
+          : undefined,
+        whatsappLink: whatsappLink.trim() || undefined,
+        facebookLink: facebookLink.trim() || undefined,
+        linkedinLink: linkedinLink.trim() || undefined,
+        googleLink: googleLink.trim() || undefined,
+        corporate: customerType === 'Corporate'
+          ? {
+              note: corpNote.trim() || undefined,
+              socialMedia: corpSocialMedia.trim() || undefined,
+              parentCompanyName: parentMode !== 'none' ? parentCompanyName.trim() : undefined,
+              parentCompanyAddress: parentMode === 'new'
+                ? { division: parentDivision, city: parentDistrict, postalCode: parentPostalCode, street: parentAddressLine }
+                : undefined,
+              transportOfficerName: transportOfficerName.trim() || undefined,
+              transportOfficerPhone: transportOfficerPhone.trim() || undefined,
+              transportOfficerEmail: transportOfficerEmail.trim() || undefined,
+              transportManagerName: transportManagerName.trim() || undefined,
+              transportManagerPhone: transportManagerPhone.trim() || undefined,
+              transportManagerEmail: transportManagerEmail.trim() || undefined,
+            }
+          : undefined,
+      })
+
+      navigate('/cre/customers')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const sectionSx = { border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3 }
+  const labelSx = { fontWeight: 900, fontSize: '1.05rem', mb: 2 }
+
+  return (
+    <Page title="New Customer" subtitle="Create new customer from here">
+      <Stack spacing={3} sx={{ maxWidth: 860 }}>
+        {/* Type toggle */}
+        <ToggleButtonGroup
+          value={customerType}
+          exclusive
+          onChange={(_, v) => v && setCustomerType(v as CWCustomerType)}
+          size="small"
+        >
+          <ToggleButton value="Individual" sx={{ fontWeight: 700, textTransform: 'none', px: 3 }}>
+            Individual
+          </ToggleButton>
+          <ToggleButton value="Corporate" sx={{ fontWeight: 700, textTransform: 'none', px: 3 }}>
+            Corporate
+          </ToggleButton>
+        </ToggleButtonGroup>
+
+        {error && (
+          <Paper sx={{ p: 2, bgcolor: 'error.50', border: '1px solid', borderColor: 'error.main' }}>
+            <Typography color="error" sx={{ fontWeight: 700 }}>{error}</Typography>
+          </Paper>
+        )}
+
+        {/* ── Individual Flow ── */}
+        {customerType === 'Individual' && (
+          <>
+            {/* Contact */}
+            <Paper sx={sectionSx}>
+              <Typography sx={labelSx}>Contact</Typography>
+              <Stack spacing={2}>
+                <TextField
+                  label="Full Name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  fullWidth
+                  required
+                />
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <TextField
+                    value="+880"
+                    disabled
+                    sx={{ width: 80 }}
+                    size="small"
+                  />
+                  <TextField
+                    label="Phone Number"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    fullWidth
+                    required
+                  />
+                </Stack>
+                <TextField
+                  label="Email Address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  fullWidth
+                  type="email"
+                />
+              </Stack>
+            </Paper>
+
+            {/* Address */}
+            <Paper sx={sectionSx}>
+              <Typography sx={labelSx}>Address</Typography>
+              <Stack spacing={2}>
+                <FormControl fullWidth>
+                  <InputLabel>Division</InputLabel>
+                  <Select value={division} label="Division" onChange={(e) => setDivision(e.target.value)}>
+                    <MenuItem value="">—</MenuItem>
+                    {DIVISIONS.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth>
+                  <InputLabel>City</InputLabel>
+                  <Select value={city} label="City" onChange={(e) => setCity(e.target.value)}>
+                    <MenuItem value="">—</MenuItem>
+                    {CITIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <TextField label="Postal Code" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} fullWidth />
+                <TextField label="Street Address" value={street} onChange={(e) => setStreet(e.target.value)} fullWidth />
+              </Stack>
+            </Paper>
+
+            {/* Occupation */}
+            <Paper sx={sectionSx}>
+              <Typography sx={labelSx}>Occupation</Typography>
+              <Stack spacing={2}>
+                <FormControl fullWidth>
+                  <InputLabel>Occupation Type</InputLabel>
+                  <Select value={occupationType} label="Occupation Type" onChange={(e) => setOccupationType(e.target.value)}>
+                    <MenuItem value="">—</MenuItem>
+                    {OCCUPATION_TYPES.map((o) => <MenuItem key={o} value={o}>{o}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <TextField label="Company Name" value={companyName} onChange={(e) => setCompanyName(e.target.value)} fullWidth />
+                <TextField label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} fullWidth />
+              </Stack>
+            </Paper>
+
+            {/* Vehicle */}
+            <Paper sx={sectionSx}>
+              <Typography sx={labelSx}>Vehicle</Typography>
+              <FormControl fullWidth>
+                <InputLabel>Vehicle</InputLabel>
+                <Select value={vehicleId} label="Vehicle" onChange={(e) => setVehicleId(e.target.value)}>
+                  <MenuItem value="">— None —</MenuItem>
+                  {vehicles.map((v) => (
+                    <MenuItem key={v.id} value={v.id}>
+                      {v.make} {v.model} · {v.registrationNo}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Paper>
+
+            {/* Socials */}
+            <Paper sx={sectionSx}>
+              <Typography sx={labelSx}>Socials</Typography>
+              <Stack spacing={2}>
+                <TextField label="WhatsApp Link" value={whatsappLink} onChange={(e) => setWhatsappLink(e.target.value)} fullWidth placeholder="https://wa.me/..." />
+                <TextField label="Facebook Link" value={facebookLink} onChange={(e) => setFacebookLink(e.target.value)} fullWidth />
+                <TextField label="LinkedIn Link" value={linkedinLink} onChange={(e) => setLinkedinLink(e.target.value)} fullWidth />
+                <TextField label="Google Link" value={googleLink} onChange={(e) => setGoogleLink(e.target.value)} fullWidth />
+              </Stack>
+            </Paper>
+          </>
+        )}
+
+        {/* ── Corporate Flow ── */}
+        {customerType === 'Corporate' && (
+          <>
+            {/* General Information */}
+            <Paper sx={sectionSx}>
+              <Typography sx={labelSx}>General Information</Typography>
+              <Stack spacing={2}>
+                <TextField label="Name" value={fullName} onChange={(e) => setFullName(e.target.value)} fullWidth required />
+                <TextField label="Note" value={corpNote} onChange={(e) => setCorpNote(e.target.value)} fullWidth placeholder="e.g. VIP" />
+                <TextField label="Social Media" value={corpSocialMedia} onChange={(e) => setCorpSocialMedia(e.target.value)} fullWidth placeholder="WhatsApp" />
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <TextField value="+880" disabled sx={{ width: 80 }} size="small" />
+                  <TextField label="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth required />
+                </Stack>
+                <TextField label="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth type="email" />
+              </Stack>
+            </Paper>
+
+            {/* Parent Company */}
+            <Paper sx={sectionSx}>
+              <Typography sx={labelSx}>Parent Company</Typography>
+              <Stack spacing={2}>
+                <RadioGroup
+                  row
+                  value={parentMode}
+                  onChange={(e) => setParentMode(e.target.value as ParentCompanyMode)}
+                >
+                  <FormControlLabel value="none" control={<Radio />} label="No Parent" />
+                  <FormControlLabel value="existing" control={<Radio />} label="Existing Company" />
+                  <FormControlLabel value="new" control={<Radio />} label="New Company" />
+                </RadioGroup>
+
+                {parentMode !== 'none' && (
+                  <TextField
+                    label="Parent Company Name"
+                    value={parentCompanyName}
+                    onChange={(e) => setParentCompanyName(e.target.value)}
+                    fullWidth
+                  />
+                )}
+
+                {parentMode === 'new' && (
+                  <>
+                    <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>Parent Company Address</Typography>
+                    <Stack direction="row" spacing={2}>
+                      <FormControl sx={{ flex: 1 }}>
+                        <InputLabel>Division</InputLabel>
+                        <Select value={parentDivision} label="Division" onChange={(e) => setParentDivision(e.target.value)}>
+                          <MenuItem value="">—</MenuItem>
+                          {DIVISIONS.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
+                        </Select>
+                      </FormControl>
+                      <FormControl sx={{ flex: 1 }}>
+                        <InputLabel>District</InputLabel>
+                        <Select value={parentDistrict} label="District" onChange={(e) => setParentDistrict(e.target.value)}>
+                          <MenuItem value="">—</MenuItem>
+                          {CITIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                        </Select>
+                      </FormControl>
+                      <TextField
+                        label="Postal Code"
+                        value={parentPostalCode}
+                        onChange={(e) => setParentPostalCode(e.target.value)}
+                        sx={{ flex: 1 }}
+                      />
+                    </Stack>
+                    <TextField
+                      label="Address Line"
+                      value={parentAddressLine}
+                      onChange={(e) => setParentAddressLine(e.target.value)}
+                      fullWidth
+                      placeholder="Block A, House, 57 Road No. 25, Dhaka 1213"
+                    />
+                  </>
+                )}
+
+                <Divider />
+
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>Parent Company Transport Officer</Typography>
+                <TextField label="Name" value={transportOfficerName} onChange={(e) => setTransportOfficerName(e.target.value)} fullWidth />
+                <Stack direction="row" spacing={2}>
+                  <Stack direction="row" spacing={1} sx={{ flex: 1, alignItems: 'center' }}>
+                    <TextField value="+880" disabled sx={{ width: 80 }} size="small" />
+                    <TextField label="Phone Number" value={transportOfficerPhone} onChange={(e) => setTransportOfficerPhone(e.target.value)} fullWidth />
+                  </Stack>
+                  <TextField label="Email" value={transportOfficerEmail} onChange={(e) => setTransportOfficerEmail(e.target.value)} sx={{ flex: 1 }} />
+                </Stack>
+
+                <Divider />
+
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>Transport Manager Information</Typography>
+                <TextField label="Name" value={transportManagerName} onChange={(e) => setTransportManagerName(e.target.value)} fullWidth />
+                <Stack direction="row" spacing={2}>
+                  <Stack direction="row" spacing={1} sx={{ flex: 1, alignItems: 'center' }}>
+                    <TextField value="+880" disabled sx={{ width: 80 }} size="small" />
+                    <TextField label="Phone Number" value={transportManagerPhone} onChange={(e) => setTransportManagerPhone(e.target.value)} fullWidth />
+                  </Stack>
+                  <TextField label="Email" value={transportManagerEmail} onChange={(e) => setTransportManagerEmail(e.target.value)} sx={{ flex: 1 }} />
+                </Stack>
+              </Stack>
+            </Paper>
+          </>
+        )}
+
+        {/* Actions */}
+        <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end' }}>
+          <Button variant="outlined" size="large" onClick={() => navigate('/cre/customers')} sx={{ fontWeight: 700 }}>
+            Cancel
+          </Button>
+          <Button variant="contained" size="large" onClick={handleSubmit} sx={{ fontWeight: 900, px: 4 }}>
+            Add Customer
+          </Button>
+        </Stack>
+      </Stack>
+    </Page>
+  )
+}

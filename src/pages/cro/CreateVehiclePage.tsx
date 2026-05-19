@@ -21,6 +21,9 @@ const SIZES: CWVehicleSize[] = ['Small', 'Medium', 'Large']
 const COUNTRIES = ['Bangladesh', 'India', 'China', 'Japan', 'South Korea', 'Germany', 'USA', 'Thailand', 'Indonesia', 'Other']
 const COLORS = ['Blizzard White', 'Midnight Black', 'Silver Metallic', 'Deep Blue', 'Ruby Red', 'Forest Green', 'Champagne Gold', 'Beige', 'Grey']
 const TYRE_SIZES = ['165/70R14', '175/65R15', '185/75R15', '195/65R15', '205/55R16', '215/60R16', '225/45R17', '235/55R18', '255/55R19']
+const REG_CITIES = ['Dhaka', 'Chittagong', 'Rajshahi', 'Khulna', 'Sylhet', 'Rangpur', 'Barishal', 'Mymensingh', 'Comilla', 'Gazipur', 'Narayanganj']
+const REG_REGIONS = ['Metro', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L', 'M']
+const REG_CLASSES = ['Ga', 'Gha', 'Cha', 'Ja', 'Ka', 'Kha', 'Da', 'Tha', 'Ta', 'Pa', 'Ba', 'Ma', 'Ra', 'La', 'Sha', 'Sa', 'Ha']
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <Typography sx={{ fontWeight: 900, fontSize: '1.05rem', mb: 2 }}>{children}</Typography>
@@ -58,7 +61,12 @@ export function CreateVehiclePage() {
   const [countryOfOrigin, setCountryOfOrigin] = useState('')
   const [countryOfAssembly, setCountryOfAssembly] = useState('')
   const [vin, setVin] = useState('')
-  const [registrationNo, setRegistrationNo] = useState('')
+  // Segmented registration fields
+  const [regCity, setRegCity] = useState('')
+  const [regRegion, setRegRegion] = useState('')
+  const [regClass, setRegClass] = useState('')
+  const [regSeries, setRegSeries] = useState('')
+  const [regNumber, setRegNumber] = useState('')
 
   // Customer
   const [customerId, setCustomerId] = useState('')
@@ -84,11 +92,12 @@ export function CreateVehiclePage() {
     try {
       setError(null)
       if (!customerId) throw new Error('Select a customer')
-      if (!registrationNo.trim()) throw new Error('Registration number is required')
+      const registrationNo = [regCity, regRegion, regClass, regSeries, regNumber].filter(Boolean).join('-')
+      if (!registrationNo) throw new Error('Registration number is required')
 
       const created = createVehicle({
         customerId,
-        registrationNo: registrationNo.trim(),
+        registrationNo,
         make: make.trim() || undefined,
         model: model.trim() || undefined,
         vehicleCategory: vehicleCategory || undefined,
@@ -168,7 +177,29 @@ export function CreateVehiclePage() {
             <TextField size="small" fullWidth value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Vehicle Identification Number" />
           </FormRow>
           <FormRow label="Registration Number">
-            <TextField size="small" fullWidth value={registrationNo} onChange={(e) => setRegistrationNo(e.target.value)} placeholder="e.g. Dhaka-Metro-Ga-31-9999" required />
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <TextField size="small" select value={regCity} onChange={(e) => setRegCity(e.target.value)} sx={{ minWidth: 120 }} label="City">
+                <MenuItem value="">City</MenuItem>
+                {REG_CITIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+              </TextField>
+              <Typography variant="body2" color="text.secondary">–</Typography>
+              <TextField size="small" select value={regRegion} onChange={(e) => setRegRegion(e.target.value)} sx={{ minWidth: 90 }} label="Region">
+                <MenuItem value="">Region</MenuItem>
+                {REG_REGIONS.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+              </TextField>
+              <Typography variant="body2" color="text.secondary">–</Typography>
+              <TextField size="small" select value={regClass} onChange={(e) => setRegClass(e.target.value)} sx={{ minWidth: 80 }} label="Class">
+                <MenuItem value="">Class</MenuItem>
+                {REG_CLASSES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+              </TextField>
+              <Typography variant="body2" color="text.secondary">–</Typography>
+              <TextField size="small" value={regSeries} onChange={(e) => setRegSeries(e.target.value)} sx={{ width: 70 }} label="Series" placeholder="31" />
+              <Typography variant="body2" color="text.secondary">–</Typography>
+              <TextField size="small" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} sx={{ width: 90 }} label="Number" placeholder="9999" />
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              Preview: {[regCity, regRegion, regClass, regSeries, regNumber].filter(Boolean).join('-') || '—'}
+            </Typography>
           </FormRow>
         </Paper>
 
