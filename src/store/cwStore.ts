@@ -17,6 +17,9 @@ import type {
   CWInspectionCheck,
   CWJob,
   CWJobStatus,
+  CWPart,
+  CWPartRequest,
+  CWPartRequestStatus,
   CWPendingVehicle,
   CWPendingVehicleStatus,
   CWRole,
@@ -36,10 +39,14 @@ import type {
   CWTaskStatus,
   CWTaskTemplate,
   CWTaskTemplateStatus,
+  CWTeam,
+  CWTeamStatus,
   CWTimelineEvent,
   CWUser,
   CWUserStatus,
   CWVehicle,
+  CWVehicleCategory,
+  CWVehicleSize,
   CWVehicleStatus,
   CWWhatsappLog,
 } from '../types/cw'
@@ -129,6 +136,17 @@ export type CreateVehicleInput = {
   model?: string
   vin?: string
   odometerKm?: number
+  vehicleCategory?: CWVehicleCategory
+  vehicleSize?: CWVehicleSize
+  modelVariant?: string
+  countryOfOrigin?: string
+  countryOfAssembly?: string
+  exteriorColor?: string
+  exteriorColorCode?: string
+  interiorColor?: string
+  interiorColorCode?: string
+  tyreSize?: string
+  additionalNotes?: string
   status?: CWVehicleStatus
 }
 
@@ -139,6 +157,17 @@ export type UpdateVehicleInput = {
   model?: string
   vin?: string
   odometerKm?: number
+  vehicleCategory?: CWVehicleCategory
+  vehicleSize?: CWVehicleSize
+  modelVariant?: string
+  countryOfOrigin?: string
+  countryOfAssembly?: string
+  exteriorColor?: string
+  exteriorColorCode?: string
+  interiorColor?: string
+  interiorColorCode?: string
+  tyreSize?: string
+  additionalNotes?: string
   status: CWVehicleStatus
 }
 
@@ -276,7 +305,7 @@ export type SetJobTestDriveInput = {
 
 export type CreateConcernCategoryInput = { name: string }
 export type UpdateConcernCategoryInput = { name: string; status: CWConcernCategoryStatus }
-export type CreateConcernInput = { categoryId: string; name: string }
+export type CreateConcernInput = { categoryId: string; name: string; estimatedTimeHrs?: number }
 export type UpdateConcernInput = { name: string; status: CWConcernStatus }
 
 // ─── Services ─────────────────────────────────────────────────────────────────
@@ -298,6 +327,51 @@ export type UpdateServiceInput = {
   ratePerHr: number
   price: number
   status: CWServiceStatus
+}
+
+// ─── Teams ────────────────────────────────────────────────────────────────────
+
+export type CreateTeamInput = {
+  name: string
+  seUserId: string
+  technicianUserIds: string[]
+  status?: CWTeamStatus
+}
+export type UpdateTeamInput = {
+  name: string
+  seUserId: string
+  technicianUserIds: string[]
+  status: CWTeamStatus
+}
+
+// ─── Parts ────────────────────────────────────────────────────────────────────
+
+export type CreatePartInput = {
+  name: string
+  partNumber?: string
+  price?: number
+  status?: 'Active' | 'Inactive'
+}
+export type UpdatePartInput = {
+  name: string
+  partNumber?: string
+  price?: number
+  status: 'Active' | 'Inactive'
+}
+
+export type CreatePartRequestInput = {
+  appointmentId: string
+  concernItemId?: string
+  partName: string
+  quantity?: number
+  requestedBy: string
+}
+export type LabelPartRequestInput = {
+  partNumber: string
+  price: number
+  quantity: number
+  deliveryDate?: string
+  labeledBy: string
 }
 
 // ─── Appointment workflow ──────────────────────────────────────────────────────
@@ -543,6 +617,23 @@ type CWState = {
   createService: (input: CreateServiceInput) => CWService
   updateService: (id: string, input: UpdateServiceInput) => void
   setServiceStatus: (id: string, status: CWServiceStatus) => void
+
+  // Team admin
+  teams: CWTeam[]
+  createTeam: (input: CreateTeamInput) => CWTeam
+  updateTeam: (id: string, input: UpdateTeamInput) => void
+
+  // Parts admin
+  parts: CWPart[]
+  partRequests: CWPartRequest[]
+  createPart: (input: CreatePartInput) => CWPart
+  updatePart: (id: string, input: UpdatePartInput) => void
+  createPartRequest: (input: CreatePartRequestInput) => CWPartRequest
+  labelPartRequest: (id: string, input: LabelPartRequestInput) => void
+  setPartRequestStatus: (id: string, status: CWPartRequestStatus) => void
+
+  // Bay availability check
+  checkBayAvailability: (bayId: string, startTime: string, endTime: string, excludeAppointmentId?: string) => boolean
 }
 
 function normalizeRoleName(name: string) {
@@ -658,13 +749,14 @@ function seedDemoData() {
   const creRole = roleByName.get('CRE')!
 
   const users: CWUser[] = [
+    // ── Technicians (4) ──
     {
       id: newId(),
-      fullName: 'Demo User',
-      email: 'demo.user@cw.local',
-      mobile: '0000000000',
+      fullName: 'Rafiq Ahmed',
+      email: 'rafiq.ahmed@cw.local',
+      mobile: '0170000001',
       roleIds: [techRole.id],
-      shopIds: [autoShop.id, paintShop.id, bodyShop.id],
+      shopIds: [autoShop.id],
       status: 'Active',
       password: 'demo',
       createdAt: ts,
@@ -672,9 +764,46 @@ function seedDemoData() {
     },
     {
       id: newId(),
-      fullName: 'Demo SA',
-      email: 'demo.sa@cw.local',
-      mobile: '0000000001',
+      fullName: 'Kamal Hossain',
+      email: 'kamal.hossain@cw.local',
+      mobile: '0170000002',
+      roleIds: [techRole.id],
+      shopIds: [autoShop.id, bodyShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      fullName: 'Jamal Uddin',
+      email: 'jamal.uddin@cw.local',
+      mobile: '0170000003',
+      roleIds: [techRole.id],
+      shopIds: [paintShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      fullName: 'Shahidul Islam',
+      email: 'shahidul.islam@cw.local',
+      mobile: '0170000004',
+      roleIds: [techRole.id],
+      shopIds: [autoShop.id, paintShop.id, bodyShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    // ── Service Advisors (3) ──
+    {
+      id: newId(),
+      fullName: 'Farhan Kabir',
+      email: 'farhan.kabir@cw.local',
+      mobile: '0180000001',
       roleIds: [saRole.id],
       shopIds: [autoShop.id, paintShop.id, bodyShop.id],
       status: 'Active',
@@ -684,9 +813,71 @@ function seedDemoData() {
     },
     {
       id: newId(),
-      fullName: 'Demo CRE',
-      email: 'demo.cre@cw.local',
-      mobile: '0000000002',
+      fullName: 'Nusrat Jahan',
+      email: 'nusrat.jahan@cw.local',
+      mobile: '0180000002',
+      roleIds: [saRole.id],
+      shopIds: [autoShop.id, bodyShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      fullName: 'Tanvir Rahman',
+      email: 'tanvir.rahman@cw.local',
+      mobile: '0180000003',
+      roleIds: [saRole.id],
+      shopIds: [autoShop.id, paintShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    // ── Service Engineers (3) ──
+    {
+      id: newId(),
+      fullName: 'Arif Hasan',
+      email: 'arif.hasan@cw.local',
+      mobile: '0190000001',
+      roleIds: [seRole.id],
+      shopIds: [autoShop.id, paintShop.id, bodyShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      fullName: 'Sadia Akter',
+      email: 'sadia.akter@cw.local',
+      mobile: '0190000002',
+      roleIds: [seRole.id],
+      shopIds: [autoShop.id, bodyShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      fullName: 'Mehedi Haque',
+      email: 'mehedi.haque@cw.local',
+      mobile: '0190000003',
+      roleIds: [seRole.id],
+      shopIds: [paintShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    // ── CREs (2) ──
+    {
+      id: newId(),
+      fullName: 'Rubina Khatun',
+      email: 'rubina.khatun@cw.local',
+      mobile: '0160000001',
       roleIds: [creRole.id],
       shopIds: [autoShop.id, paintShop.id, bodyShop.id],
       status: 'Active',
@@ -696,11 +887,11 @@ function seedDemoData() {
     },
     {
       id: newId(),
-      fullName: 'Demo SE',
-      email: 'demo.se@cw.local',
-      mobile: '0000000003',
-      roleIds: [seRole.id],
-      shopIds: [autoShop.id, paintShop.id, bodyShop.id],
+      fullName: 'Nazmul Huda',
+      email: 'nazmul.huda@cw.local',
+      mobile: '0160000002',
+      roleIds: [creRole.id],
+      shopIds: [autoShop.id, bodyShop.id],
       status: 'Active',
       password: 'demo',
       createdAt: ts,
@@ -769,6 +960,8 @@ function seedDemoData() {
       notes: 'Customer prefers morning slot',
       status: 'New',
       inspectionChecks: [],
+      vehicleViewChecks: [],
+      photos: [],
       concernItems: [],
       serviceItems: [],
       customerApprovalStatus: 'Pending',
@@ -973,6 +1166,58 @@ function seedDemoData() {
   const taskFieldValues: Record<string, Record<string, CWTaskFieldValue>> = {}
   for (const t of tasks) taskFieldValues[t.id] = {}
 
+  // ── Teams seed ──
+  const seUsers = users.filter((u) => u.roleIds.includes(seRole.id))
+  const techUsers = users.filter((u) => u.roleIds.includes(techRole.id))
+  const teams: CWTeam[] = [
+    {
+      id: newId(),
+      name: 'Alpha Team',
+      seUserId: seUsers[0]!.id,
+      technicianUserIds: [techUsers[0]!.id, techUsers[1]!.id],
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      name: 'Bravo Team',
+      seUserId: seUsers[1]!.id,
+      technicianUserIds: [techUsers[2]!.id, techUsers[3]!.id],
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      name: 'Charlie Team',
+      seUserId: seUsers.length > 2 ? seUsers[2]!.id : seUsers[0]!.id,
+      technicianUserIds: [techUsers[0]!.id, techUsers[2]!.id],
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+  ]
+
+  // ── Parts seed ──
+  const parts: CWPart[] = [
+    { id: newId(), name: 'Oil Filter', partNumber: 'OF-001', price: 350, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Brake Pad Set (Front)', partNumber: 'BP-F01', price: 2500, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Brake Pad Set (Rear)', partNumber: 'BP-R01', price: 2200, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Spark Plug (Iridium)', partNumber: 'SP-IR01', price: 800, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Air Filter', partNumber: 'AF-001', price: 450, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Cabin/AC Filter', partNumber: 'CF-001', price: 550, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Drive Belt (Serpentine)', partNumber: 'DB-S01', price: 1200, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Timing Belt Kit', partNumber: 'TB-K01', price: 5500, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Water Pump', partNumber: 'WP-001', price: 3800, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Thermostat', partNumber: 'TH-001', price: 900, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Radiator', partNumber: 'RD-001', price: 8500, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Alternator', partNumber: 'AL-001', price: 7500, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Starter Motor', partNumber: 'SM-001', price: 6000, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Brake Disc (Front, pair)', partNumber: 'BD-F01', price: 4500, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Clutch Kit (Disc+Cover+Bearing)', partNumber: 'CK-001', price: 12000, status: 'Active', createdAt: ts, updatedAt: ts },
+  ]
+
   return {
     shops,
     bays,
@@ -984,6 +1229,8 @@ function seedDemoData() {
     taskTemplates,
     tasks,
     taskFieldValues,
+    teams,
+    parts,
   }
 }
 
@@ -1347,6 +1594,10 @@ export const useCwStore = create<CWState>((set, get) => ({
   pendingVehicles: [],
   jobs: [],
 
+  teams: DEMO_SEED.teams,
+  parts: DEMO_SEED.parts,
+  partRequests: [],
+
   createShop: (input) => {
     const ts = nowIso()
     const shop: CWShop = {
@@ -1701,14 +1952,82 @@ export const useCwStore = create<CWState>((set, get) => ({
     const ts = nowIso()
 
     const defaultChecks: CWInspectionCheck[] = [
-      { id: newId(), label: 'Health Check', checked: false },
-      { id: newId(), label: 'Brake Check', checked: false },
-      { id: newId(), label: 'Exhaust Check', checked: false },
-      { id: newId(), label: 'Engine Check', checked: false },
-      { id: newId(), label: 'Suspension Check', checked: false },
-      { id: newId(), label: 'Electrical Check', checked: false },
-      { id: newId(), label: 'Tyre Check', checked: false },
-      { id: newId(), label: 'Body Condition', checked: false },
+      // System Component
+      { id: newId(), category: 'System Component', section: 'Brake System', label: 'Brake system (including lines, hoses, and parking brake)', checked: false },
+      { id: newId(), category: 'System Component', section: 'Exhaust System', label: 'Exhaust system and heat shield (leaks, damage)', checked: false },
+      { id: newId(), category: 'System Component', section: 'Lights/Windshield', label: 'Lights and windshield condition', checked: false },
+      { id: newId(), category: 'System Component', section: 'Steering', label: 'Steering linkage and suspension', checked: false },
+      { id: newId(), category: 'System Component', section: 'Engine', label: 'Engine oil level and leaks', checked: false },
+      { id: newId(), category: 'System Component', section: 'Cooling', label: 'Coolant level and hoses', checked: false },
+      { id: newId(), category: 'System Component', section: 'Battery', label: 'Battery terminals and charge', checked: false },
+      // Scheduled Maintenance
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Engine oil change', checked: false },
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Transmission fluid check', checked: false },
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Brake fluid level', checked: false },
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Power steering fluid', checked: false },
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Filters', label: 'Air filter inspection', checked: false },
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Filters', label: 'Cabin/AC filter', checked: false },
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Belts', label: 'Drive belt / serpentine belt', checked: false },
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Belts', label: 'Timing belt inspection', checked: false },
+      { id: newId(), category: 'Scheduled Maintenance', section: 'Spark', label: 'Spark plug condition', checked: false },
+      // Tire/Brake Wire
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Front', label: 'Tire Tread Depth', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Front', label: 'Tire Wear Pattern/Damage', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Front', label: 'Tire Pressure Set to Factory-Recommended PSI', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Front', label: 'Brake Lining', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Front', label: 'Tire Tread Depth', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Front', label: 'Tire Wear Pattern/Damage', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Front', label: 'Tire Pressure Set to Factory-Recommended PSI', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Front', label: 'Brake Lining', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Rear', label: 'Tire Tread Depth', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Rear', label: 'Tire Wear Pattern/Damage', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Rear', label: 'Brake Lining', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Rear', label: 'Tire Tread Depth', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Rear', label: 'Tire Wear Pattern/Damage', checked: false },
+      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Rear', label: 'Brake Lining', checked: false },
+      // Underbody
+      { id: newId(), category: 'Underbody', section: 'Frame', label: 'Frame and cross members (rust, cracks)', checked: false },
+      { id: newId(), category: 'Underbody', section: 'Frame', label: 'Floor pan condition', checked: false },
+      { id: newId(), category: 'Underbody', section: 'Suspension', label: 'Shock absorbers / struts', checked: false },
+      { id: newId(), category: 'Underbody', section: 'Suspension', label: 'Control arms and bushings', checked: false },
+      { id: newId(), category: 'Underbody', section: 'Exhaust', label: 'Exhaust pipe and muffler', checked: false },
+      { id: newId(), category: 'Underbody', section: 'Exhaust', label: 'Catalytic converter', checked: false },
+      { id: newId(), category: 'Underbody', section: 'Drivetrain', label: 'Drive shaft and CV joints', checked: false },
+      { id: newId(), category: 'Underbody', section: 'Drivetrain', label: 'Transmission pan (leaks)', checked: false },
+      { id: newId(), category: 'Underbody', section: 'Protection', label: 'Underbody coating / rust protection', checked: false },
+      // Front View
+      { id: newId(), category: 'Front View', section: 'Bumper', label: 'Front bumper condition', checked: false },
+      { id: newId(), category: 'Front View', section: 'Bumper', label: 'Front grille condition', checked: false },
+      { id: newId(), category: 'Front View', section: 'Lights', label: 'Headlight left', checked: false },
+      { id: newId(), category: 'Front View', section: 'Lights', label: 'Headlight right', checked: false },
+      { id: newId(), category: 'Front View', section: 'Lights', label: 'Fog lights', checked: false },
+      { id: newId(), category: 'Front View', section: 'Glass', label: 'Windshield condition', checked: false },
+      { id: newId(), category: 'Front View', section: 'Glass', label: 'Windshield wipers', checked: false },
+      { id: newId(), category: 'Front View', section: 'Hood', label: 'Hood alignment and paint', checked: false },
+      // Right View
+      { id: newId(), category: 'Right View', section: 'Body', label: 'Right front fender', checked: false },
+      { id: newId(), category: 'Right View', section: 'Body', label: 'Right front door', checked: false },
+      { id: newId(), category: 'Right View', section: 'Body', label: 'Right rear door', checked: false },
+      { id: newId(), category: 'Right View', section: 'Body', label: 'Right rear quarter panel', checked: false },
+      { id: newId(), category: 'Right View', section: 'Glass', label: 'Right side windows', checked: false },
+      { id: newId(), category: 'Right View', section: 'Mirror', label: 'Right side mirror', checked: false },
+      { id: newId(), category: 'Right View', section: 'Trim', label: 'Right side molding / trim', checked: false },
+      // Left View
+      { id: newId(), category: 'Left View', section: 'Body', label: 'Left front fender', checked: false },
+      { id: newId(), category: 'Left View', section: 'Body', label: 'Left front door', checked: false },
+      { id: newId(), category: 'Left View', section: 'Body', label: 'Left rear door', checked: false },
+      { id: newId(), category: 'Left View', section: 'Body', label: 'Left rear quarter panel', checked: false },
+      { id: newId(), category: 'Left View', section: 'Glass', label: 'Left side windows', checked: false },
+      { id: newId(), category: 'Left View', section: 'Mirror', label: 'Left side mirror', checked: false },
+      { id: newId(), category: 'Left View', section: 'Trim', label: 'Left side molding / trim', checked: false },
+      // Rear View
+      { id: newId(), category: 'Rear View', section: 'Bumper', label: 'Rear bumper condition', checked: false },
+      { id: newId(), category: 'Rear View', section: 'Lights', label: 'Tail light left', checked: false },
+      { id: newId(), category: 'Rear View', section: 'Lights', label: 'Tail light right', checked: false },
+      { id: newId(), category: 'Rear View', section: 'Lights', label: 'Brake light / third brake light', checked: false },
+      { id: newId(), category: 'Rear View', section: 'Glass', label: 'Rear windshield', checked: false },
+      { id: newId(), category: 'Rear View', section: 'Trunk', label: 'Trunk/tailgate condition', checked: false },
+      { id: newId(), category: 'Rear View', section: 'Exhaust', label: 'Exhaust tip condition', checked: false },
     ]
 
     const appt: CWAppointment = {
@@ -1723,6 +2042,8 @@ export const useCwStore = create<CWState>((set, get) => ({
       status: input.assignedSAUserId ? 'SA Inspection' : (input.status ?? 'New'),
       assignedSAUserId: input.assignedSAUserId,
       inspectionChecks: defaultChecks,
+      vehicleViewChecks: [],
+      photos: [],
       concernItems: (input.concernItems ?? []).map((c) => ({
         id: newId(),
         concernId: c.concernId,
@@ -1745,7 +2066,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       customerApprovalStatus: 'Pending',
       whatsappLogs: [],
       timeline: [
-        { id: newId(), timestamp: ts, actor: 'CRO', action: 'Appointment created' },
+        { id: newId(), timestamp: ts, actor: 'CRE', action: 'Appointment created' },
       ],
       gateEntryId: input.gateEntryId,
       paymentStatus: 'Pending',
@@ -2351,6 +2672,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       id: newId(),
       categoryId: input.categoryId,
       name,
+      estimatedTimeHrs: input.estimatedTimeHrs,
       status: 'Active',
       createdAt: ts,
       updatedAt: ts,
@@ -3105,6 +3427,153 @@ export const useCwStore = create<CWState>((set, get) => ({
           : j,
       ),
     })
+  },
+
+  // ── Team actions ──────────────────────────────────────────────────────────────
+
+  createTeam: (input) => {
+    const ts = nowIso()
+    const team: CWTeam = {
+      id: newId(),
+      name: input.name.trim(),
+      seUserId: input.seUserId,
+      technicianUserIds: [...new Set(input.technicianUserIds)],
+      status: input.status ?? 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ teams: [team, ...get().teams] })
+    return team
+  },
+
+  updateTeam: (id, input) => {
+    set({
+      teams: get().teams.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              name: input.name.trim(),
+              seUserId: input.seUserId,
+              technicianUserIds: [...new Set(input.technicianUserIds)],
+              status: input.status,
+              updatedAt: nowIso(),
+            }
+          : t,
+      ),
+    })
+  },
+
+  // ── Part actions ─────────────────────────────────────────────────────────────
+
+  createPart: (input) => {
+    const ts = nowIso()
+    const part: CWPart = {
+      id: newId(),
+      name: input.name.trim(),
+      partNumber: input.partNumber?.trim(),
+      price: input.price,
+      status: input.status ?? 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ parts: [part, ...get().parts] })
+    return part
+  },
+
+  updatePart: (id, input) => {
+    set({
+      parts: get().parts.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              name: input.name.trim(),
+              partNumber: input.partNumber?.trim(),
+              price: input.price,
+              status: input.status,
+              updatedAt: nowIso(),
+            }
+          : p,
+      ),
+    })
+  },
+
+  // ── Part request actions ──────────────────────────────────────────────────────
+
+  createPartRequest: (input) => {
+    const ts = nowIso()
+    const req: CWPartRequest = {
+      id: newId(),
+      appointmentId: input.appointmentId,
+      concernItemId: input.concernItemId,
+      partName: input.partName.trim(),
+      quantity: input.quantity,
+      status: 'Requested',
+      requestedBy: input.requestedBy,
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ partRequests: [req, ...get().partRequests] })
+    return req
+  },
+
+  labelPartRequest: (id, input) => {
+    set({
+      partRequests: get().partRequests.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              partNumber: input.partNumber.trim(),
+              price: input.price,
+              quantity: input.quantity,
+              deliveryDate: input.deliveryDate,
+              labeledBy: input.labeledBy,
+              status: 'Labeled' as const,
+              updatedAt: nowIso(),
+            }
+          : r,
+      ),
+    })
+  },
+
+  setPartRequestStatus: (id, status) => {
+    set({
+      partRequests: get().partRequests.map((r) =>
+        r.id === id
+          ? { ...r, status, updatedAt: nowIso() }
+          : r,
+      ),
+    })
+  },
+
+  // ── Bay availability check ────────────────────────────────────────────────────
+
+  checkBayAvailability: (bayId, startTime, endTime, excludeAppointmentId) => {
+    const start = new Date(startTime).getTime()
+    const end = new Date(endTime).getTime()
+    if (Number.isNaN(start) || Number.isNaN(end) || start >= end) return false
+
+    const appointments = get().appointments
+    for (const appt of appointments) {
+      if (excludeAppointmentId && appt.id === excludeAppointmentId) continue
+
+      // Check concern items
+      for (const c of appt.concernItems) {
+        if (c.bayId === bayId && c.plannedStartAt && c.plannedEndAt) {
+          const cStart = new Date(c.plannedStartAt).getTime()
+          const cEnd = new Date(c.plannedEndAt).getTime()
+          if (start < cEnd && end > cStart) return false // overlap
+        }
+      }
+      // Check service items
+      for (const s of appt.serviceItems) {
+        if (s.bayId === bayId && s.plannedStartAt && s.plannedEndAt) {
+          const sStart = new Date(s.plannedStartAt).getTime()
+          const sEnd = new Date(s.plannedEndAt).getTime()
+          if (start < sEnd && end > sStart) return false // overlap
+        }
+      }
+    }
+    return true
   },
 }))
 

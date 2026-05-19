@@ -2,7 +2,8 @@ import {
   Alert,
   Box,
   Button,
-  Divider,
+  Chip,
+  IconButton,
   Paper,
   Snackbar,
   Stack,
@@ -12,12 +13,16 @@ import {
   TableHead,
   TableRow,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
+import { Add, Info } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
+import type { CWCustomerType } from '../../types/cw'
 
 function includesLoose(haystack: string, needle: string) {
   return haystack.toLowerCase().includes(needle.toLowerCase())
@@ -27,25 +32,43 @@ export function CustomersPage() {
   const customers = useCwStore((s) => s.customers)
   const vehicles = useCwStore((s) => s.vehicles)
   const createCustomer = useCwStore((s) => s.createCustomer)
+  const navigate = useNavigate()
 
-  const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
+  const [typeFilter, setTypeFilter] = useState<CWCustomerType>('Individual')
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
 
+  // Quick-create form (inline)
+  const [showCreate, setShowCreate] = useState(false)
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+
+  const individualCount = useMemo(
+    () => customers.filter((c) => (c.type ?? 'Individual') === 'Individual').length,
+    [customers],
+  )
+  const corporateCount = useMemo(
+    () => customers.filter((c) => c.type === 'Corporate').length,
+    [customers],
+  )
+
   const filtered = useMemo(() => {
     const q = query.trim()
-    if (!q) return customers
-    return customers.filter((c) => {
-      if (includesLoose(c.fullName, q)) return true
-      if (includesLoose(c.phone, q)) return true
-      if (c.email && includesLoose(c.email, q)) return true
-      return false
-    })
-  }, [customers, query])
+    return customers
+      .filter((c) => (c.type ?? 'Individual') === typeFilter)
+      .filter((c) => {
+        if (!q) return true
+        if (includesLoose(c.fullName, q)) return true
+        if (includesLoose(c.phone, q)) return true
+        if (c.email && includesLoose(c.email, q)) return true
+        return false
+      })
+      .slice()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }, [customers, typeFilter, query])
 
   function vehicleCount(customerId: string) {
     return vehicles.filter((v) => v.customerId === customerId).length
@@ -58,6 +81,7 @@ export function CustomersPage() {
       setFullName('')
       setPhone('')
       setEmail('')
+      setShowCreate(false)
       setSuccessMessage(`Customer created: ${created.fullName}`)
       setSuccessOpen(true)
     } catch (e) {
@@ -66,7 +90,20 @@ export function CustomersPage() {
   }
 
   return (
-    <Page title="CRO / Customers" subtitle="Register and search customers.">
+    <Page
+      title="Customers"
+      subtitle="Registered Customer list"
+      actions={
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={() => setShowCreate((v) => !v)}
+          sx={{ fontWeight: 700, borderRadius: 2, px: 3 }}
+        >
+          Create New Customer
+        </Button>
+      }
+    >
       <Snackbar
         open={successOpen}
         onClose={() => setSuccessOpen(false)}
@@ -79,80 +116,94 @@ export function CustomersPage() {
       </Snackbar>
 
       <Stack spacing={2}>
-        <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-          <Stack spacing={2}>
-            <Box>
+        {/* Type tabs + search */}
+        <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
+          <ToggleButtonGroup
+            value={typeFilter}
+            exclusive
+            onChange={(_, v) => v && setTypeFilter(v as CWCustomerType)}
+            size="small"
+          >
+            <ToggleButton value="Individual" sx={{ fontWeight: 700, textTransform: 'none', px: 2.5 }}>
+              Individual
+              <Chip label={individualCount} size="small" sx={{ ml: 1, fontWeight: 700 }} />
+            </ToggleButton>
+            <ToggleButton value="Corporate" sx={{ fontWeight: 700, textTransform: 'none', px: 2.5 }}>
+              Corporate
+              <Chip label={corporateCount} size="small" sx={{ ml: 1, fontWeight: 700 }} />
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>
+
+        <TextField
+          size="small"
+          placeholder="Type to Search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          fullWidth
+        />
+
+        {/* Inline create form */}
+        {showCreate && (
+          <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
+            <Stack spacing={2}>
               <Typography sx={{ fontWeight: 900 }}>New customer</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Duplicate phone/email blocked.
-              </Typography>
-            </Box>
-
-            {error ? <Alert severity="error">{error}</Alert> : null}
-
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} fullWidth />
-              <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth />
-              <TextField label="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth />
+              {error ? <Alert severity="error">{error}</Alert> : null}
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                <TextField label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} fullWidth />
+                <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth />
+                <TextField label="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth />
+              </Stack>
+              <Stack direction="row" spacing={1}>
+                <Button variant="contained" onClick={submit} sx={{ fontWeight: 700 }}>Create</Button>
+                <Button variant="text" onClick={() => setShowCreate(false)}>Cancel</Button>
+              </Stack>
             </Stack>
+          </Paper>
+        )}
 
-            <Button variant="contained" size="large" onClick={submit} sx={{ fontWeight: 900 }}>
-              Create
-            </Button>
-          </Stack>
-        </Paper>
-
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2 }}>
-            <Typography sx={{ fontWeight: 900 }}>Customers</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Search by name, phone, or email.
-            </Typography>
-          </Box>
-          <Divider />
-
-          <Box sx={{ p: 2 }}>
-            <TextField label="Search" value={query} onChange={(e) => setQuery(e.target.value)} fullWidth />
-          </Box>
-
-          <Divider />
-
-          {filtered.length ? (
+        {/* Table */}
+        <Paper variant="outlined">
+          {filtered.length === 0 ? (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography color="text.secondary">No {typeFilter.toLowerCase()} customers found.</Typography>
+            </Box>
+          ) : (
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Phone</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Type</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Vehicles</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>
-                    Action
-                  </TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Number of vehicles</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>View</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filtered
-                  .slice()
-                  .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-                  .map((c) => (
-                    <TableRow key={c.id} hover>
-                      <TableCell sx={{ fontWeight: 800 }}>{c.fullName}</TableCell>
-                      <TableCell>{c.phone}</TableCell>
-                      <TableCell>{c.email ?? '—'}</TableCell>
-                      <TableCell>{vehicleCount(c.id)}</TableCell>
-                      <TableCell align="right">
-                        <Button size="small" variant="contained" component={RouterLink} to={`/cro/customers/${c.id}`}>
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                {filtered.map((c) => (
+                  <TableRow key={c.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/cre/customers/${c.id}`)}>
+                    <TableCell sx={{ fontWeight: 700 }}>{c.fullName}</TableCell>
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: (c.type ?? 'Individual') === 'Individual' ? 'warning.main' : 'primary.main' }}
+                      >
+                        {c.type ?? 'Individual'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{c.email ?? '—'}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      {String(vehicleCount(c.id)).padStart(2, '0')}
+                    </TableCell>
+                    <TableCell>
+                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); navigate(`/cre/customers/${c.id}`) }}>
+                        <Info fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
-          ) : (
-            <Box sx={{ p: 2 }}>
-              <Typography color="text.secondary">No customers found.</Typography>
-            </Box>
           )}
         </Paper>
       </Stack>

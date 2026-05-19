@@ -19,6 +19,7 @@ import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
+import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 
 function fmtBDT(n: number) {
   return `BDT ${n.toLocaleString('en-BD')}`
@@ -31,8 +32,8 @@ function fmtDateTime(iso?: string) {
   })
 }
 
-type ConcernForm = Record<string, { seUserId: string; bayId: string; startLocal: string; endLocal: string }>
-type ServiceForm = Record<string, { seUserId: string; bayId: string; startLocal: string; endLocal: string }>
+type ConcernForm = Record<string, { teamId: string; seUserId: string; bayId: string; startLocal: string; endLocal: string }>
+type ServiceForm = Record<string, { teamId: string; seUserId: string; bayId: string; startLocal: string; endLocal: string }>
 
 function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
   const map: Record<string, 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error'> = {
@@ -69,6 +70,7 @@ export function JCAppointmentPage() {
   const assignServiceSE = useCwStore((s) => s.assignServiceSE)
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
   const pushTimeline = useCwStore((s) => s.pushTimeline)
+  const teams = useCwStore((s) => s.teams)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -78,9 +80,11 @@ export function JCAppointmentPage() {
   const vehicle = useMemo(() => (appt ? vehicles.find((v) => v.id === appt.vehicleId) : null), [vehicles, appt])
   const customer = useMemo(() => (appt ? customers.find((c) => c.id === appt.customerId) : null), [customers, appt])
 
+  const roles = useCwStore((s) => s.roles)
+  const seRoleId = useMemo(() => roles.find((r) => r.name === 'SE')?.id, [roles])
   const seUsers = useMemo(
-    () => users.filter((u) => u.status === 'Active' && u.roleIds.length > 0),
-    [users],
+    () => users.filter((u) => u.status === 'Active' && seRoleId && u.roleIds.includes(seRoleId)),
+    [users, seRoleId],
   )
 
   const userNameById = useMemo(() => {
@@ -121,11 +125,47 @@ export function JCAppointmentPage() {
   }
 
   function getConcernFormVal(id: string) {
-    return concernForm[id] ?? { seUserId: '', bayId: '', startLocal: '', endLocal: '' }
+    return concernForm[id] ?? { teamId: '', seUserId: '', bayId: '', startLocal: '', endLocal: '' }
   }
 
   function getServiceFormVal(id: string) {
-    return serviceForm[id] ?? { seUserId: '', bayId: '', startLocal: '', endLocal: '' }
+    return serviceForm[id] ?? { teamId: '', seUserId: '', bayId: '', startLocal: '', endLocal: '' }
+  }
+
+  // ── Bay conflict detection ──────────────────────────────────────────
+  function getBayBookings() {
+    const bookings: { bayId: string; start: number; end: number; label: string }[] = []
+    for (const a of appointments) {
+      if (a.id === appointmentId) continue // skip current appointment
+      for (const c of a.concernItems) {
+        if (c.bayId && c.plannedStartAt && c.plannedEndAt) {
+          bookings.push({ bayId: c.bayId, start: Date.parse(c.plannedStartAt), end: Date.parse(c.plannedEndAt), label: `Concern "${c.concernName}" in appt #${a.id.slice(0, 6)}` })
+        }
+      }
+      for (const s of a.serviceItems) {
+        if (s.bayId && s.plannedStartAt && s.plannedEndAt) {
+          bookings.push({ bayId: s.bayId, start: Date.parse(s.plannedStartAt), end: Date.parse(s.plannedEndAt), label: `Service "${s.serviceDescription}" in appt #${a.id.slice(0, 6)}` })
+        }
+      }
+    }
+    return bookings
+  }
+
+  function checkBayConflict(bayId: string, startIso: string, endIso: string): string | null {
+    if (!bayId || !startIso || !endIso) return null
+    const start = Date.parse(startIso)
+    const end = Date.parse(endIso)
+    if (Number.isNaN(start) || Number.isNaN(end)) return null
+    const bookings = getBayBookings()
+    for (const b of bookings) {
+      if (b.bayId !== bayId) continue
+      // Overlap: starts before other ends AND ends after other starts
+      if (start < b.end && end > b.start) {
+        const bayName = bayNameById.get(bayId) ?? bayId
+        return `Bay "${bayName}" conflict: overlaps with ${b.label}`
+      }
+    }
+    return null
   }
 
   function submitDiagnosisAssignment() {
@@ -138,6 +178,9 @@ export function JCAppointmentPage() {
         const start = toIso(form.startLocal)
         const end = toIso(form.endLocal)
         if (!start || !end) throw new Error(`Set time window for concern: ${c.concernName}`)
+
+        const conflict = checkBayConflict(form.bayId, start, end)
+        if (conflict) throw new Error(conflict)
 
         assignConcernDiagnosis({
           appointmentId: appt!.id,
@@ -164,13 +207,20 @@ export function JCAppointmentPage() {
         if (!form.seUserId) throw new Error(`Select SE for service: ${s.serviceDescription}`)
         if (!form.bayId) throw new Error(`Select Bay for service: ${s.serviceDescription}`)
 
+        const startIso = toIso(form.startLocal)
+        const endIso = toIso(form.endLocal)
+        if (startIso && endIso) {
+          const conflict = checkBayConflict(form.bayId, startIso, endIso)
+          if (conflict) throw new Error(conflict)
+        }
+
         assignServiceSE({
           appointmentId: appt!.id,
           serviceItemId: s.id,
           seUserId: form.seUserId,
           bayId: form.bayId,
-          startAt: toIso(form.startLocal) || undefined,
-          endAt: toIso(form.endLocal) || undefined,
+          startAt: startIso || undefined,
+          endAt: endIso || undefined,
         })
       }
 
@@ -221,6 +271,9 @@ export function JCAppointmentPage() {
             </Box>
           </Stack>
         </Paper>
+
+        {/* ── Vehicle + Customer Info ── */}
+        <VehicleInfoBanner appointmentId={appt.id} />
 
         {/* ── Workflow Timeline ── */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
@@ -323,14 +376,31 @@ export function JCAppointmentPage() {
                       {c.concernName}
                       {c.remark && <Typography component="span" variant="caption" color="text.secondary"> — {c.remark}</Typography>}
                     </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
+                      <TextField
+                        select size="small" label="Team"
+                        value={form.teamId}
+                        onChange={(e) => {
+                          const teamId = e.target.value
+                          setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), teamId, seUserId: '' } }))
+                        }}
+                      >
+                        <MenuItem value="">— Select Team —</MenuItem>
+                        {teams.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                      </TextField>
                       <TextField
                         select size="small" label="Service Engineer"
                         value={form.seUserId}
                         onChange={(e) => setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), seUserId: e.target.value } }))}
                       >
                         <MenuItem value="">— Select SE —</MenuItem>
-                        {seUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+                        {(() => {
+                          const team = teams.find((t) => t.id === form.teamId)
+                          const filteredSEs = team
+                            ? seUsers.filter((u) => u.id === team.seUserId)
+                            : seUsers
+                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)
+                        })()}
                       </TextField>
                       <TextField
                         select size="small" label="Bay"
@@ -381,14 +451,31 @@ export function JCAppointmentPage() {
                       {s.serviceDescription}
                       <Typography component="span" variant="caption" color="text.secondary"> — {s.serviceCode} · {fmtBDT(s.price)}</Typography>
                     </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
+                      <TextField
+                        select size="small" label="Team"
+                        value={form.teamId}
+                        onChange={(e) => {
+                          const teamId = e.target.value
+                          setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), teamId, seUserId: '' } }))
+                        }}
+                      >
+                        <MenuItem value="">— Select Team —</MenuItem>
+                        {teams.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                      </TextField>
                       <TextField
                         select size="small" label="Service Engineer"
                         value={form.seUserId}
                         onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), seUserId: e.target.value } }))}
                       >
                         <MenuItem value="">— Select SE —</MenuItem>
-                        {seUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+                        {(() => {
+                          const team = teams.find((t) => t.id === form.teamId)
+                          const filteredSEs = team
+                            ? seUsers.filter((u) => u.id === team.seUserId)
+                            : seUsers
+                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)
+                        })()}
                       </TextField>
                       <TextField
                         select size="small" label="Bay"

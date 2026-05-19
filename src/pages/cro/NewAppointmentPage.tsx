@@ -72,12 +72,14 @@ export function NewAppointmentPage() {
   const appointments = useCwStore((s) => s.appointments)
   const createAppointment = useCwStore((s) => s.createAppointment)
   const users = useCwStore((s) => s.users)
+  const roles = useCwStore((s) => s.roles)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const resolvePendingVehicle = useCwStore((s) => s.resolvePendingVehicle)
 
+  const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
   const saUsers = useMemo(
-    () => users.filter((u) => u.status === 'Active' && u.roleIds.length > 0),
-    [users],
+    () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
+    [users, saRoleId],
   )
 
   // Vehicle selection
@@ -240,7 +242,7 @@ export function NewAppointmentPage() {
         }
       }
 
-      navigate(`/cro/appointments/${appt.id}`)
+      navigate(`/cre/appointments/${appt.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -258,10 +260,10 @@ export function NewAppointmentPage() {
       subtitle="Create new appointment from here"
       actions={
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" size="small" onClick={() => navigate('/cro/vehicles')}>
+          <Button variant="outlined" size="small" onClick={() => navigate('/cre/vehicles')}>
             Add new vehicle
           </Button>
-          <Button variant="outlined" size="small" onClick={() => navigate('/cro/customers')}>
+          <Button variant="outlined" size="small" onClick={() => navigate('/cre/customers')}>
             Add new customer
           </Button>
         </Stack>
@@ -670,7 +672,7 @@ export function NewAppointmentPage() {
 
         {/* ── Actions ── */}
         <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
-          <Button variant="outlined" onClick={() => navigate('/cro/appointments')}>
+          <Button variant="outlined" onClick={() => navigate('/cre/appointments')}>
             Cancel
           </Button>
           <Button variant="contained" onClick={submit} disabled={!vehicleId}>

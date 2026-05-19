@@ -19,6 +19,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
+import { AppointmentCalendar } from '../../components/AppointmentCalendar'
 
 import type { CWAppointmentStatus } from '../../types/cw'
 
@@ -235,6 +236,23 @@ export function SAAppointmentsPage() {
             </Table>
           )}
         </Paper>
+
+        {/* Calendar */}
+        <AppointmentCalendar
+          appointments={relevant}
+          vehicleRegById={useMemo(() => {
+            const m = new Map<string, string>()
+            for (const v of vehicles) m.set(v.id, v.registrationNo)
+            return m
+          }, [vehicles])}
+          customerNameById={useMemo(() => {
+            const m = new Map<string, string>()
+            for (const c of customers) m.set(c.id, c.fullName)
+            return m
+          }, [customers])}
+          basePath="/sa/appointments"
+          title="SA Appointment Calendar"
+        />
       </Stack>
     </Page>
   )

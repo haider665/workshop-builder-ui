@@ -2,7 +2,6 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
   Chip,
   Dialog,
   DialogActions,
@@ -25,6 +24,8 @@ import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
+import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
+import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import type { CWInspectionCheck } from '../../types/cw'
 
 function fmtBDT(n: number) {
@@ -110,12 +111,6 @@ export function SAAppointmentDetailPage() {
   // SA can confirm payment
   const canConfirmPayment = isPaymentPending
 
-  function toggleCheck(id: string) {
-    setInspChecks((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, checked: !c.checked } : c)),
-    )
-  }
-
   function handleSubmitInspection() {
     submitInspection({
       appointmentId: appt!.id,
@@ -139,8 +134,9 @@ export function SAAppointmentDetailPage() {
       const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
       setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nAfter diagnosis, the following services are recommended:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm to proceed.`)
     } else {
+      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
       const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
-      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nAll services completed.\n\nTotal Due: ${fmtBDT(total)}\n\nPlease make payment to collect your vehicle.`)
+      setWaMessage(`Dear ${name},\n\nGreat news! Your vehicle ${reg} is ready for pickup.\n\nCompleted Services:\n${serviceList}\n\nTotal Due: ${fmtBDT(total)}\n\nPickup Hours: 9:00 AM - 6:00 PM (Sat-Thu)\n\nPlease make payment at the cashier counter to collect your vehicle. We accept Cash, Card, and Mobile Banking.\n\nThank you for choosing Continental Workshop!`)
     }
     setWaDialogOpen(true)
   }
@@ -244,26 +240,15 @@ export function SAAppointmentDetailPage() {
           </Stack>
         </Paper>
 
+        {/* ── Vehicle + Customer Info ── */}
+        <VehicleInfoBanner appointmentId={appt.id} />
+
         {/* ── Timeline ── */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
         {/* ── Inspection Checklist ── */}
         {isInspection && inspChecks.length > 0 && (
-          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'info.main' }}>
-              Vehicle Inspection Checklist ({inspChecks.filter((c) => c.checked).length}/{inspChecks.length})
-            </Typography>
-            <Stack spacing={1}>
-              {inspChecks.map((check) => (
-                <Box key={check.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Checkbox checked={check.checked} onChange={() => toggleCheck(check.id)} />
-                  <Typography variant="body2" sx={{ fontWeight: check.checked ? 700 : 400 }}>
-                    {check.label}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
-          </Paper>
+          <SAInspectionTabs checks={inspChecks} onChange={setInspChecks} />
         )}
 
         {/* ── Concerns ── */}

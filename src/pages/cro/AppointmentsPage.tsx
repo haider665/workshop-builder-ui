@@ -111,7 +111,7 @@ export function AppointmentsPage() {
           variant="contained"
           startIcon={<Add />}
           component={RouterLink}
-          to="/cro/appointments/new"
+          to="/cre/appointments/new"
         >
           New Appointment
         </Button>
@@ -169,7 +169,7 @@ export function AppointmentsPage() {
                       key={appt.id}
                       hover
                       sx={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/cro/appointments/${appt.id}`)}
+                      onClick={() => navigate(`/cre/appointments/${appt.id}`)}
                     >
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>

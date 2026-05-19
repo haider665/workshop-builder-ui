@@ -1,5 +1,7 @@
 import {
+  Alert,
   Chip,
+  MenuItem,
   Paper,
   Stack,
   Table,
@@ -7,9 +9,10 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
@@ -33,14 +36,26 @@ export function TechnicianDashboardPage() {
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
   const users = useCwStore((s) => s.users)
+  const roles = useCwStore((s) => s.roles)
   const sessionUser = useSessionStore((s) => s.user)
 
-  // Find the CW user matching the session user name
-  const currentUserId = useMemo(() => {
+  // Get technician role users
+  const techRoleId = useMemo(() => roles.find((r) => r.name === 'Technician')?.id, [roles])
+  const techUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && techRoleId && u.roleIds.includes(techRoleId)),
+    [users, techRoleId],
+  )
+
+  // Try auto-match by name
+  const autoMatchedId = useMemo(() => {
     if (!sessionUser) return null
-    const cwUser = users.find((u) => u.fullName === sessionUser.name)
+    const cwUser = techUsers.find((u) => u.fullName === sessionUser.name)
     return cwUser?.id ?? null
-  }, [sessionUser, users])
+  }, [sessionUser, techUsers])
+
+  const [manualUserId, setManualUserId] = useState<string>('')
+
+  const currentUserId = autoMatchedId ?? (manualUserId || null)
 
   const myTasks = useMemo(() => {
     if (!currentUserId) return []
@@ -103,8 +118,24 @@ export function TechnicianDashboardPage() {
   return (
     <Page title="My Tasks" subtitle="Your assigned concern and service tasks.">
       <Stack spacing={3}>
-        {!currentUserId && (
-          <Typography color="error" sx={{ fontWeight: 700 }}>Please log in to see your tasks.</Typography>
+        {!autoMatchedId && (
+          <Alert severity="info" sx={{ mb: 1 }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Your login name doesn't match a registered technician. Select your identity:
+            </Typography>
+            <TextField
+              select
+              size="small"
+              label="Select Technician"
+              value={manualUserId}
+              onChange={(e) => setManualUserId(e.target.value)}
+              sx={{ minWidth: 260 }}
+            >
+              {techUsers.map((u) => (
+                <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+              ))}
+            </TextField>
+          </Alert>
         )}
 
         {/* Active */}

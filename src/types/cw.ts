@@ -140,18 +140,62 @@ export type CWTaskAttachment = {
 }
 
 export type CWCustomerStatus = 'Active' | 'Inactive'
+export type CWCustomerType = 'Individual' | 'Corporate'
+
+export type CWAddress = {
+  division?: string
+  city?: string
+  postalCode?: string
+  street?: string
+}
+
+export type CWOccupation = {
+  type?: string
+  companyName?: string
+  designation?: string
+}
+
+export type CWCorporateInfo = {
+  parentCompanyName?: string
+  parentCompanyAddress?: CWAddress
+  transportOfficerName?: string
+  transportOfficerPhone?: string
+  transportOfficerEmail?: string
+  transportManagerName?: string
+  transportManagerPhone?: string
+  transportManagerEmail?: string
+  note?: string
+  socialMedia?: string
+}
 
 export type CWCustomer = {
   id: string
   fullName: string
   phone: string
   email?: string
+  type?: CWCustomerType
+  address?: CWAddress
+  occupation?: CWOccupation
+  // Driver info
+  isSelfDriven?: boolean
+  driverName?: string
+  driverPhone?: string
+  isPersonalUse?: boolean
+  // Corporate
+  corporate?: CWCorporateInfo
+  // Socials
+  whatsappLink?: string
+  facebookLink?: string
+  linkedinLink?: string
+  googleLink?: string
   status: CWCustomerStatus
   createdAt: string
   updatedAt: string
 }
 
 export type CWVehicleStatus = 'Active' | 'Inactive'
+export type CWVehicleCategory = 'SUV' | 'Sedan' | 'Hatchback' | 'Pickup' | 'Van' | 'Truck' | 'Bus' | 'Other'
+export type CWVehicleSize = 'Small' | 'Medium' | 'Large'
 
 export type CWVehicle = {
   id: string
@@ -161,6 +205,17 @@ export type CWVehicle = {
   model?: string
   vin?: string
   odometerKm?: number
+  vehicleCategory?: CWVehicleCategory
+  vehicleSize?: CWVehicleSize
+  modelVariant?: string
+  countryOfOrigin?: string
+  countryOfAssembly?: string
+  exteriorColor?: string
+  exteriorColorCode?: string
+  interiorColor?: string
+  interiorColorCode?: string
+  tyreSize?: string
+  additionalNotes?: string
   status: CWVehicleStatus
   createdAt: string
   updatedAt: string
@@ -198,6 +253,7 @@ export type CWConcern = {
   id: string
   categoryId: string
   name: string
+  estimatedTimeHrs?: number
   status: CWConcernStatus
   createdAt: string
   updatedAt: string
@@ -228,6 +284,7 @@ export type CWTechnicianAssignment = {
   id: string
   technicianUserId: string
   status: CWTechnicianAssignmentStatus
+  assignmentRemark?: string
   startedAt?: string
   pausedAt?: string
   completedAt?: string
@@ -284,13 +341,33 @@ export type CWWhatsappLog = {
   message: string
 }
 
-// ─── Inspection checklist ─────────────────────────────────────────────────────
+// ─── Inspection checklist (Health Check) ──────────────────────────────────────
+
+export type CWInspectionCondition = 'Good' | 'Warning' | 'Bad'
 
 export type CWInspectionCheck = {
   id: string
+  category: string        // 'System Component' | 'Scheduled Maintenance' | 'Tire/Brake Wire'
+  section?: string        // e.g. 'Brake System', 'Left Front'
   label: string
   checked: boolean
+  condition?: CWInspectionCondition
+  remark?: string
+  photoUrl?: string       // base64 data URL for MVP
   note?: string
+}
+
+// ─── Vehicle exterior/interior view checklists ────────────────────────────────
+
+export type CWVehicleView = 'Front' | 'Right' | 'Left' | 'Rear' | 'Interior'
+
+export type CWVehicleViewCheck = {
+  id: string
+  view: CWVehicleView
+  label: string
+  checked: boolean
+  remark?: string
+  photoUrl?: string
 }
 
 // ─── Timeline ─────────────────────────────────────────────────────────────────
@@ -324,6 +401,11 @@ export type CWAppointmentStatus =
   | 'Payment Done'
   | 'Released'
 
+export type CWAppointmentPhoto = {
+  side: string           // 'front' | 'rear' | 'left' | 'right'
+  dataUrl: string        // base64 for MVP
+}
+
 export type CWAppointment = {
   id: string
   customerId: string
@@ -339,6 +421,11 @@ export type CWAppointment = {
   assignedSAUserId?: string
   // SA inspection
   inspectionChecks: CWInspectionCheck[]
+  vehicleViewChecks: CWVehicleViewCheck[]
+  // SA photos & vehicle condition
+  currentMileage?: number
+  currentFuelLevel?: string
+  photos: CWAppointmentPhoto[]
   // Structured concern/service items
   concernItems: CWAppointmentConcernItem[]
   serviceItems: CWAppointmentServiceItem[]
@@ -350,6 +437,8 @@ export type CWAppointment = {
   timeline: CWTimelineEvent[]
   // Gate entry link
   gateEntryId?: string
+  // JC assignment
+  assignedTeamId?: string
   // Payment & release
   paymentStatus: 'Pending' | 'Done'
   gatePassIssuedAt?: string
@@ -371,6 +460,52 @@ export type CWJob = {
   testDriveDriverName?: string
   testDriveDriverNid?: string
   testDriveExpectedReturnAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Teams (Admin-managed) ────────────────────────────────────────────────────
+
+export type CWTeamStatus = 'Active' | 'Inactive'
+
+export type CWTeam = {
+  id: string
+  name: string
+  seUserId: string
+  technicianUserIds: string[]
+  status: CWTeamStatus
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Parts (Admin-managed) ────────────────────────────────────────────────────
+
+export type CWPartStatus = 'Active' | 'Inactive'
+
+export type CWPart = {
+  id: string
+  name: string
+  partNumber?: string
+  price?: number
+  status: CWPartStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type CWPartRequestStatus = 'Requested' | 'Labeled' | 'Fulfilled' | 'Rejected'
+
+export type CWPartRequest = {
+  id: string
+  appointmentId: string
+  concernItemId?: string
+  partName: string
+  partNumber?: string
+  price?: number
+  quantity?: number
+  deliveryDate?: string
+  status: CWPartRequestStatus
+  requestedBy: string
+  labeledBy?: string
   createdAt: string
   updatedAt: string
 }

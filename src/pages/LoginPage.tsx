@@ -37,7 +37,7 @@ export function LoginPage() {
     Admin: true,
     Guard: false,
     'Job Creation': false,
-    CRO: false,
+    CRE: false,
     Technician: false,
     'Service Advisor': false,
     'Service Engineer': false,
@@ -117,7 +117,7 @@ export function LoginPage() {
 
             <FormControl component="fieldset">
               <FormGroup>
-                {ALL_ROLES.filter((r) => showAllRoles || ['Admin', 'Guard', 'Job Creation', 'CRO', 'Technician'].includes(r)).map(
+                {ALL_ROLES.filter((r) => showAllRoles || ['Admin', 'Guard', 'Job Creation', 'CRE', 'Technician'].includes(r)).map(
                   (role) => (
                     <FormControlLabel
                       key={role}

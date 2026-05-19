@@ -36,6 +36,8 @@ export function GuardHome() {
   const jobs = useCwStore((s) => s.jobs)
   const vehicles = useCwStore((s) => s.vehicles)
   const appointments = useCwStore((s) => s.appointments)
+  const customers = useCwStore((s) => s.customers)
+  const users = useCwStore((s) => s.users)
   const createPendingVehicle = useCwStore((s) => s.createPendingVehicle)
   const setAppointmentGateEntry = useCwStore((s) => s.setAppointmentGateEntry)
   const releaseVehicle = useCwStore((s) => s.releaseVehicle)
@@ -217,9 +219,90 @@ export function GuardHome() {
       <Dialog open={step === 'entry-confirm'} onClose={() => setStep('idle')} fullWidth maxWidth="sm">
         <DialogTitle sx={{ fontWeight: 900 }}>Confirm entry</DialogTitle>
         <DialogContent>
-          <Typography color="text.secondary">
-            Registration: <strong>{normalizedReg.toUpperCase()}</strong>
-          </Typography>
+          <Stack spacing={2}>
+            <Typography color="text.secondary">
+              Registration: <strong>{normalizedReg.toUpperCase()}</strong>
+            </Typography>
+
+            {/* Pre-booked vs Walk-in detection */}
+            {(() => {
+              const reg = normalizedReg.toUpperCase()
+              const vehicle = vehicles.find((v) => normalizeKey(v.registrationNo) === normalizeKey(reg))
+              const appt = vehicle
+                ? appointments
+                    .filter((a) => a.vehicleId === vehicle.id)
+                    .filter((a) => a.status !== 'Released')
+                    .slice()
+                    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+                    .at(0) ?? null
+                : null
+              const customer = appt
+                ? customers.find((c) => c.id === appt.customerId)
+                : vehicle
+                  ? customers.find((c) => c.id === vehicle.customerId)
+                  : null
+
+              if (appt) {
+                const sa = appt.assignedSAUserId
+                  ? users.find((u) => u.id === appt.assignedSAUserId)
+                  : null
+                return (
+                  <Paper variant="outlined" sx={{ p: 2, bgcolor: 'success.50' }}>
+                    <Stack spacing={1}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ px: 1.5, py: 0.25, bgcolor: 'success.main', borderRadius: 1, color: 'white', fontWeight: 800, fontSize: 12 }}>
+                          PRE-BOOKED
+                        </Box>
+                      </Box>
+                      <Typography variant="body2">
+                        <strong>Customer:</strong> {customer?.fullName ?? '—'} · {customer?.phone ?? ''}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Vehicle:</strong> {vehicle?.registrationNo} · {[vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || '—'}
+                      </Typography>
+                      {sa && (
+                        <Typography variant="body2">
+                          <strong>Service Advisor:</strong> {sa.fullName}
+                        </Typography>
+                      )}
+                      <Typography variant="body2">
+                        <strong>Slot:</strong> {appt.slotDate ?? '—'} {appt.slotTime ?? ''}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Appointment status: {appt.status}
+                      </Typography>
+                    </Stack>
+                  </Paper>
+                )
+              }
+
+              return (
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: 'warning.50' }}>
+                  <Stack spacing={1}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ px: 1.5, py: 0.25, bgcolor: 'warning.main', borderRadius: 1, color: 'white', fontWeight: 800, fontSize: 12 }}>
+                        WALK-IN
+                      </Box>
+                    </Box>
+                    {customer ? (
+                      <>
+                        <Typography variant="body2">
+                          <strong>Customer:</strong> {customer.fullName} · {customer.phone}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Vehicle:</strong> {vehicle?.registrationNo} · {[vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || '—'}
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No existing vehicle or appointment found. Will be logged as temporary entry for CRE to resolve.
+                      </Typography>
+                    )}
+                  </Stack>
+                </Paper>
+              )
+            })()}
+          </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2, pt: 0 }}>
           <Button variant="outlined" size="large" onClick={() => setStep('idle')} sx={{ fontWeight: 900 }}>

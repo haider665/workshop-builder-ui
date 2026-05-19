@@ -14,6 +14,7 @@ import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
+import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import type { CWConcernWorkStatus, CWServiceWorkStatus } from '../../types/cw'
 
 function fmtBDT(n: number) {
@@ -38,6 +39,8 @@ export function SEAppointmentDetailPage() {
   const addAppointmentService = useCwStore((s) => s.addAppointmentService)
   const pushTimeline = useCwStore((s) => s.pushTimeline)
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
+  const partRequests = useCwStore((s) => s.partRequests)
+  const createPartRequest = useCwStore((s) => s.createPartRequest)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -59,15 +62,26 @@ export function SEAppointmentDetailPage() {
     return map
   }, [bays])
 
-  const activeUsers = useMemo(() => users.filter((u) => u.status === 'Active'), [users])
+  const roles = useCwStore((s) => s.roles)
+  const techRoleId = useMemo(() => roles.find((r) => r.name === 'Technician')?.id, [roles])
+  const activeUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && techRoleId && u.roleIds.includes(techRoleId)),
+    [users, techRoleId],
+  )
   const activeServices = useMemo(() => services.filter((s) => s.status === 'Active'), [services])
 
   const [concernTechForm, setConcernTechForm] = useState<Record<string, string[]>>({})
   const [serviceTechForm, setServiceTechForm] = useState<Record<string, string[]>>({})
+  const [concernRemarks, setConcernRemarks] = useState<Record<string, string>>({})
+  const [serviceRemarks, setServiceRemarks] = useState<Record<string, string>>({})
 
   // Add service form
   const [addServiceId, setAddServiceId] = useState('')
   const [addServiceRemark, setAddServiceRemark] = useState('')
+
+  // Part request form
+  const [partRequestName, setPartRequestName] = useState('')
+  const [partRequestQty, setPartRequestQty] = useState('1')
 
   if (!appt) {
     return (
@@ -164,6 +178,9 @@ export function SEAppointmentDetailPage() {
           </Stack>
         </Paper>
 
+        {/* Vehicle + Customer Info */}
+        <VehicleInfoBanner appointmentId={appt.id} />
+
         {/* Timeline */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
@@ -196,27 +213,36 @@ export function SEAppointmentDetailPage() {
                   )}
 
                   {isDiagnosisPhase && (
-                    <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                    <Stack spacing={1} sx={{ mt: 1 }}>
                       <TextField
-                        select size="small" label="Technicians"
-                        value={concernTechForm[c.id] ?? []}
-                        onChange={(e) => setConcernTechForm((prev) => ({ ...prev, [c.id]: e.target.value as unknown as string[] }))}
-                        slotProps={{ select: { multiple: true } }}
-                        sx={{ minWidth: 200 }}
-                      >
-                        {activeUsers.map((u) => (
-                          <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                        ))}
-                      </TextField>
-                      <Button size="small" variant="contained" onClick={() => saveConcernTechnicians(c.id)}>
-                        Assign
-                      </Button>
-                      <Button size="small" variant="outlined" color="warning" onClick={() => handleConcernStatus(c.id, 'In Progress')}>
-                        Start
-                      </Button>
-                      <Button size="small" variant="outlined" color="success" onClick={() => handleConcernStatus(c.id, 'Completed')}>
-                        Done
-                      </Button>
+                        size="small"
+                        label="SE Remark"
+                        value={concernRemarks[c.id] ?? ''}
+                        onChange={(e) => setConcernRemarks((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                        fullWidth
+                        multiline
+                        rows={2}
+                        placeholder="Add diagnosis notes, findings..."
+                      />
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                        <TextField
+                          select size="small" label="Technicians"
+                          value={concernTechForm[c.id] ?? []}
+                          onChange={(e) => setConcernTechForm((prev) => ({ ...prev, [c.id]: e.target.value as unknown as string[] }))}
+                          slotProps={{ select: { multiple: true } }}
+                          sx={{ minWidth: 200 }}
+                        >
+                          {activeUsers.map((u) => (
+                            <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                          ))}
+                        </TextField>
+                        <Button size="small" variant="contained" onClick={() => saveConcernTechnicians(c.id)}>
+                          Assign
+                        </Button>
+                        <Button size="small" variant="outlined" color="success" onClick={() => handleConcernStatus(c.id, 'Completed')}>
+                          Done
+                        </Button>
+                      </Stack>
                     </Stack>
                   )}
                 </Box>
@@ -233,6 +259,77 @@ export function SEAppointmentDetailPage() {
                 Submit Diagnosis Complete
               </Button>
             )}
+          </Paper>
+        )}
+
+        {/* ── Part Requests (during diagnosis) ── */}
+        {isDiagnosisPhase && (
+          <Paper sx={{ border: '2px solid', borderColor: 'secondary.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'secondary.main' }}>
+              Part Requests
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Request parts needed for diagnosis and repair.
+            </Typography>
+
+            {/* Existing requests for this appointment */}
+            {partRequests.filter((pr) => pr.appointmentId === appointmentId).length > 0 && (
+              <Stack spacing={1} sx={{ mb: 2 }}>
+                {partRequests.filter((pr) => pr.appointmentId === appointmentId).map((pr) => (
+                  <Box key={pr.id} sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{pr.partName}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Qty: {pr.quantity ?? 1}{pr.partNumber ? ` · #${pr.partNumber}` : ''}
+                          {typeof pr.price === 'number' ? ` · BDT ${pr.price}` : ''}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        size="small"
+                        label={pr.status}
+                        color={pr.status === 'Fulfilled' ? 'success' : pr.status === 'Labeled' ? 'info' : pr.status === 'Rejected' ? 'error' : 'warning'}
+                      />
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+              <TextField
+                size="small" label="Part Name"
+                value={partRequestName}
+                onChange={(e) => setPartRequestName(e.target.value)}
+                sx={{ minWidth: 220 }}
+                placeholder="e.g. Brake Pad Set"
+              />
+              <TextField
+                size="small" label="Qty" type="number"
+                value={partRequestQty}
+                onChange={(e) => setPartRequestQty(e.target.value)}
+                sx={{ width: 80 }}
+              />
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={() => {
+                  if (!partRequestName.trim()) return
+                  createPartRequest({
+                    appointmentId: appt!.id,
+                    partName: partRequestName.trim(),
+                    quantity: Number(partRequestQty) || 1,
+                    requestedBy: 'SE',
+                  })
+                  pushTimeline(appt!.id, { actor: 'SE', action: `Requested part: ${partRequestName.trim()}` })
+                  setPartRequestName('')
+                  setPartRequestQty('1')
+                }}
+                disabled={!partRequestName.trim()}
+              >
+                Request
+              </Button>
+            </Stack>
           </Paper>
         )}
 
@@ -310,27 +407,36 @@ export function SEAppointmentDetailPage() {
                     </Stack>
                   )}
 
-                  <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                  <Stack spacing={1} sx={{ mt: 1 }}>
                     <TextField
-                      select size="small" label="Technicians"
-                      value={serviceTechForm[s.id] ?? []}
-                      onChange={(e) => setServiceTechForm((prev) => ({ ...prev, [s.id]: e.target.value as unknown as string[] }))}
-                      slotProps={{ select: { multiple: true } }}
-                      sx={{ minWidth: 200 }}
-                    >
-                      {activeUsers.map((u) => (
-                        <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                      ))}
-                    </TextField>
-                    <Button size="small" variant="contained" onClick={() => saveServiceTechnicians(s.id)}>
-                      Assign
-                    </Button>
-                    <Button size="small" variant="outlined" color="warning" onClick={() => handleServiceStatus(s.id, 'In Progress')}>
-                      Start
-                    </Button>
-                    <Button size="small" variant="outlined" color="success" onClick={() => handleServiceStatus(s.id, 'Completed')}>
-                      Done
-                    </Button>
+                      size="small"
+                      label="SE Remark"
+                      value={serviceRemarks[s.id] ?? ''}
+                      onChange={(e) => setServiceRemarks((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                      fullWidth
+                      multiline
+                      rows={2}
+                      placeholder="Add service notes..."
+                    />
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                      <TextField
+                        select size="small" label="Technicians"
+                        value={serviceTechForm[s.id] ?? []}
+                        onChange={(e) => setServiceTechForm((prev) => ({ ...prev, [s.id]: e.target.value as unknown as string[] }))}
+                        slotProps={{ select: { multiple: true } }}
+                        sx={{ minWidth: 200 }}
+                      >
+                        {activeUsers.map((u) => (
+                          <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                        ))}
+                      </TextField>
+                      <Button size="small" variant="contained" onClick={() => saveServiceTechnicians(s.id)}>
+                        Assign
+                      </Button>
+                      <Button size="small" variant="outlined" color="success" onClick={() => handleServiceStatus(s.id, 'Completed')}>
+                        Done
+                      </Button>
+                    </Stack>
                   </Stack>
                 </Box>
               ))}

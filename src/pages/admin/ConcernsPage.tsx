@@ -36,6 +36,7 @@ export function ConcernsPage() {
   // New concern form
   const [newConcernCatId, setNewConcernCatId] = useState('')
   const [newConcernName, setNewConcernName] = useState('')
+  const [newConcernEstTime, setNewConcernEstTime] = useState('')
 
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
@@ -57,8 +58,10 @@ export function ConcernsPage() {
     try {
       setError(null)
       if (!newConcernCatId) throw new Error('Select a category')
-      const c = createConcern({ categoryId: newConcernCatId, name: newConcernName })
+      const estHrs = newConcernEstTime.trim() ? Number(newConcernEstTime.trim()) : undefined
+      const c = createConcern({ categoryId: newConcernCatId, name: newConcernName, estimatedTimeHrs: estHrs })
       setNewConcernName('')
+      setNewConcernEstTime('')
       setSuccessMessage(`Concern created: ${c.name}`)
       setSuccessOpen(true)
     } catch (e) {
@@ -140,6 +143,13 @@ export function ConcernsPage() {
               onChange={(e) => setNewConcernName(e.target.value)}
               sx={{ flex: 1 }}
             />
+            <TextField
+              label="Est. Time (hrs)"
+              type="number"
+              value={newConcernEstTime}
+              onChange={(e) => setNewConcernEstTime(e.target.value)}
+              sx={{ width: 140 }}
+            />
             <Button variant="contained" onClick={submitConcern} sx={{ height: 40 }}>
               Add Concern
             </Button>
@@ -201,6 +211,7 @@ export function ConcernsPage() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Est. Time (hrs)</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
               </TableRow>
@@ -214,6 +225,11 @@ export function ConcernsPage() {
                     </Typography>
                   </TableCell>
                   <TableCell>{c.name}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {typeof c.estimatedTimeHrs === 'number' ? `${c.estimatedTimeHrs}h` : '—'}
+                    </Typography>
+                  </TableCell>
                   <TableCell>
                     <Chip
                       size="small"

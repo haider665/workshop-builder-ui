@@ -81,6 +81,16 @@ export function AdminHome() {
             desc: 'Manage services catalogue with BDT pricing.',
             to: '/admin/services',
           },
+          {
+            title: 'Teams',
+            desc: 'Manage teams with SE and Technician assignments.',
+            to: '/admin/teams',
+          },
+          {
+            title: 'Parts',
+            desc: 'Manage inventory parts for service and repair.',
+            to: '/admin/parts',
+          },
         ].map((card) => (
           <Card key={card.to} variant="outlined" sx={{ height: '100%' }}>
             <CardActionArea component={RouterLink} to={card.to} sx={{ height: '100%' }}>

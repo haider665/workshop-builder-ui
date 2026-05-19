@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
+import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 
 function formatDuration(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -145,6 +146,9 @@ export function TechnicianTaskPage() {
   return (
     <Page title={item.name} subtitle={`${vehicle?.registrationNo ?? '—'} · ${customer?.fullName ?? ''}`}>
       <Stack spacing={3} sx={{ maxWidth: 600, mx: 'auto' }}>
+        {/* Vehicle + Customer Info */}
+        <VehicleInfoBanner appointmentId={appointmentId!} />
+
         {/* Timer Display */}
         <Paper sx={{ p: 4, textAlign: 'center', bgcolor: statusBgColor, color: 'white', borderRadius: 3 }}>
           <Timer sx={{ fontSize: 48, mb: 1 }} />
