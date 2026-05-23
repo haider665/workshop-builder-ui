@@ -3,8 +3,15 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  InputLabel,
   MenuItem,
   Paper,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -74,6 +81,9 @@ export function JCAppointmentPage() {
   const teams = useCwStore((s) => s.teams)
   const services = useCwStore((s) => s.services)
   const partRequests = useCwStore((s) => s.partRequests)
+  const shops = useCwStore((s) => s.shops)
+  const allConcerns = useCwStore((s) => s.concerns)
+  const concernCategories = useCwStore((s) => s.concernCategories)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -107,6 +117,28 @@ export function JCAppointmentPage() {
   const [concernForm, setConcernForm] = useState<ConcernForm>({})
   const [serviceForm, setServiceForm] = useState<ServiceForm>({})
   const [error, setError] = useState<string | null>(null)
+  const [concernShopFilter, setConcernShopFilter] = useState('')
+  const [serviceShopFilter, setServiceShopFilter] = useState('')
+
+  const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
+  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
+
+  // Shop lookup for concern items: concernId → concern → categoryId → category → shopId
+  const concernShopId = useMemo(() => {
+    const cMap = new Map(allConcerns.map((c) => [c.id, c]))
+    const catMap = new Map(concernCategories.map((c) => [c.id, c]))
+    return (concernId: string) => {
+      const concern = cMap.get(concernId)
+      if (!concern) return ''
+      return catMap.get(concern.categoryId)?.shopId ?? ''
+    }
+  }, [allConcerns, concernCategories])
+
+  // Shop lookup for service items: serviceId → service → shopId
+  const serviceShopIdMap = useMemo(() => new Map(services.map((s) => [s.id, s.shopId])), [services])
+
+  // Bay conflict confirmation dialog state
+  const [bayConflictDialog, setBayConflictDialog] = useState<{ open: boolean; conflicts: string[]; phase: 'diagnosis' | 'service' }>({ open: false, conflicts: [], phase: 'diagnosis' })
 
   if (!appt) {
     return (
@@ -204,25 +236,73 @@ export function JCAppointmentPage() {
     return null
   }
 
-  function submitDiagnosisAssignment() {
+  // Detect different teams sharing same bay within current form (intra-assignment)
+  function detectSimultaneousBayWork(formEntries: { id: string; label: string; teamId: string; bayId: string; startIso: string; endIso: string }[]): string[] {
+    const conflicts: string[] = []
+    for (let i = 0; i < formEntries.length; i++) {
+      for (let j = i + 1; j < formEntries.length; j++) {
+        const a = formEntries[i]
+        const b = formEntries[j]
+        if (!a.bayId || !b.bayId || a.bayId !== b.bayId) continue
+        if (!a.teamId || !b.teamId || a.teamId === b.teamId) continue
+        // Same bay, different teams — check time overlap
+        const aStart = Date.parse(a.startIso)
+        const aEnd = Date.parse(a.endIso)
+        const bStart = Date.parse(b.startIso)
+        const bEnd = Date.parse(b.endIso)
+        if (Number.isNaN(aStart) || Number.isNaN(aEnd) || Number.isNaN(bStart) || Number.isNaN(bEnd)) continue
+        if (aStart < bEnd && aEnd > bStart) {
+          const bayName = bayNameById.get(a.bayId) ?? a.bayId
+          const teamA = teams.find((t) => t.id === a.teamId)?.name ?? a.teamId
+          const teamB = teams.find((t) => t.id === b.teamId)?.name ?? b.teamId
+          conflicts.push(`Bay "${bayName}": Team "${teamA}" (${a.label}) and Team "${teamB}" (${b.label}) will work simultaneously.`)
+        }
+      }
+    }
+    return conflicts
+  }
+
+  function validateDiagnosisForm() {
+    for (const c of appt!.concernItems) {
+      const form = getConcernFormVal(c.id)
+      if (!form.seUserId) throw new Error(`Select SE for concern: ${c.concernName}`)
+      if (!form.bayId) throw new Error(`Select Bay for concern: ${c.concernName}`)
+      const start = toIso(form.startLocal)
+      if (!start) throw new Error(`Set start time for concern: ${c.concernName}`)
+      const end = toIso(form.endLocal) || start
+
+      const bayConflict = checkBayConflict(form.bayId, start, end)
+      if (bayConflict) throw new Error(bayConflict)
+
+      if (form.teamId) {
+        const teamConflict = checkTeamConflict(form.teamId, start, end)
+        if (teamConflict) throw new Error(teamConflict)
+      }
+    }
+  }
+
+  function submitDiagnosisAssignment(skipBayWarning = false) {
     try {
       setError(null)
+      validateDiagnosisForm()
+
+      // Check for simultaneous bay work (different teams, same bay)
+      if (!skipBayWarning) {
+        const entries = appt!.concernItems.map((c) => {
+          const form = getConcernFormVal(c.id)
+          return { id: c.id, label: c.concernName, teamId: form.teamId, bayId: form.bayId, startIso: toIso(form.startLocal), endIso: toIso(form.endLocal) || toIso(form.startLocal) }
+        })
+        const conflicts = detectSimultaneousBayWork(entries)
+        if (conflicts.length > 0) {
+          setBayConflictDialog({ open: true, conflicts, phase: 'diagnosis' })
+          return
+        }
+      }
+
       for (const c of appt!.concernItems) {
         const form = getConcernFormVal(c.id)
-        if (!form.seUserId) throw new Error(`Select SE for concern: ${c.concernName}`)
-        if (!form.bayId) throw new Error(`Select Bay for concern: ${c.concernName}`)
         const start = toIso(form.startLocal)
-        if (!start) throw new Error(`Set start time for concern: ${c.concernName}`)
-        // End is auto-calculated (start + predefined hours + buffer). Fallback to start if no predefined hours.
         const end = toIso(form.endLocal) || start
-
-        const bayConflict = checkBayConflict(form.bayId, start, end)
-        if (bayConflict) throw new Error(bayConflict)
-
-        if (form.teamId) {
-          const teamConflict = checkTeamConflict(form.teamId, start, end)
-          if (teamConflict) throw new Error(teamConflict)
-        }
 
         assignConcernDiagnosis({
           appointmentId: appt!.id,
@@ -241,25 +321,48 @@ export function JCAppointmentPage() {
     }
   }
 
-  function submitServiceAssignment() {
+  function validateServiceForm() {
+    for (const s of appt!.serviceItems) {
+      const form = getServiceFormVal(s.id)
+      if (!form.seUserId) throw new Error(`Select SE for service: ${s.serviceDescription}`)
+      if (!form.bayId) throw new Error(`Select Bay for service: ${s.serviceDescription}`)
+
+      const startIso = toIso(form.startLocal)
+      if (!startIso) throw new Error(`Set start time for service: ${s.serviceDescription}`)
+      const endIso = toIso(form.endLocal) || startIso
+
+      const bayConflict = checkBayConflict(form.bayId, startIso, endIso)
+      if (bayConflict) throw new Error(bayConflict)
+
+      if (form.teamId) {
+        const teamConflict = checkTeamConflict(form.teamId, startIso, endIso)
+        if (teamConflict) throw new Error(teamConflict)
+      }
+    }
+  }
+
+  function submitServiceAssignment(skipBayWarning = false) {
     try {
       setError(null)
+      validateServiceForm()
+
+      // Check for simultaneous bay work (different teams, same bay)
+      if (!skipBayWarning) {
+        const entries = appt!.serviceItems.map((s) => {
+          const form = getServiceFormVal(s.id)
+          return { id: s.id, label: s.serviceDescription, teamId: form.teamId, bayId: form.bayId, startIso: toIso(form.startLocal), endIso: toIso(form.endLocal) || toIso(form.startLocal) }
+        })
+        const conflicts = detectSimultaneousBayWork(entries)
+        if (conflicts.length > 0) {
+          setBayConflictDialog({ open: true, conflicts, phase: 'service' })
+          return
+        }
+      }
+
       for (const s of appt!.serviceItems) {
         const form = getServiceFormVal(s.id)
-        if (!form.seUserId) throw new Error(`Select SE for service: ${s.serviceDescription}`)
-        if (!form.bayId) throw new Error(`Select Bay for service: ${s.serviceDescription}`)
-
         const startIso = toIso(form.startLocal)
-        if (!startIso) throw new Error(`Set start time for service: ${s.serviceDescription}`)
         const endIso = toIso(form.endLocal) || startIso
-
-        const bayConflict = checkBayConflict(form.bayId, startIso, endIso)
-        if (bayConflict) throw new Error(bayConflict)
-
-        if (form.teamId) {
-          const teamConflict = checkTeamConflict(form.teamId, startIso, endIso)
-          if (teamConflict) throw new Error(teamConflict)
-        }
 
         assignServiceSE({
           appointmentId: appt!.id,
@@ -282,6 +385,40 @@ export function JCAppointmentPage() {
 
   return (
     <Page title="JC — Appointment" subtitle={`#${appt.id.slice(0, 8)}`}>
+      {/* Simultaneous bay work confirmation dialog */}
+      <Dialog open={bayConflictDialog.open} onClose={() => setBayConflictDialog((d) => ({ ...d, open: false }))} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 900, color: 'warning.main' }}>⚠ Simultaneous Bay Work</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Multiple teams with different concerns will be working in the same bay at the same time:
+            </Typography>
+            {bayConflictDialog.conflicts.map((msg, i) => (
+              <Alert key={i} severity="warning" sx={{ fontWeight: 600 }}>{msg}</Alert>
+            ))}
+            <Typography sx={{ fontWeight: 600 }}>Do you want to proceed?</Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button variant="outlined" size="large" onClick={() => setBayConflictDialog((d) => ({ ...d, open: false }))} sx={{ fontWeight: 900 }}>
+            Decline
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            size="large"
+            sx={{ fontWeight: 900 }}
+            onClick={() => {
+              setBayConflictDialog((d) => ({ ...d, open: false }))
+              if (bayConflictDialog.phase === 'diagnosis') submitDiagnosisAssignment(true)
+              else submitServiceAssignment(true)
+            }}
+          >
+            Approve & Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Stack spacing={2.5}>
         {error && <Alert severity="error">{error}</Alert>}
 
@@ -337,12 +474,22 @@ export function JCAppointmentPage() {
 
         {/* ── Concerns Summary ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Concerns ({appt.concernItems.length})</Typography>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 900 }}>Concerns ({appt.concernItems.length})</Typography>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Shop</InputLabel>
+              <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value as string)}>
+                <MenuItem value="">All Shops</MenuItem>
+                {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            {concernShopFilter && <Chip label={shopById.get(concernShopFilter)?.name} onDelete={() => setConcernShopFilter('')} color="primary" size="small" />}
+          </Stack>
           {appt.concernItems.length === 0 ? (
             <Typography variant="body2" color="text.secondary">No concerns listed.</Typography>
           ) : (
             <Stack spacing={2}>
-              {appt.concernItems.map((c) => {
+              {appt.concernItems.filter((c) => !concernShopFilter || concernShopId(c.concernId) === concernShopFilter).map((c) => {
                 const concernServices = (c.serviceIds ?? []).map((sid) => services.find((s) => s.id === sid)).filter(Boolean)
                 const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
                 return (
@@ -420,7 +567,17 @@ export function JCAppointmentPage() {
 
         {/* ── Services Summary ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Services ({appt.serviceItems.length})</Typography>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 900 }}>Services ({appt.serviceItems.length})</Typography>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Shop</InputLabel>
+              <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value as string)}>
+                <MenuItem value="">All Shops</MenuItem>
+                {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            {serviceShopFilter && <Chip label={shopById.get(serviceShopFilter)?.name} onDelete={() => setServiceShopFilter('')} color="primary" size="small" />}
+          </Stack>
           {appt.serviceItems.length === 0 ? (
             <Typography variant="body2" color="text.secondary">No services listed.</Typography>
           ) : (
@@ -435,10 +592,10 @@ export function JCAppointmentPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {appt.serviceItems.map((s) => (
+                {appt.serviceItems.filter((s) => !serviceShopFilter || (serviceShopIdMap.get(s.serviceId) ?? '') === serviceShopFilter).map((s) => (
                   <TableRow key={s.id}>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription} ({s.processTimeMins} mins)</Typography>
                       <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
                     </TableCell>
                     <TableCell><Typography variant="body2">{fmtBDT(s.price)}</Typography></TableCell>
@@ -471,16 +628,30 @@ export function JCAppointmentPage() {
                 const form = getConcernFormVal(c.id)
                 return (
                   <Box key={c.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                      {c.concernName}
+                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {c.concernName}
+                      </Typography>
+                      {c.remark && <Typography variant="caption" color="text.secondary">— {c.remark}</Typography>}
                       {typeof c.processTimeMins === 'number' && (
-                        <Typography component="span" variant="caption" sx={{ ml: 1, px: 1, py: 0.25, bgcolor: 'info.main', color: 'white', borderRadius: 1, fontWeight: 700 }}>
-                          {c.processTimeMins}m
-                        </Typography>
+                        <Chip
+                          size="small"
+                          label={`⏱ ${c.processTimeMins} mins`}
+                          color="info"
+                          sx={{ fontWeight: 800, fontSize: '0.8rem' }}
+                        />
                       )}
-                      {c.remark && <Typography component="span" variant="caption" color="text.secondary"> — {c.remark}</Typography>}
-                    </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
+                      {form.endLocal && (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color="success"
+                          label={`End: ${new Date(form.endLocal).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+                          sx={{ fontWeight: 700 }}
+                        />
+                      )}
+                    </Stack>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 2fr' }, gap: 1.5 }}>
                       <TextField
                         select size="small" label="Team"
                         value={form.teamId}
@@ -528,11 +699,6 @@ export function JCAppointmentPage() {
                         }}
                         slotProps={{ inputLabel: { shrink: true } }}
                       />
-                      {form.endLocal && (
-                        <Typography variant="caption" sx={{ alignSelf: 'center', fontWeight: 700, color: 'success.main', whiteSpace: 'nowrap' }}>
-                          End: {new Date(form.endLocal).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </Typography>
-                      )}
                     </Box>
                   </Box>
                 )
@@ -540,7 +706,7 @@ export function JCAppointmentPage() {
             </Stack>
 
             <Box sx={{ mt: 2.5 }}>
-              <Button variant="contained" color="warning" size="large" onClick={submitDiagnosisAssignment} sx={{ fontWeight: 900 }}>
+              <Button variant="contained" color="warning" size="large" onClick={() => submitDiagnosisAssignment()} sx={{ fontWeight: 900 }}>
                 Assign SE & Start Diagnosis
               </Button>
             </Box>
@@ -562,16 +728,30 @@ export function JCAppointmentPage() {
                 const form = getServiceFormVal(s.id)
                 return (
                   <Box key={s.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                      {s.serviceDescription}
+                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {s.serviceDescription}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">— {s.serviceCode} · {fmtBDT(s.price)}</Typography>
                       {typeof s.processTimeMins === 'number' && s.processTimeMins > 0 && (
-                        <Typography component="span" variant="caption" sx={{ ml: 1, px: 1, py: 0.25, bgcolor: 'success.main', color: 'white', borderRadius: 1, fontWeight: 700 }}>
-                          {s.processTimeMins}m
-                        </Typography>
+                        <Chip
+                          size="small"
+                          label={`⏱ ${s.processTimeMins} mins`}
+                          color="success"
+                          sx={{ fontWeight: 800, fontSize: '0.8rem' }}
+                        />
                       )}
-                      <Typography component="span" variant="caption" color="text.secondary"> — {s.serviceCode} · {fmtBDT(s.price)}</Typography>
-                    </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
+                      {form.endLocal && (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color="success"
+                          label={`End: ${new Date(form.endLocal).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+                          sx={{ fontWeight: 700 }}
+                        />
+                      )}
+                    </Stack>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 2fr' }, gap: 1.5 }}>
                       <TextField
                         select size="small" label="Team"
                         value={form.teamId}
@@ -619,11 +799,6 @@ export function JCAppointmentPage() {
                         }}
                         slotProps={{ inputLabel: { shrink: true } }}
                       />
-                      {form.endLocal && (
-                        <Typography variant="caption" sx={{ alignSelf: 'center', fontWeight: 700, color: 'success.main', whiteSpace: 'nowrap' }}>
-                          End: {new Date(form.endLocal).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </Typography>
-                      )}
                     </Box>
                   </Box>
                 )
@@ -631,7 +806,7 @@ export function JCAppointmentPage() {
             </Stack>
 
             <Box sx={{ mt: 2.5 }}>
-              <Button variant="contained" color="success" size="large" onClick={submitServiceAssignment} sx={{ fontWeight: 900 }}>
+              <Button variant="contained" color="success" size="large" onClick={() => submitServiceAssignment()} sx={{ fontWeight: 900 }}>
                 Assign SE & Start Services
               </Button>
             </Box>

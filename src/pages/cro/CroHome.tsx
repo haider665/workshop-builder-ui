@@ -99,11 +99,11 @@ export function CroHome() {
     [appointments, todayStr],
   )
 
-  // Walk-ins
+  // Walk-ins: all pending gate entries without an appointment (both known and unknown vehicles)
   const walkIns = useMemo(() => {
     return pendingVehicles
       .filter((p) => p.status === 'Pending')
-      .filter((p) => p.isTemporary)
+      .filter((p) => !p.appointmentId)
       .slice()
       .sort((a, b) => b.arrivedAt.localeCompare(a.arrivedAt))
   }, [pendingVehicles])

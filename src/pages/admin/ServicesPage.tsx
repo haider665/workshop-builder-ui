@@ -45,6 +45,10 @@ export function ServicesPage() {
   const createService = useCwStore((s) => s.createService)
   const updateService = useCwStore((s) => s.updateService)
   const setServiceStatus = useCwStore((s) => s.setServiceStatus)
+  const shops = useCwStore((s) => s.shops)
+
+  const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
+  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
 
   const [filterCat, setFilterCat] = useState('')
   const [filterQuery, setFilterQuery] = useState('')
@@ -57,6 +61,7 @@ export function ServicesPage() {
   const [processTimeMins, setProcessTimeMins] = useState('')
   const [ratePerHr, setRatePerHr] = useState('1500')
   const [price, setPrice] = useState('')
+  const [shopId, setShopId] = useState('')
 
   // Edit form
   const [editId, setEditId] = useState<string | null>(null)
@@ -66,6 +71,7 @@ export function ServicesPage() {
   const [editProcessTimeMins, setEditProcessTimeMins] = useState('')
   const [editRatePerHr, setEditRatePerHr] = useState('')
   const [editPrice, setEditPrice] = useState('')
+  const [editShopId, setEditShopId] = useState('')
 
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
@@ -105,8 +111,9 @@ export function ServicesPage() {
       if (isNaN(t) || t <= 0) throw new Error('Valid process time (mins) is required')
       if (isNaN(r) || r <= 0) throw new Error('Valid rate/hr is required')
       if (isNaN(p) || p <= 0) throw new Error('Valid price is required')
-      const svc = createService({ code: code.trim(), category, description: description.trim(), processTimeMins: t, ratePerHr: r, price: p })
-      setCode(''); setCategory(''); setDescription(''); setProcessTimeMins(''); setRatePerHr('1500'); setPrice('')
+      if (!shopId) throw new Error('Shop is required')
+      const svc = createService({ code: code.trim(), category, description: description.trim(), processTimeMins: t, ratePerHr: r, price: p, shopId })
+      setCode(''); setCategory(''); setDescription(''); setProcessTimeMins(''); setRatePerHr('1500'); setPrice(''); setShopId('')
       setAddOpen(false)
       setSuccessMessage(`Service created: ${svc.code}`)
       setSuccessOpen(true)
@@ -125,6 +132,7 @@ export function ServicesPage() {
     setEditProcessTimeMins(String(s.processTimeMins))
     setEditRatePerHr(String(s.ratePerHr))
     setEditPrice(String(s.price))
+    setEditShopId(s.shopId ?? '')
     setError(null)
   }
 
@@ -150,6 +158,7 @@ export function ServicesPage() {
         processTimeMins: t,
         ratePerHr: r,
         price: p,
+        shopId: editShopId,
         status: svc.status,
       })
       setEditId(null)
@@ -195,6 +204,12 @@ export function ServicesPage() {
                   <InputLabel>Category</InputLabel>
                   <Select label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
                     {SERVICE_CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ flex: '1 1 180px' }}>
+                  <InputLabel>Shop</InputLabel>
+                  <Select label="Shop" value={shopId} onChange={(e) => setShopId(e.target.value)}>
+                    {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <TextField label="Description" size="small" value={description} onChange={(e) => setDescription(e.target.value)} sx={{ flex: '2 1 300px' }} />
@@ -264,6 +279,7 @@ export function ServicesPage() {
                 <TableCell sx={{ fontWeight: 800 }}>Code</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>Process Time (mins)</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>Rate/hr</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>Price (BDT)</TableCell>
@@ -284,6 +300,13 @@ export function ServicesPage() {
                       </FormControl>
                     </TableCell>
                     <TableCell><TextField size="small" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} sx={{ minWidth: 200 }} /></TableCell>
+                    <TableCell>
+                      <FormControl size="small" sx={{ minWidth: 140 }}>
+                        <Select value={editShopId} onChange={(e) => setEditShopId(e.target.value)}>
+                          {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+                        </Select>
+                      </FormControl>
+                    </TableCell>
                     <TableCell align="right"><TextField size="small" type="number" value={editProcessTimeMins} onChange={(e) => setEditProcessTimeMins(e.target.value)} sx={{ width: 80 }} /></TableCell>
                     <TableCell align="right"><TextField size="small" type="number" value={editRatePerHr} onChange={(e) => setEditRatePerHr(e.target.value)} sx={{ width: 90 }} /></TableCell>
                     <TableCell align="right"><TextField size="small" type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} sx={{ width: 100 }} /></TableCell>
@@ -305,7 +328,8 @@ export function ServicesPage() {
                     <TableCell>
                       <Chip size="small" label={s.category} variant="outlined" />
                     </TableCell>
-                    <TableCell>{s.description}</TableCell>
+                    <TableCell>{s.description} ({s.processTimeMins}m)</TableCell>
+                    <TableCell><Chip size="small" label={shopById.get(s.shopId)?.name ?? '—'} variant="outlined" /></TableCell>
                     <TableCell align="right">{s.processTimeMins}</TableCell>
                     <TableCell align="right">{fmt(s.ratePerHr)}</TableCell>
                     <TableCell align="right">

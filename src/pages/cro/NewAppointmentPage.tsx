@@ -75,6 +75,7 @@ export function NewAppointmentPage() {
   const roles = useCwStore((s) => s.roles)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const resolvePendingVehicle = useCwStore((s) => s.resolvePendingVehicle)
+  const shops = useCwStore((s) => s.shops)
 
   const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
   const saUsers = useMemo(
@@ -93,7 +94,7 @@ export function NewAppointmentPage() {
   )
 
   // Concerns state
-  const [concernItems, setConcernItems] = useState<{ id: string; concernId: string; concernName: string; remark: string }[]>([])
+  const [concernItems, setConcernItems] = useState<{ id: string; concernId: string; concernName: string; processTimeMins?: number; remark: string }[]>([])
   const [selConcerns, setSelConcerns] = useState<CWConcern[]>([])
   const [concernRemark, setConcernRemark] = useState('')
 
@@ -112,6 +113,11 @@ export function NewAppointmentPage() {
   const [saUserId, setSaUserId] = useState('')
 
   const [error, setError] = useState<string | null>(null)
+  const [concernShopFilter, setConcernShopFilter] = useState('')
+  const [serviceShopFilter, setServiceShopFilter] = useState('')
+
+  const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
+  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
 
 
   // Booked slots on selected date
@@ -126,9 +132,20 @@ export function NewAppointmentPage() {
   // Concern categories map
   const catById = useMemo(() => new Map(concernCategories.map((c) => [c.id, c])), [concernCategories])
 
-  // Active concerns grouped
-  const activeConcerns = useMemo(() => concerns.filter((c) => c.status === 'Active'), [concerns])
-  const activeServices = useMemo(() => services.filter((s) => s.status === 'Active'), [services])
+  // Active concerns grouped — filtered by shop
+  const activeConcerns = useMemo(() => {
+    let list = concerns.filter((c) => c.status === 'Active')
+    if (concernShopFilter) {
+      const catIdsInShop = new Set(concernCategories.filter((cat) => cat.shopId === concernShopFilter).map((cat) => cat.id))
+      list = list.filter((c) => catIdsInShop.has(c.categoryId))
+    }
+    return list
+  }, [concerns, concernCategories, concernShopFilter])
+  const activeServices = useMemo(() => {
+    let list = services.filter((s) => s.status === 'Active')
+    if (serviceShopFilter) list = list.filter((s) => s.shopId === serviceShopFilter)
+    return list
+  }, [services, serviceShopFilter])
 
   const totalBDT = useMemo(() => serviceItems.reduce((sum, i) => sum + i.price, 0), [serviceItems])
 
@@ -141,6 +158,7 @@ export function NewAppointmentPage() {
         id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${c.id}`,
         concernId: c.id,
         concernName: c.name,
+        processTimeMins: c.processTimeMins,
         remark,
       })),
     ])
@@ -369,7 +387,26 @@ export function NewAppointmentPage() {
         {/* ── Concerns ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>Concerns</Typography>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+              <Typography sx={{ fontWeight: 900 }}>Concerns</Typography>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Shop</InputLabel>
+                <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value)}>
+                  <MenuItem value="">All Shops</MenuItem>
+                  {activeShops.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {concernShopFilter && (
+                <Chip
+                  label={shopById.get(concernShopFilter)?.name}
+                  onDelete={() => setConcernShopFilter('')}
+                  color="primary"
+                  size="small"
+                />
+              )}
+            </Stack>
 
             {concernItems.length > 0 && (
               <Table size="small" sx={{ mb: 2 }}>
@@ -377,6 +414,7 @@ export function NewAppointmentPage() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800, width: 40 }}>SI</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
                     <TableCell />
                   </TableRow>
@@ -387,8 +425,15 @@ export function NewAppointmentPage() {
                       <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
                       <TableCell>
                         <Stack>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.concernName}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.concernName}{typeof item.processTimeMins === 'number' ? ` (${item.processTimeMins} mins)` : ''}</Typography>
                         </Stack>
+                      </TableCell>
+                      <TableCell>
+                        {typeof item.processTimeMins === 'number' ? (
+                          <Chip size="small" label={`${item.processTimeMins} mins`} color="info" sx={{ fontWeight: 700 }} />
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">—</Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
@@ -411,7 +456,7 @@ export function NewAppointmentPage() {
                 size="small"
                 options={activeConcerns}
                 groupBy={(o) => catById.get(o.categoryId)?.name ?? 'Other'}
-                getOptionLabel={(o) => o.name}
+                getOptionLabel={(o) => `${o.name} (${o.processTimeMins ?? '?'} mins)`}
                 value={selConcerns}
                 onChange={(_, val) => setSelConcerns(val)}
                 disableCloseOnSelect
@@ -446,8 +491,27 @@ export function NewAppointmentPage() {
         {/* ── Service Requests ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5 }}>
-            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+                <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
+                <FormControl size="small" sx={{ minWidth: 160 }}>
+                  <InputLabel>Shop</InputLabel>
+                  <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value)}>
+                    <MenuItem value="">All Shops</MenuItem>
+                    {activeShops.map((s) => (
+                      <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                {serviceShopFilter && (
+                  <Chip
+                    label={shopById.get(serviceShopFilter)?.name}
+                    onDelete={() => setServiceShopFilter('')}
+                    color="primary"
+                    size="small"
+                  />
+                )}
+              </Stack>
               {serviceItems.length > 0 && (
                 <Tooltip title="Total labour estimate">
                   <Chip
@@ -477,7 +541,7 @@ export function NewAppointmentPage() {
                       <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
                       <TableCell>
                         <Stack>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.serviceDescription}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.serviceDescription} ({item.processTimeMins} mins)</Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                             {item.serviceCode}
                           </Typography>
@@ -521,7 +585,7 @@ export function NewAppointmentPage() {
                 size="small"
                 options={activeServices}
                 groupBy={(o) => o.category}
-                getOptionLabel={(o) => `${o.code} – ${o.description}`}
+                getOptionLabel={(o) => `${o.code} – ${o.description} (${o.processTimeMins} mins)`}
                 value={selServices}
                 onChange={(_, val) => setSelServices(val)}
                 disableCloseOnSelect

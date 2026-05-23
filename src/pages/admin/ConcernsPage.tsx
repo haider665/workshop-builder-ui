@@ -30,13 +30,15 @@ export function ConcernsPage() {
   const updateConcernCategory = useCwStore((s) => s.updateConcernCategory)
   const createConcern = useCwStore((s) => s.createConcern)
   const updateConcern = useCwStore((s) => s.updateConcern)
+  const shops = useCwStore((s) => s.shops)
 
   // New category form
   const [newCatName, setNewCatName] = useState('')
+  const [newCatShopId, setNewCatShopId] = useState('')
   // New concern form
   const [newConcernCatId, setNewConcernCatId] = useState('')
   const [newConcernName, setNewConcernName] = useState('')
-  const [newConcernEstTime, setNewConcernEstTime] = useState('')
+  const [newConcernEstTime, setNewConcernEstTime] = useState('30')
 
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
@@ -45,8 +47,10 @@ export function ConcernsPage() {
   function submitCategory() {
     try {
       setError(null)
-      const cat = createConcernCategory({ name: newCatName })
+      if (!newCatShopId) throw new Error('Select a shop')
+      const cat = createConcernCategory({ name: newCatName, shopId: newCatShopId })
       setNewCatName('')
+      setNewCatShopId('')
       setSuccessMessage(`Category created: ${cat.name}`)
       setSuccessOpen(true)
     } catch (e) {
@@ -61,7 +65,7 @@ export function ConcernsPage() {
       const estHrs = newConcernEstTime.trim() ? Number(newConcernEstTime.trim()) : undefined
       const c = createConcern({ categoryId: newConcernCatId, name: newConcernName, processTimeMins: estHrs })
       setNewConcernName('')
-      setNewConcernEstTime('')
+      setNewConcernEstTime('30')
       setSuccessMessage(`Concern created: ${c.name}`)
       setSuccessOpen(true)
     } catch (e) {
@@ -72,7 +76,7 @@ export function ConcernsPage() {
   function toggleCatStatus(id: string, current: string) {
     const cat = concernCategories.find((c) => c.id === id)
     if (!cat) return
-    updateConcernCategory(id, { name: cat.name, status: current === 'Active' ? 'Inactive' : 'Active' })
+    updateConcernCategory(id, { name: cat.name, shopId: cat.shopId, status: current === 'Active' ? 'Inactive' : 'Active' })
   }
 
   function toggleConcernStatus(id: string, current: string) {
@@ -82,6 +86,8 @@ export function ConcernsPage() {
   }
 
   const catById = new Map(concernCategories.map((c) => [c.id, c]))
+  const shopById = new Map(shops.map((s) => [s.id, s]))
+  const activeShops = shops.filter((s) => s.status === 'Active')
 
   return (
     <Page title="Admin / Concerns" subtitle="Manage concern categories and items used in appointments.">
@@ -103,6 +109,18 @@ export function ConcernsPage() {
         <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
           <Typography sx={{ fontWeight: 900, mb: 2 }}>Add Concern Category</Typography>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Shop</InputLabel>
+              <Select
+                label="Shop"
+                value={newCatShopId}
+                onChange={(e) => setNewCatShopId(e.target.value)}
+              >
+                {activeShops.map((s) => (
+                  <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Category name"
               size="small"
@@ -145,10 +163,11 @@ export function ConcernsPage() {
             />
             <TextField
               label="Process Time (mins)"
+              size="small"
               type="number"
               value={newConcernEstTime}
               onChange={(e) => setNewConcernEstTime(e.target.value)}
-              sx={{ width: 140 }}
+              sx={{ width: 160 }}
             />
             <Button variant="contained" onClick={submitConcern} sx={{ height: 40 }}>
               Add Concern
@@ -166,6 +185,7 @@ export function ConcernsPage() {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 800 }}>Name</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Items</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
@@ -175,6 +195,9 @@ export function ConcernsPage() {
               {concernCategories.map((cat) => (
                 <TableRow key={cat.id} hover>
                   <TableCell>{cat.name}</TableCell>
+                  <TableCell>
+                    <Chip size="small" label={shopById.get(cat.shopId)?.name ?? '—'} variant="outlined" />
+                  </TableCell>
                   <TableCell>
                     <Chip
                       size="small"
@@ -224,7 +247,7 @@ export function ConcernsPage() {
                       {catById.get(c.categoryId)?.name ?? '—'}
                     </Typography>
                   </TableCell>
-                  <TableCell>{c.name}</TableCell>
+                  <TableCell>{c.name}{typeof c.processTimeMins === 'number' ? ` (${c.processTimeMins}m)` : ''}</TableCell>
                   <TableCell>
                     <Typography variant="body2">
                       {typeof c.processTimeMins === 'number' ? `${c.processTimeMins}m` : '—'}

@@ -242,6 +242,7 @@ export type CWConcernCategoryStatus = 'Active' | 'Inactive'
 export type CWConcernCategory = {
   id: string
   name: string
+  shopId: string
   status: CWConcernCategoryStatus
   createdAt: string
   updatedAt: string
@@ -271,6 +272,7 @@ export type CWService = {
   processTimeMins: number
   ratePerHr: number
   price: number
+  shopId: string
   status: CWServiceStatus
   createdAt: string
   updatedAt: string

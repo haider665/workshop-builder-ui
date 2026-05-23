@@ -190,6 +190,7 @@ export type UpdateVehicleInput = {
 export type CreateAppointmentConcernItemInput = {
   concernId: string
   concernName: string
+  processTimeMins?: number
   remark: string
 }
 export type CreateAppointmentServiceItemInput = {
@@ -319,8 +320,8 @@ export type SetJobTestDriveInput = {
 
 // ─── Concerns ─────────────────────────────────────────────────────────────────
 
-export type CreateConcernCategoryInput = { name: string }
-export type UpdateConcernCategoryInput = { name: string; status: CWConcernCategoryStatus }
+export type CreateConcernCategoryInput = { name: string; shopId: string }
+export type UpdateConcernCategoryInput = { name: string; shopId: string; status: CWConcernCategoryStatus }
 export type CreateConcernInput = { categoryId: string; name: string; processTimeMins?: number }
 export type UpdateConcernInput = { name: string; status: CWConcernStatus }
 
@@ -333,6 +334,7 @@ export type CreateServiceInput = {
   processTimeMins: number
   ratePerHr: number
   price: number
+  shopId: string
   status?: CWServiceStatus
 }
 export type UpdateServiceInput = {
@@ -342,6 +344,7 @@ export type UpdateServiceInput = {
   processTimeMins: number
   ratePerHr: number
   price: number
+  shopId: string
   status: CWServiceStatus
 }
 
@@ -759,6 +762,7 @@ function seedDemoData() {
     { id: newId(), name: 'SA', status: 'Active', isSystem: false, createdAt: ts, updatedAt: ts },
     { id: newId(), name: 'SE', status: 'Active', isSystem: false, createdAt: ts, updatedAt: ts },
     { id: newId(), name: 'CRE', status: 'Active', isSystem: false, createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'QC', status: 'Active', isSystem: false, createdAt: ts, updatedAt: ts },
   ]
 
   const roleByName = new Map(roles.map((r) => [r.name, r] as const))
@@ -1255,7 +1259,7 @@ function seedDemoData() {
 
 const DEMO_SEED = seedDemoData()
 
-function seedConcernsData(): { concernCategories: CWConcernCategory[]; concerns: CWConcern[] } {
+function seedConcernsData(defaultShopId: string): { concernCategories: CWConcernCategory[]; concerns: CWConcern[] } {
   const ts = nowIso()
   const rawCategories = [
     'Sheet Metal',
@@ -1272,6 +1276,7 @@ function seedConcernsData(): { concernCategories: CWConcernCategory[]; concerns:
   const concernCategories: CWConcernCategory[] = rawCategories.map((name) => ({
     id: newId(),
     name,
+    shopId: defaultShopId,
     status: 'Active',
     createdAt: ts,
     updatedAt: ts,
@@ -1329,6 +1334,7 @@ function seedConcernsData(): { concernCategories: CWConcernCategory[]; concerns:
       id: newId(),
       categoryId: cat.id,
       name,
+      processTimeMins: 30,
       status: 'Active',
       createdAt: ts,
       updatedAt: ts,
@@ -1338,7 +1344,7 @@ function seedConcernsData(): { concernCategories: CWConcernCategory[]; concerns:
   return { concernCategories, concerns }
 }
 
-function seedServicesData(): CWService[] {
+function seedServicesData(defaultShopId: string): CWService[] {
   const ts = nowIso()
   type Raw = [string, string, string, number, number, number]
   const raw: Raw[] = [
@@ -1567,14 +1573,16 @@ function seedServicesData(): CWService[] {
     processTimeMins: Math.round((timeHrsRaw as number) * 60),
     ratePerHr,
     price,
+    shopId: defaultShopId,
     status: 'Active' as CWServiceStatus,
     createdAt: ts,
     updatedAt: ts,
   }))
 }
 
-const CONCERNS_SEED = seedConcernsData()
-const SERVICES_SEED = seedServicesData()
+const _defaultShopId = DEMO_SEED.shops[0].id
+const CONCERNS_SEED = seedConcernsData(_defaultShopId)
+const SERVICES_SEED = seedServicesData(_defaultShopId)
 
 function normalizeOptions(options?: string[]) {
   if (!options) return undefined
@@ -2108,13 +2116,18 @@ export const useCwStore = create<CWState>((set, get) => ({
       inspectionChecks: defaultChecks,
       vehicleViewChecks: [],
       photos: [],
-      concernItems: (input.concernItems ?? []).map((c) => ({
-        id: newId(),
-        concernId: c.concernId,
-        concernName: c.concernName,
-        remark: c.remark.trim(),
-        technicianAssignments: [],
-      })),
+      concernItems: (input.concernItems ?? []).map((c) => {
+        // Lookup concern definition for processTimeMins if not provided
+        const timeMins = c.processTimeMins ?? get().concerns.find((def) => def.id === c.concernId)?.processTimeMins
+        return {
+          id: newId(),
+          concernId: c.concernId,
+          concernName: c.concernName,
+          remark: c.remark.trim(),
+          processTimeMins: timeMins,
+          technicianAssignments: [],
+        }
+      }),
       serviceItems: (input.serviceItems ?? []).map((s) => ({
         id: newId(),
         serviceId: s.serviceId,
@@ -2746,8 +2759,9 @@ export const useCwStore = create<CWState>((set, get) => ({
   createConcernCategory: (input) => {
     const name = input.name.trim()
     if (!name) throw new Error('Category name is required')
+    if (!input.shopId) throw new Error('Shop is required')
     const ts = nowIso()
-    const cat: CWConcernCategory = { id: newId(), name, status: 'Active', createdAt: ts, updatedAt: ts }
+    const cat: CWConcernCategory = { id: newId(), name, shopId: input.shopId, status: 'Active', createdAt: ts, updatedAt: ts }
     set({ concernCategories: [cat, ...get().concernCategories] })
     return cat
   },
@@ -2757,7 +2771,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     if (!name) throw new Error('Category name is required')
     set({
       concernCategories: get().concernCategories.map((c) =>
-        c.id === id ? { ...c, name, status: input.status, updatedAt: nowIso() } : c,
+        c.id === id ? { ...c, name, shopId: input.shopId, status: input.status, updatedAt: nowIso() } : c,
       ),
     })
   },
@@ -2802,6 +2816,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       processTimeMins: input.processTimeMins,
       ratePerHr: input.ratePerHr,
       price: input.price,
+      shopId: input.shopId,
       status: input.status ?? 'Active',
       createdAt: ts,
       updatedAt: ts,
@@ -2816,12 +2831,13 @@ export const useCwStore = create<CWState>((set, get) => ({
         s.id === id
           ? {
               ...s,
-              code: input.code.trim(),
+               code: input.code.trim(),
               category: input.category.trim(),
               description: input.description.trim(),
               processTimeMins: input.processTimeMins,
               ratePerHr: input.ratePerHr,
               price: input.price,
+              shopId: input.shopId,
               status: input.status,
               updatedAt: nowIso(),
             }

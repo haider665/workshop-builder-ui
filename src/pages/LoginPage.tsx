@@ -41,6 +41,7 @@ export function LoginPage() {
     Technician: false,
     'Service Advisor': false,
     'Service Engineer': false,
+    QC: false,
     'Custom Role': false,
   })
   const [showAllRoles, setShowAllRoles] = useState(true)

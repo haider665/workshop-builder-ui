@@ -7,8 +7,11 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
+  InputLabel,
   MenuItem,
   Paper,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -49,6 +52,8 @@ export function SAAppointmentDetailPage() {
   const pushTimeline = useCwStore((s) => s.pushTimeline)
   const confirmPayment = useCwStore((s) => s.confirmPayment)
   const partRequests = useCwStore((s) => s.partRequests)
+  const shops = useCwStore((s) => s.shops)
+  const concernCategories = useCwStore((s) => s.concernCategories)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -84,6 +89,17 @@ export function SAAppointmentDetailPage() {
   const [addConcernRemark, setAddConcernRemark] = useState('')
   const [addServiceId, setAddServiceId] = useState('')
   const [addServiceRemark, setAddServiceRemark] = useState('')
+  const [concernShopFilter, setConcernShopFilter] = useState('')
+  const [serviceShopFilter, setServiceShopFilter] = useState('')
+
+  const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
+  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
+  const concernShopId = useMemo(() => {
+    const cMap = new Map(concerns.map((c) => [c.id, c]))
+    const catMap = new Map(concernCategories.map((c) => [c.id, c]))
+    return (cId: string) => catMap.get(cMap.get(cId)?.categoryId ?? '')?.shopId ?? ''
+  }, [concerns, concernCategories])
+  const serviceShopIdMap = useMemo(() => new Map(services.map((s) => [s.id, s.shopId])), [services])
 
   if (!appt) {
     return (
@@ -281,16 +297,31 @@ export function SAAppointmentDetailPage() {
 
         {/* ── Concerns ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Concerns ({appt.concernItems.length})</Typography>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 900 }}>Concerns ({appt.concernItems.length})</Typography>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Shop</InputLabel>
+              <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value as string)}>
+                <MenuItem value="">All Shops</MenuItem>
+                {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            {concernShopFilter && <Chip label={shopById.get(concernShopFilter)?.name} onDelete={() => setConcernShopFilter('')} color="primary" size="small" />}
+          </Stack>
           {appt.concernItems.length > 0 && (
             <Stack spacing={2}>
-              {appt.concernItems.map((c) => {
+              {appt.concernItems.filter((c) => !concernShopFilter || concernShopId(c.concernId) === concernShopFilter).map((c) => {
                 const concernServices = (c.serviceIds ?? []).map((sid) => services.find((s) => s.id === sid)).filter(Boolean)
                 const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
                 return (
                   <Box key={c.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: c.workStatus === 'Completed' ? 'success.main' : 'divider' }}>
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                      <Typography sx={{ fontWeight: 800 }}>{c.concernName}</Typography>
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        <Typography sx={{ fontWeight: 800 }}>{c.concernName}</Typography>
+                        {typeof c.processTimeMins === 'number' && (
+                          <Chip size="small" label={`${c.processTimeMins} mins`} color="info" sx={{ fontWeight: 700 }} />
+                        )}
+                      </Stack>
                       {c.workStatus ? (
                         <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} />
                       ) : null}
@@ -359,7 +390,17 @@ export function SAAppointmentDetailPage() {
 
         {/* ── Services ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Services ({appt.serviceItems.length})</Typography>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 900 }}>Services ({appt.serviceItems.length})</Typography>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Shop</InputLabel>
+              <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value as string)}>
+                <MenuItem value="">All Shops</MenuItem>
+                {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            {serviceShopFilter && <Chip label={shopById.get(serviceShopFilter)?.name} onDelete={() => setServiceShopFilter('')} color="primary" size="small" />}
+          </Stack>
           {appt.serviceItems.length > 0 && (
             <Table size="small">
               <TableHead>
@@ -370,10 +411,10 @@ export function SAAppointmentDetailPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {appt.serviceItems.map((s) => (
+                {appt.serviceItems.filter((s) => !serviceShopFilter || (serviceShopIdMap.get(s.serviceId) ?? '') === serviceShopFilter).map((s) => (
                   <TableRow key={s.id}>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription} ({s.processTimeMins} mins)</Typography>
                       <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
                     </TableCell>
                     <TableCell>{fmtBDT(s.price)}</TableCell>
