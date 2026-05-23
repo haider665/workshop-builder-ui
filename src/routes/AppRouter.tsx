@@ -18,6 +18,7 @@ import { TeamsPage } from '../pages/admin/TeamsPage'
 import { UsersPage } from '../pages/admin/UsersPage'
 import { GuardHome } from '../pages/guard/GuardHome'
 import { JobControllerHome } from '../pages/jc/JobControllerHome'
+import { JCCalendarPage } from '../pages/jc/JCCalendarPage'
 import { JobDetailsPage } from '../pages/jc/JobDetailsPage'
 import { NewJobPage } from '../pages/jc/NewJobPage'
 import { PendingVehiclesPage } from '../pages/jc/PendingVehiclesPage'
@@ -80,6 +81,7 @@ export function AppRouter() {
             <Route path="/jc" element={<JobControllerHome />} />
             <Route path="/jc/pending-vehicles" element={<PendingVehiclesPage />} />
             <Route path="/jc/appointments/:appointmentId" element={<JCAppointmentPage />} />
+            <Route path="/jc/calendar" element={<JCCalendarPage />} />
           </Route>
 
           {/* Job creation + detail: accessible to Job Creation, Service Advisor, and CRO */}

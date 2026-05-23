@@ -34,7 +34,7 @@ export function LoginPage() {
 
   const [name, setName] = useState('Demo User')
   const [selectedRoles, setSelectedRoles] = useState<Record<Role, boolean>>({
-    Admin: true,
+    Admin: false,
     Guard: false,
     'Job Creation': false,
     CRE: false,

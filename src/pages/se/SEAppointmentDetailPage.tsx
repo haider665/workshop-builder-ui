@@ -48,8 +48,6 @@ export function SEAppointmentDetailPage() {
   const updateConcernItemServices = useCwStore((s) => s.updateConcernItemServices)
   const updateConcernDiagnosisRemark = useCwStore((s) => s.updateConcernDiagnosisRemark)
   const shops = useCwStore((s) => s.shops)
-  const allConcerns = useCwStore((s) => s.concerns)
-  const concernCategories = useCwStore((s) => s.concernCategories)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -99,17 +97,9 @@ export function SEAppointmentDetailPage() {
 
   // Part request form (per-concern)
   const [partRequestForm, setPartRequestForm] = useState<Record<string, { name: string; qty: string }>>({})
-  const [concernShopFilter, setConcernShopFilter] = useState('')
   const [serviceShopFilter, setServiceShopFilter] = useState('')
 
   const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
-  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
-  const concernShopId = useMemo(() => {
-    const cMap = new Map(allConcerns.map((c) => [c.id, c]))
-    const catMap = new Map(concernCategories.map((c) => [c.id, c]))
-    return (cId: string) => catMap.get(cMap.get(cId)?.categoryId ?? '')?.shopId ?? ''
-  }, [allConcerns, concernCategories])
-  const serviceShopIdMap = useMemo(() => new Map(services.map((s) => [s.id, s.shopId])), [services])
 
   if (!appt) {
     return (
@@ -225,19 +215,11 @@ export function SEAppointmentDetailPage() {
         {/* ── Concern Diagnosis ── */}
         {(isDiagnosisPhase || isDiagnosisComplete) && myConcerns.length > 0 && (
           <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
-            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontWeight: 900, color: 'warning.main' }}>Concern Diagnosis ({myConcerns.length})</Typography>
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value as string)}>
-                  <MenuItem value="">All Shops</MenuItem>
-                  {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-                </Select>
-              </FormControl>
-              {concernShopFilter && <Chip label={shopById.get(concernShopFilter)?.name} onDelete={() => setConcernShopFilter('')} color="primary" size="small" />}
-            </Stack>
+            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'warning.main' }}>
+              Concern Diagnosis ({myConcerns.length})
+            </Typography>
             <Stack spacing={2}>
-              {myConcerns.filter((c) => !concernShopFilter || concernShopId(c.concernId) === concernShopFilter).map((c) => {
+              {myConcerns.map((c) => {
                 const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
                 const prForm = partRequestForm[c.id] ?? { name: '', qty: '1' }
                 const isConcernDone = c.workStatus === 'Completed'
@@ -442,7 +424,14 @@ export function SEAppointmentDetailPage() {
               </Stack>
             )}
 
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Shop</InputLabel>
+                <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value as string)}>
+                  <MenuItem value="">All Shops</MenuItem>
+                  {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+                </Select>
+              </FormControl>
               <TextField
                 select size="small" label="Service"
                 value={addServiceId}
@@ -450,7 +439,7 @@ export function SEAppointmentDetailPage() {
                 sx={{ minWidth: 250 }}
               >
                 <MenuItem value="">— Select —</MenuItem>
-                {activeServices.map((s) => (
+                {activeServices.filter((s) => !serviceShopFilter || s.shopId === serviceShopFilter).map((s) => (
                   <MenuItem key={s.id} value={s.id}>{s.description} ({s.code})</MenuItem>
                 ))}
               </TextField>
@@ -466,19 +455,11 @@ export function SEAppointmentDetailPage() {
         {/* ── Service Execution ── */}
         {isServicePhase && myServices.length > 0 && (
           <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
-            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontWeight: 900, color: 'success.main' }}>Assigned Services ({myServices.length})</Typography>
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value as string)}>
-                  <MenuItem value="">All Shops</MenuItem>
-                  {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-                </Select>
-              </FormControl>
-              {serviceShopFilter && <Chip label={shopById.get(serviceShopFilter)?.name} onDelete={() => setServiceShopFilter('')} color="primary" size="small" />}
-            </Stack>
+            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'success.main' }}>
+              Assigned Services ({myServices.length})
+            </Typography>
             <Stack spacing={2}>
-              {myServices.filter((s) => !serviceShopFilter || (serviceShopIdMap.get(s.serviceId) ?? '') === serviceShopFilter).map((s) => (
+              {myServices.map((s) => (
                 <Box key={s.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                   <Typography sx={{ fontWeight: 800 }}>
                     {s.serviceDescription} ({s.processTimeMins} mins) <Typography component="span" variant="caption" color="text.secondary">{s.serviceCode}</Typography>

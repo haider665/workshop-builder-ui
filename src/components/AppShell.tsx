@@ -61,6 +61,7 @@ export function AppShell() {
         anyOfRoles: ['Admin'],
       },
       { kind: 'link', label: 'Job Creation', to: '/jc', icon: <Settings />, anyOfRoles: ['Job Creation'] },
+      { kind: 'link', label: 'JC Calendar', to: '/jc/calendar', icon: <CalendarMonth />, anyOfRoles: ['Job Creation'] },
       { kind: 'link', label: 'Bay Management', to: '/admin/bays', icon: <Settings />, anyOfRoles: ['Job Creation'] },
       { kind: 'link', label: 'Gatepass', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
 

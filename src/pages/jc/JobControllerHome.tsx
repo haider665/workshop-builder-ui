@@ -3,8 +3,8 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
-import { AppointmentCalendar } from '../../components/AppointmentCalendar'
 import type { CWAppointmentStatus } from '../../types/cw'
+import { JCGanttChart } from '../../components/JCGanttChart'
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
@@ -76,8 +76,9 @@ export function JobControllerHome() {
 
   return (
     <Page title="Job Controller" subtitle="Appointment queue, diagnosis & service assignment.">
+      <Stack spacing={3}>
       {/* Stats */}
-      <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', mb: 2 }}>
+      <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
           <Box>
             <Typography sx={{ fontWeight: 900 }}>Overview</Typography>
@@ -169,22 +170,9 @@ export function JobControllerHome() {
         )}
       </Paper>
 
-      {/* Calendar */}
-      <AppointmentCalendar
-        appointments={relevant}
-        vehicleRegById={useMemo(() => {
-          const m = new Map<string, string>()
-          for (const v of vehicles) m.set(v.id, v.registrationNo)
-          return m
-        }, [vehicles])}
-        customerNameById={useMemo(() => {
-          const m = new Map<string, string>()
-          for (const c of customers) m.set(c.id, c.fullName)
-          return m
-        }, [customers])}
-        basePath="/jc/appointments"
-        title="JC Appointment Calendar"
-      />
+      {/* Gantt Chart */}
+      <JCGanttChart />
+      </Stack>
     </Page>
   )
 }
