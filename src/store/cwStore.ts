@@ -517,6 +517,33 @@ export type ReleaseVehicleInput = {
   appointmentId: string
 }
 
+// ─── QC inputs ────────────────────────────────────────────────────────────────
+
+export type AssignQCInput = {
+  appointmentId: string
+  qcUserId: string
+}
+
+export type QCItemVerification = {
+  itemId: string
+  itemType: 'concern' | 'service'
+  status: 'Passed' | 'Failed'
+  note?: string
+}
+
+export type QCApproveInput = {
+  appointmentId: string
+  actorName: string
+  items: QCItemVerification[]
+}
+
+export type QCRejectInput = {
+  appointmentId: string
+  actorName: string
+  rejectionNote: string
+  items: QCItemVerification[]
+}
+
 type CWState = {
   shops: CWShop[]
   bays: CWBay[]
@@ -597,6 +624,11 @@ type CWState = {
   submitServiceComplete: (input: SubmitServiceCompleteInput) => void
   confirmPayment: (input: ConfirmPaymentInput) => void
   releaseVehicle: (input: ReleaseVehicleInput) => void
+
+  // QC actions
+  assignQC: (input: AssignQCInput) => void
+  qcApprove: (input: QCApproveInput) => void
+  qcReject: (input: QCRejectInput) => void
 
   createTaskTemplate: (input: CreateTaskTemplateInput) => CWTaskTemplate
   updateTaskTemplate: (templateId: string, input: UpdateTaskTemplateInput) => void
@@ -771,6 +803,8 @@ function seedDemoData() {
   const seRole = roleByName.get('SE')!
   const creRole = roleByName.get('CRE')!
 
+  const qcRole = roleByName.get('QC')!
+
   const users: CWUser[] = [
     // ── Technicians (4) ──
     {
@@ -914,6 +948,31 @@ function seedDemoData() {
       email: 'nazmul.huda@cw.local',
       mobile: '0160000002',
       roleIds: [creRole.id],
+      shopIds: [autoShop.id, bodyShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    // ── QC Inspectors (2) ──
+    {
+      id: newId(),
+      fullName: 'Zahid Hasan',
+      email: 'zahid.hasan@cw.local',
+      mobile: '0150000001',
+      roleIds: [qcRole.id],
+      shopIds: [autoShop.id, paintShop.id, bodyShop.id],
+      status: 'Active',
+      password: 'demo',
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: newId(),
+      fullName: 'Moinul Islam',
+      email: 'moinul.islam@cw.local',
+      mobile: '0150000002',
+      roleIds: [qcRole.id],
       shopIds: [autoShop.id, bodyShop.id],
       status: 'Active',
       password: 'demo',
@@ -1259,9 +1318,11 @@ function seedDemoData() {
 
 const DEMO_SEED = seedDemoData()
 
-function seedConcernsData(defaultShopId: string): { concernCategories: CWConcernCategory[]; concerns: CWConcern[] } {
+function seedConcernsData(autoShopId: string, paintShopId: string, bodyShopId: string): { concernCategories: CWConcernCategory[]; concerns: CWConcern[] } {
   const ts = nowIso()
-  const rawCategories = [
+
+  // ── Auto Shop categories ──
+  const autoCategories = [
     'Sheet Metal',
     'Water Leaks',
     'Handles / Locks / Mechanisms',
@@ -1273,68 +1334,124 @@ function seedConcernsData(defaultShopId: string): { concernCategories: CWConcern
     'Climate Control Function',
     'Interior Trim',
   ]
-  const concernCategories: CWConcernCategory[] = rawCategories.map((name) => ({
-    id: newId(),
-    name,
-    shopId: defaultShopId,
-    status: 'Active',
-    createdAt: ts,
-    updatedAt: ts,
-  }))
+
+  // ── Paint Shop categories ──
+  const paintCategories = [
+    'Paint Defects',
+    'Surface Preparation',
+    'Paint Finish',
+  ]
+
+  // ── Body Shop categories ──
+  const bodyCategories = [
+    'Panel Damage',
+    'Structural Repair',
+    'Welding & Fabrication',
+  ]
+
+  const concernCategories: CWConcernCategory[] = [
+    ...autoCategories.map((name) => ({
+      id: newId(), name, shopId: autoShopId, status: 'Active' as const, createdAt: ts, updatedAt: ts,
+    })),
+    ...paintCategories.map((name) => ({
+      id: newId(), name, shopId: paintShopId, status: 'Active' as const, createdAt: ts, updatedAt: ts,
+    })),
+    ...bodyCategories.map((name) => ({
+      id: newId(), name, shopId: bodyShopId, status: 'Active' as const, createdAt: ts, updatedAt: ts,
+    })),
+  ]
 
   const catByName = new Map(concernCategories.map((c) => [c.name, c] as const))
 
-  const rawConcerns: [string, string][] = [
-    ['Sheet Metal', 'Hard to Open – Front Side Door'],
-    ['Sheet Metal', 'Hard to Open – Hood'],
-    ['Sheet Metal', 'Hard to Open – Rear Side Door'],
-    ['Sheet Metal', 'Hard to Open – Trunk'],
-    ['Water Leaks', 'Water Leak Around Windshield'],
-    ['Water Leaks', 'Water Leak Around Front Side Door/Window'],
-    ['Water Leaks', 'Water Leak Around Rear Side Door/Window'],
-    ['Water Leaks', 'Water Leak Around Back Window'],
-    ['Water Leaks', 'Water Leak Around Sliding Rear Window'],
-    ['Water Leaks', 'Water Leak Around Trunk/Hatchback/Liftgate/Rear Cargo Door'],
-    ['Water Leaks', 'Other Water Leaks (Sealing Issues Only)'],
-    ['Handles / Locks / Mechanisms', 'Hood Latch Broken/Inoperable'],
-    ['Handles / Locks / Mechanisms', 'Ignition Switch Troubles'],
-    ['Handles / Locks / Mechanisms', 'Interior Door Handle Troubles'],
-    ['Handles / Locks / Mechanisms', 'Key Troubles'],
-    ['Handles / Locks / Mechanisms', 'Exterior Door Lock Controls – Power'],
-    ['Handles / Locks / Mechanisms', 'Exterior Door Handle Troubles'],
-    ['Mirror Function', 'Exterior Mirror Troubles'],
-    ['Mirror Function', 'Interior Mirror Troubles'],
-    ['Front Glass Wiping & Washing', 'Front Wiper Trouble'],
-    ['Front Glass Wiping & Washing', 'Other Wiper/Washer Troubles (Including Leaks)'],
-    ['Rear Glass Wiping & Washing', 'Rear Window Washer Troubles'],
-    ['Lighting', 'Lights not Working – Exterior'],
-    ['Lighting', 'Headlamp Aim/Alignment'],
-    ['Lighting', 'Other Lighting Troubles (Including Leaks/Condensation)'],
-    ['Seating', 'Other Seating Troubles'],
-    ['Seating', 'Rear Seat Squeak/Rattle'],
-    ['Seating', 'Seat Adjustment Troubles'],
-    ['Seating', 'Seat Squeaks and Rattles'],
-    ['Climate Control Function', 'A/C does not Work'],
-    ['Climate Control Function', 'A/C Front – Does not Work'],
-    ['Climate Control Function', 'A/C Rear – Does not Work'],
-    ['Climate Control Function', 'A/C does not Maintain Temperature'],
-    ['Climate Control Function', 'A/C Slow to Cool'],
-    ['Climate Control Function', 'A/C not Cold Enough'],
-    ['Climate Control Function', 'A/C Water Leak/Condensation Troubles'],
-    ['Climate Control Function', 'A/C Heater/Defroster Odour'],
-    ['Climate Control Function', 'Other Temperature Control Troubles'],
-    ['Climate Control Function', 'Windshield Defrost/Defogging Slow to Clear'],
-    ['Climate Control Function', 'Windshield Defrost/Defogging does not Work'],
-    ['Climate Control Function', 'Back Window Defrost/Defogging does not Work'],
+  const rawConcerns: [string, string, number][] = [
+    // Auto Shop concerns
+    ['Sheet Metal', 'Hard to Open – Front Side Door', 30],
+    ['Sheet Metal', 'Hard to Open – Hood', 30],
+    ['Sheet Metal', 'Hard to Open – Rear Side Door', 30],
+    ['Sheet Metal', 'Hard to Open – Trunk', 30],
+    ['Water Leaks', 'Water Leak Around Windshield', 30],
+    ['Water Leaks', 'Water Leak Around Front Side Door/Window', 30],
+    ['Water Leaks', 'Water Leak Around Rear Side Door/Window', 30],
+    ['Water Leaks', 'Water Leak Around Back Window', 30],
+    ['Water Leaks', 'Water Leak Around Sliding Rear Window', 30],
+    ['Water Leaks', 'Water Leak Around Trunk/Hatchback/Liftgate/Rear Cargo Door', 30],
+    ['Water Leaks', 'Other Water Leaks (Sealing Issues Only)', 30],
+    ['Handles / Locks / Mechanisms', 'Hood Latch Broken/Inoperable', 30],
+    ['Handles / Locks / Mechanisms', 'Ignition Switch Troubles', 30],
+    ['Handles / Locks / Mechanisms', 'Interior Door Handle Troubles', 30],
+    ['Handles / Locks / Mechanisms', 'Key Troubles', 30],
+    ['Handles / Locks / Mechanisms', 'Exterior Door Lock Controls – Power', 30],
+    ['Handles / Locks / Mechanisms', 'Exterior Door Handle Troubles', 30],
+    ['Mirror Function', 'Exterior Mirror Troubles', 30],
+    ['Mirror Function', 'Interior Mirror Troubles', 30],
+    ['Front Glass Wiping & Washing', 'Front Wiper Trouble', 30],
+    ['Front Glass Wiping & Washing', 'Other Wiper/Washer Troubles (Including Leaks)', 30],
+    ['Rear Glass Wiping & Washing', 'Rear Window Washer Troubles', 30],
+    ['Lighting', 'Lights not Working – Exterior', 30],
+    ['Lighting', 'Headlamp Aim/Alignment', 30],
+    ['Lighting', 'Other Lighting Troubles (Including Leaks/Condensation)', 30],
+    ['Seating', 'Other Seating Troubles', 30],
+    ['Seating', 'Rear Seat Squeak/Rattle', 30],
+    ['Seating', 'Seat Adjustment Troubles', 30],
+    ['Seating', 'Seat Squeaks and Rattles', 30],
+    ['Climate Control Function', 'A/C does not Work', 30],
+    ['Climate Control Function', 'A/C Front – Does not Work', 30],
+    ['Climate Control Function', 'A/C Rear – Does not Work', 30],
+    ['Climate Control Function', 'A/C does not Maintain Temperature', 30],
+    ['Climate Control Function', 'A/C Slow to Cool', 30],
+    ['Climate Control Function', 'A/C not Cold Enough', 30],
+    ['Climate Control Function', 'A/C Water Leak/Condensation Troubles', 30],
+    ['Climate Control Function', 'A/C Heater/Defroster Odour', 30],
+    ['Climate Control Function', 'Other Temperature Control Troubles', 30],
+    ['Climate Control Function', 'Windshield Defrost/Defogging Slow to Clear', 30],
+    ['Climate Control Function', 'Windshield Defrost/Defogging does not Work', 30],
+    ['Climate Control Function', 'Back Window Defrost/Defogging does not Work', 30],
+    // Paint Shop concerns
+    ['Paint Defects', 'Paint Peeling – Hood', 45],
+    ['Paint Defects', 'Paint Peeling – Roof', 45],
+    ['Paint Defects', 'Paint Peeling – Door Panel', 45],
+    ['Paint Defects', 'Paint Fading / Discolouration', 60],
+    ['Paint Defects', 'Paint Bubbling / Blistering', 45],
+    ['Paint Defects', 'Clear Coat Failure', 60],
+    ['Paint Defects', 'Stone Chip Damage', 30],
+    ['Paint Defects', 'Scratch Marks – Minor', 30],
+    ['Paint Defects', 'Scratch Marks – Deep', 45],
+    ['Surface Preparation', 'Rust Spot Treatment Required', 60],
+    ['Surface Preparation', 'Primer Adhesion Issue', 45],
+    ['Surface Preparation', 'Sanding Marks Visible', 30],
+    ['Surface Preparation', 'Filler Cracking', 45],
+    ['Paint Finish', 'Orange Peel Texture', 30],
+    ['Paint Finish', 'Colour Mismatch Between Panels', 60],
+    ['Paint Finish', 'Overspray on Trim/Glass', 30],
+    ['Paint Finish', 'Run/Sag in Paint', 30],
+    ['Paint Finish', 'Fish Eyes in Paint', 30],
+    // Body Shop concerns
+    ['Panel Damage', 'Front Fender Dent', 60],
+    ['Panel Damage', 'Rear Fender Dent', 60],
+    ['Panel Damage', 'Door Panel Dent', 45],
+    ['Panel Damage', 'Hood Dent / Deformation', 60],
+    ['Panel Damage', 'Trunk Lid Dent', 45],
+    ['Panel Damage', 'Roof Panel Damage', 90],
+    ['Panel Damage', 'Bumper Crack / Damage – Front', 45],
+    ['Panel Damage', 'Bumper Crack / Damage – Rear', 45],
+    ['Structural Repair', 'Frame Alignment Issue', 120],
+    ['Structural Repair', 'A-Pillar Damage', 120],
+    ['Structural Repair', 'B-Pillar Damage', 120],
+    ['Structural Repair', 'Subframe Damage', 180],
+    ['Structural Repair', 'Chassis Straightening Required', 180],
+    ['Welding & Fabrication', 'Spot Weld Failure', 60],
+    ['Welding & Fabrication', 'Panel Join Separation', 60],
+    ['Welding & Fabrication', 'Bracket Fabrication Required', 45],
+    ['Welding & Fabrication', 'Reinforcement Plate Installation', 60],
   ]
 
-  const concerns: CWConcern[] = rawConcerns.map(([catName, name]) => {
+  const concerns: CWConcern[] = rawConcerns.map(([catName, name, mins]) => {
     const cat = catByName.get(catName)!
     return {
       id: newId(),
       categoryId: cat.id,
       name,
-      processTimeMins: 30,
+      processTimeMins: mins,
       status: 'Active',
       createdAt: ts,
       updatedAt: ts,
@@ -1344,8 +1461,16 @@ function seedConcernsData(defaultShopId: string): { concernCategories: CWConcern
   return { concernCategories, concerns }
 }
 
-function seedServicesData(defaultShopId: string): CWService[] {
+function seedServicesData(autoShopId: string, paintShopId: string, bodyShopId: string): CWService[] {
   const ts = nowIso()
+  // Map categories to shops
+  const paintShopCategories = new Set(['Paint Services'])
+  const bodyShopCategories = new Set(['Body Repair', 'Glass & Trim'])
+  function shopForCategory(cat: string) {
+    if (paintShopCategories.has(cat)) return paintShopId
+    if (bodyShopCategories.has(cat)) return bodyShopId
+    return autoShopId
+  }
   type Raw = [string, string, string, number, number, number]
   const raw: Raw[] = [
     ['Periodic Maintenance', 'PMS-001', '1,000 km Initial Service', 1, 1500, 1500],
@@ -1523,26 +1648,31 @@ function seedServicesData(defaultShopId: string): CWService[] {
     ['HVAC', 'AC-013', 'AC Pressure Test', 0.8, 1500, 1200],
     ['HVAC', 'AC-014', 'HVAC System Calibration', 1, 1500, 1500],
     ['HVAC', 'AC-015', 'AC Full Service Package', 4, 1500, 6000],
-    ['Body & Paint', 'BDP-001', 'Front Bumper Paint', 3, 1500, 4500],
-    ['Body & Paint', 'BDP-002', 'Rear Bumper Paint', 3, 1500, 4500],
-    ['Body & Paint', 'BDP-003', 'Door Paint (per door)', 3.5, 1500, 5250],
-    ['Body & Paint', 'BDP-004', 'Fender Paint (per fender)', 3, 1500, 4500],
-    ['Body & Paint', 'BDP-005', 'Hood Paint', 4, 1500, 6000],
-    ['Body & Paint', 'BDP-006', 'Trunk Paint', 3.5, 1500, 5250],
-    ['Body & Paint', 'BDP-007', 'Roof Paint', 4.5, 1500, 6750],
-    ['Body & Paint', 'BDP-008', 'Full Body Paint', 40, 1500, 60000],
-    ['Body & Paint', 'BDP-009', 'Panel Replacement (per panel)', 3, 1500, 4500],
-    ['Body & Paint', 'BDP-010', 'Dent Removal (minor)', 1.5, 1500, 2250],
-    ['Body & Paint', 'BDP-011', 'Dent Removal (major)', 4, 1500, 6000],
-    ['Body & Paint', 'BDP-012', 'Scratch Removal & Polish (per panel)', 1.5, 1500, 2250],
-    ['Body & Paint', 'BDP-013', 'Underbody Coating', 3, 1500, 4500],
-    ['Body & Paint', 'BDP-014', 'Rust Treatment (per panel)', 2, 1500, 3000],
-    ['Body & Paint', 'BDP-015', 'Paintless Dent Removal (per panel)', 2, 1500, 3000],
-    ['Body & Paint', 'BDP-016', 'Windshield Frame Paint', 3, 1500, 4500],
-    ['Body & Paint', 'BDP-017', 'Door Handle Paint (set of 4)', 2, 1500, 3000],
-    ['Body & Paint', 'BDP-018', 'Mirror Housing Paint (pair)', 1.5, 1500, 2250],
-    ['Body & Paint', 'BDP-019', 'Alloy Wheel Paint (per wheel)', 2, 1500, 3000],
-    ['Body & Paint', 'BDP-020', 'Body Inspection Package', 1, 1500, 1500],
+    ['Paint Services', 'PNT-001', 'Front Bumper Paint', 3, 1500, 4500],
+    ['Paint Services', 'PNT-002', 'Rear Bumper Paint', 3, 1500, 4500],
+    ['Paint Services', 'PNT-003', 'Door Paint (per door)', 3.5, 1500, 5250],
+    ['Paint Services', 'PNT-004', 'Fender Paint (per fender)', 3, 1500, 4500],
+    ['Paint Services', 'PNT-005', 'Hood Paint', 4, 1500, 6000],
+    ['Paint Services', 'PNT-006', 'Trunk Paint', 3.5, 1500, 5250],
+    ['Paint Services', 'PNT-007', 'Roof Paint', 4.5, 1500, 6750],
+    ['Paint Services', 'PNT-008', 'Full Body Paint', 40, 1500, 60000],
+    ['Paint Services', 'PNT-009', 'Scratch Removal & Polish (per panel)', 1.5, 1500, 2250],
+    ['Paint Services', 'PNT-010', 'Underbody Coating', 3, 1500, 4500],
+    ['Paint Services', 'PNT-011', 'Rust Treatment (per panel)', 2, 1500, 3000],
+    ['Paint Services', 'PNT-012', 'Windshield Frame Paint', 3, 1500, 4500],
+    ['Paint Services', 'PNT-013', 'Door Handle Paint (set of 4)', 2, 1500, 3000],
+    ['Paint Services', 'PNT-014', 'Mirror Housing Paint (pair)', 1.5, 1500, 2250],
+    ['Paint Services', 'PNT-015', 'Alloy Wheel Paint (per wheel)', 2, 1500, 3000],
+    ['Body Repair', 'BDY-001', 'Panel Replacement (per panel)', 3, 1500, 4500],
+    ['Body Repair', 'BDY-002', 'Dent Removal (minor)', 1.5, 1500, 2250],
+    ['Body Repair', 'BDY-003', 'Dent Removal (major)', 4, 1500, 6000],
+    ['Body Repair', 'BDY-004', 'Paintless Dent Removal (per panel)', 2, 1500, 3000],
+    ['Body Repair', 'BDY-005', 'Body Inspection Package', 1, 1500, 1500],
+    ['Body Repair', 'BDY-006', 'Frame Straightening', 8, 1500, 12000],
+    ['Body Repair', 'BDY-007', 'Bumper Replacement – Front', 2, 1500, 3000],
+    ['Body Repair', 'BDY-008', 'Bumper Replacement – Rear', 2, 1500, 3000],
+    ['Body Repair', 'BDY-009', 'Fender Replacement (per side)', 2.5, 1500, 3750],
+    ['Body Repair', 'BDY-010', 'Door Shell Replacement', 3, 1500, 4500],
     ['Glass & Trim', 'GLS-001', 'Windshield Replacement', 2.5, 1500, 3750],
     ['Glass & Trim', 'GLS-002', 'Rear Glass Replacement', 2.5, 1500, 3750],
     ['Glass & Trim', 'GLS-003', 'Side Glass Replacement (per glass)', 1.5, 1500, 2250],
@@ -1573,16 +1703,18 @@ function seedServicesData(defaultShopId: string): CWService[] {
     processTimeMins: Math.round((timeHrsRaw as number) * 60),
     ratePerHr,
     price,
-    shopId: defaultShopId,
+    shopId: shopForCategory(category),
     status: 'Active' as CWServiceStatus,
     createdAt: ts,
     updatedAt: ts,
   }))
 }
 
-const _defaultShopId = DEMO_SEED.shops[0].id
-const CONCERNS_SEED = seedConcernsData(_defaultShopId)
-const SERVICES_SEED = seedServicesData(_defaultShopId)
+const _autoShopId = DEMO_SEED.shops[0].id
+const _paintShopId = DEMO_SEED.shops[1].id
+const _bodyShopId = DEMO_SEED.shops[2].id
+const CONCERNS_SEED = seedConcernsData(_autoShopId, _paintShopId, _bodyShopId)
+const SERVICES_SEED = seedServicesData(_autoShopId, _paintShopId, _bodyShopId)
 
 function normalizeOptions(options?: string[]) {
   if (!options) return undefined
@@ -2687,6 +2819,90 @@ export const useCwStore = create<CWState>((set, get) => ({
             }
           : a,
       ),
+    })
+  },
+
+  // ─── QC actions ──────────────────────────────────────────────────────────────
+
+  assignQC: (input) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === input.appointmentId
+          ? {
+              ...a,
+              assignedQCUserId: input.qcUserId,
+              status: 'QC Assigned' as const,
+              // Clear previous QC marks on services only (QC doesn't verify concerns)
+              serviceItems: a.serviceItems.map((s) => ({ ...s, qcStatus: undefined, qcNote: undefined })),
+              qcRejectionNote: undefined,
+              timeline: [
+                ...a.timeline,
+                { id: newId(), timestamp: nowIso(), actor: 'SA', action: 'Assigned QC for verification' },
+              ],
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
+    })
+  },
+
+  qcApprove: (input) => {
+    set({
+      appointments: get().appointments.map((a) => {
+        if (a.id !== input.appointmentId) return a
+        // QC only verifies services, not concerns
+        const serviceItems = a.serviceItems.map((s) => {
+          const v = input.items.find((i) => i.itemId === s.id && i.itemType === 'service')
+          return v ? { ...s, qcStatus: v.status as any, qcNote: v.note } : s
+        })
+        return {
+          ...a,
+          serviceItems,
+          status: 'QC Approved' as const,
+          timeline: [
+            ...a.timeline,
+            { id: newId(), timestamp: nowIso(), actor: input.actorName, action: 'QC approved — all services verified' },
+          ],
+          updatedAt: nowIso(),
+        }
+      }),
+    })
+  },
+
+  qcReject: (input) => {
+    set({
+      appointments: get().appointments.map((a) => {
+        if (a.id !== input.appointmentId) return a
+        const failedItems = input.items.filter((i) => i.status === 'Failed')
+        // QC only verifies services, not concerns
+        const serviceItems = a.serviceItems.map((s) => {
+          const v = input.items.find((i) => i.itemId === s.id && i.itemType === 'service')
+          if (!v) return s
+          return {
+            ...s,
+            qcStatus: v.status as any,
+            qcNote: v.note,
+            ...(v.status === 'Failed' ? { workStatus: 'Pending' as const, technicianAssignments: [] } : {}),
+          }
+        })
+        return {
+          ...a,
+          serviceItems,
+          status: 'QC Rejected' as const,
+          qcRejectionNote: input.rejectionNote,
+          timeline: [
+            ...a.timeline,
+            {
+              id: newId(),
+              timestamp: nowIso(),
+              actor: input.actorName,
+              action: `QC rejected — ${failedItems.length} service(s) need rework`,
+              details: input.rejectionNote,
+            },
+          ],
+          updatedAt: nowIso(),
+        }
+      }),
     })
   },
 

@@ -75,6 +75,9 @@ export function AppShell() {
       { kind: 'section', label: 'Technician', anyOfRoles: ['Technician'] },
       { kind: 'link', label: 'My Tasks', to: '/technician', icon: <CalendarMonth />, anyOfRoles: ['Technician'] },
 
+      { kind: 'section', label: 'QC', anyOfRoles: ['QC'] },
+      { kind: 'link', label: 'QC Appointments', to: '/qc/appointments', icon: <CalendarMonth />, anyOfRoles: ['QC'] },
+
       { kind: 'section', label: 'CRE', anyOfRoles: ['CRE'] },
       { kind: 'link', label: 'Dashboard', to: '/cre', icon: <People />, anyOfRoles: ['CRE'] },
       { kind: 'link', label: 'Manage Customer', to: '/cre/customers', icon: <People />, anyOfRoles: ['CRE'] },
@@ -120,7 +123,7 @@ export function AppShell() {
         label: 'Notifications',
         to: '/notifications',
         icon: <Badge />,
-        anyOfRoles: ['Admin', 'Job Creation', 'Guard', 'CRE', 'Technician', 'Service Advisor', 'Service Engineer', 'Custom Role'],
+        anyOfRoles: ['Admin', 'Job Creation', 'Guard', 'CRE', 'Technician', 'Service Advisor', 'Service Engineer', 'QC', 'Custom Role'],
       },
     ],
     [],

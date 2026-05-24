@@ -27,6 +27,9 @@ function statusColor(status: string): 'default' | 'info' | 'warning' | 'success'
     'Service Assigned': 'info',
     'Service In Progress': 'primary',
     'Service Complete': 'success',
+    'QC Assigned': 'info',
+    'QC Approved': 'success',
+    'QC Rejected': 'error',
     'Payment Pending': 'warning',
     'Payment Done': 'success',
     'Released': 'success',
@@ -50,6 +53,9 @@ const JC_RELEVANT_STATUSES: CWAppointmentStatus[] = [
   'Service Assigned',
   'Service In Progress',
   'Service Complete',
+  'QC Assigned',
+  'QC Approved',
+  'QC Rejected',
   'Payment Pending',
   'Payment Done',
 ]
@@ -70,7 +76,7 @@ export function JobControllerHome() {
   )
 
   const needsAction = useMemo(
-    () => relevant.filter((a) => ['Customer Approved', 'Service Approved'].includes(a.status)),
+    () => relevant.filter((a) => ['Customer Approved', 'Service Approved', 'QC Rejected'].includes(a.status)),
     [relevant],
   )
 

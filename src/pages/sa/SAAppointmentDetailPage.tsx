@@ -51,9 +51,11 @@ export function SAAppointmentDetailPage() {
   const addAppointmentConcern = useCwStore((s) => s.addAppointmentConcern)
   const pushTimeline = useCwStore((s) => s.pushTimeline)
   const confirmPayment = useCwStore((s) => s.confirmPayment)
+  const assignQC = useCwStore((s) => s.assignQC)
   const partRequests = useCwStore((s) => s.partRequests)
   const shops = useCwStore((s) => s.shops)
   const concernCategories = useCwStore((s) => s.concernCategories)
+  const roles = useCwStore((s) => s.roles)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -113,6 +115,8 @@ export function SAAppointmentDetailPage() {
   const isDiagnosisComplete = appt.status === 'Diagnosis Complete'
   const isServiceApprovalPending = appt.status === 'Service Approval Pending'
   const isServiceComplete = appt.status === 'Service Complete'
+  const isQCApproved = appt.status === 'QC Approved'
+  const isQCRejected = appt.status === 'QC Rejected'
   const isPaymentPending = appt.status === 'Payment Pending'
 
   // SA can send WhatsApp for initial concern approval
@@ -121,10 +125,20 @@ export function SAAppointmentDetailPage() {
   const canSendServiceWA = isDiagnosisComplete
   // SA can approve/reject (1st round: concerns, 2nd round: services)
   const canApprove = isCustomerNotified || isServiceApprovalPending
-  // SA can send payment WA
-  const canSendPaymentWA = isServiceComplete
+  // SA can assign QC when service complete
+  const canAssignQC = isServiceComplete
+  // SA can send payment WA after QC approves
+  const canSendPaymentWA = isQCApproved
   // SA can confirm payment
   const canConfirmPayment = isPaymentPending
+
+  // QC user selection
+  const qcRoleId = useMemo(() => roles.find((r) => r.name === 'QC')?.id, [roles])
+  const activeQCUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)),
+    [users, qcRoleId],
+  )
+  const [selectedQCUserId, setSelectedQCUserId] = useState('')
 
   function handleSubmitInspection() {
     submitInspection({
@@ -477,14 +491,65 @@ export function SAAppointmentDetailPage() {
 
         {/* ── Customer Approval (both rounds) ── */}
 
-        {/* ── WhatsApp: Payment (after services complete) ── */}
+        {/* ── Assign QC (after services complete) ── */}
+        {canAssignQC && (
+          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'info.main' }}>
+              Services Complete — Assign QC for Verification
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              All services finished. Assign a QC inspector to verify the work before contacting the customer.
+            </Typography>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <TextField
+                select size="small" label="QC Inspector"
+                value={selectedQCUserId}
+                onChange={(e) => setSelectedQCUserId(e.target.value)}
+                sx={{ minWidth: 250 }}
+              >
+                <MenuItem value="">— Select QC —</MenuItem>
+                {activeQCUsers.map((u) => (
+                  <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                ))}
+              </TextField>
+              <Button
+                variant="contained" color="info"
+                disabled={!selectedQCUserId}
+                onClick={() => {
+                  assignQC({ appointmentId: appt!.id, qcUserId: selectedQCUserId })
+                  setSelectedQCUserId('')
+                }}
+                sx={{ fontWeight: 800 }}
+              >
+                Assign QC
+              </Button>
+            </Stack>
+          </Paper>
+        )}
+
+        {/* ── QC Rejected Info ── */}
+        {isQCRejected && appt.qcRejectionNote && (
+          <Paper sx={{ border: '2px solid', borderColor: 'error.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'error.main' }}>
+              QC Rejected — Rework Required
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              QC has flagged issues. Job Controller will reassign the failed items for rework.
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600, mt: 1 }}>
+              QC Note: {appt.qcRejectionNote}
+            </Typography>
+          </Paper>
+        )}
+
+        {/* ── WhatsApp: Payment (after QC approved) ── */}
         {canSendPaymentWA && (
           <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
             <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
-              Services Complete — Send Payment Request
+              QC Approved — Send Payment Request
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              All services finished. Send payment request to customer.
+              QC verification passed. Send payment request to customer.
             </Typography>
             <Button variant="contained" color="success" startIcon={<Send />}
               onClick={() => openWhatsApp('payment')}>

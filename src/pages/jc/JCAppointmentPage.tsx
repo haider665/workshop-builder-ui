@@ -59,6 +59,9 @@ function statusColor(status: string): 'default' | 'info' | 'warning' | 'success'
     'Service Assigned': 'info',
     'Service In Progress': 'primary',
     'Service Complete': 'success',
+    'QC Assigned': 'info',
+    'QC Approved': 'success',
+    'QC Rejected': 'error',
     'Payment Pending': 'warning',
     'Payment Done': 'success',
     'Released': 'success',
@@ -152,6 +155,14 @@ export function JCAppointmentPage() {
   const isDiagnosisPhase = appt.status === 'Customer Approved'
   // Phase 2: Service Approved → assign SE+bay to SERVICES only → Service Assigned
   const isServicePhase = appt.status === 'Service Approved'
+  // Phase 3: QC Rejected → reassign SE for FAILED items only → Service Assigned
+  const isQCRejectedPhase = appt.status === 'QC Rejected'
+
+  // Get QC-failed services for rework assignment (QC only verifies services)
+  const failedServices = useMemo(
+    () => isQCRejectedPhase ? appt.serviceItems.filter((s) => s.qcStatus === 'Failed') : [],
+    [isQCRejectedPhase, appt.serviceItems],
+  )
 
   function toIso(local: string) {
     if (!local) return ''
@@ -376,6 +387,58 @@ export function JCAppointmentPage() {
 
       setAppointmentStatus(appt!.id, 'Service Assigned')
       pushTimeline(appt!.id, { actor: 'JC', action: 'SE + Bay assigned to all services' })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  function submitQCReworkAssignment(skipBayWarning = false) {
+    try {
+      setError(null)
+
+      // Validate and assign only the failed services
+      const formEntries: { id: string; label: string; teamId: string; bayId: string; startIso: string; endIso: string }[] = []
+
+      for (const s of failedServices) {
+        const form = getServiceFormVal(s.id)
+        if (!form.seUserId) throw new Error(`Select SE for service: ${s.serviceDescription}`)
+        if (!form.bayId) throw new Error(`Select Bay for service: ${s.serviceDescription}`)
+        const startIso = toIso(form.startLocal)
+        if (!startIso) throw new Error(`Set start time for service: ${s.serviceDescription}`)
+        const endIso = toIso(form.endLocal) || startIso
+        const bayConflict = checkBayConflict(form.bayId, startIso, endIso)
+        if (bayConflict) throw new Error(bayConflict)
+        formEntries.push({ id: s.id, label: s.serviceDescription, teamId: form.teamId, bayId: form.bayId, startIso: startIso, endIso: endIso })
+      }
+
+      if (!skipBayWarning) {
+        const conflicts = detectSimultaneousBayWork(formEntries)
+        if (conflicts.length > 0) {
+          setBayConflictDialog({ open: true, conflicts, phase: 'service' })
+          return
+        }
+      }
+
+      // Assign failed services
+      for (const s of failedServices) {
+        const form = getServiceFormVal(s.id)
+        const startIso = toIso(form.startLocal)
+        const endIso = toIso(form.endLocal) || startIso
+        assignServiceSE({
+          appointmentId: appt!.id,
+          serviceItemId: s.id,
+          seUserId: form.seUserId,
+          bayId: form.bayId,
+          startAt: startIso,
+          endAt: endIso,
+        })
+      }
+
+      setAppointmentStatus(appt!.id, 'Service Assigned')
+      pushTimeline(appt!.id, {
+        actor: 'JC',
+        action: `Reassigned ${failedServices.length} QC-failed service(s) for rework`,
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -813,6 +876,90 @@ export function JCAppointmentPage() {
           </Paper>
         )}
 
+        {/* ── Phase 3: QC Rejected — Reassign failed items for rework ── */}
+        {isQCRejectedPhase && failedServices.length > 0 && (
+          <Paper sx={{ border: '2px solid', borderColor: 'error.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 0.5, color: 'error.main' }}>
+              QC Rejected — Reassign Failed Services for Rework
+            </Typography>
+            {appt.qcRejectionNote && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                <strong>QC Note:</strong> {appt.qcRejectionNote}
+              </Alert>
+            )}
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {failedServices.length} service(s) failed QC. Assign SE and Bay for rework.
+            </Typography>
+
+            <Stack spacing={2}>
+              {/* Failed services */}
+              {failedServices.map((s) => {
+                const form = getServiceFormVal(s.id)
+                return (
+                  <Box key={s.id} sx={{ border: '1px solid', borderColor: 'error.light', borderRadius: 1, p: 2, bgcolor: 'error.50' }}>
+                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 0.5, flexWrap: 'wrap' }}>
+                      <Chip size="small" label="SERVICE" color="info" sx={{ fontWeight: 800 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription}</Typography>
+                      <Typography variant="caption" color="text.secondary">{s.serviceCode} · {fmtBDT(s.price)}</Typography>
+                      {s.qcNote && <Typography variant="caption" color="error.main">QC: {s.qcNote}</Typography>}
+                    </Stack>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 2fr' }, gap: 1.5, mt: 1 }}>
+                      <TextField
+                        select size="small" label="Team" value={form.teamId}
+                        onChange={(e) => {
+                          const teamId = e.target.value
+                          setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), teamId, seUserId: '' } }))
+                        }}
+                      >
+                        <MenuItem value="">— Select Team —</MenuItem>
+                        {teams.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                      </TextField>
+                      <TextField
+                        select size="small" label="Service Engineer" value={form.seUserId}
+                        onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), seUserId: e.target.value } }))}
+                      >
+                        <MenuItem value="">— Select SE —</MenuItem>
+                        {(() => {
+                          const team = teams.find((t) => t.id === form.teamId)
+                          const filteredSEs = team ? seUsers.filter((u) => u.id === team.seUserId) : seUsers
+                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)
+                        })()}
+                      </TextField>
+                      <TextField
+                        select size="small" label="Bay" value={form.bayId}
+                        onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), bayId: e.target.value } }))}
+                      >
+                        <MenuItem value="">— Select Bay —</MenuItem>
+                        {activeBays.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
+                      </TextField>
+                      <TextField size="small" label="Start Time" type="datetime-local" value={form.startLocal}
+                        onChange={(e) => {
+                          const startVal = e.target.value
+                          const updates: Partial<typeof form> = { startLocal: startVal }
+                          const mins = typeof s.processTimeMins === 'number' ? s.processTimeMins : 0
+                          if (startVal && mins > 0) {
+                            const d = new Date(startVal)
+                            d.setMinutes(d.getMinutes() + mins)
+                            updates.endLocal = d.toISOString().slice(0, 16)
+                          }
+                          setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), ...updates } }))
+                        }}
+                        slotProps={{ inputLabel: { shrink: true } }}
+                      />
+                    </Box>
+                  </Box>
+                )
+              })}
+            </Stack>
+
+            <Box sx={{ mt: 2.5 }}>
+              <Button variant="contained" color="error" size="large" onClick={() => submitQCReworkAssignment()} sx={{ fontWeight: 900 }}>
+                Reassign Failed Services for Rework
+              </Button>
+            </Box>
+          </Paper>
+        )}
+
         {/* ── Status info ── */}
         {appt.status === 'SA Inspection' && (
           <Alert severity="info">SA is performing vehicle inspection.</Alert>
@@ -845,7 +992,13 @@ export function JCAppointmentPage() {
           <Alert severity="info">Services in progress — technicians working.</Alert>
         )}
         {appt.status === 'Service Complete' && (
-          <Alert severity="success">Services complete — SA handling payment.</Alert>
+          <Alert severity="success">Services complete — SA assigning QC for verification.</Alert>
+        )}
+        {appt.status === 'QC Assigned' && (
+          <Alert severity="info">QC inspector assigned — verifying work quality.</Alert>
+        )}
+        {appt.status === 'QC Approved' && (
+          <Alert severity="success">QC approved — SA handling payment.</Alert>
         )}
         {appt.status === 'Payment Pending' && (
           <Alert severity="warning">Payment pending.</Alert>

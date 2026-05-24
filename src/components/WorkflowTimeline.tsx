@@ -16,6 +16,8 @@ const STATUS_STEPS: CWAppointmentStatus[] = [
   'Service Assigned',
   'Service In Progress',
   'Service Complete',
+  'QC Assigned',
+  'QC Approved',
   'Payment Pending',
   'Payment Done',
   'Released',
@@ -24,6 +26,8 @@ const STATUS_STEPS: CWAppointmentStatus[] = [
 function stepIndex(status: CWAppointmentStatus): number {
   // Customer Rejected maps to the Customer Approved step
   if (status === 'Customer Rejected') return STATUS_STEPS.indexOf('Customer Approved')
+  // QC Rejected maps to the QC Approved step
+  if (status === 'QC Rejected') return STATUS_STEPS.indexOf('QC Approved')
   const idx = STATUS_STEPS.indexOf(status)
   return idx >= 0 ? idx : 0
 }
@@ -44,6 +48,9 @@ function stepColor(status: CWAppointmentStatus): 'default' | 'info' | 'warning' 
     'Service Assigned': 'info',
     'Service In Progress': 'primary',
     'Service Complete': 'success',
+    'QC Assigned': 'info',
+    'QC Approved': 'success',
+    'QC Rejected': 'error',
     'Payment Pending': 'warning',
     'Payment Done': 'success',
     Released: 'success',
@@ -67,6 +74,8 @@ function stepShortLabel(s: CWAppointmentStatus): string {
     'Service Assigned': 'Svc Asgn',
     'Service In Progress': 'Servicing',
     'Service Complete': 'Svc Done',
+    'QC Assigned': 'QC Asgn',
+    'QC Approved': 'QC OK',
     'Payment Pending': 'Payment',
     'Payment Done': 'Paid',
     'Released': 'Released',

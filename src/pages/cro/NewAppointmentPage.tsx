@@ -119,6 +119,23 @@ export function NewAppointmentPage() {
   const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
   const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
 
+  // Concern → shop name lookup
+  const getConcernShopName = useMemo(() => {
+    const cMap = new Map(concerns.map((c) => [c.id, c]))
+    const catMap = new Map(concernCategories.map((c) => [c.id, c]))
+    return (concernId: string) => {
+      const concern = cMap.get(concernId)
+      if (!concern) return ''
+      return shopById.get(catMap.get(concern.categoryId)?.shopId ?? '')?.name ?? ''
+    }
+  }, [concerns, concernCategories, shopById])
+
+  // Service → shop name lookup
+  const getServiceShopName = useMemo(() => {
+    const sMap = new Map(services.map((s) => [s.id, s]))
+    return (serviceId: string) => shopById.get(sMap.get(serviceId)?.shopId ?? '')?.name ?? ''
+  }, [services, shopById])
+
 
   // Booked slots on selected date
   const bookedSlots = useMemo(() => {
@@ -387,26 +404,7 @@ export function NewAppointmentPage() {
         {/* ── Concerns ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5 }}>
-            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontWeight: 900 }}>Concerns</Typography>
-              <FormControl size="small" sx={{ minWidth: 160 }}>
-                <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value)}>
-                  <MenuItem value="">All Shops</MenuItem>
-                  {activeShops.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              {concernShopFilter && (
-                <Chip
-                  label={shopById.get(concernShopFilter)?.name}
-                  onDelete={() => setConcernShopFilter('')}
-                  color="primary"
-                  size="small"
-                />
-              )}
-            </Stack>
+            <Typography sx={{ fontWeight: 900, mb: 2 }}>Concerns</Typography>
 
             {concernItems.length > 0 && (
               <Table size="small" sx={{ mb: 2 }}>
@@ -414,19 +412,25 @@ export function NewAppointmentPage() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800, width: 40 }}>SI</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {concernItems.map((item, idx) => (
+                  {concernItems.map((item, idx) => {
+                    const shopName = getConcernShopName(item.concernId)
+                    return (
                     <TableRow key={item.id}>
                       <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
                       <TableCell>
                         <Stack>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.concernName}{typeof item.processTimeMins === 'number' ? ` (${item.processTimeMins} mins)` : ''}</Typography>
                         </Stack>
+                      </TableCell>
+                      <TableCell>
+                        {shopName ? <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
                       </TableCell>
                       <TableCell>
                         {typeof item.processTimeMins === 'number' ? (
@@ -444,13 +448,23 @@ export function NewAppointmentPage() {
                         </IconButton>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                 </TableBody>
               </Table>
             )}
 
             {/* Add concern row */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Shop</InputLabel>
+                <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value)}>
+                  <MenuItem value="">All Shops</MenuItem>
+                  {activeShops.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <Autocomplete
                 multiple
                 size="small"
@@ -492,26 +506,7 @@ export function NewAppointmentPage() {
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5 }}>
             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-                <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
-                <FormControl size="small" sx={{ minWidth: 160 }}>
-                  <InputLabel>Shop</InputLabel>
-                  <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value)}>
-                    <MenuItem value="">All Shops</MenuItem>
-                    {activeShops.map((s) => (
-                      <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                {serviceShopFilter && (
-                  <Chip
-                    label={shopById.get(serviceShopFilter)?.name}
-                    onDelete={() => setServiceShopFilter('')}
-                    color="primary"
-                    size="small"
-                  />
-                )}
-              </Stack>
+              <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
               {serviceItems.length > 0 && (
                 <Tooltip title="Total labour estimate">
                   <Chip
@@ -529,6 +524,7 @@ export function NewAppointmentPage() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800, width: 40 }}>SI</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 800 }}>Time</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 800 }}>Price (BDT)</TableCell>
@@ -536,7 +532,9 @@ export function NewAppointmentPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {serviceItems.map((item, idx) => (
+                  {serviceItems.map((item, idx) => {
+                    const shopName = getServiceShopName(item.serviceId)
+                    return (
                     <TableRow key={item.id}>
                       <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
                       <TableCell>
@@ -546,6 +544,9 @@ export function NewAppointmentPage() {
                             {item.serviceCode}
                           </Typography>
                         </Stack>
+                      </TableCell>
+                      <TableCell>
+                        {shopName ? <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
@@ -562,9 +563,10 @@ export function NewAppointmentPage() {
                         </IconButton>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                   <TableRow>
-                    <TableCell colSpan={4} sx={{ fontWeight: 800, textAlign: 'right', border: 'none' }}>
+                    <TableCell colSpan={5} sx={{ fontWeight: 800, textAlign: 'right', border: 'none' }}>
                       Total Labour Estimate
                     </TableCell>
                     <TableCell align="right" sx={{ border: 'none' }}>
@@ -580,6 +582,15 @@ export function NewAppointmentPage() {
 
             {/* Add service row */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Shop</InputLabel>
+                <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value)}>
+                  <MenuItem value="">All Shops</MenuItem>
+                  {activeShops.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <Autocomplete
                 multiple
                 size="small"

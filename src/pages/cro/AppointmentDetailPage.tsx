@@ -50,6 +50,9 @@ function statusColor(status: string): 'default' | 'info' | 'warning' | 'success'
     'Service Assigned': 'info',
     'Service In Progress': 'primary',
     'Service Complete': 'success',
+    'QC Assigned': 'info',
+    'QC Approved': 'success',
+    'QC Rejected': 'error',
     'Payment Pending': 'warning',
     'Payment Done': 'success',
     Released: 'success',
@@ -65,6 +68,11 @@ export function AppointmentDetailPage() {
   const customers = useCwStore((s) => s.customers)
   const users = useCwStore((s) => s.users)
   const bays = useCwStore((s) => s.bays)
+  const catalogServices = useCwStore((s) => s.services)
+  const partRequests = useCwStore((s) => s.partRequests)
+  const shops = useCwStore((s) => s.shops)
+  const allConcerns = useCwStore((s) => s.concerns)
+  const concernCategories = useCwStore((s) => s.concernCategories)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -85,6 +93,29 @@ export function AppointmentDetailPage() {
     for (const b of bays) map.set(b.id, b.name)
     return map
   }, [bays])
+
+  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
+
+  // Concern → shop name lookup: concernId → concern → categoryId → category → shopId → shop
+  const getConcernShopName = useMemo(() => {
+    const cMap = new Map(allConcerns.map((c) => [c.id, c]))
+    const catMap = new Map(concernCategories.map((c) => [c.id, c]))
+    return (concernId: string) => {
+      const concern = cMap.get(concernId)
+      if (!concern) return ''
+      const shopId = catMap.get(concern.categoryId)?.shopId ?? ''
+      return shopById.get(shopId)?.name ?? ''
+    }
+  }, [allConcerns, concernCategories, shopById])
+
+  // Service → shop name lookup: serviceId → service → shopId → shop
+  const getServiceShopName = useMemo(() => {
+    const sMap = new Map(catalogServices.map((s) => [s.id, s]))
+    return (serviceId: string) => {
+      const svc = sMap.get(serviceId)
+      return svc ? shopById.get(svc.shopId)?.name ?? '' : ''
+    }
+  }, [catalogServices, shopById])
 
   if (!appt) {
     return (
@@ -152,47 +183,87 @@ export function AppointmentDetailPage() {
           {appt.concernItems.length === 0 ? (
             <Typography variant="body2" color="text.secondary">No concerns listed.</Typography>
           ) : (
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Remark</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>SA</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Technicians</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {appt.concernItems.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell><Typography variant="body2" sx={{ fontWeight: 700 }}>{c.concernName}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{c.remark || '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{c.assignedSEUserId ? (userNameById.get(c.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
-                    <TableCell>
-                      <Typography variant="caption">
-                        {c.plannedStartAt ? `${fmtDateTime(c.plannedStartAt)} → ${fmtDateTime(c.plannedEndAt)}` : '—'}
+            <Stack spacing={2}>
+              {appt.concernItems.map((c) => {
+                const concernServices = (c.serviceIds ?? []).map((sid) => catalogServices.find((s) => s.id === sid)).filter(Boolean)
+                const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
+                const shopName = getConcernShopName(c.concernId)
+                return (
+                  <Box key={c.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: c.workStatus === 'Completed' ? 'success.main' : 'divider' }}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography sx={{ fontWeight: 800 }}>
+                        {c.concernName}
+                        {typeof c.processTimeMins === 'number' && (
+                          <Typography component="span" variant="caption" sx={{ ml: 1, px: 1, py: 0.25, bgcolor: 'info.main', color: 'white', borderRadius: 1, fontWeight: 700 }}>
+                            {c.processTimeMins}m
+                          </Typography>
+                        )}
                       </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {c.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || '—'}
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        {shopName && <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} />}
+                        {c.assignedSEUserId && <Chip size="small" label={userNameById.get(c.assignedSEUserId) ?? '—'} variant="outlined" />}
+                        {c.bayId && <Chip size="small" label={bayNameById.get(c.bayId) ?? '—'} variant="outlined" />}
+                        {c.workStatus ? (
+                          <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
+                        ) : null}
+                      </Stack>
+                    </Stack>
+                    {c.remark && <Typography variant="body2" color="text.secondary">{c.remark}</Typography>}
+                    {c.diagnosisRemark && (
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        <strong>SE Diagnosis:</strong> {c.diagnosisRemark}
                       </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {c.workStatus ? (
-                        <Chip
-                          label={c.workStatus}
-                          size="small"
-                          color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'}
-                          sx={{ fontWeight: 700 }}
-                        />
-                      ) : '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    )}
+                    {c.plannedStartAt && (
+                      <Typography variant="caption" color="text.secondary">
+                        {fmtDateTime(c.plannedStartAt)} → {fmtDateTime(c.plannedEndAt)}
+                      </Typography>
+                    )}
+                    {c.technicianAssignments.length > 0 && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                        Technicians: {c.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ')}
+                      </Typography>
+                    )}
+
+                    {/* Services linked to this concern */}
+                    {concernServices.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.main' }}>Services:</Typography>
+                        <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                          {concernServices.map((svc) => svc && (
+                            <Chip key={svc.id} size="small" label={`${svc.code} · ${svc.description} · ${fmtBDT(svc.price)}`} color="info" variant="outlined" />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {/* Parts for this concern */}
+                    {concernParts.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'secondary.main' }}>Parts:</Typography>
+                        <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                          {concernParts.map((pr) => (
+                            <Stack key={pr.id} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', px: 1, py: 0.5, bgcolor: 'white', borderRadius: 0.5, border: '1px solid', borderColor: 'divider' }}>
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{pr.partName}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Qty: {pr.quantity ?? 1}{pr.partNumber ? ` · #${pr.partNumber}` : ''}
+                                  {typeof pr.price === 'number' ? ` · ${fmtBDT(pr.price)}` : ''}
+                                  {pr.deliveryDate ? ` · ETA: ${pr.deliveryDate}` : ''}
+                                </Typography>
+                              </Box>
+                              <Chip size="small" label={pr.status}
+                                color={pr.status === 'Fulfilled' ? 'success' : pr.status === 'Labeled' ? 'info' : pr.status === 'Rejected' ? 'error' : 'warning'}
+                              />
+                            </Stack>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+                  </Box>
+                )
+              })}
+            </Stack>
           )}
         </Paper>
 
@@ -208,6 +279,7 @@ export function AppointmentDetailPage() {
               <TableHead>
                 <TableRow sx={{ bgcolor: 'action.hover' }}>
                   <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Price</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>SA</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Bay</TableCell>
@@ -216,11 +288,16 @@ export function AppointmentDetailPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {appt.serviceItems.map((s) => (
+                {appt.serviceItems.map((s) => {
+                  const svcShopName = getServiceShopName(s.serviceId)
+                  return (
                   <TableRow key={s.id}>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription}</Typography>
                       <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      {svcShopName ? <Chip size="small" label={svcShopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
                     </TableCell>
                     <TableCell><Typography variant="body2">{fmtBDT(s.price)}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
@@ -241,7 +318,8 @@ export function AppointmentDetailPage() {
                       ) : '—'}
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           )}

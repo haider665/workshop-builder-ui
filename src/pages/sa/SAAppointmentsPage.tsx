@@ -37,6 +37,9 @@ const SA_STATUSES: CWAppointmentStatus[] = [
   'Service Assigned',
   'Service In Progress',
   'Service Complete',
+  'QC Assigned',
+  'QC Approved',
+  'QC Rejected',
   'Payment Pending',
   'Payment Done',
 ]
@@ -58,6 +61,9 @@ function statusColor(
     'Service Assigned': 'info',
     'Service In Progress': 'primary',
     'Service Complete': 'success',
+    'QC Assigned': 'info',
+    'QC Approved': 'success',
+    'QC Rejected': 'error',
     'Payment Pending': 'warning',
     'Payment Done': 'success',
   }

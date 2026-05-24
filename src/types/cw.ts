@@ -298,6 +298,8 @@ export type CWTechnicianAssignment = {
 
 export type CWConcernWorkStatus = 'Pending' | 'In Progress' | 'Completed'
 
+export type CWQCItemStatus = 'Passed' | 'Failed'
+
 export type CWAppointmentConcernItem = {
   id: string
   concernId: string
@@ -316,6 +318,9 @@ export type CWAppointmentConcernItem = {
   // SE assigns technicians:
   technicianAssignments: CWTechnicianAssignment[]
   workStatus?: CWConcernWorkStatus
+  // QC verification:
+  qcStatus?: CWQCItemStatus
+  qcNote?: string
 }
 
 export type CWServiceWorkStatus = 'Pending' | 'In Progress' | 'Completed'
@@ -338,6 +343,9 @@ export type CWAppointmentServiceItem = {
   workStatus?: CWServiceWorkStatus
   plannedStartAt?: string
   plannedEndAt?: string
+  // QC verification:
+  qcStatus?: CWQCItemStatus
+  qcNote?: string
 }
 
 export type CWWhatsappLog = {
@@ -404,6 +412,9 @@ export type CWAppointmentStatus =
   | 'Service Assigned'
   | 'Service In Progress'
   | 'Service Complete'
+  | 'QC Assigned'
+  | 'QC Approved'
+  | 'QC Rejected'
   | 'Payment Pending'
   | 'Payment Done'
   | 'Released'
@@ -426,6 +437,9 @@ export type CWAppointment = {
   status: CWAppointmentStatus
   // CRO assigns SA
   assignedSAUserId?: string
+  // SA assigns QC
+  assignedQCUserId?: string
+  qcRejectionNote?: string
   // SA inspection
   inspectionChecks: CWInspectionCheck[]
   vehicleViewChecks: CWVehicleViewCheck[]

@@ -40,6 +40,7 @@ function statusColor(status: string): 'default' | 'info' | 'warning' | 'success'
     'Customer Notified': 'warning', 'Customer Approved': 'success', 'Customer Rejected': 'error',
     'Diagnosis Assigned': 'info', 'Diagnosis In Progress': 'primary', 'Diagnosis Complete': 'success',
     'Service Assigned': 'info', 'Service In Progress': 'primary', 'Service Complete': 'success',
+    'QC Assigned': 'info', 'QC Approved': 'success', 'QC Rejected': 'error',
     'Payment Pending': 'warning', 'Payment Done': 'success', Released: 'success',
   }
   return m[status] ?? 'default'

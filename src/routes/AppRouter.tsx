@@ -48,6 +48,8 @@ import { VehicleHistoryDetailPage } from '../pages/records/VehicleHistoryDetailP
 import { VehicleHistoryPage } from '../pages/records/VehicleHistoryPage'
 import { TechnicianDashboardPage } from '../pages/technician/TechnicianDashboardPage'
 import { TechnicianTaskPage } from '../pages/technician/TechnicianTaskPage'
+import { QCAppointmentsPage } from '../pages/qc/QCAppointmentsPage'
+import { QCAppointmentDetailPage } from '../pages/qc/QCAppointmentDetailPage'
 
 export function AppRouter() {
   return (
@@ -121,6 +123,11 @@ export function AppRouter() {
           <Route element={<RequireRole anyOf={['Technician']} />}>
             <Route path="/technician" element={<TechnicianDashboardPage />} />
             <Route path="/technician/task/:appointmentId/:itemType/:itemId" element={<TechnicianTaskPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['QC']} />}>
+            <Route path="/qc/appointments" element={<QCAppointmentsPage />} />
+            <Route path="/qc/appointments/:appointmentId" element={<QCAppointmentDetailPage />} />
           </Route>
 
           <Route
