@@ -341,7 +341,7 @@ export function SAAppointmentDetailPage() {
                         <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.main' }}>Services:</Typography>
                         <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
                           {concernServices.map((svc) => svc && (
-                            <Chip key={svc.id} size="small" label={`${svc.code} · ${fmtBDT(svc.price)}`} color="info" variant="outlined" />
+                            <Chip key={svc.id} size="small" label={`${svc.description} · ${fmtBDT(svc.price)}`} color="info" variant="outlined" />
                           ))}
                         </Stack>
                       </Box>

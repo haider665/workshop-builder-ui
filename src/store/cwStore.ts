@@ -2396,18 +2396,66 @@ export const useCwStore = create<CWState>((set, get) => ({
   },
 
   updateConcernItemServices: (appointmentId, itemId, serviceIds) => {
+    const allServices = get().services
     set({
-      appointments: get().appointments.map((a) =>
-        a.id === appointmentId
-          ? {
-              ...a,
-              concernItems: a.concernItems.map((i) =>
-                i.id === itemId ? { ...i, serviceIds } : i,
-              ),
-              updatedAt: nowIso(),
+      appointments: get().appointments.map((a) => {
+        if (a.id !== appointmentId) return a
+
+        // Update concern item serviceIds
+        const updatedConcerns = a.concernItems.map((i) =>
+          i.id === itemId ? { ...i, serviceIds } : i,
+        )
+
+        // Collect all service catalog IDs referenced by ANY concern in this appointment
+        const allConcernServiceIds = new Set<string>()
+        for (const c of updatedConcerns) {
+          for (const sid of c.serviceIds ?? []) allConcernServiceIds.add(sid)
+        }
+
+        // Add new services to serviceItems that aren't already present
+        const existingServiceIds = new Set(a.serviceItems.map((s) => s.serviceId))
+        const newServiceItems = [...a.serviceItems]
+        for (const sid of serviceIds) {
+          if (!existingServiceIds.has(sid)) {
+            const catalogSvc = allServices.find((s) => s.id === sid)
+            if (catalogSvc) {
+              newServiceItems.push({
+                id: newId(),
+                serviceId: catalogSvc.id,
+                serviceCode: catalogSvc.code,
+                serviceDescription: catalogSvc.description,
+                processTimeMins: catalogSvc.processTimeMins,
+                ratePerHr: catalogSvc.ratePerHr,
+                price: catalogSvc.price,
+                remark: '',
+                addedBySA: false,
+                technicianAssignments: [],
+              })
             }
-          : a,
-      ),
+          }
+        }
+
+        // Remove serviceItems that were unlinked from ALL concerns and were concern-sourced
+        // (only remove if serviceId is no longer in any concern's serviceIds)
+        const prevConcernServiceIds = new Set<string>()
+        for (const c of a.concernItems) {
+          for (const sid of c.serviceIds ?? []) prevConcernServiceIds.add(sid)
+        }
+        const removedServiceIds = new Set<string>()
+        for (const sid of prevConcernServiceIds) {
+          if (!allConcernServiceIds.has(sid)) removedServiceIds.add(sid)
+        }
+        const finalServiceItems = newServiceItems.filter(
+          (s) => !removedServiceIds.has(s.serviceId),
+        )
+
+        return {
+          ...a,
+          concernItems: updatedConcerns,
+          serviceItems: finalServiceItems,
+          updatedAt: nowIso(),
+        }
+      }),
     })
   },
 

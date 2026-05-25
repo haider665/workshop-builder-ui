@@ -307,7 +307,7 @@ export function SEAppointmentDetailPage() {
                         <Stack direction="row" spacing={0.5} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
                           {c.serviceIds!.map((sid) => {
                             const svc = services.find((s) => s.id === sid)
-                            return svc ? <Chip key={sid} size="small" label={`${svc.code} · ${fmtBDT(svc.price)}`} color="info" /> : null
+                            return svc ? <Chip key={sid} size="small" label={`${svc.description} · ${fmtBDT(svc.price)}`} color="info" /> : null
                           })}
                         </Stack>
                       )}
