@@ -98,6 +98,7 @@ export function SEAppointmentDetailPage() {
   // Part request form (per-concern)
   const [partRequestForm, setPartRequestForm] = useState<Record<string, { name: string; qty: string }>>({})
   const [serviceShopFilter, setServiceShopFilter] = useState('')
+  const [concernServiceShopFilter, setConcernServiceShopFilter] = useState('')
 
   const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
 
@@ -291,18 +292,28 @@ export function SEAppointmentDetailPage() {
                       </Typography>
 
                       {/* Services for this concern */}
-                      <TextField
-                        select size="small" label="Services for this concern"
-                        value={c.serviceIds ?? []}
-                        onChange={(e) => updateConcernItemServices(appt.id, c.id, e.target.value as unknown as string[])}
-                        slotProps={{ select: { multiple: true } }}
-                        fullWidth
-                        sx={{ mb: 1 }}
-                      >
-                        {activeServices.map((s) => (
-                          <MenuItem key={s.id} value={s.id}>{s.code} — {s.description} ({fmtBDT(s.price)})</MenuItem>
-                        ))}
-                      </TextField>
+                      <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                          <InputLabel>Shop</InputLabel>
+                          <Select label="Shop" value={concernServiceShopFilter} onChange={(e) => setConcernServiceShopFilter(e.target.value as string)}>
+                            <MenuItem value="">— Select Shop —</MenuItem>
+                            {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+                          </Select>
+                        </FormControl>
+                        <TextField
+                          select size="small" label="Services for this concern"
+                          value={c.serviceIds ?? []}
+                          onChange={(e) => updateConcernItemServices(appt.id, c.id, e.target.value as unknown as string[])}
+                          slotProps={{ select: { multiple: true } }}
+                          sx={{ flex: 1 }}
+                          disabled={!concernServiceShopFilter}
+                          helperText={!concernServiceShopFilter ? 'Select shop first' : undefined}
+                        >
+                          {activeServices.filter((s) => s.shopId === concernServiceShopFilter).map((s) => (
+                            <MenuItem key={s.id} value={s.id}>{s.code} — {s.description} ({fmtBDT(s.price)})</MenuItem>
+                          ))}
+                        </TextField>
+                      </Stack>
                       {(c.serviceIds?.length ?? 0) > 0 && (
                         <Stack direction="row" spacing={0.5} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
                           {c.serviceIds!.map((sid) => {
@@ -427,8 +438,8 @@ export function SEAppointmentDetailPage() {
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <FormControl size="small" sx={{ minWidth: 150 }}>
                 <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value as string)}>
-                  <MenuItem value="">All Shops</MenuItem>
+                <Select label="Shop" value={serviceShopFilter} onChange={(e) => { setServiceShopFilter(e.target.value as string); setAddServiceId('') }}>
+                  <MenuItem value="">— Select Shop —</MenuItem>
                   {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                 </Select>
               </FormControl>
@@ -437,9 +448,11 @@ export function SEAppointmentDetailPage() {
                 value={addServiceId}
                 onChange={(e) => setAddServiceId(e.target.value)}
                 sx={{ minWidth: 250 }}
+                disabled={!serviceShopFilter}
+                helperText={!serviceShopFilter ? 'Select shop first' : undefined}
               >
                 <MenuItem value="">— Select —</MenuItem>
-                {activeServices.filter((s) => !serviceShopFilter || s.shopId === serviceShopFilter).map((s) => (
+                {activeServices.filter((s) => s.shopId === serviceShopFilter).map((s) => (
                   <MenuItem key={s.id} value={s.id}>{s.description} ({s.code})</MenuItem>
                 ))}
               </TextField>

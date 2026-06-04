@@ -1,0 +1,269 @@
+FK_ID,CONCERN_CODE,CATEGORY,CONCERN_DESCRIPTION,EST_DIAGNOSIS_MIN
+200001,CC-OTH-001,All other,Administrative,30
+200002,CC-OTH-002,All other,Insufficient Fluid,30
+200003,CC-BRK-001,Braking,Brakes grab or lock up,60
+200004,CC-BRK-002,Braking,Parking brake troubles,45
+200005,CC-BRK-003,Braking,Excessive pressure required,45
+200006,CC-BRK-004,Braking,Vehicle pulls left when braking,45
+200007,CC-BRK-005,Braking,Vehicle pulls right when braking,45
+200008,CC-BRK-006,Braking,Brake pedal spongy,45
+200009,CC-BRK-007,Braking,Brakes too sensitive,45
+200010,CC-BRK-008,Braking,Brake-ABS warning light troubles,45
+200011,CC-BRK-009,Braking,Other brake troubles,55
+200012,CC-BRK-010,Braking,Traction control/advance trac warning light troubles,45
+200013,CC-BRK-011,Braking,Brake fluid leak,60
+200014,CC-BRK-012,Braking,Noisey brakes,60
+200015,CC-BRK-013,Braking,Vibration or shudder while braking,60
+200016,CC-CLM-001,Climate Control Function,Air conditioning A/C slow to cool,45
+200017,CC-CLM-002,Climate Control Function,Air conditioning A/C not cold enough,45
+200018,CC-CLM-003,Climate Control Function,Heater-slow to heat,45
+200019,CC-CLM-004,Climate Control Function,Heater-not hot enough,45
+200020,CC-CLM-005,Climate Control Function,Air conditioning A/C does not work,45
+200021,CC-CLM-006,Climate Control Function,Heater does not work,45
+200022,CC-CLM-007,Climate Control Function,"Heater, defroster or air conditioning A/C noise",60
+200023,CC-CLM-008,Climate Control Function,Windscreen/windshield defrost/defogging does not work,45
+200024,CC-CLM-009,Climate Control Function,Side window defrost/defogging does not work,45
+200025,CC-CLM-010,Climate Control Function,Register/ vent adjustment troubles,45
+200026,CC-CLM-011,Climate Control Function,Other temperture control troubles,55
+200027,CC-CLM-012,Climate Control Function,W'shield defrost/ defogging slow to clear/uneven clearing,45
+200028,CC-CLM-013,Climate Control Function,Side wdo defrost/ defogging slow to clear/uneven clearing,45
+200029,CC-CLM-014,Climate Control Function,Back window defrost/ defogging troubles,45
+200030,CC-CLM-015,Climate Control Function,Air conditioning A/C water leak/ condensation troubles,60
+200031,CC-COR-001,Corrosion,Rust Perforation,15
+200032,CC-DRV-001,Driveability,Automatic speed/ cruise control - engagement,60
+200033,CC-DRV-002,Driveability,Automatic speed/ cruise control - disengagement,60
+200034,CC-DRV-003,Driveability,Automatic speed/ cruise control doesn’t maintain contant speed,60
+200035,CC-DRV-004,Driveability,Engine would not start,60
+200036,CC-DRV-005,Driveability,Engine difficult or slow to start,60
+200037,CC-DRV-006,Driveability,Engine stalls,60
+200038,CC-DRV-007,Driveability,Engine hesitates/ surges when accelerating,60
+200039,CC-DRV-008,Driveability,Engine hesitates/ surges at steady speed,60
+200040,CC-DRV-009,Driveability,Poor performance lacks power,60
+200041,CC-DTR-001,Drivetrain,Transfer case trouble,45
+200042,CC-DTR-002,Drivetrain,Axle whine/ howl/ groan,45
+200043,CC-DTR-003,Drivetrain,Axle vibration/ shake,60
+200044,CC-DTR-004,Drivetrain,Front/ rear axle or driveshaft leaks,60
+200045,CC-DTR-005,Drivetrain,Manual - 4 wheel drive/ awd troubles,45
+200046,CC-EPW-001,Electrical Power,Dead battery,45
+200047,CC-EPW-002,Electrical Power,Weak or low electrical power,45
+200048,CC-EPW-003,Electrical Power,Power supply troubles,45
+200049,CC-EAC-001,Electrical accessories function,Other electrical accessory troubles,40
+200050,CC-EAC-002,Electrical accessories function,Cigarette lighter/ PowerPoint troubles,30
+200051,CC-EAC-003,Electrical accessories function,Wiring troubles,30
+200052,CC-EAC-004,Electrical accessories function,Electronic module troubles,30
+200053,CC-EAC-005,Electrical accessories function,Anti theft/ alarm system troubles,30
+200054,CC-EAC-006,Electrical accessories function,Remote/ keyless entry troubles,30
+200055,CC-EAC-007,Electrical accessories function,Turn signal troubles,30
+200056,CC-ENT-001,Entertainment and communication,Reception quality,30
+200057,CC-ENT-002,Entertainment and communication,Audio sound quality,30
+200058,CC-ENT-003,Entertainment and communication,Speaker troubles,30
+200059,CC-ENT-004,Entertainment and communication,Other audio troubles,40
+200060,CC-ENT-005,Entertainment and communication,Cd player troubles,30
+200061,CC-ENT-006,Entertainment and communication,Cassette player troubles,30
+200062,CC-ENT-007,Entertainment and communication,Familt entertainment system troubles,30
+200063,CC-ENT-008,Entertainment and communication,Trip computer/ navigatio system troubles,30
+200064,CC-ENT-009,Entertainment and communication,Satelite digital audio receiver system troubles,30
+200065,CC-ENT-010,Entertainment and communication,Celluar phone troubles,30
+200066,CC-EXH-001,Exhaust system,Unusual exhaust system odour,20
+200067,CC-EXH-002,Exhaust system,Unusual exhaust system noise,60
+200068,CC-EXH-003,Exhaust system,Exhaust system rust/ corrision/ appearance,20
+200069,CC-ETB-001,Exterior trim bumper function,"Bumper dents, dings",15
+200070,CC-ETB-002,Exterior trim bumper function,Bumper fits poorly,15
+200071,CC-ETB-003,Exterior trim bumper function,"Mouldings, exterior trim corroded",15
+200072,CC-ETB-004,Exterior trim bumper function,"Mouldings, exterior trim loose. Missing",15
+200073,CC-ETB-005,Exterior trim bumper function,"Mouldings, exterior trim poorly aligned or fit",15
+200074,CC-ETB-006,Exterior trim bumper function,Other exterior trim troubles,25
+200075,CC-ETB-007,Exterior trim bumper function,Other bumper troubles,25
+200076,CC-ETB-008,Exterior trim bumper function,Bumper faded/ dull paint,15
+200077,CC-ETB-009,Exterior trim bumper function,Bumper sags/ runs in paint,15
+200078,CC-ETB-010,Exterior trim bumper function,Bumper thin/ no paint,15
+200079,CC-ETB-011,Exterior trim bumper function,Bumper stained/ spotted paint,15
+200080,CC-ETB-012,Exterior trim bumper function,Bumper dirt in paint,15
+200081,CC-ETB-013,Exterior trim bumper function,Uneven colour/ colour differences between bumper panels,15
+200082,CC-ETB-014,Exterior trim bumper function,Bumper rust/ corrosion,15
+200083,CC-ETB-015,Exterior trim bumper function,Bumper pelled paint,15
+200084,CC-FGW-001,Front glass wiping washing,Front windscreen/ windsheild washer troubles,15
+200085,CC-FGW-002,Front glass wiping washing,Front windscreen/ windsheild wiper troubles,15
+200086,CC-FGW-003,Front glass wiping washing,Other wiper/ washer troubles,25
+200087,CC-FUL-001,Fuel filling and delivery,Slow fuel tank fill/ spitback,45
+200088,CC-FUL-002,Fuel filling and delivery,Fuel leak/ odor/ odour,60
+200089,CC-FUL-003,Fuel filling and delivery,Fuel gauge troubles,45
+200090,CC-GLS-001,Glass Function,Glass broken/ chipped/ cracked/ distorted,15
+200091,CC-GLS-002,Glass Function,"Window opening, closing troubles- manual",15
+200092,CC-GLS-003,Glass Function,"Window opening, closing troubles- power",15
+200093,CC-GLS-004,Glass Function,Sun/ moon/ convertible/ t-top roof troubles- fits poorly,15
+200094,CC-GLS-005,Glass Function,Sun/ moon/ convertible/ t-top difficult to open/ close,15
+200095,CC-ATS-001,Good automatic transmission shift,Transmission/ clutch fluid leak,60
+200096,CC-ATS-002,Good automatic transmission shift,Transmission shifts rough or jerky while driving,60
+200097,CC-ATS-003,Good automatic transmission shift,"Shifts occur to early, too late, too often",60
+200098,CC-ATS-004,Good automatic transmission shift,Transmission shifts rough or jerky from park,60
+200099,CC-ATS-005,Good automatic transmission shift,Gear changes take too long to complete,60
+200100,CC-ATS-006,Good automatic transmission shift,No forward/ reverse movment in gear,60
+200101,CC-FEC-001,Good fuel economy,Excessive fuel consumption,60
+200102,CC-IDL-001,Good idle quality,Engine idles too slow,45
+200103,CC-IDL-002,Good idle quality,Engine idles too fast,45
+200104,CC-IDL-003,Good idle quality,Engine idles rough,45
+200105,CC-MTS-001,Good manual transmission shift,Difficult to change gears,45
+200106,CC-MTS-002,Good manual transmission shift,Other manual transmission troubles,55
+200107,CC-MTS-003,Good manual transmission shift,Clutch chatters/ grabs/ slips/ jerks,60
+200108,CC-MTS-004,Good manual transmission shift,Clutch requires too much or uneven effort,45
+200109,CC-MTS-005,Good manual transmission shift,Other clutch troubles,55
+200110,CC-IPC-001,I.P. and console function,"Loose, poor fit,  warped, wrinkled instrument panel/ dashboard",15
+200111,CC-IPC-002,I.P. and console function,"Loose, poor fit,  warped, wrinkled-centre floor console",15
+200112,CC-IPC-003,I.P. and console function,"Tears, snags, cracks- instrument panel/ dashboard",15
+200113,CC-IPC-004,I.P. and console function,Faded discoloured- instrument panel/ dashboard,15
+200114,CC-IPC-005,I.P. and console function,Blistered/ bubbled/ peeled- instrument panel/ dashboard,15
+200115,CC-IPC-006,I.P. and console function,"Glovebox door gaps, fits poor, difficult to open/ close",15
+200116,CC-IPC-007,I.P. and console function,"Tears, snags, cracks- centre floor console",15
+200117,CC-IPC-008,I.P. and console function,Faded discoloured- centre floor console,15
+200118,CC-IPC-009,I.P. and console function,Blistered/ bubbled/ peeled- centre floor console,15
+200119,CC-IPC-010,I.P. and console function,Other instrument panel/ console troubles,25
+200120,CC-IPC-011,I.P. and console function,Cupholder troubles,15
+200121,CC-INM-001,Instrumentation function,Horn troubles,30
+200122,CC-INM-002,Instrumentation function,Compass/ thermometer troubles,30
+200123,CC-INM-003,Instrumentation function,Speedometer troubles,30
+200124,CC-INM-004,Instrumentation function,Tyre pressure monitoring troubles,30
+200125,CC-INM-005,Instrumentation function,Other indicator/ warning light troubles,40
+200126,CC-INM-006,Instrumentation function,Odometer troubles,30
+200127,CC-INM-007,Instrumentation function,engine temperature troubles,30
+200128,CC-INM-008,Instrumentation function,Instrument cluster/ message centre troubles,30
+200129,CC-ITD-001,Interior trim (door trim panel),"loose, poor fit, warped, wrinkled- door panel",15
+200130,CC-ITD-002,Interior trim (door trim panel),"Tears, snags, cracks- door panel",15
+200131,CC-ITD-003,Interior trim (door trim panel),Faded discoloured- door panel,15
+200132,CC-ITD-004,Interior trim (door trim panel),Blistered/ bubbled/ peeled- door panel,15
+200133,CC-ITD-005,Interior trim (door trim panel),Split seams- door panel,15
+200134,CC-LAT-001,Latching and security,Exterior door lock controls- manual,20
+200135,CC-LAT-002,Latching and security,Exterior door lock controls- power,20
+200136,CC-LAT-003,Latching and security,Exterior door handle troubles,20
+200137,CC-LAT-004,Latching and security,Fuel filler door troubles,20
+200138,CC-LAT-005,Latching and security,Ignition switch troubles,20
+200139,CC-LAT-006,Latching and security,Other lock/ mechanism troubles,30
+200140,CC-LAT-007,Latching and security,Interior door lock controls- manual,20
+200141,CC-LAT-008,Latching and security,Interior door lock controls- power,20
+200142,CC-LAT-009,Latching and security,Interior door handle troubles- power,20
+200143,CC-LAT-010,Latching and security,Warning lights- door ajar,30
+200144,CC-LAT-011,Latching and security,Key troubles,20
+200145,CC-LIT-001,Lighting,Headlamp aim/ alignment,15
+200146,CC-LIT-002,Lighting,Lights not working- interior,15
+200147,CC-LIT-003,Lighting,Lights not working- exterior,15
+200148,CC-LIT-004,Lighting,Other lighting troubles,25
+200149,CC-MMI-001,Mechanical malfunction indicator,Other engine troubles,40
+200150,CC-MMI-002,Mechanical malfunction indicator,Engine belt slipping/ squealing,30
+200151,CC-MMI-003,Mechanical malfunction indicator,Engine belt off/ frayed/ coming apart/ broken,15
+200152,CC-MMI-004,Mechanical malfunction indicator,Engine overheats/ radiator troubles,30
+200153,CC-MMI-005,Mechanical malfunction indicator,Excessive oil consumption,60
+200154,CC-MMI-006,Mechanical malfunction indicator,Check engine' light trouble,30
+200155,CC-MMI-007,Mechanical malfunction indicator,low oil pressure,30
+200156,CC-MMI-008,Mechanical malfunction indicator,Engine leaks oil,60
+200157,CC-MMI-009,Mechanical malfunction indicator,Undertermined leak (engine),60
+200158,CC-MMI-010,Mechanical malfunction indicator,Coolant leak,60
+200159,CC-MIR-001,Mirror function,Exterior mirror troubles,15
+200160,CC-MIR-002,Mirror function,Interior mirror troubles,15
+200161,CC-MIR-003,Mirror function,Other mirror troubles,25
+200162,CC-OCR-001,Occupant restraint,Seat belt faded/ discoloured/ soiled,15
+200163,CC-OCR-002,Occupant restraint,Seat belt coil/ uncoil troubles,30
+200164,CC-OCR-003,Occupant restraint,Seat belt buckle latching troubles,30
+200165,CC-OCR-004,Occupant restraint,Steering wheel trim appearance,30
+200166,CC-OCR-005,Occupant restraint,Airbag (SRS) troubles,30
+200167,CC-OCR-006,Occupant restraint,Warning lights- air bag,30
+200168,CC-OCR-007,Occupant restraint,Other restraint troubles,40
+200169,CC-OIT-001,Other interior trim,"Loose, poor fit, warped, wrinkled headliner",15
+200170,CC-OIT-002,Other interior trim,"Loose, poor fit, warped, wrinkled carpet/ floor mat",15
+200171,CC-OIT-003,Other interior trim,"Loose, poor fit, warped, wrinkled-trunk_cargo interior",15
+200172,CC-OIT-004,Other interior trim,Interior odor/odour,15
+200173,CC-OIT-005,Other interior trim,"Tears, snags, cracks- roof lining material",15
+200174,CC-OIT-006,Other interior trim,"Faded, discoloured- roof lining material",15
+200175,CC-OIT-007,Other interior trim,"Tears, snags, cracks- carpet/ floor covering",15
+200176,CC-OIT-008,Other interior trim,"Faded, discoloured-carpet/ floor covering",15
+200177,CC-OIT-009,Other interior trim,Splitting seams-carpet/ floor covering,15
+200178,CC-OIT-010,Other interior trim,"Tears, snags, cracks- trunks/ cargo interior",15
+200179,CC-OIT-011,Other interior trim,Sunvisor troubles,15
+200180,CC-OIT-012,Other interior trim,Ashtray troubles,15
+200181,CC-OIT-013,Other interior trim,"Loose, poor fit, warped, wrinkled- interior moulding",15
+200182,CC-OIT-014,Other interior trim,Missing- interior mouldings,15
+200183,CC-OIT-015,Other interior trim,"Loose, missing, poor fit, warped internal fasteners",15
+200184,CC-OIT-016,Other interior trim,Other interior trim troubles,25
+200185,CC-PNT-001,Paint appearance,Thin/ no paint,20
+200186,CC-PNT-002,Paint appearance,Sags/ runs in paint,20
+200187,CC-PNT-003,Paint appearance,Peeled paint,15
+200188,CC-PNT-004,Paint appearance,Bubbles/ blisters in paint,20
+200189,CC-PNT-005,Paint appearance,Paint spray over body finish,20
+200190,CC-PNT-006,Paint appearance,Body rust/ corrosion,20
+200191,CC-PNT-007,Paint appearance,Stained/ spotted paint,20
+200192,CC-PNT-008,Paint appearance,Faded/ dull paint,15
+200193,CC-PNT-009,Paint appearance,Detail paint or paint stripe coming off,20
+200194,CC-PNT-010,Paint appearance,Chipped/ scratched paint,15
+200195,CC-PNT-011,Paint appearance,Dirt in paint,20
+200196,CC-PNT-012,Paint appearance,Uneven colour/ colour different between body panels,20
+200197,CC-NVH-001,Powertrain good sound and NVH,Engine- unusual noise at idle,60
+200198,CC-NVH-002,Powertrain good sound and NVH,Engine- unusual noise while driving,60
+200199,CC-NVH-003,Powertrain good sound and NVH,Unusual transmission noise,60
+200200,CC-RGW-001,Rear glass wiping and washing,Rear window washer troubles,15
+200201,CC-RGW-002,Rear glass wiping and washing,Rear window wiper troubles,15
+200202,CC-RNH-001,Ride and handling,Other steering/ handling and ride troubles,70
+200203,CC-RNH-002,Ride and handling,Steering wheel spokes not correctly positioned when front,60
+200204,CC-RNH-003,Ride and handling,Constant pull/ drift to left,60
+200205,CC-RNH-004,Ride and handling,Constant pull/ drift to right,60
+200206,CC-RNH-005,Ride and handling,Harsh ride,60
+200207,CC-RNH-006,Ride and handling,Mushy ride,60
+200208,CC-RNH-007,Ride and handling,Improper tyre wear,60
+200209,CC-RNH-008,Ride and handling,Vehicle vibrates when driving below 45MPH,60
+200210,CC-RNH-009,Ride and handling,Steering wheel vibration/ shimmy below 45MPH,60
+200211,CC-RNH-010,Ride and handling,Steering wheel vibration/ shimmy above 45MPH,60
+200212,CC-RNH-011,Ride and handling,Vehicle vibrates when driving above 45MPH,60
+200213,CC-SEA-001,Seating,Front seat loose,15
+200214,CC-SEA-002,Seating,Rear seat loose,15
+200215,CC-SEA-003,Seating,Seat adjustment operation front manual controls,20
+200216,CC-SEA-004,Seating,Seat adjustment operation- rear seat,20
+200217,CC-SEA-005,Seating,Seat loose third row,15
+200218,CC-SEA-006,Seating,Seat adjustment operation trouble- front power control,20
+200219,CC-SEA-007,Seating,"Loose, poor fit, warped, wrinkled- seat upholstery",15
+200220,CC-SEA-008,Seating,"Tears, snags, cracks- seat upholstery",15
+200221,CC-SEA-009,Seating,Faded discoloured- seat upholstery,15
+200222,CC-SEA-010,Seating,Split seams- seat upholstery,20
+200223,CC-SEA-011,Seating,Heated/ cooled seat troubles,20
+200224,CC-SMF-001,Sheet metal function,"Dents, dings",15
+200225,CC-SMF-002,Sheet metal function,Fits poorly,15
+200226,CC-SMF-003,Sheet metal function,Hard to open,20
+200227,CC-SMF-004,Sheet metal function,Hard to close,20
+200228,CC-SMF-005,Sheet metal function,Other body panel troubles (coded sheet metal),30
+200229,CC-SQR-001,Squeak and rattle,Hinge squeak,90
+200230,CC-SQR-002,Squeak and rattle,Window (squeak/ rattle/ scrape),90
+200231,CC-SQR-003,Squeak and rattle,Overhead console squeak/ rattle,90
+200232,CC-SQR-004,Squeak and rattle,Centre floor console squeak/ rattle,90
+200233,CC-SQR-005,Squeak and rattle,Glovebox door squeak/ rattle,90
+200234,CC-SQR-006,Squeak and rattle,Instrument panel/ dashboard squeak/ rattle,90
+200235,CC-SQR-007,Squeak and rattle,Front side door squeak/ rattle,90
+200236,CC-SQR-008,Squeak and rattle,Rear side door squeak/ rattle,90
+200237,CC-SQR-009,Squeak and rattle,Trunk lid squeak/ rattle,90
+200238,CC-SQR-010,Squeak and rattle,"Sun/ moon, t-top, convertible roof sqeak/ rattle",90
+200239,CC-SQR-011,Squeak and rattle,Front vehicle exterior suspension squeak/rattle,90
+200240,CC-SQR-012,Squeak and rattle,Rear vehicle exterior suspension squeak/rattle,90
+200241,CC-SQR-013,Squeak and rattle,Steering column/ wheel squeak/ rattle,90
+200242,CC-SQR-014,Squeak and rattle,Other squeak/ rattle,90
+200243,CC-SQR-015,Squeak and rattle,Front seat squeak/ rattle,90
+200244,CC-SQR-016,Squeak and rattle,Rear seat squeak/ rattle,90
+200245,CC-STR-001,Steering,Excessive free play/ wander,45
+200246,CC-STR-002,Steering,Steering requires extra or uneven effort,45
+200247,CC-STR-003,Steering,Steering gear/ pump troubles,45
+200248,CC-STR-004,Steering,Power steering fluid leaks,60
+200249,CC-STR-005,Steering,Steering noisy,60
+200250,CC-TYR-001,Tyres,Wheel/ hub cap condition,15
+200251,CC-WAT-001,Water leaks,Water leak around windscreen/ windsheild,90
+200252,CC-WAT-002,Water leaks,Water leak around front side door/ window,90
+200253,CC-WAT-003,Water leaks,Water leak around rear side door/ window,90
+200254,CC-WAT-004,Water leaks,Water leak around back window,90
+200255,CC-WAT-005,Water leaks,Water leak around sliding rear window,15
+200256,CC-WAT-006,Water leaks,Water leak around trunk,90
+200257,CC-WAT-007,Water leaks,Water leak around  non-sliding rear window,15
+200258,CC-WAT-008,Water leaks,Windnoise around windshield,90
+200259,CC-WAT-009,Water leaks,Windnoise around front side door/window,90
+200260,CC-WAT-010,Water leaks,Windnoise around rear side door/window,90
+200261,CC-WAT-011,Water leaks,Windnoise around back window,90
+200262,CC-WAT-012,Water leaks,Windnoise around sliding rear window,15
+200263,CC-WAT-013,Water leaks,Windnoise around trunk lid,90
+200264,CC-WAT-014,Water leaks,Windnoise around sun/moon/convertible/t-top roof,90
+200265,CC-WAT-015,Water leaks,Other windnoise troubles,100
+200266,CC-WAT-016,Water leaks,Other gasket sealing troubles/,100
+200267,CC-WAT-017,Water leaks,Other windnoise troubles,100
+200268,CC-WAT-018,Water leaks,Other gasket sealing troubles/,100

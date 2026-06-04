@@ -1,7 +1,13 @@
 import {
   Alert,
   Box,
+  Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
   Paper,
   Stack,
   Table,
@@ -9,9 +15,11 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material'
-import { useMemo } from 'react'
+import { Send } from '@mui/icons-material'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
@@ -73,6 +81,13 @@ export function AppointmentDetailPage() {
   const shops = useCwStore((s) => s.shops)
   const allConcerns = useCwStore((s) => s.concerns)
   const concernCategories = useCwStore((s) => s.concernCategories)
+  const addWhatsappLog = useCwStore((s) => s.addWhatsappLog)
+  const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
+  const setCustomerApproval = useCwStore((s) => s.setCustomerApproval)
+  const pushTimeline = useCwStore((s) => s.pushTimeline)
+  const confirmPayment = useCwStore((s) => s.confirmPayment)
+  const assignQC = useCwStore((s) => s.assignQC)
+  const roles = useCwStore((s) => s.roles)
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -126,6 +141,123 @@ export function AppointmentDetailPage() {
   }
 
   const totalBDT = appt.serviceItems.reduce((sum, s) => sum + s.price, 0)
+
+  // ── Workflow flags ──
+  const isReviewed = appt.status === 'SA Reviewed'
+  const isCustomerNotified = appt.status === 'Customer Notified'
+  const isDiagnosisComplete = appt.status === 'Diagnosis Complete'
+  const isServiceApprovalPending = appt.status === 'Service Approval Pending'
+  const isServiceComplete = appt.status === 'Service Complete'
+  const isQCApproved = appt.status === 'QC Approved'
+  const isPaymentPending = appt.status === 'Payment Pending'
+
+  const canSendConcernWA = isReviewed
+  const canSendServiceWA = isDiagnosisComplete
+  const canApprove = isCustomerNotified || isServiceApprovalPending
+  const canAssignQC = isServiceComplete
+  const canSendPaymentWA = isQCApproved
+  const canConfirmPayment = isPaymentPending
+
+  // WhatsApp dialog state
+  const [waDialogOpen, setWaDialogOpen] = useState(false)
+  const [waMessage, setWaMessage] = useState('')
+  const [waDialogPurpose, setWaDialogPurpose] = useState<'concern-approval' | 'service-approval' | 'payment'>('concern-approval')
+  const [approvalNote, setApprovalNote] = useState('')
+
+  // QC user selection
+  const qcRoleId = useMemo(() => roles.find((r) => r.name === 'QC')?.id, [roles])
+  const activeQCUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)),
+    [users, qcRoleId],
+  )
+  const [selectedQCUserId, setSelectedQCUserId] = useState('')
+
+  function openWhatsApp(purpose: 'concern-approval' | 'service-approval' | 'payment') {
+    setWaDialogPurpose(purpose)
+    const name = customer?.fullName ?? 'Customer'
+    const reg = vehicle?.registrationNo ?? ''
+
+    if (purpose === 'concern-approval') {
+      const concernBlock = appt!.concernItems.map((c) => {
+        let block = `• ${c.concernName}`
+        if (c.remark) block += `\n  Note: ${c.remark}`
+        return block
+      }).join('\n')
+      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nConcerns:\n${concernBlock}\n\nProposed Services:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm.`)
+    } else if (purpose === 'service-approval') {
+      const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
+      const concernBlock = appt!.concernItems.map((c) => {
+        const lines: string[] = [`• ${c.concernName}`]
+        if (c.diagnosisRemark) lines.push(`  Diagnosis: ${c.diagnosisRemark}`)
+        const cServices = (c.serviceIds ?? []).map((sid) => catalogServices.find((s) => s.id === sid)).filter(Boolean)
+        if (cServices.length > 0) {
+          lines.push(`  Services: ${cServices.map((s) => s ? `${s.code} (${fmtBDT(s.price)})` : '').join(', ')}`)
+        }
+        const cParts = allParts.filter((pr) => pr.concernItemId === c.id)
+        if (cParts.length > 0) {
+          lines.push(`  Parts: ${cParts.map((pr) => `${pr.partName} x${pr.quantity ?? 1}${typeof pr.price === 'number' ? ` (${fmtBDT(pr.price)})` : ''}${pr.deliveryDate ? ` ETA: ${pr.deliveryDate}` : ''}`).join(', ')}`)
+        }
+        return lines.join('\n')
+      }).join('\n\n')
+      const globalServices = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
+      const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const grandTotal = serviceTotal + partsTotal
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nDiagnosis Report:\n${concernBlock}\n\nAll Services:\n${globalServices}\n\nServices Total: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts Total: ${fmtBDT(partsTotal)}` : ''}\nGrand Total: ${fmtBDT(grandTotal)}\n\nPlease confirm to proceed.`)
+    } else {
+      const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
+      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
+      const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const grandTotal = serviceTotal + partsTotal
+      let partBlock = ''
+      if (allParts.length > 0) {
+        partBlock = `\n\nParts Used:\n${allParts.map((pr) => `• ${pr.partName} x${pr.quantity ?? 1}${typeof pr.price === 'number' ? ` — ${fmtBDT(pr.price * (pr.quantity ?? 1))}` : ''}`).join('\n')}`
+      }
+      setWaMessage(`Dear ${name},\n\nGreat news! Your vehicle ${reg} is ready for pickup.\n\nCompleted Services:\n${serviceList}${partBlock}\n\nServices: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts: ${fmtBDT(partsTotal)}` : ''}\nTotal Due: ${fmtBDT(grandTotal)}\n\nPickup Hours: 9:00 AM - 6:00 PM (Sat-Thu)\n\nPlease make payment at the cashier counter to collect your vehicle. We accept Cash, Card, and Mobile Banking.\n\nThank you for choosing Continental Workshop!`)
+    }
+    setWaDialogOpen(true)
+  }
+
+  function sendWhatsapp() {
+    addWhatsappLog({
+      appointmentId: appt!.id,
+      direction: 'outbound',
+      authorName: 'CRE',
+      message: waMessage.trim(),
+    })
+    if (waDialogPurpose === 'concern-approval') {
+      setAppointmentStatus(appt!.id, 'Customer Notified')
+      pushTimeline(appt!.id, { actor: 'CRE', action: 'WhatsApp sent for concern/service approval' })
+    } else if (waDialogPurpose === 'service-approval') {
+      setAppointmentStatus(appt!.id, 'Service Approval Pending')
+      pushTimeline(appt!.id, { actor: 'CRE', action: 'WhatsApp sent for service approval (post-diagnosis)' })
+    } else {
+      setAppointmentStatus(appt!.id, 'Payment Pending')
+      pushTimeline(appt!.id, { actor: 'CRE', action: 'WhatsApp sent for payment' })
+    }
+    setWaDialogOpen(false)
+    setWaMessage('')
+  }
+
+  function handleApproval(status: 'Approved' | 'Rejected') {
+    setCustomerApproval({ appointmentId: appt!.id, status, note: approvalNote.trim() || undefined })
+    if (status === 'Approved') {
+      if (isCustomerNotified) {
+        setAppointmentStatus(appt!.id, 'Customer Approved')
+        pushTimeline(appt!.id, { actor: 'CRE', action: 'Customer approved concerns — ready for JC diagnosis assignment' })
+      } else if (isServiceApprovalPending) {
+        setAppointmentStatus(appt!.id, 'Service Approved')
+        pushTimeline(appt!.id, { actor: 'CRE', action: 'Customer approved services — ready for JC service assignment' })
+      }
+    } else {
+      setAppointmentStatus(appt!.id, 'Customer Rejected')
+      pushTimeline(appt!.id, { actor: 'CRE', action: `Customer rejected${approvalNote.trim() ? `: ${approvalNote.trim()}` : ''}` })
+    }
+    setApprovalNote('')
+  }
 
   return (
     <Page title="Appointment" subtitle={`#${appt.id.slice(0, 8)}`}>
@@ -325,6 +457,100 @@ export function AppointmentDetailPage() {
           )}
         </Paper>
 
+        {/* ── WhatsApp: Concern Approval (1st round) ── */}
+        {canSendConcernWA && (
+          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'info.main' }}>
+              Send WhatsApp for Customer Approval
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Review complete. Send concerns and services to customer for approval.
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('concern-approval')}>
+              Compose WhatsApp
+            </Button>
+          </Paper>
+        )}
+
+        {/* ── WhatsApp: Service Approval (2nd round, after diagnosis) ── */}
+        {canSendServiceWA && (
+          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+              Diagnosis Complete — Send Service Approval
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              SE completed diagnosis and may have added services. Send updated list to customer.
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('service-approval')}>
+              Compose WhatsApp (Services)
+            </Button>
+          </Paper>
+        )}
+
+        {/* ── Customer Approval (both rounds) ── */}
+        {canApprove && (
+          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'success.main' }}>
+              {isCustomerNotified ? 'Record Customer Approval (Concerns)' : 'Record Customer Approval (Services)'}
+            </Typography>
+            <TextField label="Customer Note (optional)" value={approvalNote}
+              onChange={(e) => setApprovalNote(e.target.value)} fullWidth multiline minRows={2} sx={{ mb: 1.5 }} />
+            <Stack direction="row" spacing={1.5}>
+              <Button variant="contained" color="success" onClick={() => handleApproval('Approved')}>Approve</Button>
+              <Button variant="outlined" color="error" onClick={() => handleApproval('Rejected')}>Reject</Button>
+            </Stack>
+          </Paper>
+        )}
+
+        {/* ── Assign QC ── */}
+        {canAssignQC && (
+          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'info.main' }}>
+              Services Complete — Assign QC
+            </Typography>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <TextField select size="small" label="QC Inspector" value={selectedQCUserId}
+                onChange={(e) => setSelectedQCUserId(e.target.value)} sx={{ minWidth: 250 }}>
+                <MenuItem value="">— Select QC —</MenuItem>
+                {activeQCUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+              </TextField>
+              <Button variant="contained" color="info" disabled={!selectedQCUserId}
+                onClick={() => { assignQC({ appointmentId: appt.id, qcUserId: selectedQCUserId }); setSelectedQCUserId('') }}>
+                Assign QC
+              </Button>
+            </Stack>
+          </Paper>
+        )}
+
+        {/* ── WhatsApp: Payment ── */}
+        {canSendPaymentWA && (
+          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+              QC Approved — Send Payment Request
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('payment')}>
+              Compose WhatsApp (Payment)
+            </Button>
+          </Paper>
+        )}
+
+        {/* ── Confirm Payment ── */}
+        {canConfirmPayment && (
+          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'success.main' }}>
+              Confirm Payment Received
+            </Typography>
+            <Button variant="contained" color="success" size="large"
+              onClick={() => confirmPayment({ appointmentId: appt.id, actorName: 'CRE' })}
+              sx={{ fontWeight: 900 }}>
+              Payment Received — Issue Gate Pass
+            </Button>
+          </Paper>
+        )}
+
         {/* ── WhatsApp Log ── */}
         {appt.whatsappLogs.length > 0 && (
           <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
@@ -369,6 +595,21 @@ export function AppointmentDetailPage() {
           </Paper>
         )}
       </Stack>
+
+      {/* WhatsApp Dialog */}
+      <Dialog open={waDialogOpen} onClose={() => setWaDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Compose WhatsApp Message</DialogTitle>
+        <DialogContent>
+          <TextField value={waMessage} onChange={(e) => setWaMessage(e.target.value)}
+            fullWidth multiline minRows={8} sx={{ mt: 1 }} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWaDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="success" startIcon={<Send />} onClick={sendWhatsapp} disabled={!waMessage.trim()}>
+            Send
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Page>
   )
 }

@@ -21,7 +21,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
@@ -79,6 +79,7 @@ export function JCAppointmentPage() {
   const bays = useCwStore((s) => s.bays)
   const assignConcernDiagnosis = useCwStore((s) => s.assignConcernDiagnosis)
   const assignServiceSE = useCwStore((s) => s.assignServiceSE)
+  const assignStageSchedule = useCwStore((s) => s.assignStageSchedule)
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
   const pushTimeline = useCwStore((s) => s.pushTimeline)
   const teams = useCwStore((s) => s.teams)
@@ -334,20 +335,38 @@ export function JCAppointmentPage() {
 
   function validateServiceForm() {
     for (const s of appt!.serviceItems) {
-      const form = getServiceFormVal(s.id)
-      if (!form.seUserId) throw new Error(`Select SE for service: ${s.serviceDescription}`)
-      if (!form.bayId) throw new Error(`Select Bay for service: ${s.serviceDescription}`)
+      const hasStages = s.stageItems && s.stageItems.length > 0
 
-      const startIso = toIso(form.startLocal)
-      if (!startIso) throw new Error(`Set start time for service: ${s.serviceDescription}`)
-      const endIso = toIso(form.endLocal) || startIso
+      if (hasStages) {
+        // Validate each stage
+        for (const stage of s.stageItems!) {
+          const stageKey = `${s.id}_${stage.id}`
+          const form = serviceForm[stageKey] ?? { teamId: '', seUserId: '', bayId: '', startLocal: '', endLocal: '', bufferMins: '0' }
+          if (!form.bayId) throw new Error(`Select Bay for stage "${stage.stageName}" of ${s.serviceDescription}`)
+          const startIso = toIso(form.startLocal)
+          if (!startIso) throw new Error(`Set start time for stage "${stage.stageName}" of ${s.serviceDescription}`)
+          const endIso = toIso(form.endLocal) || startIso
 
-      const bayConflict = checkBayConflict(form.bayId, startIso, endIso)
-      if (bayConflict) throw new Error(bayConflict)
+          const bayConflict = checkBayConflict(form.bayId, startIso, endIso)
+          if (bayConflict) throw new Error(bayConflict)
+        }
+      } else {
+        // Non-staged: existing validation
+        const form = getServiceFormVal(s.id)
+        if (!form.seUserId) throw new Error(`Select SE for service: ${s.serviceDescription}`)
+        if (!form.bayId) throw new Error(`Select Bay for service: ${s.serviceDescription}`)
 
-      if (form.teamId) {
-        const teamConflict = checkTeamConflict(form.teamId, startIso, endIso)
-        if (teamConflict) throw new Error(teamConflict)
+        const startIso = toIso(form.startLocal)
+        if (!startIso) throw new Error(`Set start time for service: ${s.serviceDescription}`)
+        const endIso = toIso(form.endLocal) || startIso
+
+        const bayConflict = checkBayConflict(form.bayId, startIso, endIso)
+        if (bayConflict) throw new Error(bayConflict)
+
+        if (form.teamId) {
+          const teamConflict = checkTeamConflict(form.teamId, startIso, endIso)
+          if (teamConflict) throw new Error(teamConflict)
+        }
       }
     }
   }
@@ -359,10 +378,19 @@ export function JCAppointmentPage() {
 
       // Check for simultaneous bay work (different teams, same bay)
       if (!skipBayWarning) {
-        const entries = appt!.serviceItems.map((s) => {
-          const form = getServiceFormVal(s.id)
-          return { id: s.id, label: s.serviceDescription, teamId: form.teamId, bayId: form.bayId, startIso: toIso(form.startLocal), endIso: toIso(form.endLocal) || toIso(form.startLocal) }
-        })
+        const entries: { id: string; label: string; teamId: string; bayId: string; startIso: string; endIso: string }[] = []
+        for (const s of appt!.serviceItems) {
+          if (s.stageItems && s.stageItems.length > 0) {
+            for (const stage of s.stageItems) {
+              const stageKey = `${s.id}_${stage.id}`
+              const form = serviceForm[stageKey] ?? { teamId: '', seUserId: '', bayId: '', startLocal: '', endLocal: '', bufferMins: '0' }
+              entries.push({ id: stage.id, label: `${stage.stageName} (${s.serviceDescription})`, teamId: form.teamId, bayId: form.bayId, startIso: toIso(form.startLocal), endIso: toIso(form.endLocal) || toIso(form.startLocal) })
+            }
+          } else {
+            const form = getServiceFormVal(s.id)
+            entries.push({ id: s.id, label: s.serviceDescription, teamId: form.teamId, bayId: form.bayId, startIso: toIso(form.startLocal), endIso: toIso(form.endLocal) || toIso(form.startLocal) })
+          }
+        }
         const conflicts = detectSimultaneousBayWork(entries)
         if (conflicts.length > 0) {
           setBayConflictDialog({ open: true, conflicts, phase: 'service' })
@@ -371,18 +399,40 @@ export function JCAppointmentPage() {
       }
 
       for (const s of appt!.serviceItems) {
-        const form = getServiceFormVal(s.id)
-        const startIso = toIso(form.startLocal)
-        const endIso = toIso(form.endLocal) || startIso
+        if (s.stageItems && s.stageItems.length > 0) {
+          // Stage-level scheduling
+          for (const stage of s.stageItems) {
+            const stageKey = `${s.id}_${stage.id}`
+            const form = serviceForm[stageKey] ?? { teamId: '', seUserId: '', bayId: '', startLocal: '', endLocal: '', bufferMins: '0' }
+            const startIso = toIso(form.startLocal)
+            const endIso = toIso(form.endLocal) || startIso
 
-        assignServiceSE({
-          appointmentId: appt!.id,
-          serviceItemId: s.id,
-          seUserId: form.seUserId,
-          bayId: form.bayId,
-          startAt: startIso,
-          endAt: endIso,
-        })
+            assignStageSchedule({
+              appointmentId: appt!.id,
+              serviceItemId: s.id,
+              stageItemId: stage.id,
+              bayId: form.bayId,
+              teamId: form.teamId || undefined,
+              seUserId: form.seUserId || undefined,
+              startAt: startIso,
+              endAt: endIso,
+            })
+          }
+        } else {
+          // Non-staged: existing flow
+          const form = getServiceFormVal(s.id)
+          const startIso = toIso(form.startLocal)
+          const endIso = toIso(form.endLocal) || startIso
+
+          assignServiceSE({
+            appointmentId: appt!.id,
+            serviceItemId: s.id,
+            seUserId: form.seUserId,
+            bayId: form.bayId,
+            startAt: startIso,
+            endAt: endIso,
+          })
+        }
       }
 
       setAppointmentStatus(appt!.id, 'Service Assigned')
@@ -656,20 +706,44 @@ export function JCAppointmentPage() {
               </TableHead>
               <TableBody>
                 {appt.serviceItems.filter((s) => !serviceShopFilter || (serviceShopIdMap.get(s.serviceId) ?? '') === serviceShopFilter).map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription} ({s.processTimeMins} mins)</Typography>
-                      <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
-                    </TableCell>
-                    <TableCell><Typography variant="body2">{fmtBDT(s.price)}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{s.bayId ? (bayNameById.get(s.bayId) ?? '—') : '—'}</Typography></TableCell>
-                    <TableCell>
-                      {s.workStatus ? (
-                        <Chip label={s.workStatus} size="small" color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
-                      ) : '—'}
-                    </TableCell>
-                  </TableRow>
+                  <React.Fragment key={s.id}>
+                    <TableRow>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription} ({s.processTimeMins} mins)</Typography>
+                        <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
+                        {s.stageItems && s.stageItems.length > 0 && (
+                          <Chip size="small" label={`${s.stageItems.length} stages`} color="info" variant="outlined" sx={{ ml: 1, fontWeight: 700 }} />
+                        )}
+                      </TableCell>
+                      <TableCell><Typography variant="body2">{fmtBDT(s.price)}</Typography></TableCell>
+                      <TableCell><Typography variant="body2">{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : s.stageItems?.length ? 'Per stage' : '—'}</Typography></TableCell>
+                      <TableCell><Typography variant="body2">{s.bayId ? (bayNameById.get(s.bayId) ?? '—') : s.stageItems?.length ? 'Per stage' : '—'}</Typography></TableCell>
+                      <TableCell>
+                        {s.workStatus ? (
+                          <Chip label={s.workStatus} size="small" color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
+                        ) : '—'}
+                      </TableCell>
+                    </TableRow>
+                    {/* Stage detail rows */}
+                    {s.stageItems && s.stageItems.length > 0 && s.stageItems.some((st) => st.workStatus !== 'Pending') && s.stageItems.map((st) => (
+                      <TableRow key={st.id} sx={{ bgcolor: 'grey.50' }}>
+                        <TableCell sx={{ pl: 5 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                            Stage {st.stageOrder}: {st.stageName} ({st.durationMins}m)
+                          </Typography>
+                        </TableCell>
+                        <TableCell />
+                        <TableCell><Typography variant="caption">{st.assignedSEUserId ? (userNameById.get(st.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
+                        <TableCell><Typography variant="caption">{st.bayId ? (bayNameById.get(st.bayId) ?? '—') : '—'}</Typography></TableCell>
+                        <TableCell>
+                          <Chip label={st.workStatus} size="small"
+                            color={st.workStatus === 'Completed' ? 'success' : st.workStatus === 'In Progress' ? 'primary' : st.workStatus === 'Scheduled' ? 'info' : 'default'}
+                            sx={{ fontWeight: 700, fontSize: '0.65rem' }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -783,11 +857,112 @@ export function JCAppointmentPage() {
               Assign SE + Bay for Services
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Services approved. Assign SE and Bay to each service.
+              Services approved. Assign SE and Bay to each service{appt.serviceItems.some((s) => s.stageItems && s.stageItems.length > 0) ? ' (staged services require per-stage assignment)' : ''}.
             </Typography>
 
             <Stack spacing={2}>
               {appt.serviceItems.map((s) => {
+                const hasStages = s.stageItems && s.stageItems.length > 0
+
+                if (hasStages) {
+                  // ── Stage-wise assignment ──
+                  return (
+                    <Box key={s.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
+                      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {s.serviceDescription}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">— {s.serviceCode} · {fmtBDT(s.price)}</Typography>
+                        <Chip size="small" label={`${s.stageItems!.length} stages`} color="info" variant="outlined" sx={{ fontWeight: 700 }} />
+                        <Chip size="small" label={`Total: ${s.processTimeMins} mins`} color="success" sx={{ fontWeight: 800, fontSize: '0.8rem' }} />
+                      </Stack>
+
+                      <Stack spacing={1.5}>
+                        {s.stageItems!.map((stage, idx) => {
+                          const stageKey = `${s.id}_${stage.id}`
+                          const form = serviceForm[stageKey] ?? { teamId: '', seUserId: '', bayId: '', startLocal: '', endLocal: '', bufferMins: '0' }
+                          const prevStage = idx > 0 ? s.stageItems![idx - 1] : null
+                          const prevKey = prevStage ? `${s.id}_${prevStage.id}` : null
+                          const prevEnd = prevKey ? serviceForm[prevKey]?.endLocal : null
+
+                          return (
+                            <Box key={stage.id} sx={{ p: 1.5, bgcolor: idx % 2 === 0 ? 'grey.50' : 'white', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
+                                <Chip size="small" label={`Stage ${stage.stageOrder}`} sx={{ fontWeight: 800, bgcolor: 'info.main', color: 'white' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{stage.stageName}</Typography>
+                                <Chip size="small" label={`⏱ ${stage.durationMins} mins`} color="default" sx={{ fontWeight: 700 }} />
+                                {idx > 0 && !prevEnd && (
+                                  <Typography variant="caption" color="warning.main" sx={{ fontWeight: 700 }}>
+                                    ⚠ Set previous stage time first
+                                  </Typography>
+                                )}
+                              </Stack>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr 2fr' }, gap: 1.5 }}>
+                                <TextField
+                                  select size="small" label="Team" value={form.teamId}
+                                  onChange={(e) => {
+                                    const teamId = e.target.value
+                                    setServiceForm((prev) => ({ ...prev, [stageKey]: { ...form, teamId, seUserId: '' } }))
+                                  }}
+                                >
+                                  <MenuItem value="">— Select —</MenuItem>
+                                  {teams.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                                </TextField>
+                                <TextField
+                                  select size="small" label="SE" value={form.seUserId}
+                                  onChange={(e) => setServiceForm((prev) => ({ ...prev, [stageKey]: { ...form, seUserId: e.target.value } }))}
+                                >
+                                  <MenuItem value="">— Select —</MenuItem>
+                                  {(() => {
+                                    const team = teams.find((t) => t.id === form.teamId)
+                                    const filtered = team ? seUsers.filter((u) => u.id === team.seUserId) : seUsers
+                                    return filtered.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)
+                                  })()}
+                                </TextField>
+                                <TextField
+                                  select size="small" label="Bay" value={form.bayId}
+                                  onChange={(e) => setServiceForm((prev) => ({ ...prev, [stageKey]: { ...form, bayId: e.target.value } }))}
+                                >
+                                  <MenuItem value="">— Select —</MenuItem>
+                                  {activeBays.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
+                                </TextField>
+                                <TextField
+                                  size="small" label="Start Time" type="datetime-local"
+                                  value={form.startLocal}
+                                  onChange={(e) => {
+                                    const startVal = e.target.value
+                                    const updates: Partial<typeof form> = { startLocal: startVal }
+                                    if (startVal && stage.durationMins > 0) {
+                                      const d = new Date(startVal)
+                                      d.setMinutes(d.getMinutes() + stage.durationMins)
+                                      updates.endLocal = d.toISOString().slice(0, 16)
+                                    }
+                                    setServiceForm((prev) => {
+                                      const updated = { ...prev, [stageKey]: { ...form, ...updates } }
+                                      // Auto-chain: set next stage start = this stage end
+                                      if (updates.endLocal && idx < s.stageItems!.length - 1) {
+                                        const nextStage = s.stageItems![idx + 1]
+                                        const nextKey = `${s.id}_${nextStage.id}`
+                                        const nextForm = prev[nextKey] ?? { teamId: '', seUserId: '', bayId: '', startLocal: '', endLocal: '', bufferMins: '0' }
+                                        const nextEnd = new Date(updates.endLocal)
+                                        nextEnd.setMinutes(nextEnd.getMinutes() + nextStage.durationMins)
+                                        updated[nextKey] = { ...nextForm, startLocal: updates.endLocal, endLocal: nextEnd.toISOString().slice(0, 16) }
+                                      }
+                                      return updated
+                                    })
+                                  }}
+                                  slotProps={{ inputLabel: { shrink: true } }}
+                                />
+                              </Box>
+                            </Box>
+                          )
+                        })}
+                      </Stack>
+                    </Box>
+                  )
+                }
+
+                // ── Non-staged service (existing behavior) ──
                 const form = getServiceFormVal(s.id)
                 return (
                   <Box key={s.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>

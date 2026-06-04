@@ -206,7 +206,7 @@ export type CWVehicle = {
   vin?: string
   odometerKm?: number
   vehicleCategory?: CWVehicleCategory
-  vehicleSize?: CWVehicleSize
+  vehicleSize: CWVehicleSize
   modelVariant?: string
   countryOfOrigin?: string
   countryOfAssembly?: string
@@ -253,6 +253,7 @@ export type CWConcernStatus = 'Active' | 'Inactive'
 export type CWConcern = {
   id: string
   categoryId: string
+  code: string             // e.g. "CC-BRK-001"
   name: string
   processTimeMins?: number
   status: CWConcernStatus
@@ -263,17 +264,30 @@ export type CWConcern = {
 // ─── Services (Admin-managed, seeded from CSV) ────────────────────────────────
 
 export type CWServiceStatus = 'Active' | 'Inactive'
+export type CWServiceSeverity = 'Light' | 'Medium' | 'Severe'
+
+// Admin-defined stage for a service (master data)
+export type CWServiceStageDefinition = {
+  id: string
+  name: string             // "Disassembly", "Body Repair", or any custom name
+  order: number            // sequential position (1, 2, 3...)
+  durationMins: number     // estimated time
+}
 
 export type CWService = {
   id: string
   code: string
   category: string
+  section?: string          // "Painting", "Body Repair", "Brakes", etc.
   description: string
-  processTimeMins: number
-  ratePerHr: number
-  price: number
+  vehicleSize?: CWVehicleSize
+  severity?: CWServiceSeverity  // Body/Paint only
+  processTimeMins: number  // LTS (Auto) or TOTAL_STAGE_TIME (Body/Paint)
+  ratePerHr?: number       // optional — not in client data
+  price: number            // MRP
   shopId: string
   status: CWServiceStatus
+  stages?: CWServiceStageDefinition[]  // admin-managed, any shop
   createdAt: string
   updatedAt: string
 }
@@ -331,21 +345,49 @@ export type CWAppointmentServiceItem = {
   serviceCode: string
   serviceDescription: string
   processTimeMins: number
-  ratePerHr: number
+  ratePerHr?: number
   price: number
   remark: string
   addedBySA: boolean
-  // JC assigns SE + bay:
+  // JC assigns SE + bay (used when NO stages):
   assignedSEUserId?: string
   bayId?: string
-  // SE assigns technicians:
+  // SE assigns technicians (used when NO stages):
   technicianAssignments: CWTechnicianAssignment[]
   workStatus?: CWServiceWorkStatus
   plannedStartAt?: string
   plannedEndAt?: string
+  // Stage-level scheduling (when service has stages):
+  stageItems?: CWAppointmentServiceStageItem[]
   // QC verification:
   qcStatus?: CWQCItemStatus
   qcNote?: string
+}
+
+// ─── Runtime stage instances (auto-populated from service stage definitions) ──
+
+export type CWStageWorkStatus = 'Pending' | 'Scheduled' | 'In Progress' | 'Completed'
+
+export type CWAppointmentServiceStageItem = {
+  id: string
+  stageDefinitionId: string    // links to CWServiceStageDefinition.id
+  stageName: string
+  stageOrder: number
+  durationMins: number
+  // JC assigns per stage (same flow as service-level):
+  bayId?: string
+  teamId?: string
+  assignedSEUserId?: string
+  plannedStartAt?: string
+  plannedEndAt?: string
+  // SE assigns technicians (same as current flow):
+  technicianAssignments: CWTechnicianAssignment[]
+  // Sequential dependency:
+  dependsOnStageId?: string    // previous stage item's ID
+  // Execution:
+  workStatus: CWStageWorkStatus
+  actualStartAt?: string
+  actualEndAt?: string
 }
 
 export type CWWhatsappLog = {

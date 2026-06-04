@@ -94,6 +94,7 @@ export function CreateVehiclePage() {
       if (!customerId) throw new Error('Select a customer')
       const registrationNo = [regCity, regRegion, regClass, regSeries, regNumber].filter(Boolean).join('-')
       if (!registrationNo) throw new Error('Registration number is required')
+      if (!vehicleSize) throw new Error('Vehicle size is required')
 
       const created = createVehicle({
         customerId,
@@ -101,7 +102,7 @@ export function CreateVehiclePage() {
         make: make.trim() || undefined,
         model: model.trim() || undefined,
         vehicleCategory: vehicleCategory || undefined,
-        vehicleSize: vehicleSize || undefined,
+        vehicleSize: vehicleSize as CWVehicleSize,
         modelVariant: modelVariant.trim() || undefined,
         countryOfOrigin: countryOfOrigin || undefined,
         countryOfAssembly: countryOfAssembly || undefined,
@@ -152,8 +153,8 @@ export function CreateVehiclePage() {
               {CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
             </TextField>
           </FormRow>
-          <FormRow label="Vehicle Size">
-            <TextField size="small" select fullWidth value={vehicleSize} onChange={(e) => setVehicleSize(e.target.value as CWVehicleSize)}>
+          <FormRow label="Vehicle Size *">
+            <TextField size="small" select fullWidth value={vehicleSize} onChange={(e) => setVehicleSize(e.target.value as CWVehicleSize)} required error={!vehicleSize}>
               <MenuItem value="">— Select —</MenuItem>
               {SIZES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>

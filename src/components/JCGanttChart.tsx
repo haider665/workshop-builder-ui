@@ -1,14 +1,54 @@
-import { Box, Chip, Paper, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import {
+  Box,
+  Chip,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from '@mui/material'
 import ReactECharts from 'echarts-for-react'
 import { useMemo, useState } from 'react'
 import { useCwStore } from '../store/cwStore'
 
 type ViewMode = 'task' | 'bay' | 'team'
 
-const MODE_COLORS: Record<ViewMode, { pending: string; inProgress: string; completed: string }> = {
-  task: { pending: '#ff9800', inProgress: '#2196f3', completed: '#4caf50' },
-  bay: { pending: '#e91e63', inProgress: '#9c27b0', completed: '#673ab7' },
-  team: { pending: '#00bcd4', inProgress: '#009688', completed: '#3f51b5' },
+// Stage colors — consistent per stage name
+const STAGE_COLORS: Record<string, string> = {
+  'Disassembly':    '#e91e63',
+  'Body Repair':    '#ff5722',
+  'Paint Prep':     '#ff9800',
+  'Paint Spray':    '#ffc107',
+  'Pre-Assembly':   '#8bc34a',
+  'Paint Cutting':  '#4caf50',
+  'Final Assembly': '#00bcd4',
+  'Polish':         '#2196f3',
+}
+
+// Fallback colors for custom stage names
+const EXTRA_STAGE_COLORS = [
+  '#9c27b0', '#673ab7', '#3f51b5', '#009688', '#795548',
+  '#607d8b', '#f44336', '#cddc39', '#03a9f4', '#ff6f00',
+]
+
+function getStageColor(stageName: string): string {
+  if (STAGE_COLORS[stageName]) return STAGE_COLORS[stageName]
+  // Deterministic hash for custom names
+  let hash = 0
+  for (let i = 0; i < stageName.length; i++) hash = (hash * 31 + stageName.charCodeAt(i)) | 0
+  return EXTRA_STAGE_COLORS[Math.abs(hash) % EXTRA_STAGE_COLORS.length]
+}
+
+const STATUS_COLORS = {
+  pending:    '#9e9e9e',
+  scheduled:  '#ff9800',
+  inProgress: '#2196f3',
+  completed:  '#4caf50',
 }
 
 function localDateToday() {
@@ -16,14 +56,44 @@ function localDateToday() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function statusColor(status?: string): string {
+  switch (status) {
+    case 'Completed': return STATUS_COLORS.completed
+    case 'In Progress': return STATUS_COLORS.inProgress
+    case 'Scheduled': return STATUS_COLORS.scheduled
+    default: return STATUS_COLORS.pending
+  }
+}
+
+type GanttItem = {
+  label: string
+  type: 'concern' | 'service' | 'stage'
+  status?: string
+  bayId?: string
+  teamId?: string
+  shopId?: string
+  start: number
+  end: number
+  vehicleReg: string
+  stageName?: string
+  parentLabel?: string  // service description for stages
+}
+
 export function JCGanttChart() {
   const appointments = useCwStore((s) => s.appointments)
   const bays = useCwStore((s) => s.bays)
   const teams = useCwStore((s) => s.teams)
   const vehicles = useCwStore((s) => s.vehicles)
+  const shops = useCwStore((s) => s.shops)
+  const services = useCwStore((s) => s.services)
 
   const [selectedDate, setSelectedDate] = useState(localDateToday())
   const [viewMode, setViewMode] = useState<ViewMode>('task')
+  const [filterShop, setFilterShop] = useState('')
+  const [filterBay, setFilterBay] = useState('')
+  const [filterTeam, setFilterTeam] = useState('')
+  const [filterVehicle, setFilterVehicle] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
 
   const vehicleRegById = useMemo(() => {
     const m = new Map<string, string>()
@@ -43,34 +113,40 @@ export function JCGanttChart() {
     return m
   }, [teams])
 
-  // Find team by SE userId
+  // shopNameById not currently needed — filter uses shopId directly
+
+  const bayShopId = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const b of bays) m.set(b.id, b.shopId)
+    return m
+  }, [bays])
+
+  const serviceById = useMemo(() => {
+    const m = new Map<string, typeof services[0]>()
+    for (const s of services) m.set(s.id, s)
+    return m
+  }, [services])
+
   const teamBySeUser = useMemo(() => {
     const m = new Map<string, typeof teams[0]>()
     for (const t of teams) m.set(t.seUserId, t)
     return m
   }, [teams])
 
+  const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
+  const activeBays = useMemo(() => bays.filter((b) => b.status !== 'Inactive'), [bays])
+  const activeTeams = useMemo(() => teams.filter((t) => t.status === 'Active'), [teams])
+
   // Collect all scheduled items for selected date
   const ganttItems = useMemo(() => {
     const dayStart = new Date(`${selectedDate}T00:00:00`).getTime()
     const dayEnd = new Date(`${selectedDate}T23:59:59`).getTime()
-
-    type GanttItem = {
-      label: string
-      type: 'concern' | 'service'
-      status?: string
-      bayId?: string
-      teamId?: string
-      start: number
-      end: number
-      vehicleReg: string
-    }
-
     const items: GanttItem[] = []
 
     for (const a of appointments) {
       const vReg = vehicleRegById.get(a.vehicleId) ?? a.id.slice(0, 6)
 
+      // Concerns (unchanged)
       for (const c of a.concernItems) {
         if (!c.plannedStartAt || !c.plannedEndAt) continue
         const start = Date.parse(c.plannedStartAt)
@@ -84,45 +160,102 @@ export function JCGanttChart() {
           status: c.workStatus,
           bayId: c.bayId,
           teamId: team?.id,
+          shopId: c.bayId ? bayShopId.get(c.bayId) : undefined,
           start: Math.max(start, dayStart),
           end: Math.min(end, dayEnd),
           vehicleReg: vReg,
         })
       }
 
+      // Services
       for (const s of a.serviceItems) {
-        if (!s.plannedStartAt || !s.plannedEndAt) continue
-        const start = Date.parse(s.plannedStartAt)
-        const end = Date.parse(s.plannedEndAt)
-        if (end < dayStart || start > dayEnd) continue
+        const svc = serviceById.get(s.serviceId)
 
-        const team = s.assignedSEUserId ? teamBySeUser.get(s.assignedSEUserId) : undefined
-        items.push({
-          label: s.serviceDescription,
-          type: 'service',
-          status: s.workStatus,
-          bayId: s.bayId,
-          teamId: team?.id,
-          start: Math.max(start, dayStart),
-          end: Math.min(end, dayEnd),
-          vehicleReg: vReg,
-        })
+        // If service has stageItems → emit stage-level bars
+        if (s.stageItems && s.stageItems.length > 0) {
+          for (const stage of s.stageItems) {
+            if (!stage.plannedStartAt || !stage.plannedEndAt) continue
+            const start = Date.parse(stage.plannedStartAt)
+            const end = Date.parse(stage.plannedEndAt)
+            if (end < dayStart || start > dayEnd) continue
+
+            items.push({
+              label: `${stage.stageName} — ${s.serviceDescription}`,
+              type: 'stage',
+              status: stage.workStatus,
+              bayId: stage.bayId,
+              teamId: stage.teamId,
+              shopId: stage.bayId ? bayShopId.get(stage.bayId) : svc?.shopId,
+              start: Math.max(start, dayStart),
+              end: Math.min(end, dayEnd),
+              vehicleReg: vReg,
+              stageName: stage.stageName,
+              parentLabel: s.serviceDescription,
+            })
+          }
+        } else {
+          // No stages → single service bar (current behavior)
+          if (!s.plannedStartAt || !s.plannedEndAt) continue
+          const start = Date.parse(s.plannedStartAt)
+          const end = Date.parse(s.plannedEndAt)
+          if (end < dayStart || start > dayEnd) continue
+
+          const team = s.assignedSEUserId ? teamBySeUser.get(s.assignedSEUserId) : undefined
+          items.push({
+            label: s.serviceDescription,
+            type: 'service',
+            status: s.workStatus,
+            bayId: s.bayId,
+            teamId: team?.id,
+            shopId: s.bayId ? bayShopId.get(s.bayId) : svc?.shopId,
+            start: Math.max(start, dayStart),
+            end: Math.min(end, dayEnd),
+            vehicleReg: vReg,
+          })
+        }
       }
     }
 
     return items
-  }, [appointments, selectedDate, vehicleRegById, teamBySeUser])
+  }, [appointments, selectedDate, vehicleRegById, teamBySeUser, bayShopId, serviceById])
 
-  function getColor(status?: string): string {
-    const colors = MODE_COLORS[viewMode]
-    switch (status) {
-      case 'Completed': return colors.completed
-      case 'In Progress': return colors.inProgress
-      default: return colors.pending
+  // Apply filters
+  const filteredItems = useMemo(() => {
+    return ganttItems.filter((item) => {
+      if (filterShop && item.shopId !== filterShop) return false
+      if (filterBay && item.bayId !== filterBay) return false
+      if (filterTeam && item.teamId !== filterTeam) return false
+      if (filterVehicle) {
+        const q = filterVehicle.toLowerCase()
+        if (!item.vehicleReg.toLowerCase().includes(q)) return false
+      }
+      if (filterStatus) {
+        const st = (item.status ?? 'Pending')
+        if (st !== filterStatus) return false
+      }
+      return true
+    })
+  }, [ganttItems, filterShop, filterBay, filterTeam, filterVehicle, filterStatus])
+
+  // Unique stage names in current view (for legend)
+  const stageNamesInView = useMemo(() => {
+    const names = new Set<string>()
+    for (const item of filteredItems) {
+      if (item.stageName) names.add(item.stageName)
     }
+    return [...names].sort()
+  }, [filteredItems])
+
+  function getItemColor(item: GanttItem): string {
+    // Stage items get color by stage name
+    if (item.type === 'stage' && item.stageName) {
+      return getStageColor(item.stageName)
+    }
+    // Others get color by status
+    return statusColor(item.status)
   }
 
-  // Build Y categories and data series
+  // Build chart
   const chartOption = useMemo(() => {
     const categories: string[] = []
     const data: { name: string; value: [number, number, number, string]; itemStyle: { color: string } }[] = []
@@ -136,44 +269,55 @@ export function JCGanttChart() {
       return idx
     }
 
-
     if (viewMode === 'task') {
-      for (const item of ganttItems) {
-        const catName = `📋 ${item.label}`
+      for (const item of filteredItems) {
+        const catName = item.type === 'stage'
+          ? `📋 ${item.parentLabel ?? item.label}`
+          : `📋 ${item.label}`
         const idx = categoryIndex(catName)
         data.push({
           name: `${item.vehicleReg} — ${item.label}`,
           value: [idx, item.start, item.end, item.vehicleReg],
-          itemStyle: { color: getColor(item.status) },
+          itemStyle: { color: getItemColor(item) },
         })
       }
     } else if (viewMode === 'bay') {
-      for (const item of ganttItems) {
+      for (const item of filteredItems) {
         if (!item.bayId) continue
         const bayName = `🔧 ${bayNameById.get(item.bayId) ?? 'Unknown Bay'}`
         const idx = categoryIndex(bayName)
         data.push({
           name: `${item.vehicleReg} — ${item.label}`,
           value: [idx, item.start, item.end, item.vehicleReg],
-          itemStyle: { color: getColor(item.status) },
+          itemStyle: { color: getItemColor(item) },
         })
       }
     } else if (viewMode === 'team') {
-      for (const item of ganttItems) {
+      for (const item of filteredItems) {
         if (!item.teamId) continue
         const tName = `👥 ${teamNameById.get(item.teamId) ?? 'Unknown Team'}`
         const idx = categoryIndex(tName)
         data.push({
           name: `${item.vehicleReg} — ${item.label}`,
           value: [idx, item.start, item.end, item.vehicleReg],
-          itemStyle: { color: getColor(item.status) },
+          itemStyle: { color: getItemColor(item) },
         })
       }
     }
 
-    // Work hours: 8 AM to 8 PM
-    const workStart = new Date(`${selectedDate}T08:00:00`).getTime()
-    const workEnd = new Date(`${selectedDate}T20:00:00`).getTime()
+    const defaultStart = new Date(`${selectedDate}T08:00:00`).getTime()
+    const defaultEnd = new Date(`${selectedDate}T20:00:00`).getTime()
+
+    // Compute axis range from actual data, padded by 30 mins
+    let dataMin = defaultStart
+    let dataMax = defaultEnd
+    for (const d of data) {
+      if (d.value[1] < dataMin) dataMin = d.value[1]
+      if (d.value[2] > dataMax) dataMax = d.value[2]
+    }
+    const PAD = 30 * 60 * 1000 // 30 min padding
+    const workStart = Math.min(defaultStart, dataMin - PAD)
+    const workEnd = Math.max(defaultEnd, dataMax + PAD)
 
     return {
       tooltip: {
@@ -194,6 +338,20 @@ export function JCGanttChart() {
         top: 20,
         bottom: 40,
       },
+      dataZoom: categories.length > 15 ? [
+        {
+          type: 'slider',
+          yAxisIndex: 0,
+          filterMode: 'none',
+          width: 20,
+          right: 10,
+        },
+        {
+          type: 'inside',
+          yAxisIndex: 0,
+          filterMode: 'none',
+        },
+      ] : undefined,
       xAxis: {
         type: 'time' as const,
         min: workStart,
@@ -264,15 +422,14 @@ export function JCGanttChart() {
       ],
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ganttItems, viewMode, selectedDate, bayNameById, teamNameById])
+  }, [filteredItems, viewMode, selectedDate, bayNameById, teamNameById])
 
   const chartHeight = Math.max(200, (chartOption.yAxis.data?.length ?? 0) * 40 + 80)
-
-  const colors = MODE_COLORS[viewMode]
 
   return (
     <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
       <Box sx={{ p: 2.5 }}>
+        {/* Title + date + view mode */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' }, mb: 2 }}>
           <Typography sx={{ fontWeight: 900 }}>Daily Schedule (Gantt)</Typography>
           <TextField
@@ -297,14 +454,77 @@ export function JCGanttChart() {
           </ToggleButtonGroup>
         </Stack>
 
-        {/* Legend */}
-        <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
-          <Chip size="small" sx={{ bgcolor: colors.pending, color: 'white', fontWeight: 700 }} label="Pending" />
-          <Chip size="small" sx={{ bgcolor: colors.inProgress, color: 'white', fontWeight: 700 }} label="In Progress" />
-          <Chip size="small" sx={{ bgcolor: colors.completed, color: 'white', fontWeight: 700 }} label="Completed" />
+        {/* ── Filter bar ── */}
+        <Stack direction="row" spacing={1.5} sx={{ mb: 2, flexWrap: 'wrap' }}>
+          <FormControl size="small" sx={{ minWidth: 130 }}>
+            <InputLabel>Shop</InputLabel>
+            <Select label="Shop" value={filterShop} onChange={(e) => setFilterShop(e.target.value)}>
+              <MenuItem value="">All Shops</MenuItem>
+              {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 130 }}>
+            <InputLabel>Bay</InputLabel>
+            <Select label="Bay" value={filterBay} onChange={(e) => setFilterBay(e.target.value)}>
+              <MenuItem value="">All Bays</MenuItem>
+              {activeBays.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 130 }}>
+            <InputLabel>Team</InputLabel>
+            <Select label="Team" value={filterTeam} onChange={(e) => setFilterTeam(e.target.value)}>
+              <MenuItem value="">All Teams</MenuItem>
+              {activeTeams.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField
+            size="small"
+            label="Vehicle"
+            placeholder="Reg. no."
+            value={filterVehicle}
+            onChange={(e) => setFilterVehicle(e.target.value)}
+            sx={{ width: 140 }}
+          />
+          <FormControl size="small" sx={{ minWidth: 130 }}>
+            <InputLabel>Status</InputLabel>
+            <Select label="Status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="Pending">Pending</MenuItem>
+              <MenuItem value="Scheduled">Scheduled</MenuItem>
+              <MenuItem value="In Progress">In Progress</MenuItem>
+              <MenuItem value="Completed">Completed</MenuItem>
+            </Select>
+          </FormControl>
         </Stack>
 
-        {ganttItems.length === 0 ? (
+        {/* Status legend */}
+        <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+          <Chip size="small" sx={{ bgcolor: STATUS_COLORS.pending, color: 'white', fontWeight: 700 }} label="Pending" />
+          <Chip size="small" sx={{ bgcolor: STATUS_COLORS.scheduled, color: 'white', fontWeight: 700 }} label="Scheduled" />
+          <Chip size="small" sx={{ bgcolor: STATUS_COLORS.inProgress, color: 'white', fontWeight: 700 }} label="In Progress" />
+          <Chip size="small" sx={{ bgcolor: STATUS_COLORS.completed, color: 'white', fontWeight: 700 }} label="Completed" />
+        </Stack>
+
+        {/* Stage legend (only if stages are visible) */}
+        {stageNamesInView.length > 0 && (
+          <Stack direction="row" spacing={0.75} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, mr: 0.5, alignSelf: 'center' }}>Stages:</Typography>
+            {stageNamesInView.map((name) => (
+              <Chip
+                key={name}
+                size="small"
+                sx={{ bgcolor: getStageColor(name), color: 'white', fontWeight: 600, fontSize: '0.7rem' }}
+                label={name}
+              />
+            ))}
+          </Stack>
+        )}
+
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          Showing {filteredItems.length} of {ganttItems.length} items
+        </Typography>
+
+        {filteredItems.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <Typography color="text.secondary">
               No scheduled tasks for {new Date(selectedDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}.

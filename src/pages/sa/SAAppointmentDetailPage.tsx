@@ -432,15 +432,18 @@ export function SAAppointmentDetailPage() {
             <Stack direction="row" spacing={1.5} sx={{ mt: 2, flexWrap: 'wrap' }}>
               <FormControl size="small" sx={{ minWidth: 150 }}>
                 <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value as string)}>
-                  <MenuItem value="">All Shops</MenuItem>
+                <Select label="Shop" value={serviceShopFilter} onChange={(e) => { setServiceShopFilter(e.target.value as string); setAddServiceId('') }}>
+                  <MenuItem value="">— Select Shop —</MenuItem>
                   {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                 </Select>
               </FormControl>
               <TextField select size="small" label="Add Service" value={addServiceId}
-                onChange={(e) => setAddServiceId(e.target.value)} sx={{ minWidth: 250 }}>
+                onChange={(e) => setAddServiceId(e.target.value)} sx={{ minWidth: 250 }}
+                disabled={!serviceShopFilter}
+                helperText={!serviceShopFilter ? 'Select shop first' : undefined}
+              >
                 <MenuItem value="">— Select —</MenuItem>
-                {activeServices.filter((s) => !serviceShopFilter || s.shopId === serviceShopFilter).map((s) => <MenuItem key={s.id} value={s.id}>{s.description} ({s.code})</MenuItem>)}
+                {activeServices.filter((s) => s.shopId === serviceShopFilter).map((s) => <MenuItem key={s.id} value={s.id}>{s.description} ({s.code})</MenuItem>)}
               </TextField>
               <TextField size="small" label="Remark" value={addServiceRemark}
                 onChange={(e) => setAddServiceRemark(e.target.value)} />

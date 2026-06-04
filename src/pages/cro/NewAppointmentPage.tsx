@@ -159,9 +159,8 @@ export function NewAppointmentPage() {
     return list
   }, [concerns, concernCategories, concernShopFilter])
   const activeServices = useMemo(() => {
-    let list = services.filter((s) => s.status === 'Active')
-    if (serviceShopFilter) list = list.filter((s) => s.shopId === serviceShopFilter)
-    return list
+    if (!serviceShopFilter) return []
+    return services.filter((s) => s.status === 'Active' && s.shopId === serviceShopFilter)
   }, [services, serviceShopFilter])
 
   const totalBDT = useMemo(() => serviceItems.reduce((sum, i) => sum + i.price, 0), [serviceItems])
@@ -198,7 +197,7 @@ export function NewAppointmentPage() {
         serviceCode: s.code,
         serviceDescription: s.description,
         processTimeMins: s.processTimeMins,
-        ratePerHr: s.ratePerHr,
+        ratePerHr: s.ratePerHr ?? 0,
         price: s.price,
         remark,
       })),

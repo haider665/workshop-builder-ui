@@ -37,6 +37,7 @@ export function ConcernsPage() {
   const [newCatShopId, setNewCatShopId] = useState('')
   // New concern form
   const [newConcernCatId, setNewConcernCatId] = useState('')
+  const [newConcernCode, setNewConcernCode] = useState('')
   const [newConcernName, setNewConcernName] = useState('')
   const [newConcernEstTime, setNewConcernEstTime] = useState('30')
 
@@ -63,7 +64,8 @@ export function ConcernsPage() {
       setError(null)
       if (!newConcernCatId) throw new Error('Select a category')
       const estHrs = newConcernEstTime.trim() ? Number(newConcernEstTime.trim()) : undefined
-      const c = createConcern({ categoryId: newConcernCatId, name: newConcernName, processTimeMins: estHrs })
+      const c = createConcern({ categoryId: newConcernCatId, code: newConcernCode.trim(), name: newConcernName, processTimeMins: estHrs })
+      setNewConcernCode('')
       setNewConcernName('')
       setNewConcernEstTime('30')
       setSuccessMessage(`Concern created: ${c.name}`)
@@ -155,6 +157,14 @@ export function ConcernsPage() {
               </Select>
             </FormControl>
             <TextField
+              label="Code"
+              size="small"
+              value={newConcernCode}
+              onChange={(e) => setNewConcernCode(e.target.value)}
+              placeholder="e.g. CC-BRK-001"
+              sx={{ width: 160 }}
+            />
+            <TextField
               label="Concern name"
               size="small"
               value={newConcernName}
@@ -232,6 +242,7 @@ export function ConcernsPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
+                <TableCell sx={{ fontWeight: 800 }}>Code</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Process Time (mins)</TableCell>
@@ -242,6 +253,11 @@ export function ConcernsPage() {
             <TableBody>
               {concerns.map((c) => (
                 <TableRow key={c.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                      {c.code || '—'}
+                    </Typography>
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary">
                       {catById.get(c.categoryId)?.name ?? '—'}
