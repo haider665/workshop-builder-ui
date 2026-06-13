@@ -1,5 +1,6 @@
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -8,6 +9,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -21,7 +23,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Send } from '@mui/icons-material'
+import { Delete, Send } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
@@ -52,6 +54,7 @@ export function SAAppointmentDetailPage() {
   const pushTimeline = useCwStore((s) => s.pushTimeline)
   const confirmPayment = useCwStore((s) => s.confirmPayment)
   const assignQC = useCwStore((s) => s.assignQC)
+  const removeAppointmentConcern = useCwStore((s) => s.removeAppointmentConcern)
   const partRequests = useCwStore((s) => s.partRequests)
   const shops = useCwStore((s) => s.shops)
   const concernCategories = useCwStore((s) => s.concernCategories)
@@ -324,9 +327,16 @@ export function SAAppointmentDetailPage() {
                           <Chip size="small" label={`${c.processTimeMins} mins`} color="info" sx={{ fontWeight: 700 }} />
                         )}
                       </Stack>
-                      {c.workStatus ? (
-                        <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} />
-                      ) : null}
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        {c.workStatus ? (
+                          <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} />
+                        ) : null}
+                        {(isInspection || isReviewed) && (
+                          <IconButton size="small" color="error" onClick={() => removeAppointmentConcern(appt.id, c.id)}>
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        )}
+                      </Stack>
                     </Stack>
                     {c.remark && <Typography variant="body2" color="text.secondary">{c.remark}</Typography>}
                     {c.diagnosisRemark && (
@@ -375,8 +385,8 @@ export function SAAppointmentDetailPage() {
               })}
             </Stack>
           )}
-          {/* Add concern (during inspection) */}
-          {isInspection && (
+          {/* Add concern (during inspection or after review before sending) */}
+          {(isInspection || isReviewed) && (
             <Stack direction="row" spacing={1.5} sx={{ mt: 2, flexWrap: 'wrap' }}>
               <FormControl size="small" sx={{ minWidth: 150 }}>
                 <InputLabel>Shop</InputLabel>
@@ -385,11 +395,15 @@ export function SAAppointmentDetailPage() {
                   {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                 </Select>
               </FormControl>
-              <TextField select size="small" label="Add Concern" value={addConcernId}
-                onChange={(e) => setAddConcernId(e.target.value)} sx={{ minWidth: 200 }}>
-                <MenuItem value="">— Select —</MenuItem>
-                {activeConcerns.filter((c) => !concernShopFilter || concernShopId(c.id) === concernShopFilter).map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
-              </TextField>
+              <Autocomplete
+                size="small"
+                options={activeConcerns.filter((c) => !concernShopFilter || concernShopId(c.id) === concernShopFilter)}
+                getOptionLabel={(o) => `${o.name} (${o.processTimeMins ?? '?'} mins)`}
+                value={activeConcerns.find((c) => c.id === addConcernId) ?? null}
+                onChange={(_, val) => setAddConcernId(val?.id ?? '')}
+                sx={{ minWidth: 280 }}
+                renderInput={(params) => <TextField {...params} label="Add Concern" placeholder="Type to search…" />}
+              />
               <TextField size="small" label="Remark" value={addConcernRemark}
                 onChange={(e) => setAddConcernRemark(e.target.value)} />
               <Button variant="contained" size="small" onClick={handleAddConcern} disabled={!addConcernId}>Add</Button>
@@ -437,14 +451,19 @@ export function SAAppointmentDetailPage() {
                   {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                 </Select>
               </FormControl>
-              <TextField select size="small" label="Add Service" value={addServiceId}
-                onChange={(e) => setAddServiceId(e.target.value)} sx={{ minWidth: 250 }}
+              <Autocomplete
+                size="small"
+                options={activeServices.filter((s) => s.shopId === serviceShopFilter)}
+                getOptionLabel={(o) => `${o.description} (${o.code}) — ${o.processTimeMins}m`}
+                value={activeServices.find((s) => s.id === addServiceId) ?? null}
+                onChange={(_, val) => setAddServiceId(val?.id ?? '')}
                 disabled={!serviceShopFilter}
-                helperText={!serviceShopFilter ? 'Select shop first' : undefined}
-              >
-                <MenuItem value="">— Select —</MenuItem>
-                {activeServices.filter((s) => s.shopId === serviceShopFilter).map((s) => <MenuItem key={s.id} value={s.id}>{s.description} ({s.code})</MenuItem>)}
-              </TextField>
+                sx={{ minWidth: 300 }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Add Service" placeholder="Type to search…"
+                    helperText={!serviceShopFilter ? 'Select shop first' : undefined} />
+                )}
+              />
               <TextField size="small" label="Remark" value={addServiceRemark}
                 onChange={(e) => setAddServiceRemark(e.target.value)} />
               <Button variant="contained" size="small" onClick={handleAddService} disabled={!addServiceId}>Add</Button>

@@ -21,7 +21,6 @@ import { useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
-import { AppointmentCalendar } from '../../components/AppointmentCalendar'
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
@@ -438,21 +437,6 @@ export function CroHome() {
             </Table>
           </Paper>
         )}
-        {/* Calendar */}
-        <AppointmentCalendar
-          appointments={appointments}
-          vehicleRegById={useMemo(() => {
-            const m = new Map<string, string>()
-            for (const v of vehicles) m.set(v.id, v.registrationNo)
-            return m
-          }, [vehicles])}
-          customerNameById={useMemo(() => {
-            const m = new Map<string, string>()
-            for (const c of customers) m.set(c.id, c.fullName)
-            return m
-          }, [customers])}
-          basePath="/cre/appointments"
-        />
       </Stack>
     </Page>
   )

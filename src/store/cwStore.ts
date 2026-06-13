@@ -22,11 +22,13 @@ import type {
   CWInspectionCheck,
   CWJob,
   CWJobStatus,
+  CWCallRecord,
   CWPart,
   CWPartRequest,
   CWPartRequestStatus,
   CWPendingVehicle,
   CWPendingVehicleStatus,
+  CWReminder,
   CWRole,
   CWRoleStatus,
   CWService,
@@ -500,8 +502,9 @@ export type SubmitInspectionInput = {
 export type TechnicianTimerInput = {
   appointmentId: string
   itemId: string
-  itemType: 'concern' | 'service'
+  itemType: 'concern' | 'service' | 'stage'
   techAssignmentId: string
+  stageItemId?: string  // required when itemType === 'stage'
 }
 
 export type CompleteTechnicianTimerInput = TechnicianTimerInput & {
@@ -665,6 +668,9 @@ type CWState = {
   qcApprove: (input: QCApproveInput) => void
   qcReject: (input: QCRejectInput) => void
 
+  // Assign SA to existing appointment
+  assignSA: (appointmentId: string, saUserId: string) => void
+
   createTaskTemplate: (input: CreateTaskTemplateInput) => CWTaskTemplate
   updateTaskTemplate: (templateId: string, input: UpdateTaskTemplateInput) => void
   setTaskTemplateStatus: (templateId: string, status: CWTaskTemplateStatus) => void
@@ -723,6 +729,16 @@ type CWState = {
 
   // Bay availability check
   checkBayAvailability: (bayId: string, startTime: string, endTime: string, excludeAppointmentId?: string) => boolean
+
+  // Call records (CRE CDR)
+  callRecords: CWCallRecord[]
+  addCallRecord: (input: Omit<CWCallRecord, 'id'>) => CWCallRecord
+
+  // Reminders (CRE follow-ups)
+  reminders: CWReminder[]
+  createReminder: (input: Omit<CWReminder, 'id' | 'createdAt'>) => CWReminder
+  markReminderSent: (id: string) => void
+  cancelReminder: (id: string) => void
 }
 
 function normalizeRoleName(name: string) {
@@ -1419,6 +1435,8 @@ export const useCwStore = create<CWState>((set, get) => ({
   teams: DEMO_SEED.teams,
   parts: DEMO_SEED.parts,
   partRequests: [],
+  callRecords: [],
+  reminders: [],
 
   createShop: (input) => {
     const ts = nowIso()
@@ -1761,6 +1779,21 @@ export const useCwStore = create<CWState>((set, get) => ({
     if (!customers.some((c) => c.id === customerId)) throw new Error('Customer not found')
 
     const vehicles = get().vehicles
+    const existingVehicle = vehicles.find((v) => v.id === vehicleId)
+    if (!existingVehicle) throw new Error('Vehicle not found')
+
+    // Prevent customer reassignment if vehicle has active appointments
+    if (existingVehicle.customerId !== customerId) {
+      const activeAppointments = get().appointments.filter(
+        (a) => a.vehicleId === vehicleId && !['Released', 'Payment Done'].includes(a.status)
+      )
+      if (activeAppointments.length > 0) {
+        throw new Error(
+          `Cannot reassign vehicle to different customer — ${activeAppointments.length} active appointment(s) exist. Complete or cancel them first.`
+        )
+      }
+    }
+
     if (hasVehicleReg(vehicles, registrationNo, vehicleId)) throw new Error('Duplicate registration')
     if (typeof odometerKm === 'number' && !(odometerKm >= 0)) throw new Error('Invalid odometer')
 
@@ -1801,11 +1834,14 @@ export const useCwStore = create<CWState>((set, get) => ({
     const customers = get().customers
     const vehicles = get().vehicles
     if (!customers.some((c) => c.id === input.customerId)) throw new Error('Customer not found')
-    if (!vehicles.some((v) => v.id === input.vehicleId)) throw new Error('Vehicle not found')
+    const vehicle = vehicles.find((v) => v.id === input.vehicleId)
+    if (!vehicle) throw new Error('Vehicle not found')
+    if (vehicle.customerId !== input.customerId) throw new Error('Vehicle does not belong to selected customer')
 
     const scheduledAt = (input.scheduledAt ?? '').trim()
     if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new Error('Invalid scheduled date')
 
+    const allServices = get().services
     const ts = nowIso()
 
     const defaultChecks: CWInspectionCheck[] = [
@@ -1946,18 +1982,44 @@ export const useCwStore = create<CWState>((set, get) => ({
           technicianAssignments: [],
         }
       }),
-      serviceItems: (input.serviceItems ?? []).map((s) => ({
-        id: newId(),
-        serviceId: s.serviceId,
-        serviceCode: s.serviceCode,
-        serviceDescription: s.serviceDescription,
-        processTimeMins: s.processTimeMins,
-        ratePerHr: s.ratePerHr,
-        price: s.price,
-        remark: s.remark.trim(),
-        addedBySA: s.addedBySA ?? false,
-        technicianAssignments: [],
-      })),
+      serviceItems: (input.serviceItems ?? []).map((s) => {
+        // Auto-populate stageItems from service stage definitions
+        const svcDef = allServices.find((sv) => sv.id === s.serviceId)
+        const stages = svcDef?.stages
+        let stageItems: CWAppointmentServiceStageItem[] | undefined
+        if (stages && stages.length > 0) {
+          const sorted = [...stages].sort((a, b) => a.order - b.order)
+          let prevId: string | undefined
+          stageItems = sorted.map((stage) => {
+            const itemId = newId()
+            const item: CWAppointmentServiceStageItem = {
+              id: itemId,
+              stageDefinitionId: stage.id,
+              stageName: stage.name,
+              stageOrder: stage.order,
+              durationMins: stage.durationMins,
+              technicianAssignments: [],
+              dependsOnStageId: prevId,
+              workStatus: 'Pending',
+            }
+            prevId = itemId
+            return item
+          })
+        }
+        return {
+          id: newId(),
+          serviceId: s.serviceId,
+          serviceCode: s.serviceCode,
+          serviceDescription: s.serviceDescription,
+          processTimeMins: s.processTimeMins,
+          ratePerHr: s.ratePerHr,
+          price: s.price,
+          remark: s.remark.trim(),
+          addedBySA: s.addedBySA ?? false,
+          technicianAssignments: [],
+          stageItems,
+        }
+      }),
       customerApprovalStatus: 'Pending',
       whatsappLogs: [],
       timeline: [
@@ -2447,23 +2509,25 @@ export const useCwStore = create<CWState>((set, get) => ({
         a.id === input.appointmentId
           ? {
               ...a,
-              serviceItems: a.serviceItems.map((s) =>
-                s.id === input.serviceItemId && s.stageItems
-                  ? {
-                      ...s,
-                      stageItems: s.stageItems.map((st) =>
-                        st.id === input.stageItemId
-                          ? {
-                              ...st,
-                              workStatus: input.status,
-                              ...(input.status === 'In Progress' && !st.actualStartAt ? { actualStartAt: ts } : {}),
-                              ...(input.status === 'Completed' ? { actualEndAt: ts } : {}),
-                            }
-                          : st,
-                      ),
-                    }
-                  : s,
-              ),
+              serviceItems: a.serviceItems.map((s) => {
+                if (s.id !== input.serviceItemId || !s.stageItems) return s
+                const updatedStages = s.stageItems.map((st) =>
+                  st.id === input.stageItemId
+                    ? {
+                        ...st,
+                        workStatus: input.status,
+                        ...(input.status === 'In Progress' && !st.actualStartAt ? { actualStartAt: ts } : {}),
+                        ...(input.status === 'Completed' ? { actualEndAt: ts } : {}),
+                      }
+                    : st,
+                )
+                const allStagesDone = updatedStages.every((st) => st.workStatus === 'Completed')
+                return {
+                  ...s,
+                  stageItems: updatedStages,
+                  workStatus: allStagesDone ? 'Completed' as const : s.workStatus,
+                }
+              }),
               updatedAt: nowIso(),
             }
           : a,
@@ -2563,6 +2627,10 @@ export const useCwStore = create<CWState>((set, get) => ({
             : a.concernItems,
           serviceItems: input.itemType === 'service'
             ? a.serviceItems.map((s) => s.id === input.itemId ? { ...s, technicianAssignments: mapTech(s.technicianAssignments), workStatus: 'In Progress' as const } : s)
+            : input.itemType === 'stage'
+            ? a.serviceItems.map((s) => s.id === input.itemId && s.stageItems
+                ? { ...s, stageItems: s.stageItems.map((st) => st.id === input.stageItemId ? { ...st, technicianAssignments: mapTech(st.technicianAssignments), workStatus: 'In Progress' as const } : st) }
+                : s)
             : a.serviceItems,
           updatedAt: now,
         }
@@ -2588,6 +2656,10 @@ export const useCwStore = create<CWState>((set, get) => ({
             : a.concernItems,
           serviceItems: input.itemType === 'service'
             ? a.serviceItems.map((s) => s.id === input.itemId ? { ...s, technicianAssignments: mapTech(s.technicianAssignments) } : s)
+            : input.itemType === 'stage'
+            ? a.serviceItems.map((s) => s.id === input.itemId && s.stageItems
+                ? { ...s, stageItems: s.stageItems.map((st) => st.id === input.stageItemId ? { ...st, technicianAssignments: mapTech(st.technicianAssignments) } : st) }
+                : s)
             : a.serviceItems,
           updatedAt: now,
         }
@@ -2613,6 +2685,10 @@ export const useCwStore = create<CWState>((set, get) => ({
             : a.concernItems,
           serviceItems: input.itemType === 'service'
             ? a.serviceItems.map((s) => s.id === input.itemId ? { ...s, technicianAssignments: mapTech(s.technicianAssignments) } : s)
+            : input.itemType === 'stage'
+            ? a.serviceItems.map((s) => s.id === input.itemId && s.stageItems
+                ? { ...s, stageItems: s.stageItems.map((st) => st.id === input.stageItemId ? { ...st, technicianAssignments: mapTech(st.technicianAssignments) } : st) }
+                : s)
             : a.serviceItems,
           updatedAt: now,
         }
@@ -2654,6 +2730,13 @@ export const useCwStore = create<CWState>((set, get) => ({
             : a.concernItems,
           serviceItems: input.itemType === 'service'
             ? a.serviceItems.map((s) => s.id === input.itemId ? markItemComplete(s) : s)
+            : input.itemType === 'stage'
+            ? a.serviceItems.map((s) => {
+                if (s.id !== input.itemId || !s.stageItems) return s
+                const updatedStages = s.stageItems.map((st) => st.id === input.stageItemId ? markItemComplete(st) : st)
+                const allStagesDone = updatedStages.every((st) => st.workStatus === 'Completed')
+                return { ...s, stageItems: updatedStages, workStatus: allStagesDone ? 'Completed' as const : s.workStatus }
+              })
             : a.serviceItems,
           updatedAt: now,
         }
@@ -2780,6 +2863,30 @@ export const useCwStore = create<CWState>((set, get) => ({
           updatedAt: nowIso(),
         }
       }),
+    })
+  },
+
+  assignSA: (appointmentId, saUserId) => {
+    set({
+      appointments: get().appointments.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              assignedSAUserId: saUserId,
+              status: a.status === 'New' ? 'SA Inspection' as const : a.status,
+              timeline: [
+                ...a.timeline,
+                {
+                  id: newId(),
+                  timestamp: nowIso(),
+                  actor: 'CRE',
+                  action: `Service Advisor assigned`,
+                },
+              ],
+              updatedAt: nowIso(),
+            }
+          : a,
+      ),
     })
   },
 
@@ -3805,6 +3912,36 @@ export const useCwStore = create<CWState>((set, get) => ({
       }
     }
     return true
+  },
+
+  // ── Call Records (CDR) ──
+  addCallRecord: (input) => {
+    const rec: CWCallRecord = { ...input, id: newId() }
+    set({ callRecords: [rec, ...get().callRecords] })
+    return rec
+  },
+
+  // ── Reminders ──
+  createReminder: (input) => {
+    const rem: CWReminder = { ...input, id: newId(), createdAt: nowIso() }
+    set({ reminders: [rem, ...get().reminders] })
+    return rem
+  },
+
+  markReminderSent: (id) => {
+    set({
+      reminders: get().reminders.map((r) =>
+        r.id === id ? { ...r, status: 'Sent' as const, sentAt: nowIso() } : r,
+      ),
+    })
+  },
+
+  cancelReminder: (id) => {
+    set({
+      reminders: get().reminders.map((r) =>
+        r.id === id ? { ...r, status: 'Cancelled' as const } : r,
+      ),
+    })
   },
 }))
 

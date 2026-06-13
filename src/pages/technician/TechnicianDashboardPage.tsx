@@ -21,12 +21,15 @@ import type { CWTechnicianAssignment } from '../../types/cw'
 type TaskItem = {
   appointmentId: string
   itemId: string
-  itemType: 'concern' | 'service'
+  itemType: 'concern' | 'service' | 'stage'
   label: string
   vehicleReg: string
   customerName: string
   assignment: CWTechnicianAssignment
   appointmentStatus: string
+  // For stages:
+  serviceItemId?: string
+  stageItemId?: string
 }
 
 export function TechnicianDashboardPage() {
@@ -87,18 +90,41 @@ export function TechnicianDashboardPage() {
       }
 
       for (const service of appt.serviceItems) {
-        for (const ta of service.technicianAssignments) {
-          if (ta.technicianUserId === currentUserId) {
-            tasks.push({
-              appointmentId: appt.id,
-              itemId: service.id,
-              itemType: 'service',
-              label: service.serviceDescription,
-              vehicleReg: vReg,
-              customerName: cName,
-              assignment: ta,
-              appointmentStatus: appt.status,
-            })
+        // Stage-level assignments
+        if (service.stageItems && service.stageItems.length > 0) {
+          for (const stage of service.stageItems) {
+            for (const ta of stage.technicianAssignments) {
+              if (ta.technicianUserId === currentUserId) {
+                tasks.push({
+                  appointmentId: appt.id,
+                  itemId: stage.id,
+                  itemType: 'stage',
+                  label: `${stage.stageName} — ${service.serviceDescription}`,
+                  vehicleReg: vReg,
+                  customerName: cName,
+                  assignment: ta,
+                  appointmentStatus: appt.status,
+                  serviceItemId: service.id,
+                  stageItemId: stage.id,
+                })
+              }
+            }
+          }
+        } else {
+          // Non-staged: service-level assignments
+          for (const ta of service.technicianAssignments) {
+            if (ta.technicianUserId === currentUserId) {
+              tasks.push({
+                appointmentId: appt.id,
+                itemId: service.id,
+                itemType: 'service',
+                label: service.serviceDescription,
+                vehicleReg: vReg,
+                customerName: cName,
+                assignment: ta,
+                appointmentStatus: appt.status,
+              })
+            }
           }
         }
       }
@@ -167,10 +193,16 @@ export function TechnicianDashboardPage() {
               <TableBody>
                 {active.map((t) => (
                   <TableRow key={t.assignment.id} hover sx={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/technician/task/${t.appointmentId}/${t.itemType}/${t.itemId}?ta=${t.assignment.id}`)}>
+                    onClick={() => {
+                      if (t.itemType === 'stage') {
+                        navigate(`/technician/task/${t.appointmentId}/stage/${t.serviceItemId}?ta=${t.assignment.id}&stageId=${t.stageItemId}`)
+                      } else {
+                        navigate(`/technician/task/${t.appointmentId}/${t.itemType}/${t.itemId}?ta=${t.assignment.id}`)
+                      }
+                    }}>
                     <TableCell>
-                      <Chip label={t.itemType === 'concern' ? 'Diagnosis' : 'Service'} size="small"
-                        color={t.itemType === 'concern' ? 'warning' : 'success'} sx={{ fontWeight: 700, textTransform: 'capitalize' }} />
+                      <Chip label={t.itemType === 'concern' ? 'Diagnosis' : t.itemType === 'stage' ? 'Stage' : 'Service'} size="small"
+                        color={t.itemType === 'concern' ? 'warning' : t.itemType === 'stage' ? 'info' : 'success'} sx={{ fontWeight: 700, textTransform: 'capitalize' }} />
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>{t.label}</TableCell>
                     <TableCell>{t.vehicleReg}</TableCell>

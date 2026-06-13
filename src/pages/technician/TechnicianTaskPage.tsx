@@ -2,6 +2,10 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Paper,
   Stack,
   TextField,
@@ -30,6 +34,7 @@ export function TechnicianTaskPage() {
   }>()
   const [searchParams] = useSearchParams()
   const taId = searchParams.get('ta') ?? ''
+  const stageId = searchParams.get('stageId') ?? ''
 
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
@@ -43,6 +48,8 @@ export function TechnicianTaskPage() {
 
   const [notes, setNotes] = useState('')
   const [tick, setTick] = useState(0)
+  const [pauseDialogOpen, setPauseDialogOpen] = useState(false)
+  const [pauseReason, setPauseReason] = useState('')
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -66,12 +73,18 @@ export function TechnicianTaskPage() {
       const concern = appt.concernItems.find((c) => c.id === itemId)
       const ta = concern?.technicianAssignments.find((t) => t.id === taId)
       return { item: concern ? { name: concern.concernName, remark: concern.remark } : null, assignment: ta ?? null }
+    } else if (itemType === 'stage') {
+      // Stage: itemId is serviceItemId, stageId from query
+      const service = appt.serviceItems.find((s) => s.id === itemId)
+      const stage = service?.stageItems?.find((st) => st.id === stageId)
+      const ta = stage?.technicianAssignments.find((t) => t.id === taId)
+      return { item: stage ? { name: `${stage.stageName} — ${service!.serviceDescription}`, remark: '' } : null, assignment: ta ?? null }
     } else {
       const service = appt.serviceItems.find((s) => s.id === itemId)
       const ta = service?.technicianAssignments.find((t) => t.id === taId)
       return { item: service ? { name: service.serviceDescription, remark: service.remark } : null, assignment: ta ?? null }
     }
-  }, [appt, itemType, itemId, taId])
+  }, [appt, itemType, itemId, taId, stageId])
 
   // Live ticking timer
   useEffect(() => {
@@ -109,8 +122,9 @@ export function TechnicianTaskPage() {
   const timerInput = {
     appointmentId: appt.id,
     itemId: itemId!,
-    itemType: itemType as 'concern' | 'service',
+    itemType: itemType as 'concern' | 'service' | 'stage',
     techAssignmentId: taId,
+    ...(itemType === 'stage' ? { stageItemId: stageId } : {}),
   }
 
   function handleStart() {
@@ -119,8 +133,20 @@ export function TechnicianTaskPage() {
   }
 
   function handlePause() {
+    setPauseDialogOpen(true)
+  }
+
+  function confirmPause() {
     pauseTimer(timerInput)
-    pushTimeline(appt!.id, { actor: userNameById.get(assignment!.technicianUserId) ?? 'Technician', action: `Paused ${itemType}: ${item!.name}` })
+    const techName = userNameById.get(assignment!.technicianUserId) ?? 'Technician'
+    pushTimeline(appt!.id, {
+      actor: techName,
+      action: `Paused ${itemType}: ${item!.name}`,
+      details: pauseReason.trim() ? `Reason: ${pauseReason.trim()}` : undefined,
+    })
+    // Pause recorded in timeline — SE will see it on appointment detail page
+    setPauseDialogOpen(false)
+    setPauseReason('')
   }
 
   function handleResume() {
@@ -247,6 +273,27 @@ export function TechnicianTaskPage() {
           </Paper>
         )}
       </Stack>
+
+      {/* Pause Reason Dialog */}
+      <Dialog open={pauseDialogOpen} onClose={() => setPauseDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 900, color: 'warning.main' }}>Pause Task</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Pausing will notify the Service Engineer for review. Please provide a reason.
+          </Typography>
+          <TextField
+            autoFocus fullWidth size="small" label="Pause Reason" multiline rows={3}
+            value={pauseReason} onChange={(e) => setPauseReason(e.target.value)}
+            placeholder="Why are you pausing this task?"
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => { setPauseDialogOpen(false); setPauseReason('') }}>Cancel</Button>
+          <Button variant="contained" color="warning" onClick={confirmPause} disabled={!pauseReason.trim()}>
+            Confirm Pause
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Page>
   )
 }

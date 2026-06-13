@@ -572,3 +572,38 @@ export type CWPartRequest = {
   createdAt: string
   updatedAt: string
 }
+
+// ─── Call Detail Records (CRE) ────────────────────────────────────────────────
+
+export type CWCallDirection = 'inbound' | 'outbound'
+
+export type CWCallRecord = {
+  id: string
+  appointmentId?: string
+  customerId?: string
+  customerName: string
+  direction: CWCallDirection
+  durationSecs: number
+  startedAt: string
+  notes: string
+  createdBy: string
+}
+
+// ─── Reminders / Follow-ups (CRE) ────────────────────────────────────────────
+
+export type CWReminderStatus = 'Pending' | 'Sent' | 'Cancelled'
+export type CWReminderType = 'follow-up' | 'reminder' | 'next-service'
+
+export type CWReminder = {
+  id: string
+  appointmentId: string
+  customerId: string
+  customerName: string
+  vehicleReg: string
+  type: CWReminderType
+  scheduledAt: string
+  message: string
+  status: CWReminderStatus
+  sentAt?: string
+  createdAt: string
+}

@@ -447,7 +447,7 @@ export function GuardHome() {
             label={searchMode === 'registration' ? 'Registration No' : 'VIN'}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            placeholder={searchMode === 'registration' ? 'e.g. KL 01 AB 1234' : 'e.g. 1HGCM82633A004352'}
+            placeholder={searchMode === 'registration' ? 'e.g. ঢাকা-মেট্রো-ঘ-১২-৩৪৫৬ / Dhaka-Metro-Gha-12-3456' : 'e.g. 1HGCM82633A004352'}
             fullWidth
             slotProps={{
               input: {

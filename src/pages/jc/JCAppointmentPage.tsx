@@ -1,5 +1,8 @@
 import {
   Alert,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Chip,
@@ -20,7 +23,9 @@ import {
   TableRow,
   TextField,
   Typography,
+  IconButton,
 } from '@mui/material'
+import { SwapHoriz, ExpandMore } from '@mui/icons-material'
 import React, { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
@@ -143,6 +148,18 @@ export function JCAppointmentPage() {
 
   // Bay conflict confirmation dialog state
   const [bayConflictDialog, setBayConflictDialog] = useState<{ open: boolean; conflicts: string[]; phase: 'diagnosis' | 'service' }>({ open: false, conflicts: [], phase: 'diagnosis' })
+
+  // Relocate dialog state
+  const [relocateDialog, setRelocateDialog] = useState<{
+    open: boolean
+    itemType: 'concern' | 'service'
+    itemId: string
+    itemName: string
+    bayId: string
+    seUserId: string
+    startLocal: string
+    endLocal: string
+  }>({ open: false, itemType: 'concern', itemId: '', itemName: '', bayId: '', seUserId: '', startLocal: '', endLocal: '' })
 
   if (!appt) {
     return (
@@ -575,14 +592,16 @@ export function JCAppointmentPage() {
         {/* ── Workflow Timeline ── */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
-        {/* SA Health Check Report (readonly) */}
+        {/* SA Health Check Report (readonly, collapsible) */}
         {appt.inspectionChecks.length > 0 && (
-          <Paper sx={{ border: '1px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'info.main' }}>
-              SA Health Check Report
-            </Typography>
-            <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
-          </Paper>
+          <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'info.main', '&:before': { display: 'none' }, boxShadow: 'none' }}>
+            <AccordionSummary expandIcon={<ExpandMore />} sx={{ bgcolor: 'info.main', color: 'white', '& .MuiSvgIcon-root': { color: 'white' } }}>
+              <Typography sx={{ fontWeight: 900 }}>SA Health Check Report</Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ p: 2.5 }}>
+              <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
+            </AccordionDetails>
+          </Accordion>
         )}
 
         {/* ── Concerns Summary ── */}
@@ -622,6 +641,17 @@ export function JCAppointmentPage() {
                         {c.workStatus ? (
                           <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
                         ) : null}
+                        {c.bayId && c.workStatus !== 'Completed' && (
+                          <IconButton size="small" color="primary" title="Relocate"
+                            onClick={() => setRelocateDialog({
+                              open: true, itemType: 'concern', itemId: c.id, itemName: c.concernName,
+                              bayId: c.bayId ?? '', seUserId: c.assignedSEUserId ?? '',
+                              startLocal: c.plannedStartAt ? new Date(c.plannedStartAt).toISOString().slice(0, 16) : '',
+                              endLocal: c.plannedEndAt ? new Date(c.plannedEndAt).toISOString().slice(0, 16) : '',
+                            })}>
+                            <SwapHoriz fontSize="small" />
+                          </IconButton>
+                        )}
                       </Stack>
                     </Stack>
                     {c.remark && <Typography variant="body2" color="text.secondary">{c.remark}</Typography>}
@@ -702,6 +732,7 @@ export function JCAppointmentPage() {
                   <TableCell sx={{ fontWeight: 800 }}>Assigned SE</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Bay</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
+                  <TableCell />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -722,6 +753,19 @@ export function JCAppointmentPage() {
                         {s.workStatus ? (
                           <Chip label={s.workStatus} size="small" color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
                         ) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {s.bayId && s.workStatus !== 'Completed' && !s.stageItems?.length && (
+                          <IconButton size="small" color="primary" title="Relocate"
+                            onClick={() => setRelocateDialog({
+                              open: true, itemType: 'service', itemId: s.id, itemName: s.serviceDescription,
+                              bayId: s.bayId ?? '', seUserId: s.assignedSEUserId ?? '',
+                              startLocal: s.plannedStartAt ? new Date(s.plannedStartAt).toISOString().slice(0, 16) : '',
+                              endLocal: s.plannedEndAt ? new Date(s.plannedEndAt).toISOString().slice(0, 16) : '',
+                            })}>
+                            <SwapHoriz fontSize="small" />
+                          </IconButton>
+                        )}
                       </TableCell>
                     </TableRow>
                     {/* Stage detail rows */}
@@ -1185,6 +1229,82 @@ export function JCAppointmentPage() {
           <Alert severity="success">Vehicle released.</Alert>
         )}
       </Stack>
+
+      {/* ── Relocate Dialog ── */}
+      <Dialog open={relocateDialog.open} onClose={() => setRelocateDialog((d) => ({ ...d, open: false }))} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 900, color: 'primary.main' }}>
+          Relocate: {relocateDialog.itemName}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Reassign bay, SE, or time for this {relocateDialog.itemType} item.
+          </Typography>
+          <Stack spacing={2}>
+            <TextField
+              select size="small" label="Bay" fullWidth
+              value={relocateDialog.bayId}
+              onChange={(e) => setRelocateDialog((d) => ({ ...d, bayId: e.target.value }))}
+            >
+              <MenuItem value="">— Select Bay —</MenuItem>
+              {activeBays.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
+            </TextField>
+            <TextField
+              select size="small" label="Service Engineer" fullWidth
+              value={relocateDialog.seUserId}
+              onChange={(e) => setRelocateDialog((d) => ({ ...d, seUserId: e.target.value }))}
+            >
+              <MenuItem value="">— Select SE —</MenuItem>
+              {seUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+            </TextField>
+            <TextField
+              size="small" label="Start" type="datetime-local" fullWidth
+              value={relocateDialog.startLocal}
+              onChange={(e) => setRelocateDialog((d) => ({ ...d, startLocal: e.target.value }))}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              size="small" label="End" type="datetime-local" fullWidth
+              value={relocateDialog.endLocal}
+              onChange={(e) => setRelocateDialog((d) => ({ ...d, endLocal: e.target.value }))}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setRelocateDialog((d) => ({ ...d, open: false }))}>Cancel</Button>
+          <Button variant="contained" disabled={!relocateDialog.bayId || !relocateDialog.seUserId} onClick={() => {
+            const d = relocateDialog
+            const startIso = d.startLocal ? new Date(d.startLocal).toISOString() : ''
+            const endIso = d.endLocal ? new Date(d.endLocal).toISOString() : startIso
+            if (d.itemType === 'concern') {
+              assignConcernDiagnosis({
+                appointmentId: appt.id,
+                concernItemId: d.itemId,
+                seUserId: d.seUserId,
+                bayId: d.bayId,
+                startAt: startIso,
+                endAt: endIso,
+              })
+            } else {
+              assignServiceSE({
+                appointmentId: appt.id,
+                serviceItemId: d.itemId,
+                seUserId: d.seUserId,
+                bayId: d.bayId,
+                startAt: startIso,
+                endAt: endIso,
+              })
+            }
+            pushTimeline(appt.id, {
+              actor: 'JC',
+              action: `Relocated ${d.itemType} "${d.itemName}" to bay ${bayNameById.get(d.bayId) ?? d.bayId}`,
+            })
+            setRelocateDialog((prev) => ({ ...prev, open: false }))
+          }}>
+            Relocate
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Page>
   )
 }

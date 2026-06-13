@@ -23,7 +23,9 @@ import {
   DoorFront,
   Groups,
   Menu,
+  NotificationsActive,
   People,
+  Phone,
   ReceiptLong,
   Settings,
 } from '@mui/icons-material'
@@ -62,15 +64,18 @@ export function AppShell() {
       },
       { kind: 'link', label: 'Job Creation', to: '/jc', icon: <Settings />, anyOfRoles: ['Job Creation'] },
       { kind: 'link', label: 'JC Calendar', to: '/jc/calendar', icon: <CalendarMonth />, anyOfRoles: ['Job Creation'] },
-      { kind: 'link', label: 'Bay Management', to: '/admin/bays', icon: <Settings />, anyOfRoles: ['Job Creation'] },
+      { kind: 'link', label: 'Gantt View', to: '/jc/gantt', icon: <Assignment />, anyOfRoles: ['Job Creation'] },
+      { kind: 'link', label: 'Bay Management', to: '/jc/bays', icon: <Settings />, anyOfRoles: ['Job Creation'] },
       { kind: 'link', label: 'Gatepass', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
 
       { kind: 'section', label: 'Service Advisor', anyOfRoles: ['Service Advisor'] },
       { kind: 'link', label: 'SA Appointments', to: '/sa/appointments', icon: <CalendarMonth />, anyOfRoles: ['Service Advisor'] },
+      { kind: 'link', label: 'SA Calendar', to: '/sa/calendar', icon: <CalendarMonth />, anyOfRoles: ['Service Advisor'] },
       { kind: 'link', label: 'Jobs', to: '/jc/jobs/new', icon: <Settings />, anyOfRoles: ['Service Advisor'] },
 
       { kind: 'section', label: 'Service Engineer', anyOfRoles: ['Service Engineer'] },
       { kind: 'link', label: 'SE Appointments', to: '/se/appointments', icon: <CalendarMonth />, anyOfRoles: ['Service Engineer'] },
+      { kind: 'link', label: 'SE Calendar', to: '/se/calendar', icon: <CalendarMonth />, anyOfRoles: ['Service Engineer'] },
 
       { kind: 'section', label: 'Technician', anyOfRoles: ['Technician'] },
       { kind: 'link', label: 'My Tasks', to: '/technician', icon: <CalendarMonth />, anyOfRoles: ['Technician'] },
@@ -82,13 +87,17 @@ export function AppShell() {
       { kind: 'link', label: 'Dashboard', to: '/cre', icon: <People />, anyOfRoles: ['CRE'] },
       { kind: 'link', label: 'Manage Customer', to: '/cre/customers', icon: <People />, anyOfRoles: ['CRE'] },
       { kind: 'link', label: 'Manage Vehicles', to: '/cre/vehicles', icon: <DirectionsCar />, anyOfRoles: ['CRE'] },
-      { kind: 'link', label: 'Appointment Calendar', to: '/cre/appointments', icon: <CalendarMonth />, anyOfRoles: ['CRE'] },
+      { kind: 'link', label: 'Appointments', to: '/cre/appointments', icon: <CalendarMonth />, anyOfRoles: ['CRE'] },
+      { kind: 'link', label: 'Calendar', to: '/cre/calendar', icon: <CalendarMonth />, anyOfRoles: ['CRE'] },
+      { kind: 'link', label: 'Call History', to: '/cre/calls', icon: <Phone />, anyOfRoles: ['CRE'] },
+      { kind: 'link', label: 'Reminders', to: '/cre/reminders', icon: <NotificationsActive />, anyOfRoles: ['CRE'] },
       { kind: 'section', label: 'Admin Config', anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Concerns', to: '/admin/concerns', icon: <AdminPanelSettings />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Services', to: '/admin/services', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Teams', to: '/admin/teams', icon: <Groups />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Parts', to: '/admin/parts', icon: <Settings />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Part Requests', to: '/admin/part-requests', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
+      { kind: 'link', label: 'Reports', to: '/admin/reports', icon: <Assignment />, anyOfRoles: ['Admin'] },
 
       {
         kind: 'link',
@@ -102,7 +111,7 @@ export function AppShell() {
         label: 'Calendar',
         to: '/calendar',
         icon: <CalendarMonth />,
-        anyOfRoles: ['Technician', 'Service Advisor', 'Service Engineer', 'Custom Role', 'Job Creation', 'Admin'],
+        anyOfRoles: ['Technician', 'Custom Role', 'Admin'],
       },
       {
         kind: 'link',

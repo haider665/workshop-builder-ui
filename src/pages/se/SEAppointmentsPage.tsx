@@ -18,7 +18,6 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
-import { AppointmentCalendar } from '../../components/AppointmentCalendar'
 import type { CWAppointmentStatus } from '../../types/cw'
 
 const SE_STATUSES: CWAppointmentStatus[] = [
@@ -61,7 +60,7 @@ export function SEAppointmentsPage() {
       appointments.filter((a) => {
         if (!SE_STATUSES.includes(a.status as CWAppointmentStatus)) return false
         return a.concernItems.some((c) => c.assignedSEUserId) ||
-          a.serviceItems.some((s) => s.assignedSEUserId)
+          a.serviceItems.some((s) => s.assignedSEUserId || (s.stageItems && s.stageItems.some((st) => st.assignedSEUserId)))
       }),
     [appointments],
   )
@@ -149,23 +148,6 @@ export function SEAppointmentsPage() {
           </TableBody>
         </Table>
       </Paper>
-
-      {/* Calendar */}
-      <AppointmentCalendar
-        appointments={relevant}
-        vehicleRegById={useMemo(() => {
-          const m = new Map<string, string>()
-          for (const v of vehicles) m.set(v.id, v.registrationNo)
-          return m
-        }, [vehicles])}
-        customerNameById={useMemo(() => {
-          const m = new Map<string, string>()
-          for (const c of customers) m.set(c.id, c.fullName)
-          return m
-        }, [customers])}
-        basePath="/se/appointments"
-        title="SE Appointment Calendar"
-      />
     </Page>
   )
 }

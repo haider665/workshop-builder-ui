@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
 import type { CWAppointmentStatus } from '../../types/cw'
-import { JCGanttChart } from '../../components/JCGanttChart'
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
@@ -175,9 +174,6 @@ export function JobControllerHome() {
           </Table>
         )}
       </Paper>
-
-      {/* Gantt Chart */}
-      <JCGanttChart />
       </Stack>
     </Page>
   )

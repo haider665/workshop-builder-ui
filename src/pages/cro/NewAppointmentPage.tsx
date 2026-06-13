@@ -21,7 +21,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Delete, DirectionsCar } from '@mui/icons-material'
+import { Delete } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
@@ -83,14 +83,18 @@ export function NewAppointmentPage() {
     [users, saRoleId],
   )
 
-  // Vehicle selection
+  // Customer → Vehicle selection (customer-first flow)
   const initVehicleId = searchParams.get('vehicleId') ?? ''
-  const [vehicleId, setVehicleId] = useState(initVehicleId)
+  const initVehicle = useMemo(() => vehicles.find((v) => v.id === initVehicleId) ?? null, [vehicles, initVehicleId])
+  const initCustomer = useMemo(() => (initVehicle ? customers.find((c) => c.id === initVehicle.customerId) ?? null : null), [customers, initVehicle])
 
-  const selectedVehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId) ?? null, [vehicles, vehicleId])
-  const selectedCustomer = useMemo(
-    () => (selectedVehicle ? customers.find((c) => c.id === selectedVehicle.customerId) ?? null : null),
-    [customers, selectedVehicle],
+  const [selectedCustomer, setSelectedCustomer] = useState<typeof customers[number] | null>(initCustomer)
+  const [selectedVehicle, setSelectedVehicle] = useState<typeof vehicles[number] | null>(initVehicle)
+
+  // Vehicles filtered by selected customer
+  const customerVehicles = useMemo(
+    () => (selectedCustomer ? vehicles.filter((v) => v.customerId === selectedCustomer.id) : []),
+    [vehicles, selectedCustomer],
   )
 
   // Concerns state
@@ -148,6 +152,10 @@ export function NewAppointmentPage() {
 
   // Concern categories map
   const catById = useMemo(() => new Map(concernCategories.map((c) => [c.id, c])), [concernCategories])
+  const concernShopId = useMemo(() => {
+    const cMap = new Map(concerns.map((c) => [c.id, c]))
+    return (cId: string) => catById.get(cMap.get(cId)?.categoryId ?? '')?.shopId ?? ''
+  }, [concerns, catById])
 
   // Active concerns grouped — filtered by shop
   const activeConcerns = useMemo(() => {
@@ -213,8 +221,8 @@ export function NewAppointmentPage() {
   function submit() {
     try {
       setError(null)
-      if (!vehicleId) throw new Error('Select a vehicle')
-      if (!selectedCustomer) throw new Error('Vehicle has no linked customer')
+      if (!selectedVehicle) throw new Error('Select a vehicle')
+      if (!selectedCustomer) throw new Error('Select a customer')
 
       // Auto-commit any selected-but-not-yet-added concerns/services
       const pendingConcernItems = selConcerns.map((c) => ({
@@ -235,7 +243,7 @@ export function NewAppointmentPage() {
 
       const appt = createAppointment({
         customerId: selectedCustomer.id,
-        vehicleId,
+        vehicleId: selectedVehicle.id,
         slotDate: slotDate || undefined,
         slotTime: slotTime || undefined,
         assignedSAUserId: saUserId || undefined,
@@ -268,7 +276,7 @@ export function NewAppointmentPage() {
         try {
           resolvePendingVehicle(gateEntryId, {
             customerId: selectedCustomer.id,
-            vehicleId,
+            vehicleId: selectedVehicle.id,
             appointmentId: appt.id,
           })
         } catch (_) {
@@ -309,39 +317,71 @@ export function NewAppointmentPage() {
         {/* ── Vehicle Info ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5, bgcolor: 'background.paper' }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>Vehicle Info</Typography>
-            <FormControl fullWidth size="small">
-              <InputLabel>Vehicle</InputLabel>
-              <Select
-                label="Vehicle"
-                value={vehicleId}
-                onChange={(e) => setVehicleId(e.target.value)}
-                renderValue={(val) => {
-                  const v = vehicles.find((x) => x.id === val)
-                  if (!v) return 'Select vehicle'
+            <Typography sx={{ fontWeight: 900, mb: 2 }}>Customer & Vehicle</Typography>
+
+            {/* Customer Autocomplete (searchable) */}
+            <Autocomplete
+              size="small"
+              options={customers.slice().sort((a, b) => a.fullName.localeCompare(b.fullName))}
+              getOptionLabel={(c) => `${c.fullName} · ${c.phone}`}
+              value={selectedCustomer}
+              onChange={(_, val) => {
+                setSelectedCustomer(val)
+                setSelectedVehicle(null) // reset vehicle when customer changes
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Customer"
+                  placeholder="Type customer name or phone…"
+                />
+              )}
+              isOptionEqualToValue={(opt, val) => opt.id === val.id}
+              sx={{ mb: 2 }}
+            />
+
+            {/* Vehicle Autocomplete (filtered by customer, searchable) */}
+            {selectedCustomer && (
+              <Autocomplete
+                size="small"
+                options={customerVehicles}
+                getOptionLabel={(v) => {
                   const mm = [v.make, v.model].filter(Boolean).join(' ')
-                  return `${v.registrationNo}${mm ? ` – ${mm}` : ''} · VIN: ${v.vin ?? '—'}`
+                  return `${v.registrationNo}${mm ? ` – ${mm}` : ''}`
                 }}
-                startAdornment={<DirectionsCar sx={{ mr: 1, color: 'text.secondary' }} />}
-              >
-                {vehicles.map((v) => {
+                value={selectedVehicle}
+                onChange={(_, val) => setSelectedVehicle(val)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Select Vehicle"
+                    placeholder="Type registration no…"
+                  />
+                )}
+                renderOption={(props, v) => {
                   const mm = [v.make, v.model].filter(Boolean).join(' ')
-                  const cust = customers.find((c) => c.id === v.customerId)
                   return (
-                    <MenuItem key={v.id} value={v.id}>
+                    <li {...props} key={v.id}>
                       <Stack>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>
                           {v.registrationNo}{mm ? ` – ${mm}` : ''}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {cust?.fullName ?? '—'} · VIN: {v.vin ?? '—'}
+                          VIN: {v.vin ?? '—'}
                         </Typography>
                       </Stack>
-                    </MenuItem>
+                    </li>
                   )
-                })}
-              </Select>
-            </FormControl>
+                }}
+                isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                noOptionsText={customerVehicles.length === 0 ? 'No vehicles for this customer' : 'No match'}
+              />
+            )}
+            {!selectedCustomer && (
+              <Typography variant="body2" color="text.secondary">
+                Select a customer first to see their vehicles.
+              </Typography>
+            )}
 
             {selectedVehicle && (
               <>
@@ -467,7 +507,7 @@ export function NewAppointmentPage() {
               <Autocomplete
                 multiple
                 size="small"
-                options={activeConcerns}
+                options={activeConcerns.filter((c) => !concernShopFilter || concernShopId(c.id) === concernShopFilter)}
                 groupBy={(o) => catById.get(o.categoryId)?.name ?? 'Other'}
                 getOptionLabel={(o) => `${o.name} (${o.processTimeMins ?? '?'} mins)`}
                 value={selConcerns}
@@ -505,7 +545,12 @@ export function NewAppointmentPage() {
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5 }}>
             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-              <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Select a shop to filter services, then pick services to include in the appointment.
+                </Typography>
+              </Box>
               {serviceItems.length > 0 && (
                 <Tooltip title="Total labour estimate">
                   <Chip
@@ -593,7 +638,7 @@ export function NewAppointmentPage() {
               <Autocomplete
                 multiple
                 size="small"
-                options={activeServices}
+                options={activeServices.filter((s) => !serviceShopFilter || s.shopId === serviceShopFilter)}
                 groupBy={(o) => o.category}
                 getOptionLabel={(o) => `${o.code} – ${o.description} (${o.processTimeMins} mins)`}
                 value={selServices}
@@ -749,7 +794,7 @@ export function NewAppointmentPage() {
           <Button variant="outlined" onClick={() => navigate('/cre/appointments')}>
             Cancel
           </Button>
-          <Button variant="contained" onClick={submit} disabled={!vehicleId}>
+          <Button variant="contained" onClick={submit} disabled={!selectedVehicle}>
             Create Appointment
           </Button>
         </Stack>

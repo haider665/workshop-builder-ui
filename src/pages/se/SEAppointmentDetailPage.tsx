@@ -1,5 +1,9 @@
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -12,6 +16,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { ExpandMore } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
@@ -47,6 +52,8 @@ export function SEAppointmentDetailPage() {
   const createPartRequest = useCwStore((s) => s.createPartRequest)
   const updateConcernItemServices = useCwStore((s) => s.updateConcernItemServices)
   const updateConcernDiagnosisRemark = useCwStore((s) => s.updateConcernDiagnosisRemark)
+  const assignStageTechnicians = useCwStore((s) => s.assignStageTechnicians)
+  const setStageWorkStatus = useCwStore((s) => s.setStageWorkStatus)
   const shops = useCwStore((s) => s.shops)
 
   const appt = useMemo(
@@ -99,6 +106,7 @@ export function SEAppointmentDetailPage() {
   const [partRequestForm, setPartRequestForm] = useState<Record<string, { name: string; qty: string }>>({})
   const [serviceShopFilter, setServiceShopFilter] = useState('')
   const [concernServiceShopFilter, setConcernServiceShopFilter] = useState('')
+  const [concernAddServiceId, setConcernAddServiceId] = useState('')
 
   const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
 
@@ -111,7 +119,9 @@ export function SEAppointmentDetailPage() {
   }
 
   const myConcerns = appt.concernItems.filter((c) => c.assignedSEUserId)
-  const myServices = appt.serviceItems.filter((s) => s.assignedSEUserId)
+  const myServices = appt.serviceItems.filter((s) =>
+    s.assignedSEUserId || (s.stageItems && s.stageItems.some((st) => st.assignedSEUserId))
+  )
 
   const isDiagnosisPhase = ['Diagnosis Assigned', 'Diagnosis In Progress'].includes(appt.status)
   const isDiagnosisComplete = appt.status === 'Diagnosis Complete'
@@ -203,16 +213,52 @@ export function SEAppointmentDetailPage() {
         {/* Timeline */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
-        {/* SA Health Check Report (readonly) */}
+        {/* SA Health Check Report (readonly, collapsible) */}
         {appt.inspectionChecks.length > 0 && (
-          <Paper sx={{ border: '1px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'info.main' }}>
-              SA Health Check Report
-            </Typography>
-            <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
-          </Paper>
+          <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'info.main', '&:before': { display: 'none' }, boxShadow: 'none' }}>
+            <AccordionSummary expandIcon={<ExpandMore />} sx={{ bgcolor: 'info.main', color: 'white', '& .MuiSvgIcon-root': { color: 'white' } }}>
+              <Typography sx={{ fontWeight: 900 }}>SA Health Check Report</Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ p: 2.5 }}>
+              <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
+            </AccordionDetails>
+          </Accordion>
         )}
 
+        {/* ── Paused Technician Alerts ── */}
+        {(() => {
+          const pausedItems: { itemName: string; techName: string; reason: string }[] = []
+          for (const c of appt.concernItems) {
+            for (const ta of c.technicianAssignments) {
+              if (ta.status === 'Paused') {
+                const reason = appt.timeline.filter((t) => t.action.includes('Paused') && t.action.includes(c.concernName)).at(-1)?.details ?? ''
+                pausedItems.push({ itemName: c.concernName, techName: userNameById.get(ta.technicianUserId) ?? '—', reason })
+              }
+            }
+          }
+          for (const s of appt.serviceItems) {
+            for (const ta of s.technicianAssignments) {
+              if (ta.status === 'Paused') {
+                const reason = appt.timeline.filter((t) => t.action.includes('Paused') && t.action.includes(s.serviceDescription)).at(-1)?.details ?? ''
+                pausedItems.push({ itemName: s.serviceDescription, techName: userNameById.get(ta.technicianUserId) ?? '—', reason })
+              }
+            }
+          }
+          if (pausedItems.length === 0) return null
+          return (
+            <Alert severity="warning" sx={{ fontWeight: 700, border: '2px solid', borderColor: 'warning.main' }}>
+              <Typography sx={{ fontWeight: 900, mb: 1 }}>⚠ Technician Paused ({pausedItems.length})</Typography>
+              {pausedItems.map((p, idx) => (
+                <Box key={idx} sx={{ mb: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    {p.techName} — paused "{p.itemName}"
+                  </Typography>
+                  {p.reason && <Typography variant="body2" color="text.secondary">{p.reason}</Typography>}
+                </Box>
+              ))}
+            </Alert>
+          )
+        })()}
         {/* ── Concern Diagnosis ── */}
         {(isDiagnosisPhase || isDiagnosisComplete) && myConcerns.length > 0 && (
           <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
@@ -291,34 +337,51 @@ export function SEAppointmentDetailPage() {
                         ✓ Concern Completed — Add Services & Parts
                       </Typography>
 
-                      {/* Services for this concern */}
-                      <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                      {/* Services for this concern — add one at a time */}
+                      <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                        <FormControl size="small" sx={{ minWidth: 140 }}>
                           <InputLabel>Shop</InputLabel>
-                          <Select label="Shop" value={concernServiceShopFilter} onChange={(e) => setConcernServiceShopFilter(e.target.value as string)}>
-                            <MenuItem value="">— Select Shop —</MenuItem>
+                          <Select label="Shop" value={concernServiceShopFilter} onChange={(e) => { setConcernServiceShopFilter(e.target.value as string); setConcernAddServiceId('') }}>
+                            <MenuItem value="">— Shop —</MenuItem>
                             {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                           </Select>
                         </FormControl>
-                        <TextField
-                          select size="small" label="Services for this concern"
-                          value={c.serviceIds ?? []}
-                          onChange={(e) => updateConcernItemServices(appt.id, c.id, e.target.value as unknown as string[])}
-                          slotProps={{ select: { multiple: true } }}
-                          sx={{ flex: 1 }}
+                        <Autocomplete
+                          size="small"
+                          options={activeServices.filter((s) => s.shopId === concernServiceShopFilter && !(c.serviceIds ?? []).includes(s.id))}
+                          getOptionLabel={(o) => `${o.description} (${o.code}) — ${fmtBDT(o.price)}`}
+                          value={activeServices.find((s) => s.id === concernAddServiceId) ?? null}
+                          onChange={(_, val) => setConcernAddServiceId(val?.id ?? '')}
                           disabled={!concernServiceShopFilter}
-                          helperText={!concernServiceShopFilter ? 'Select shop first' : undefined}
-                        >
-                          {activeServices.filter((s) => s.shopId === concernServiceShopFilter).map((s) => (
-                            <MenuItem key={s.id} value={s.id}>{s.code} — {s.description} ({fmtBDT(s.price)})</MenuItem>
-                          ))}
-                        </TextField>
+                          sx={{ minWidth: 280, flex: 1 }}
+                          renderInput={(params) => (
+                            <TextField {...params} label="Service" placeholder={!concernServiceShopFilter ? 'Select shop first' : 'Type to search…'} />
+                          )}
+                        />
+                        <Button
+                          variant="contained" size="small" sx={{ height: 40 }}
+                          disabled={!concernAddServiceId}
+                          onClick={() => {
+                            const current = c.serviceIds ?? []
+                            if (!current.includes(concernAddServiceId)) {
+                              updateConcernItemServices(appt.id, c.id, [...current, concernAddServiceId])
+                            }
+                            setConcernAddServiceId('')
+                          }}
+                        >Add</Button>
                       </Stack>
                       {(c.serviceIds?.length ?? 0) > 0 && (
-                        <Stack direction="row" spacing={0.5} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
+                        <Stack direction="row" spacing={0.5} sx={{ mb: 1.5, flexWrap: 'wrap', gap: 0.5 }}>
                           {c.serviceIds!.map((sid) => {
                             const svc = services.find((s) => s.id === sid)
-                            return svc ? <Chip key={sid} size="small" label={`${svc.description} · ${fmtBDT(svc.price)}`} color="info" /> : null
+                            const shop = svc ? shops.find((sh) => sh.id === svc.shopId) : null
+                            return svc ? (
+                              <Chip
+                                key={sid} size="small" color="info"
+                                label={`${shop?.name ?? ''}: ${svc.description} · ${fmtBDT(svc.price)}`}
+                                onDelete={() => updateConcernItemServices(appt.id, c.id, (c.serviceIds ?? []).filter((id) => id !== sid))}
+                              />
+                            ) : null
                           })}
                         </Stack>
                       )}
@@ -472,66 +535,159 @@ export function SEAppointmentDetailPage() {
               Assigned Services ({myServices.length})
             </Typography>
             <Stack spacing={2}>
-              {myServices.map((s) => (
+              {myServices.map((s) => {
+                const hasStages = s.stageItems && s.stageItems.length > 0
+                return (
                 <Box key={s.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography sx={{ fontWeight: 800 }}>
-                    {s.serviceDescription} ({s.processTimeMins} mins) <Typography component="span" variant="caption" color="text.secondary">{s.serviceCode}</Typography>
-                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                    <Typography sx={{ fontWeight: 800 }}>
+                      {s.serviceDescription} ({s.processTimeMins} mins) <Typography component="span" variant="caption" color="text.secondary">{s.serviceCode}</Typography>
+                    </Typography>
+                    {hasStages && <Chip size="small" label={`${s.stageItems!.length} stages`} color="info" variant="outlined" sx={{ fontWeight: 700 }} />}
+                  </Stack>
                   <Typography variant="body2">{fmtBDT(s.price)}</Typography>
                   {s.bayId && <Typography variant="caption" color="text.secondary">Bay: {bayNameById.get(s.bayId) ?? '—'}</Typography>}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    Status: {s.workStatus ?? 'Pending'} · Technicians: {s.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || 'None'}
-                  </Typography>
 
-                  {/* Technician timer statuses */}
-                  {s.technicianAssignments.length > 0 && (
-                    <Stack spacing={0.5} sx={{ mt: 1 }}>
-                      {s.technicianAssignments.map((ta) => (
-                        <Typography key={ta.id} variant="caption" sx={{ pl: 1 }}>
-                          • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem' }}
-                            color={ta.status === 'Completed' ? 'success' : ta.status === 'In Progress' ? 'primary' : ta.status === 'Paused' ? 'warning' : 'default'} />
-                        </Typography>
-                      ))}
+                  {/* ── Staged service: per-stage technician assignment ── */}
+                  {hasStages ? (
+                    <Stack spacing={1.5} sx={{ mt: 1.5, pl: 1, borderLeft: '3px solid', borderColor: 'info.main' }}>
+                      {s.stageItems!.map((stage, idx) => {
+                        const prevStage = idx > 0 ? s.stageItems![idx - 1] : null
+                        const isBlocked = prevStage && prevStage.workStatus !== 'Completed'
+                        const stageKey = `${s.id}_${stage.id}`
+                        return (
+                          <Box key={stage.id} sx={{ p: 1.5, bgcolor: isBlocked ? 'action.disabledBackground' : 'white', borderRadius: 1, border: '1px solid', borderColor: 'divider', opacity: isBlocked ? 0.6 : 1 }}>
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                Stage {stage.stageOrder}: {stage.stageName}
+                              </Typography>
+                              <Chip size="small" label={`${stage.durationMins}m`} color="default" sx={{ fontWeight: 700 }} />
+                              <Chip size="small" label={stage.workStatus}
+                                color={stage.workStatus === 'Completed' ? 'success' : stage.workStatus === 'In Progress' ? 'primary' : stage.workStatus === 'Scheduled' ? 'info' : 'default'} />
+                              {stage.bayId && <Typography variant="caption" color="text.secondary">Bay: {bayNameById.get(stage.bayId) ?? '—'}</Typography>}
+                            </Stack>
+
+                            {/* Technician timer statuses */}
+                            {stage.technicianAssignments.length > 0 && (
+                              <Stack spacing={0.3} sx={{ mt: 0.5 }}>
+                                {stage.technicianAssignments.map((ta) => (
+                                  <Typography key={ta.id} variant="caption" sx={{ pl: 1 }}>
+                                    • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem' }}
+                                      color={ta.status === 'Completed' ? 'success' : ta.status === 'In Progress' ? 'primary' : ta.status === 'Paused' ? 'warning' : 'default'} />
+                                  </Typography>
+                                ))}
+                              </Stack>
+                            )}
+
+                            {/* Assignment + status controls (only if not blocked) */}
+                            {!isBlocked && stage.workStatus !== 'Completed' && (
+                              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                                <TextField
+                                  select size="small" label="Technicians"
+                                  value={serviceTechForm[stageKey] ?? []}
+                                  onChange={(e) => setServiceTechForm((prev) => ({ ...prev, [stageKey]: e.target.value as unknown as string[] }))}
+                                  slotProps={{ select: { multiple: true } }}
+                                  sx={{ minWidth: 200 }}
+                                >
+                                  {activeUsers.map((u) => (
+                                    <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                                  ))}
+                                </TextField>
+                                <Button size="small" variant="contained" onClick={() => {
+                                  const techs = serviceTechForm[stageKey] ?? []
+                                  if (techs.length === 0) return
+                                  assignStageTechnicians({
+                                    appointmentId: appt!.id,
+                                    serviceItemId: s.id,
+                                    stageItemId: stage.id,
+                                    technicianUserIds: techs,
+                                  })
+                                  setServiceTechForm((prev) => ({ ...prev, [stageKey]: [] }))
+                                }}>Assign</Button>
+                                <Button size="small" variant="outlined" color="success" onClick={() => {
+                                  setStageWorkStatus({
+                                    appointmentId: appt!.id,
+                                    serviceItemId: s.id,
+                                    stageItemId: stage.id,
+                                    status: 'Completed',
+                                  })
+                                  pushTimeline(appt!.id, { actor: 'SE', action: `Stage "${stage.stageName}" completed for ${s.serviceDescription}` })
+                                }}>Done</Button>
+                              </Stack>
+                            )}
+                            {isBlocked && (
+                              <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+                                ⏳ Waiting for "{prevStage!.stageName}" to complete
+                              </Typography>
+                            )}
+                          </Box>
+                        )
+                      })}
                     </Stack>
+                  ) : (
+                    /* ── Non-staged service: existing flow ── */
+                    <>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        Status: {s.workStatus ?? 'Pending'} · Technicians: {s.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || 'None'}
+                      </Typography>
+
+                      {/* Technician timer statuses */}
+                      {s.technicianAssignments.length > 0 && (
+                        <Stack spacing={0.5} sx={{ mt: 1 }}>
+                          {s.technicianAssignments.map((ta) => (
+                            <Typography key={ta.id} variant="caption" sx={{ pl: 1 }}>
+                              • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem' }}
+                                color={ta.status === 'Completed' ? 'success' : ta.status === 'In Progress' ? 'primary' : ta.status === 'Paused' ? 'warning' : 'default'} />
+                            </Typography>
+                          ))}
+                        </Stack>
+                      )}
+
+                      <Stack spacing={1} sx={{ mt: 1 }}>
+                        <TextField
+                          size="small"
+                          label="SE Remark"
+                          value={serviceRemarks[s.id] ?? ''}
+                          onChange={(e) => setServiceRemarks((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                          fullWidth
+                          multiline
+                          rows={2}
+                          placeholder="Add service notes..."
+                        />
+                        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                          <TextField
+                            select size="small" label="Technicians"
+                            value={serviceTechForm[s.id] ?? []}
+                            onChange={(e) => setServiceTechForm((prev) => ({ ...prev, [s.id]: e.target.value as unknown as string[] }))}
+                            slotProps={{ select: { multiple: true } }}
+                            sx={{ minWidth: 200 }}
+                          >
+                            {activeUsers.map((u) => (
+                              <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                            ))}
+                          </TextField>
+                          <Button size="small" variant="contained" onClick={() => saveServiceTechnicians(s.id)}>
+                            Assign
+                          </Button>
+                          <Button size="small" variant="outlined" color="success" onClick={() => handleServiceStatus(s.id, 'Completed')}>
+                            Done
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </>
                   )}
-
-                  <Stack spacing={1} sx={{ mt: 1 }}>
-                    <TextField
-                      size="small"
-                      label="SE Remark"
-                      value={serviceRemarks[s.id] ?? ''}
-                      onChange={(e) => setServiceRemarks((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                      fullWidth
-                      multiline
-                      rows={2}
-                      placeholder="Add service notes..."
-                    />
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                      <TextField
-                        select size="small" label="Technicians"
-                        value={serviceTechForm[s.id] ?? []}
-                        onChange={(e) => setServiceTechForm((prev) => ({ ...prev, [s.id]: e.target.value as unknown as string[] }))}
-                        slotProps={{ select: { multiple: true } }}
-                        sx={{ minWidth: 200 }}
-                      >
-                        {activeUsers.map((u) => (
-                          <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                        ))}
-                      </TextField>
-                      <Button size="small" variant="contained" onClick={() => saveServiceTechnicians(s.id)}>
-                        Assign
-                      </Button>
-                      <Button size="small" variant="outlined" color="success" onClick={() => handleServiceStatus(s.id, 'Completed')}>
-                        Done
-                      </Button>
-                    </Stack>
-                  </Stack>
                 </Box>
-              ))}
+                )
+              })}
             </Stack>
 
             {/* Submit Service Complete */}
-            {myServices.every((s) => s.workStatus === 'Completed') && (
+            {myServices.every((s) => {
+              if (s.stageItems && s.stageItems.length > 0) {
+                return s.stageItems.every((st) => st.workStatus === 'Completed')
+              }
+              return s.workStatus === 'Completed'
+            }) && (
               <Button
                 variant="contained" color="success" fullWidth size="large"
                 sx={{ fontWeight: 900, mt: 2.5, py: 1.5 }}

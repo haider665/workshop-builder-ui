@@ -18,31 +18,6 @@ import { useCwStore } from '../store/cwStore'
 
 type ViewMode = 'task' | 'bay' | 'team'
 
-// Stage colors — consistent per stage name
-const STAGE_COLORS: Record<string, string> = {
-  'Disassembly':    '#e91e63',
-  'Body Repair':    '#ff5722',
-  'Paint Prep':     '#ff9800',
-  'Paint Spray':    '#ffc107',
-  'Pre-Assembly':   '#8bc34a',
-  'Paint Cutting':  '#4caf50',
-  'Final Assembly': '#00bcd4',
-  'Polish':         '#2196f3',
-}
-
-// Fallback colors for custom stage names
-const EXTRA_STAGE_COLORS = [
-  '#9c27b0', '#673ab7', '#3f51b5', '#009688', '#795548',
-  '#607d8b', '#f44336', '#cddc39', '#03a9f4', '#ff6f00',
-]
-
-function getStageColor(stageName: string): string {
-  if (STAGE_COLORS[stageName]) return STAGE_COLORS[stageName]
-  // Deterministic hash for custom names
-  let hash = 0
-  for (let i = 0; i < stageName.length; i++) hash = (hash * 31 + stageName.charCodeAt(i)) | 0
-  return EXTRA_STAGE_COLORS[Math.abs(hash) % EXTRA_STAGE_COLORS.length]
-}
 
 const STATUS_COLORS = {
   pending:    '#9e9e9e',
@@ -79,7 +54,7 @@ type GanttItem = {
   parentLabel?: string  // service description for stages
 }
 
-export function JCGanttChart() {
+export function JCGanttChart({ fullPage = false }: { fullPage?: boolean } = {}) {
   const appointments = useCwStore((s) => s.appointments)
   const bays = useCwStore((s) => s.bays)
   const teams = useCwStore((s) => s.teams)
@@ -148,9 +123,13 @@ export function JCGanttChart() {
 
       // Concerns (unchanged)
       for (const c of a.concernItems) {
-        if (!c.plannedStartAt || !c.plannedEndAt) continue
+        if (!c.plannedStartAt) continue
         const start = Date.parse(c.plannedStartAt)
-        const end = Date.parse(c.plannedEndAt)
+        let end = c.plannedEndAt ? Date.parse(c.plannedEndAt) : start
+        // If start === end (zero-duration), extend by processTimeMins or default 30min
+        if (end <= start) {
+          end = start + ((c.processTimeMins ?? 30) * 60000)
+        }
         if (end < dayStart || start > dayEnd) continue
 
         const team = c.assignedSEUserId ? teamBySeUser.get(c.assignedSEUserId) : undefined
@@ -174,9 +153,12 @@ export function JCGanttChart() {
         // If service has stageItems → emit stage-level bars
         if (s.stageItems && s.stageItems.length > 0) {
           for (const stage of s.stageItems) {
-            if (!stage.plannedStartAt || !stage.plannedEndAt) continue
+            if (!stage.plannedStartAt) continue
             const start = Date.parse(stage.plannedStartAt)
-            const end = Date.parse(stage.plannedEndAt)
+            let end = stage.plannedEndAt ? Date.parse(stage.plannedEndAt) : start
+            if (end <= start) {
+              end = start + ((stage.durationMins ?? 30) * 60000)
+            }
             if (end < dayStart || start > dayEnd) continue
 
             items.push({
@@ -195,9 +177,12 @@ export function JCGanttChart() {
           }
         } else {
           // No stages → single service bar (current behavior)
-          if (!s.plannedStartAt || !s.plannedEndAt) continue
+          if (!s.plannedStartAt) continue
           const start = Date.parse(s.plannedStartAt)
-          const end = Date.parse(s.plannedEndAt)
+          let end = s.plannedEndAt ? Date.parse(s.plannedEndAt) : start
+          if (end <= start) {
+            end = start + ((s.processTimeMins ?? 30) * 60000)
+          }
           if (end < dayStart || start > dayEnd) continue
 
           const team = s.assignedSEUserId ? teamBySeUser.get(s.assignedSEUserId) : undefined
@@ -238,20 +223,9 @@ export function JCGanttChart() {
   }, [ganttItems, filterShop, filterBay, filterTeam, filterVehicle, filterStatus])
 
   // Unique stage names in current view (for legend)
-  const stageNamesInView = useMemo(() => {
-    const names = new Set<string>()
-    for (const item of filteredItems) {
-      if (item.stageName) names.add(item.stageName)
-    }
-    return [...names].sort()
-  }, [filteredItems])
+
 
   function getItemColor(item: GanttItem): string {
-    // Stage items get color by stage name
-    if (item.type === 'stage' && item.stageName) {
-      return getStageColor(item.stageName)
-    }
-    // Others get color by status
     return statusColor(item.status)
   }
 
@@ -272,8 +246,13 @@ export function JCGanttChart() {
     if (viewMode === 'task') {
       for (const item of filteredItems) {
         const catName = item.type === 'stage'
-          ? `📋 ${item.parentLabel ?? item.label}`
+          ? `  ↳ ${item.stageName ?? item.label}`
           : `📋 ${item.label}`
+        // For stages, ensure parent service row exists first
+        if (item.type === 'stage' && item.parentLabel) {
+          const parentCat = `📋 ${item.parentLabel}`
+          categoryIndex(parentCat) // register parent row (may be empty)
+        }
         const idx = categoryIndex(catName)
         data.push({
           name: `${item.vehicleReg} — ${item.label}`,
@@ -333,8 +312,8 @@ export function JCGanttChart() {
         },
       },
       grid: {
-        left: 180,
-        right: 40,
+        left: fullPage ? 140 : 180,
+        right: fullPage ? 20 : 40,
         top: 20,
         bottom: 40,
       },
@@ -394,7 +373,7 @@ export function JCGanttChart() {
 
             const start = api.coord([startVal, catIdx])
             const end = api.coord([endVal, catIdx])
-            const barHeight = api.size([0, 1])[1] * 0.6
+            const barHeight = api.size([0, 1])[1] * (fullPage ? 0.7 : 0.6)
 
             const style = api.style()
 
@@ -424,7 +403,8 @@ export function JCGanttChart() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredItems, viewMode, selectedDate, bayNameById, teamNameById])
 
-  const chartHeight = Math.max(200, (chartOption.yAxis.data?.length ?? 0) * 40 + 80)
+  const barPx = fullPage ? 50 : 40
+  const chartHeight = Math.max(300, (chartOption.yAxis.data?.length ?? 0) * barPx + 80)
 
   return (
     <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
@@ -506,19 +486,7 @@ export function JCGanttChart() {
         </Stack>
 
         {/* Stage legend (only if stages are visible) */}
-        {stageNamesInView.length > 0 && (
-          <Stack direction="row" spacing={0.75} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ fontWeight: 700, mr: 0.5, alignSelf: 'center' }}>Stages:</Typography>
-            {stageNamesInView.map((name) => (
-              <Chip
-                key={name}
-                size="small"
-                sx={{ bgcolor: getStageColor(name), color: 'white', fontWeight: 600, fontSize: '0.7rem' }}
-                label={name}
-              />
-            ))}
-          </Stack>
-        )}
+
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Showing {filteredItems.length} of {ganttItems.length} items

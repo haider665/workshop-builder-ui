@@ -1,4 +1,7 @@
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -10,7 +13,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material'
-import { CheckCircle, Cancel } from '@mui/icons-material'
+import { CheckCircle, Cancel, ExpandMore } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
@@ -120,14 +123,16 @@ export function QCAppointmentDetailPage() {
         {/* Timeline */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
-        {/* SA Health Check Report (readonly) */}
+        {/* SA Health Check Report (readonly, collapsible) */}
         {appt.inspectionChecks.length > 0 && (
-          <Paper sx={{ border: '1px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'info.main' }}>
-              SA Health Check Report
-            </Typography>
-            <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
-          </Paper>
+          <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'info.main', '&:before': { display: 'none' }, boxShadow: 'none' }}>
+            <AccordionSummary expandIcon={<ExpandMore />} sx={{ bgcolor: 'info.main', color: 'white', '& .MuiSvgIcon-root': { color: 'white' } }}>
+              <Typography sx={{ fontWeight: 900 }}>SA Health Check Report</Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ p: 2.5 }}>
+              <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
+            </AccordionDetails>
+          </Accordion>
         )}
 
         {/* ── Concerns (readonly — no QC marking) ── */}

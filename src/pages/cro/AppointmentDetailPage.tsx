@@ -23,6 +23,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
+import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { useCwStore } from '../../store/cwStore'
 
 function fmtBDT(n: number) {
@@ -87,6 +88,7 @@ export function AppointmentDetailPage() {
   const pushTimeline = useCwStore((s) => s.pushTimeline)
   const confirmPayment = useCwStore((s) => s.confirmPayment)
   const assignQC = useCwStore((s) => s.assignQC)
+  const assignSA = useCwStore((s) => s.assignSA)
   const roles = useCwStore((s) => s.roles)
 
   const appt = useMemo(
@@ -171,6 +173,18 @@ export function AppointmentDetailPage() {
     [users, qcRoleId],
   )
   const [selectedQCUserId, setSelectedQCUserId] = useState('')
+  const [selectedSAUserId, setSelectedSAUserId] = useState('')
+
+  // SA user list
+  const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
+  const activeSAUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
+    [users, saRoleId],
+  )
+  const assignedSA = useMemo(
+    () => (appt ? users.find((u) => u.id === appt.assignedSAUserId) : null),
+    [users, appt],
+  )
 
   function openWhatsApp(purpose: 'concern-approval' | 'service-approval' | 'payment') {
     setWaDialogPurpose(purpose)
@@ -265,6 +279,9 @@ export function AppointmentDetailPage() {
         {/* ── Workflow Timeline ── */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
+        {/* ── Vehicle & Customer Info (collapsible) ── */}
+        <VehicleInfoBanner appointmentId={appt.id} />
+
         {/* ── Summary ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3}>
@@ -306,6 +323,32 @@ export function AppointmentDetailPage() {
             </Typography>
           )}
         </Paper>
+
+        {/* ── Service Advisor Assignment ── */}
+        {!appt.assignedSAUserId ? (
+          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+              No Service Advisor Assigned
+            </Typography>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <TextField select size="small" label="Assign Service Advisor" value={selectedSAUserId}
+                onChange={(e) => setSelectedSAUserId(e.target.value)} sx={{ minWidth: 280 }}>
+                <MenuItem value="">— Select SA —</MenuItem>
+                {activeSAUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+              </TextField>
+              <Button variant="contained" color="warning" disabled={!selectedSAUserId}
+                onClick={() => { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') }}>
+                Assign SA
+              </Button>
+            </Stack>
+          </Paper>
+        ) : (
+          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Service Advisor: <strong>{assignedSA?.fullName ?? appt.assignedSAUserId}</strong>
+            </Typography>
+          </Paper>
+        )}
 
         {/* ── Concerns ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
