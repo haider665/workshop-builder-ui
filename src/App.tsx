@@ -1,6 +1,7 @@
 import { CssBaseline } from '@mui/material'
 import { ThemeProvider } from '@mui/material/styles'
 import { BrowserRouter } from 'react-router-dom'
+import { AuthBootstrap } from './components/AuthBootstrap'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AppRouter } from './routes/AppRouter'
 import { appTheme } from './theme/theme'
@@ -11,7 +12,9 @@ export default function App() {
       <ThemeProvider theme={appTheme}>
         <CssBaseline />
         <BrowserRouter>
-          <AppRouter />
+          <AuthBootstrap>
+            <AppRouter />
+          </AuthBootstrap>
         </BrowserRouter>
       </ThemeProvider>
     </ErrorBoundary>
