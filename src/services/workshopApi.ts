@@ -1211,6 +1211,77 @@ export const workshopApi = {
     )
   },
 
+  async listCallRecords(params: {
+    appointmentId?: string
+    customerId?: string
+    direction?: 'inbound' | 'outbound'
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWCallRecord>> {
+    return request<ApiListResponse<import('../types/cw').CWCallRecord>>(
+      `/api/method/workshop.api.calls.list${buildQuery(params)}`,
+    )
+  },
+
+  async createCallRecord(input: {
+    appointmentId?: string
+    customerId?: string
+    customerName?: string
+    direction: 'inbound' | 'outbound'
+    durationSecs?: number
+    startedAt?: string
+    notes?: string
+  }): Promise<import('../types/cw').CWCallRecord> {
+    return request<import('../types/cw').CWCallRecord>('/api/method/workshop.api.calls.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async listReminders(params: {
+    appointmentId?: string
+    customerId?: string
+    status?: import('../types/cw').CWReminderStatus
+    type?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWReminder>> {
+    return request<ApiListResponse<import('../types/cw').CWReminder>>(
+      `/api/method/workshop.api.reminders.list${buildQuery(params)}`,
+    )
+  },
+
+  async createReminder(input: {
+    appointmentId: string
+    customerId?: string
+    customerName?: string
+    vehicleReg?: string
+    type?: string
+    scheduledAt: string
+    message: string
+    status?: import('../types/cw').CWReminderStatus
+    sentAt?: string
+  }): Promise<import('../types/cw').CWReminder> {
+    return request<import('../types/cw').CWReminder>('/api/method/workshop.api.reminders.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async markReminderSent(id: string): Promise<import('../types/cw').CWReminder> {
+    return request<import('../types/cw').CWReminder>('/api/method/workshop.api.reminders.mark_sent', {
+      method: 'POST',
+      body: { id },
+    })
+  },
+
+  async cancelReminder(id: string): Promise<import('../types/cw').CWReminder> {
+    return request<import('../types/cw').CWReminder>('/api/method/workshop.api.reminders.cancel', {
+      method: 'POST',
+      body: { id },
+    })
+  },
+
   async transitionTask(taskId: string, status: import('../types/cw').CWTaskStatus, data: Record<string, unknown> = {}): Promise<import('../types/cw').CWTask> {
     return request<import('../types/cw').CWTask>('/api/method/workshop.api.tasks.transition', {
       method: 'POST',
@@ -1368,6 +1439,17 @@ export const workshopApi = {
     status: import('../types/cw').CWConcernWorkStatus
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.transition_concern', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async setServiceWorkStatus(input: {
+    appointmentId: string
+    serviceItemId: string
+    status: import('../types/cw').CWServiceWorkStatus
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.transition_service', {
       method: 'POST',
       body: input,
     })
