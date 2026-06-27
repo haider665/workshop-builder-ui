@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { workshopApi } from '../services/workshopApi'
 import type {
   CWF1Config,
   CWAppointment,
@@ -729,6 +730,7 @@ type CWState = {
 
   // Bay availability check
   checkBayAvailability: (bayId: string, startTime: string, endTime: string, excludeAppointmentId?: string) => boolean
+  hydrateFromBackend: () => Promise<void>
 
   // Call records (CRE CDR)
   callRecords: CWCallRecord[]
@@ -1376,6 +1378,8 @@ const DEMO_SEED = seedDemoData()
 import { buildConcernsSeed, buildServicesSeed } from './seedBuilder'
 
 function seedConcernsData(autoShopId: string, _paintShopId: string, _bodyShopId: string): { concernCategories: CWConcernCategory[]; concerns: CWConcern[] } {
+  void _paintShopId
+  void _bodyShopId
   return buildConcernsSeed(autoShopId)
 }
 
@@ -1437,6 +1441,78 @@ export const useCwStore = create<CWState>((set, get) => ({
   partRequests: [],
   callRecords: [],
   reminders: [],
+
+  hydrateFromBackend: async () => {
+    const fetchAll = async <T,>(
+      loader: (page: number, pageSize: number) => Promise<{ data: T[]; meta: { total: number } }>,
+    ) => {
+      const pageSize = 100
+      const first = await loader(1, pageSize)
+      const total = first.meta.total ?? first.data.length
+      if (first.data.length >= total) return first.data
+      const pages = [first.data]
+      let page = 2
+      while ((page - 1) * pageSize < total) {
+        const next = await loader(page, pageSize)
+        pages.push(next.data)
+        if (!next.data.length) break
+        page += 1
+      }
+      return pages.flat()
+    }
+
+    const [
+      shops,
+      bays,
+      roles,
+      users,
+      customers,
+      vehicles,
+      appointments,
+      concernCategories,
+      concerns,
+      services,
+      teams,
+      taskTemplates,
+      pendingVehicles,
+      jobs,
+      tasks,
+    ] = await Promise.all([
+      workshopApi.listShops(),
+      fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize })),
+      workshopApi.listRoles(true),
+      fetchAll((page, pageSize) => workshopApi.listUsers({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listCustomers({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listVehicles({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listAppointments({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listConcernCategories({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listConcerns({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listServices({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTeams({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTaskTemplates({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listPendingVehicles({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listJobs({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTasks({ page, pageSize })),
+    ])
+
+    set({
+      shops: shops.data,
+      bays,
+      roles: roles.data,
+      users,
+      customers,
+      vehicles,
+      appointments,
+      concernCategories,
+      concerns,
+      services,
+      teams,
+      taskTemplates,
+      pendingVehicles,
+      jobs,
+      tasks,
+    })
+  },
 
   createShop: (input) => {
     const ts = nowIso()

@@ -6,6 +6,8 @@ type RequestOptions = {
   headers?: Record<string, string>
 }
 
+type QueryValue = string | number | boolean | null | undefined
+
 export type CWUserDto = {
   id: string
   fullName: string
@@ -73,6 +75,35 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return readMessage<T>(response)
 }
 
+function buildQuery(params: Record<string, QueryValue>) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue
+    query.set(key, String(value))
+  }
+  return query.toString() ? `?${query.toString()}` : ''
+}
+
+async function uploadFile(input: { file: File; folder?: string; isPrivate?: boolean }): Promise<{ fileUrl: string; fileName: string; name: string }> {
+  const form = new FormData()
+  form.set('file', input.file)
+  if (input.folder) form.set('folder', input.folder)
+  if (input.isPrivate !== undefined) form.set('is_private', input.isPrivate ? '1' : '0')
+
+  const response = await fetch(`${apiBaseUrl}/api/method/upload_file`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  })
+
+  await ensureOk(response, 'File upload failed')
+  return readMessage<{ file_url: string; file_name: string; name: string }>(response).then((message) => ({
+    fileUrl: message.file_url,
+    fileName: message.file_name,
+    name: message.name,
+  }))
+}
+
 export const workshopApi = {
   async login(username: string, password: string): Promise<AuthSessionDto> {
     const body = new URLSearchParams()
@@ -111,6 +142,158 @@ export const workshopApi = {
 
     if (response.status === 401) return
     await ensureOk(response, 'Logout failed')
+  },
+
+  async uploadFile(file: File, opts: { folder?: string; isPrivate?: boolean } = {}) {
+    return uploadFile({ file, ...opts })
+  },
+
+  async listCustomers(params: {
+    status?: import('../types/cw').CWCustomerStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWCustomer>> {
+    return request<ApiListResponse<import('../types/cw').CWCustomer>>(
+      `/api/method/workshop.api.customers.list${buildQuery({
+        status: params.status,
+        search: params.search,
+        page: params.page,
+        pageSize: params.pageSize,
+      })}`,
+    )
+  },
+
+  async getCustomer(id: string): Promise<import('../types/cw').CWCustomer> {
+    return request<import('../types/cw').CWCustomer>(`/api/method/workshop.api.customers.get${buildQuery({ id })}`)
+  },
+
+  async createCustomer(input: {
+    fullName: string
+    phone: string
+    email?: string
+    status?: import('../types/cw').CWCustomerStatus
+    type?: import('../types/cw').CWCustomerType
+    address?: import('../types/cw').CWAddress
+    occupation?: import('../types/cw').CWOccupation
+    whatsappLink?: string
+    facebookLink?: string
+    linkedinLink?: string
+    googleLink?: string
+    corporate?: import('../types/cw').CWCorporateInfo
+    isSelfDriven?: boolean
+    driverName?: string
+    driverPhone?: string
+    isPersonalUse?: boolean
+  }): Promise<import('../types/cw').CWCustomer> {
+    return request<import('../types/cw').CWCustomer>('/api/method/workshop.api.customers.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async updateCustomer(
+    customerId: string,
+    input: Partial<{
+      fullName: string
+      phone: string
+      email?: string
+      status: import('../types/cw').CWCustomerStatus
+      type: import('../types/cw').CWCustomerType
+      address: import('../types/cw').CWAddress
+      occupation: import('../types/cw').CWOccupation
+      whatsappLink: string
+      facebookLink: string
+      linkedinLink: string
+      googleLink: string
+      corporate: import('../types/cw').CWCorporateInfo
+      isSelfDriven: boolean
+      driverName: string
+      driverPhone: string
+      isPersonalUse: boolean
+    }>,
+  ): Promise<import('../types/cw').CWCustomer> {
+    return request<import('../types/cw').CWCustomer>('/api/method/workshop.api.customers.update', {
+      method: 'POST',
+      body: { id: customerId, data: input },
+    })
+  },
+
+  async listVehicles(params: {
+    customerId?: string
+    status?: import('../types/cw').CWVehicleStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWVehicle>> {
+    return request<ApiListResponse<import('../types/cw').CWVehicle>>(
+      `/api/method/workshop.api.vehicles.list${buildQuery({
+        customerId: params.customerId,
+        status: params.status,
+        search: params.search,
+        page: params.page,
+        pageSize: params.pageSize,
+      })}`,
+    )
+  },
+
+  async getVehicle(id: string): Promise<import('../types/cw').CWVehicle> {
+    return request<import('../types/cw').CWVehicle>(`/api/method/workshop.api.vehicles.get${buildQuery({ id })}`)
+  },
+
+  async createVehicle(input: {
+    customerId: string
+    registrationNo: string
+    make?: string
+    model?: string
+    vin?: string
+    odometerKm?: number
+    vehicleCategory?: import('../types/cw').CWVehicleCategory
+    vehicleSize: import('../types/cw').CWVehicleSize
+    modelVariant?: string
+    countryOfOrigin?: string
+    countryOfAssembly?: string
+    exteriorColor?: string
+    exteriorColorCode?: string
+    interiorColor?: string
+    interiorColorCode?: string
+    tyreSize?: string
+    additionalNotes?: string
+    status?: import('../types/cw').CWVehicleStatus
+  }): Promise<import('../types/cw').CWVehicle> {
+    return request<import('../types/cw').CWVehicle>('/api/method/workshop.api.vehicles.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async updateVehicle(
+    vehicleId: string,
+    input: Partial<{
+      customerId: string
+      registrationNo: string
+      make?: string
+      model?: string
+      vin?: string
+      odometerKm?: number
+      vehicleCategory?: import('../types/cw').CWVehicleCategory
+      vehicleSize: import('../types/cw').CWVehicleSize
+      modelVariant?: string
+      countryOfOrigin?: string
+      countryOfAssembly?: string
+      exteriorColor?: string
+      exteriorColorCode?: string
+      interiorColor?: string
+      interiorColorCode?: string
+      tyreSize?: string
+      additionalNotes?: string
+      status?: import('../types/cw').CWVehicleStatus
+    }>,
+  ): Promise<import('../types/cw').CWVehicle> {
+    return request<import('../types/cw').CWVehicle>('/api/method/workshop.api.vehicles.update', {
+      method: 'POST',
+      body: { id: vehicleId, data: input },
+    })
   },
 
   async listShops(): Promise<ApiListResponse<import('../types/cw').CWShop>> {
@@ -677,5 +860,567 @@ export const workshopApi = {
       method: 'POST',
       body: { templateId, fieldId, direction },
     })
+  },
+
+  async listAppointments(params: {
+    status?: import('../types/cw').CWAppointmentStatus
+    customerId?: string
+    vehicleId?: string
+    assignedSAUserId?: string
+    assignedQCUserId?: string
+    assignedTeamId?: string
+    slotDate?: string
+    paymentStatus?: string
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWAppointment>> {
+    return request<ApiListResponse<import('../types/cw').CWAppointment>>(
+      `/api/method/workshop.api.appointments.list${buildQuery({
+        status: params.status,
+        customerId: params.customerId,
+        vehicleId: params.vehicleId,
+        assignedSAUserId: params.assignedSAUserId,
+        assignedQCUserId: params.assignedQCUserId,
+        assignedTeamId: params.assignedTeamId,
+        slotDate: params.slotDate,
+        paymentStatus: params.paymentStatus,
+        search: params.search,
+        page: params.page,
+        pageSize: params.pageSize,
+      })}`,
+    )
+  },
+
+  async getAppointment(id: string): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>(`/api/method/workshop.api.appointments.get${buildQuery({ id })}`)
+  },
+
+  async createAppointment(input: {
+    customerId: string
+    vehicleId: string
+    slotDate?: string
+    slotTime?: string
+    scheduledAt?: string
+    concerns?: string
+    notes?: string
+    status?: import('../types/cw').CWAppointmentStatus
+    assignedSAUserId?: string
+    assignedQCUserId?: string
+    assignedTeamId?: string
+    paymentStatus?: string
+    concernItems?: Array<Record<string, unknown>>
+    serviceItems?: Array<Record<string, unknown>>
+    inspectionChecks?: import('../types/cw').CWInspectionCheck[]
+    vehicleViewChecks?: import('../types/cw').CWInspectionCheck[]
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async updateAppointment(
+    appointmentId: string,
+    input: Partial<{
+      customerId: string
+      vehicleId: string
+      slotDate: string
+      slotTime: string
+      scheduledAt: string
+      concerns: string
+      notes: string
+      status: import('../types/cw').CWAppointmentStatus
+      assignedSAUserId: string
+      assignedQCUserId: string
+      assignedTeamId: string
+      paymentStatus: string
+      concernItems: Array<Record<string, unknown>>
+      serviceItems: Array<Record<string, unknown>>
+      inspectionChecks: import('../types/cw').CWInspectionCheck[]
+      vehicleViewChecks: import('../types/cw').CWInspectionCheck[]
+    }>,
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.update', {
+      method: 'POST',
+      body: { id: appointmentId, data: input },
+    })
+  },
+
+  async transitionAppointment(
+    appointmentId: string,
+    status: import('../types/cw').CWAppointmentStatus,
+    data: Record<string, unknown> = {},
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.transition', {
+      method: 'POST',
+      body: { id: appointmentId, status, data },
+    })
+  },
+
+  async assignAppointmentSa(appointmentId: string, assignedSAUserId: string): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.assign_sa', {
+      method: 'POST',
+      body: { appointmentId, assignedSAUserId },
+    })
+  },
+
+  async setCustomerApproval(
+    appointmentId: string,
+    input: { status: 'Approved' | 'Rejected'; note?: string },
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.set_customer_approval', {
+      method: 'POST',
+      body: { appointmentId, ...input },
+    })
+  },
+
+  async addAppointmentConcern(
+    appointmentId: string,
+    data: { concernId: string; remark?: string },
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.add_concern', {
+      method: 'POST',
+      body: { appointmentId, data },
+    })
+  },
+
+  async updateAppointmentConcern(
+    appointmentId: string,
+    concernItemId: string,
+    data: { remark?: string; serviceIds?: string[] },
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.update_concern', {
+      method: 'POST',
+      body: { appointmentId, concernItemId, data },
+    })
+  },
+
+  async removeAppointmentConcern(appointmentId: string, concernItemId: string): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.remove_concern', {
+      method: 'POST',
+      body: { appointmentId, concernItemId },
+    })
+  },
+
+  async addAppointmentService(
+    appointmentId: string,
+    data: { serviceId: string; remark?: string; addedBySA?: boolean },
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.add_service', {
+      method: 'POST',
+      body: { appointmentId, data },
+    })
+  },
+
+  async updateAppointmentService(
+    appointmentId: string,
+    serviceItemId: string,
+    data: { remark?: string; price?: number; serviceIds?: string[] },
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.update_service', {
+      method: 'POST',
+      body: { appointmentId, serviceItemId, data },
+    })
+  },
+
+  async removeAppointmentService(appointmentId: string, serviceItemId: string): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.remove_service', {
+      method: 'POST',
+      body: { appointmentId, serviceItemId },
+    })
+  },
+
+  async submitAppointmentInspection(input: {
+    appointmentId: string
+    checks: import('../types/cw').CWInspectionCheck[]
+    actorName?: string
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.submit_inspection', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async guardEntry(input: { registrationNo: string; appointmentId?: string }): Promise<{ gateEvent: unknown; pendingVehicle: unknown }> {
+    return request<{ gateEvent: unknown; pendingVehicle: unknown }>('/api/method/workshop.api.guard.entry', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async guardExitCheck(registrationNo: string): Promise<unknown> {
+    return request<unknown>(`/api/method/workshop.api.guard.exit_check${buildQuery({ registrationNo })}`)
+  },
+
+  async guardExit(input: { registrationNo: string }): Promise<{ allowed: boolean; gateEvent?: unknown; pendingVehicle?: unknown }> {
+    return request<{ allowed: boolean; gateEvent?: unknown; pendingVehicle?: unknown }>(
+      '/api/method/workshop.api.guard.exit',
+      { method: 'POST', body: { data: input } },
+    )
+  },
+
+  async listPendingVehicles(params: {
+    status?: import('../types/cw').CWPendingVehicleStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWPendingVehicle>> {
+    return request<ApiListResponse<import('../types/cw').CWPendingVehicle>>(
+      `/api/method/workshop.api.intake.pending_vehicles${buildQuery({
+        status: params.status,
+        search: params.search,
+        page: params.page,
+        pageSize: params.pageSize,
+      })}`,
+    )
+  },
+
+  async resolvePendingVehicle(
+    pendingVehicleId: string,
+    input: { customerId: string; vehicleId: string },
+  ): Promise<import('../types/cw').CWPendingVehicle> {
+    return request<import('../types/cw').CWPendingVehicle>('/api/method/workshop.api.intake.resolve_pending_vehicle', {
+      method: 'POST',
+      body: { data: { pendingVehicleId, ...input } },
+    })
+  },
+
+  async setPendingVehicleStatus(
+    pendingVehicleId: string,
+    status: import('../types/cw').CWPendingVehicleStatus,
+  ): Promise<import('../types/cw').CWPendingVehicle> {
+    return request<import('../types/cw').CWPendingVehicle>('/api/method/workshop.api.intake.set_pending_vehicle_status', {
+      method: 'POST',
+      body: { pendingVehicleId, status },
+    })
+  },
+
+  async listJobs(params: {
+    status?: import('../types/cw').CWJobStatus
+    registrationNo?: string
+    appointmentId?: string
+    pendingVehicleId?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWJob>> {
+    return request<ApiListResponse<import('../types/cw').CWJob>>(
+      `/api/method/workshop.api.jobs.list${buildQuery({
+        status: params.status,
+        registrationNo: params.registrationNo,
+        appointmentId: params.appointmentId,
+        pendingVehicleId: params.pendingVehicleId,
+        page: params.page,
+        pageSize: params.pageSize,
+      })}`,
+    )
+  },
+
+  async getJob(id: string): Promise<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }> {
+    return request<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }>(
+      `/api/method/workshop.api.jobs.get${buildQuery({ id })}`,
+    )
+  },
+
+  async createJob(input: { registrationNo: string; appointmentId?: string }): Promise<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }> {
+    return request<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }>('/api/method/workshop.api.jobs.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async createJobWithTasks(input: Record<string, unknown>): Promise<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }> {
+    return request<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }>('/api/method/workshop.api.jobs.create_with_tasks', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async transitionJob(jobId: string, status: import('../types/cw').CWJobStatus, data: Record<string, unknown> = {}): Promise<import('../types/cw').CWJob> {
+    return request<import('../types/cw').CWJob>('/api/method/workshop.api.jobs.transition', {
+      method: 'POST',
+      body: { id: jobId, status, data },
+    })
+  },
+
+  async moveJobTask(jobId: string, taskId: string, direction: 'up' | 'down'): Promise<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }> {
+    return request<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }>(
+      '/api/method/workshop.api.jobs.move_task',
+      { method: 'POST', body: { jobId, taskId, direction } },
+    )
+  },
+
+  async initiateTestDrive(jobId: string, input: { driverName: string; driverNid?: string; expectedReturnAt?: string }): Promise<import('../types/cw').CWJob> {
+    return request<import('../types/cw').CWJob>('/api/method/workshop.api.jobs.initiate_test_drive', {
+      method: 'POST',
+      body: { id: jobId, ...input },
+    })
+  },
+
+  async logTestDriveReturn(jobId: string, data: { returnedAt: string; notes?: string }): Promise<import('../types/cw').CWJob> {
+    return request<import('../types/cw').CWJob>('/api/method/workshop.api.jobs.log_test_drive_return', {
+      method: 'POST',
+      body: { id: jobId, data },
+    })
+  },
+
+  async approveGatepass(jobId: string, reason: string): Promise<import('../types/cw').CWJob> {
+    return request<import('../types/cw').CWJob>('/api/method/workshop.api.jobs.approve_gatepass', {
+      method: 'POST',
+      body: { id: jobId, reason },
+    })
+  },
+
+  async listTasks(params: {
+    jobId?: string
+    status?: import('../types/cw').CWTaskStatus
+    assignedTo?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWTask>> {
+    return request<ApiListResponse<import('../types/cw').CWTask>>(
+      `/api/method/workshop.api.tasks.list${buildQuery({
+        jobId: params.jobId,
+        status: params.status,
+        assignedTo: params.assignedTo,
+        page: params.page,
+        pageSize: params.pageSize,
+      })}`,
+    )
+  },
+
+  async myTasks(params: {
+    status?: import('../types/cw').CWTaskStatus
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWTask>> {
+    return request<ApiListResponse<import('../types/cw').CWTask>>(
+      `/api/method/workshop.api.tasks.my_tasks${buildQuery(params)}`,
+    )
+  },
+
+  async getTask(id: string): Promise<import('../types/cw').CWTask> {
+    return request<import('../types/cw').CWTask>(`/api/method/workshop.api.tasks.get${buildQuery({ id })}`)
+  },
+
+  async myCalendar(params: { startAt: string; endAt: string; assignedTo?: string }): Promise<{ data: import('../types/cw').CWTask[] }> {
+    return request<{ data: import('../types/cw').CWTask[] }>(
+      `/api/method/workshop.api.tasks.my_calendar${buildQuery(params)}`,
+    )
+  },
+
+  async transitionTask(taskId: string, status: import('../types/cw').CWTaskStatus, data: Record<string, unknown> = {}): Promise<import('../types/cw').CWTask> {
+    return request<import('../types/cw').CWTask>('/api/method/workshop.api.tasks.transition', {
+      method: 'POST',
+      body: { id: taskId, status, data },
+    })
+  },
+
+  async overrideTaskDependency(taskId: string, reason: string): Promise<import('../types/cw').CWTask> {
+    return request<import('../types/cw').CWTask>('/api/method/workshop.api.tasks.override_dependency', {
+      method: 'POST',
+      body: { id: taskId, reason },
+    })
+  },
+
+  async submitTaskValues(taskId: string, values: Record<string, unknown>): Promise<import('../types/cw').CWTask> {
+    return request<import('../types/cw').CWTask>('/api/method/workshop.api.tasks.submit_values', {
+      method: 'POST',
+      body: { id: taskId, data: { values } },
+    })
+  },
+
+  async addTaskComment(taskId: string, message: string): Promise<import('../types/cw').CWTaskComment> {
+    return request<import('../types/cw').CWTaskComment>('/api/method/workshop.api.tasks.add_comment', {
+      method: 'POST',
+      body: { id: taskId, message },
+    })
+  },
+
+  async uploadTaskAttachment(taskId: string, file: File): Promise<import('../types/cw').CWTaskAttachment> {
+    const uploaded = await uploadFile({ file })
+    return request<import('../types/cw').CWTaskAttachment>('/api/method/workshop.api.tasks.upload_attachment', {
+      method: 'POST',
+      body: {
+        id: taskId,
+        fileId: uploaded.name,
+        data: {
+          mimeType: file.type,
+          sizeBytes: file.size,
+        },
+      },
+    })
+  },
+
+  async removeTaskAttachment(attachmentId: string): Promise<{ deleted: boolean }> {
+    return request<{ deleted: boolean }>('/api/method/workshop.api.tasks.remove_attachment', {
+      method: 'POST',
+      body: { attachmentId },
+    })
+  },
+
+  async availableUsers(params: {
+    shopId: string
+    roleId: string
+    startAt: string
+    endAt: string
+    page?: number
+    pageSize?: number
+  }): Promise<ApiListResponse<import('../types/cw').CWUser>> {
+    return request<ApiListResponse<import('../types/cw').CWUser>>(
+      `/api/method/workshop.api.scheduling.available_users${buildQuery(params)}`,
+    )
+  },
+
+  async availableBays(params: {
+    shopId: string
+    startAt: string
+    endAt: string
+    page?: number
+    pageSize?: number
+  }): Promise<ApiListResponse<import('../types/cw').CWBay>> {
+    return request<ApiListResponse<import('../types/cw').CWBay>>(
+      `/api/method/workshop.api.scheduling.available_bays${buildQuery(params)}`,
+    )
+  },
+
+  async assignQc(appointmentId: string, qcUserId: string): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.qc.assign', {
+      method: 'POST',
+      body: { appointmentId, qcUserId },
+    })
+  },
+
+  async qcApprove(
+    appointmentId: string,
+    data: { items: Array<{ itemId: string; itemType: string; status: string; note?: string }> },
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.qc.approve', {
+      method: 'POST',
+      body: { appointmentId, data },
+    })
+  },
+
+  async qcReject(
+    appointmentId: string,
+    data: {
+      rejectionNote: string
+      items: Array<{ itemId: string; itemType: string; status: string; note?: string }>
+    },
+  ): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.qc.reject', {
+      method: 'POST',
+      body: { appointmentId, data },
+    })
+  },
+
+  async confirmPayment(appointmentId: string, data: { actorName: string }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.release.confirm_payment', {
+      method: 'POST',
+      body: { appointmentId, data },
+    })
+  },
+
+  async releaseVehicle(appointmentId: string): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.release.release_vehicle', {
+      method: 'POST',
+      body: { appointmentId },
+    })
+  },
+
+  async listHistoryVehicle(params: {
+    registrationNo?: string
+    vehicleId?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }>> {
+    return request<ApiListResponse<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }>>(
+      `/api/method/workshop.api.history.vehicle${buildQuery(params)}`,
+    )
+  },
+
+  async listHistoryEmployee(params: {
+    userId?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWTask> & { meta: { completed?: number } }> {
+    return request<ApiListResponse<import('../types/cw').CWTask> & { meta: { completed?: number } }>(
+      `/api/method/workshop.api.history.employee${buildQuery(params)}`,
+    )
+  },
+
+  async getAdminSummary(): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.reports.admin_summary')
+  },
+
+  async getF1Report(params: {
+    shopId?: string
+    userId?: string
+    vehicleId?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<{ summary: Record<string, unknown>; data: unknown[]; meta: Record<string, unknown> }> {
+    return request<{ summary: Record<string, unknown>; data: unknown[]; meta: Record<string, unknown> }>(
+      `/api/method/workshop.api.reports.f1${buildQuery(params)}`,
+    )
+  },
+
+  async flagF1Return(input: { originalTaskId: string; userId: string; reason: string }): Promise<unknown> {
+    return request<unknown>('/api/method/workshop.api.reports.flag_f1_return', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async listNotifications(params: {
+    unreadOnly?: boolean
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<unknown>> {
+    return request<ApiListResponse<unknown>>(
+      `/api/method/workshop.api.notifications.list${buildQuery(params)}`,
+    )
+  },
+
+  async markNotificationRead(id: string): Promise<{ id: string; read: boolean }> {
+    return request<{ id: string; read: boolean }>('/api/method/workshop.api.notifications.mark_read', {
+      method: 'POST',
+      body: { id },
+    })
+  },
+
+  async listAudit(params: {
+    actor?: string
+    action?: string
+    referenceDoctype?: string
+    referenceName?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<unknown>> {
+    return request<ApiListResponse<unknown>>(
+      `/api/method/workshop.api.audit.list${buildQuery(params)}`,
+    )
+  },
+
+  async sendWhatsapp(input: {
+    appointmentId: string
+    direction: 'outbound' | 'inbound'
+    message: string
+  }): Promise<unknown> {
+    return request<unknown>('/api/method/workshop.api.communications.send_whatsapp', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async listWhatsapp(params: {
+    appointmentId?: string
+    direction?: 'outbound' | 'inbound'
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<unknown>> {
+    return request<ApiListResponse<unknown>>(
+      `/api/method/workshop.api.communications.whatsapp_list${buildQuery(params)}`,
+    )
   },
 }
