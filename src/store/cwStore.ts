@@ -1490,7 +1490,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     ] = await Promise.all([
       workshopApi.listShops(),
       fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize })),
-      workshopApi.listRoles(true),
+      workshopApi.listRoles(false),
       fetchAll((page, pageSize) => workshopApi.listUsers({ page, pageSize })),
       fetchAll((page, pageSize) => workshopApi.listCustomers({ page, pageSize })),
       fetchAll((page, pageSize) => workshopApi.listVehicles({ page, pageSize })),

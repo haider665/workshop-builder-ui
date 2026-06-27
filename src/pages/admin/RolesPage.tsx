@@ -54,7 +54,7 @@ export function RolesPage() {
       setLoading(true)
       setError(null)
       try {
-        const data = await rolesService.list(true)
+        const data = await rolesService.list(false)
         if (active) setRoles(data)
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Failed to load roles')
@@ -155,7 +155,7 @@ export function RolesPage() {
 
       {loading ? (
         <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Typography color="text.secondary">Loading roles from backend...</Typography>
+          <Typography color="text.secondary">Loading workshop roles from backend...</Typography>
         </Paper>
       ) : null}
 
@@ -238,7 +238,7 @@ export function RolesPage() {
             />
             <Box>
               <Typography variant="body2" color="text.secondary">
-                System roles are managed by the backend. Custom roles created here will be editable.
+                Only workshop roles are shown here. Custom roles created here will be editable.
               </Typography>
             </Box>
           </Stack>

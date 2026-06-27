@@ -68,7 +68,7 @@ export function TeamsPage() {
         const [teamData, userData, roleData] = await Promise.all([
           teamsService.list(),
           usersService.list(),
-          rolesService.list(true),
+          rolesService.list(false),
         ])
         if (!active) return
         setTeams(teamData)
@@ -87,7 +87,7 @@ export function TeamsPage() {
     }
   }, [])
 
-  const seRoleId = useMemo(() => roles.find((r) => r.name === 'SE')?.id, [roles])
+  const seRoleId = useMemo(() => roles.find((r) => r.name === 'Service Engineer' || r.name === 'SE')?.id, [roles])
   const techRoleId = useMemo(() => roles.find((r) => r.name === 'Technician')?.id, [roles])
 
   const seUsers = useMemo(

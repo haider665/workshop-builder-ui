@@ -31,6 +31,17 @@ import { usersService } from '../../services/admin/usersService'
 import { shopsService } from '../../services/admin/shopsService'
 import { rolesService } from '../../services/admin/rolesService'
 
+const WORKSHOP_ROLE_NAMES = new Set([
+  'Admin',
+  'Guard',
+  'Job Creation',
+  'CRE',
+  'Technician',
+  'Service Advisor',
+  'Service Engineer',
+  'QC',
+])
+
 type UserDraft = {
   fullName: string
   email: string
@@ -79,7 +90,7 @@ export function UsersPage() {
       try {
         const [shopData, roleData, userData] = await Promise.all([
           shopsService.list(),
-          rolesService.list(true),
+          rolesService.list(false),
           usersService.list(),
         ])
         if (!active) return
@@ -105,21 +116,29 @@ export function UsersPage() {
     return map
   }, [roles])
 
+  const workshopRoleIds = useMemo(
+    () => new Set(roles.filter((role) => WORKSHOP_ROLE_NAMES.has(role.name)).map((role) => role.id)),
+    [roles],
+  )
+
   const shopNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const s of shops) map.set(s.id, s.name)
     return map
   }, [shops])
 
-  const sortedUsers = useMemo(() => {
-    return [...users].sort((a, b) => {
-      if (a.status !== b.status) return a.status === 'Active' ? -1 : 1
-      return a.fullName.localeCompare(b.fullName)
-    })
-  }, [users])
+  const sortedUsers = [...users].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'Active' ? -1 : 1
+    return a.fullName.localeCompare(b.fullName)
+  })
 
   const hasShops = shops.length > 0
-  const activeRoles = roles.filter((r) => r.status === 'Active')
+  const activeRoles = roles.filter((r) => r.status === 'Active' && workshopRoleIds.has(r.id))
+
+  function preferredRoleLabel(roleIds: string[]) {
+    const roleId = roleIds.find((id) => workshopRoleIds.has(id))
+    return roleId ? roleNameById.get(roleId) ?? 'Unknown' : '—'
+  }
 
   function openCreate() {
     setError(null)
@@ -257,10 +276,8 @@ export function UsersPage() {
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
-                      {u.roleIds.length ? (
-                        u.roleIds.map((id) => (
-                          <Chip key={id} size="small" label={roleNameById.get(id) ?? 'Unknown'} />
-                        ))
+                      {preferredRoleLabel(u.roleIds) !== '—' ? (
+                        <Chip size="small" label={preferredRoleLabel(u.roleIds)} />
                       ) : (
                         <Typography color="text.secondary">—</Typography>
                       )}
@@ -352,20 +369,15 @@ export function UsersPage() {
             />
 
             <FormControl fullWidth>
-              <InputLabel id="create-roles-label">Roles</InputLabel>
+              <InputLabel id="create-roles-label">Preferred role</InputLabel>
               <Select
                 labelId="create-roles-label"
-                multiple
-                value={createDraft.roleIds}
+                value={createDraft.roleIds[0] ?? ''}
                 onChange={(e) =>
-                  setCreateDraft((d) => ({ ...d, roleIds: e.target.value as string[] }))
+                  setCreateDraft((d) => ({ ...d, roleIds: [e.target.value as string] }))
                 }
-                input={<OutlinedInput label="Roles" />}
-                renderValue={(selected) =>
-                  (selected as string[])
-                    .map((id) => roleNameById.get(id) ?? 'Unknown')
-                    .join(', ')
-                }
+                input={<OutlinedInput label="Preferred role" />}
+                renderValue={(selected) => roleNameById.get(selected as string) ?? 'Unknown'}
               >
                 {activeRoles.map((r) => (
                   <MenuItem key={r.id} value={r.id}>
@@ -470,20 +482,15 @@ export function UsersPage() {
             />
 
             <FormControl fullWidth>
-              <InputLabel id="edit-roles-label">Roles</InputLabel>
+              <InputLabel id="edit-roles-label">Preferred role</InputLabel>
               <Select
                 labelId="edit-roles-label"
-                multiple
-                value={editDraft.roleIds}
+                value={editDraft.roleIds[0] ?? ''}
                 onChange={(e) =>
-                  setEditDraft((d) => ({ ...d, roleIds: e.target.value as string[] }))
+                  setEditDraft((d) => ({ ...d, roleIds: [e.target.value as string] }))
                 }
-                input={<OutlinedInput label="Roles" />}
-                renderValue={(selected) =>
-                  (selected as string[])
-                    .map((id) => roleNameById.get(id) ?? 'Unknown')
-                    .join(', ')
-                }
+                input={<OutlinedInput label="Preferred role" />}
+                renderValue={(selected) => roleNameById.get(selected as string) ?? 'Unknown'}
               >
                 {activeRoles.map((r) => (
                   <MenuItem key={r.id} value={r.id}>
