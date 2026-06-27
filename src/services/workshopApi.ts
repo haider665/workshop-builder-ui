@@ -1225,6 +1225,13 @@ export const workshopApi = {
     })
   },
 
+  async setTaskSourceConcern(taskId: string, concernId: string | null): Promise<import('../types/cw').CWTask> {
+    return request<import('../types/cw').CWTask>('/api/method/workshop.api.tasks.set_source_concern', {
+      method: 'POST',
+      body: { id: taskId, concernId },
+    })
+  },
+
   async submitTaskValues(taskId: string, values: Record<string, unknown>): Promise<import('../types/cw').CWTask> {
     return request<import('../types/cw').CWTask>('/api/method/workshop.api.tasks.submit_values', {
       method: 'POST',

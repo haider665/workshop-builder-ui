@@ -53,6 +53,8 @@ import type {
   CWTeam,
   CWTeamStatus,
   CWTimelineEvent,
+  CWTechnicianAssignment,
+  CWQCItemStatus,
   CWUser,
   CWUserStatus,
   CWVehicle,
@@ -2765,8 +2767,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: { id: string }[]) =>
-          ta.map((t: any) =>
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) =>
             t.id === input.techAssignmentId
               ? { ...t, status: 'In Progress' as const, startedAt: t.startedAt ?? now }
               : t,
@@ -2795,8 +2797,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) =>
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) =>
             t.id === input.techAssignmentId
               ? { ...t, status: 'Paused' as const, pausedAt: now }
               : t,
@@ -2825,8 +2827,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) => {
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) => {
             if (t.id !== input.techAssignmentId) return t
             const pausedMs = t.pausedAt ? Date.now() - new Date(t.pausedAt).getTime() : 0
             return { ...t, status: 'In Progress' as const, pausedAt: undefined, totalPausedMs: (t.totalPausedMs || 0) + pausedMs }
@@ -2855,8 +2857,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) => {
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) => {
             if (t.id !== input.techAssignmentId) return t
             // If paused, accumulate final pause duration
             const pausedMs = t.pausedAt ? Date.now() - new Date(t.pausedAt).getTime() : 0
@@ -2871,9 +2873,9 @@ export const useCwStore = create<CWState>((set, get) => ({
           })
 
         // Auto-mark item as Completed if all technicians are done
-        const markItemComplete = (item: any) => {
+        const markItemComplete = <T extends { technicianAssignments: CWTechnicianAssignment[]; workStatus?: CWConcernWorkStatus | CWServiceWorkStatus | CWStageWorkStatus }>(item: T) => {
           const updated = mapTech(item.technicianAssignments)
-          const allDone = updated.every((t: any) => t.status === 'Completed')
+          const allDone = updated.every((t) => t.status === 'Completed')
           return { ...item, technicianAssignments: updated, workStatus: allDone ? 'Completed' as const : item.workStatus }
         }
 
@@ -2971,7 +2973,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         // QC only verifies services, not concerns
         const serviceItems = a.serviceItems.map((s) => {
           const v = input.items.find((i) => i.itemId === s.id && i.itemType === 'service')
-          return v ? { ...s, qcStatus: v.status as any, qcNote: v.note } : s
+          return v ? { ...s, qcStatus: v.status as CWQCItemStatus, qcNote: v.note } : s
         })
         return {
           ...a,
@@ -3004,7 +3006,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           if (!v) return s
           return {
             ...s,
-            qcStatus: v.status as any,
+            qcStatus: v.status as CWQCItemStatus,
             qcNote: v.note,
             ...(v.status === 'Failed' ? { workStatus: 'Pending' as const, technicianAssignments: [] } : {}),
           }
@@ -3535,6 +3537,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.overrideTaskDependency(taskId, normalized), 'task dependency override')
   },
 
   setTaskSourceConcern: (taskId, concernId) => {
@@ -3545,6 +3548,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.setTaskSourceConcern(taskId, concernId ?? null), 'task source concern')
   },
 
   setTaskFieldValue: (taskId, fieldId, value) => {
