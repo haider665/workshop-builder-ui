@@ -9,38 +9,45 @@ import type {
   UpdateTaskFieldInput,
   UpdateTaskTemplateInput,
 } from '../../store/cwStore'
-import { cwStore } from '../../store/cwStore'
+import { workshopApi } from '../workshopApi'
 
 export const taskTemplatesService = {
-  list(): CWTaskTemplate[] {
-    return cwStore.getState().taskTemplates
+  async list(params: {
+    shopId?: string
+    status?: CWTaskTemplateStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<CWTaskTemplate[]> {
+    const response = await workshopApi.listTaskTemplates(params)
+    return response.data
   },
 
-  create(input: CreateTaskTemplateInput): CWTaskTemplate {
-    return cwStore.getState().createTaskTemplate(input)
+  async create(input: CreateTaskTemplateInput): Promise<CWTaskTemplate> {
+    return workshopApi.createTaskTemplate(input)
   },
 
-  update(templateId: string, input: UpdateTaskTemplateInput) {
-    cwStore.getState().updateTaskTemplate(templateId, input)
+  async update(templateId: string, input: UpdateTaskTemplateInput): Promise<CWTaskTemplate> {
+    return workshopApi.updateTaskTemplate(templateId, input)
   },
 
-  setStatus(templateId: string, status: CWTaskTemplateStatus) {
-    cwStore.getState().setTaskTemplateStatus(templateId, status)
+  async setStatus(templateId: string, status: CWTaskTemplateStatus): Promise<CWTaskTemplate> {
+    return workshopApi.setTaskTemplateStatus(templateId, status)
   },
 
-  addField(templateId: string, input: CreateTaskFieldInput): CWTaskField {
-    return cwStore.getState().addTaskField(templateId, input)
+  async addField(templateId: string, input: CreateTaskFieldInput): Promise<CWTaskField> {
+    return workshopApi.addTaskTemplateField(templateId, input)
   },
 
-  updateField(templateId: string, fieldId: string, input: UpdateTaskFieldInput) {
-    cwStore.getState().updateTaskField(templateId, fieldId, input)
+  async updateField(templateId: string, fieldId: string, input: UpdateTaskFieldInput): Promise<CWTaskTemplate> {
+    return workshopApi.updateTaskTemplateField(templateId, fieldId, input)
   },
 
-  removeField(templateId: string, fieldId: string) {
-    cwStore.getState().removeTaskField(templateId, fieldId)
+  async removeField(templateId: string, fieldId: string): Promise<CWTaskTemplate> {
+    return workshopApi.removeTaskTemplateField(templateId, fieldId)
   },
 
-  moveField(templateId: string, fieldId: string, direction: 'up' | 'down') {
-    cwStore.getState().moveTaskField(templateId, fieldId, direction)
+  async moveField(templateId: string, fieldId: string, direction: 'up' | 'down'): Promise<CWTaskTemplate> {
+    return workshopApi.moveTaskTemplateField(templateId, fieldId, direction)
   },
 }
