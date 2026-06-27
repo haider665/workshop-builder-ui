@@ -310,4 +310,372 @@ export const workshopApi = {
       body: { id: userId, status },
     })
   },
+
+  async listConcernCategories(params: {
+    shopId?: string
+    status?: import('../types/cw').CWConcernCategoryStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWConcernCategory>> {
+    const query = new URLSearchParams()
+    if (params.shopId) query.set('shopId', params.shopId)
+    if (params.status) query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    if (params.page) query.set('page', String(params.page))
+    if (params.pageSize) query.set('pageSize', String(params.pageSize))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return request<ApiListResponse<import('../types/cw').CWConcernCategory>>(
+      `/api/method/workshop.api.concerns.categories_list${suffix}`,
+    )
+  },
+
+  async createConcernCategory(input: {
+    name: string
+    shopId: string
+    status?: import('../types/cw').CWConcernCategoryStatus
+  }): Promise<import('../types/cw').CWConcernCategory> {
+    return request<import('../types/cw').CWConcernCategory>(
+      '/api/method/workshop.api.concerns.create_category',
+      {
+        method: 'POST',
+        body: { data: input },
+      },
+    )
+  },
+
+  async updateConcernCategory(
+    categoryId: string,
+    input: {
+      name: string
+      shopId?: string
+      status: import('../types/cw').CWConcernCategoryStatus
+    },
+  ): Promise<import('../types/cw').CWConcernCategory> {
+    return request<import('../types/cw').CWConcernCategory>(
+      '/api/method/workshop.api.concerns.update_category',
+      {
+        method: 'POST',
+        body: { id: categoryId, data: input },
+      },
+    )
+  },
+
+  async setConcernCategoryStatus(
+    categoryId: string,
+    status: import('../types/cw').CWConcernCategoryStatus,
+  ): Promise<import('../types/cw').CWConcernCategory> {
+    return request<import('../types/cw').CWConcernCategory>(
+      '/api/method/workshop.api.concerns.set_category_status',
+      {
+        method: 'POST',
+        body: { id: categoryId, status },
+      },
+    )
+  },
+
+  async listConcerns(params: {
+    categoryId?: string
+    status?: import('../types/cw').CWConcernStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWConcern>> {
+    const query = new URLSearchParams()
+    if (params.categoryId) query.set('categoryId', params.categoryId)
+    if (params.status) query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    if (params.page) query.set('page', String(params.page))
+    if (params.pageSize) query.set('pageSize', String(params.pageSize))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return request<ApiListResponse<import('../types/cw').CWConcern>>(
+      `/api/method/workshop.api.concerns.list${suffix}`,
+    )
+  },
+
+  async createConcern(input: {
+    categoryId: string
+    code: string
+    name: string
+    processTimeMins?: number
+    status?: import('../types/cw').CWConcernStatus
+  }): Promise<import('../types/cw').CWConcern> {
+    return request<import('../types/cw').CWConcern>('/api/method/workshop.api.concerns.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async updateConcern(
+    concernId: string,
+    input: {
+      categoryId?: string
+      code?: string
+      name: string
+      processTimeMins?: number
+      status: import('../types/cw').CWConcernStatus
+    },
+  ): Promise<import('../types/cw').CWConcern> {
+    return request<import('../types/cw').CWConcern>('/api/method/workshop.api.concerns.update', {
+      method: 'POST',
+      body: { id: concernId, data: input },
+    })
+  },
+
+  async setConcernStatus(
+    concernId: string,
+    status: import('../types/cw').CWConcernStatus,
+  ): Promise<import('../types/cw').CWConcern> {
+    return request<import('../types/cw').CWConcern>('/api/method/workshop.api.concerns.set_status', {
+      method: 'POST',
+      body: { id: concernId, status },
+    })
+  },
+
+  async listServices(params: {
+    shopId?: string
+    status?: import('../types/cw').CWServiceStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWService>> {
+    const query = new URLSearchParams()
+    if (params.shopId) query.set('shopId', params.shopId)
+    if (params.status) query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    if (params.page) query.set('page', String(params.page))
+    if (params.pageSize) query.set('pageSize', String(params.pageSize))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return request<ApiListResponse<import('../types/cw').CWService>>(
+      `/api/method/workshop.api.services.list${suffix}`,
+    )
+  },
+
+  async createService(input: {
+    code: string
+    category: string
+    section?: string
+    description: string
+    vehicleSize?: import('../types/cw').CWVehicleSize
+    severity?: import('../types/cw').CWServiceSeverity
+    processTimeMins: number
+    ratePerHr?: number
+    price: number
+    shopId: string
+    stages?: import('../types/cw').CWServiceStageDefinition[]
+    status?: import('../types/cw').CWServiceStatus
+  }): Promise<import('../types/cw').CWService> {
+    return request<import('../types/cw').CWService>('/api/method/workshop.api.services.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async updateService(
+    serviceId: string,
+    input: {
+      code: string
+      category: string
+      section?: string
+      description: string
+      vehicleSize?: import('../types/cw').CWVehicleSize
+      severity?: import('../types/cw').CWServiceSeverity
+      processTimeMins: number
+      ratePerHr?: number
+      price: number
+      shopId: string
+      stages?: import('../types/cw').CWServiceStageDefinition[]
+      status: import('../types/cw').CWServiceStatus
+    },
+  ): Promise<import('../types/cw').CWService> {
+    return request<import('../types/cw').CWService>('/api/method/workshop.api.services.update', {
+      method: 'POST',
+      body: { id: serviceId, data: input },
+    })
+  },
+
+  async setServiceStatus(
+    serviceId: string,
+    status: import('../types/cw').CWServiceStatus,
+  ): Promise<import('../types/cw').CWService> {
+    return request<import('../types/cw').CWService>('/api/method/workshop.api.services.set_status', {
+      method: 'POST',
+      body: { id: serviceId, status },
+    })
+  },
+
+  async listTeams(params: {
+    status?: import('../types/cw').CWTeamStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWTeam>> {
+    const query = new URLSearchParams()
+    if (params.status) query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    if (params.page) query.set('page', String(params.page))
+    if (params.pageSize) query.set('pageSize', String(params.pageSize))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return request<ApiListResponse<import('../types/cw').CWTeam>>(
+      `/api/method/workshop.api.teams.list${suffix}`,
+    )
+  },
+
+  async createTeam(input: {
+    name: string
+    seUserId: string
+    technicianUserIds: string[]
+    status?: import('../types/cw').CWTeamStatus
+  }): Promise<import('../types/cw').CWTeam> {
+    return request<import('../types/cw').CWTeam>('/api/method/workshop.api.teams.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async updateTeam(
+    teamId: string,
+    input: {
+      name: string
+      seUserId: string
+      technicianUserIds: string[]
+      status: import('../types/cw').CWTeamStatus
+    },
+  ): Promise<import('../types/cw').CWTeam> {
+    return request<import('../types/cw').CWTeam>('/api/method/workshop.api.teams.update', {
+      method: 'POST',
+      body: { id: teamId, data: input },
+    })
+  },
+
+  async setTeamStatus(
+    teamId: string,
+    status: import('../types/cw').CWTeamStatus,
+  ): Promise<import('../types/cw').CWTeam> {
+    return request<import('../types/cw').CWTeam>('/api/method/workshop.api.teams.set_status', {
+      method: 'POST',
+      body: { id: teamId, status },
+    })
+  },
+
+  async getF1Config(): Promise<import('../types/cw').CWF1Config> {
+    return request<import('../types/cw').CWF1Config>('/api/method/workshop.api.settings.get_f1_config')
+  },
+
+  async setF1Config(input: { returnWindowDays: number }): Promise<import('../types/cw').CWF1Config> {
+    return request<import('../types/cw').CWF1Config>('/api/method/workshop.api.settings.set_f1_config', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async listTaskTemplates(params: {
+    shopId?: string
+    status?: import('../types/cw').CWTaskTemplateStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<ApiListResponse<import('../types/cw').CWTaskTemplate>> {
+    const query = new URLSearchParams()
+    if (params.shopId) query.set('shopId', params.shopId)
+    if (params.status) query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    if (params.page) query.set('page', String(params.page))
+    if (params.pageSize) query.set('pageSize', String(params.pageSize))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return request<ApiListResponse<import('../types/cw').CWTaskTemplate>>(
+      `/api/method/workshop.api.task_templates.list${suffix}`,
+    )
+  },
+
+  async createTaskTemplate(input: {
+    shopId: string
+    name: string
+    description?: string
+    status?: import('../types/cw').CWTaskTemplateStatus
+    fields?: import('../types/cw').CWTaskField[]
+  }): Promise<import('../types/cw').CWTaskTemplate> {
+    return request<import('../types/cw').CWTaskTemplate>('/api/method/workshop.api.task_templates.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async updateTaskTemplate(
+    templateId: string,
+    input: {
+      shopId: string
+      name: string
+      description: string
+      status: import('../types/cw').CWTaskTemplateStatus
+      fields?: import('../types/cw').CWTaskField[]
+    },
+  ): Promise<import('../types/cw').CWTaskTemplate> {
+    return request<import('../types/cw').CWTaskTemplate>('/api/method/workshop.api.task_templates.update', {
+      method: 'POST',
+      body: { id: templateId, data: input },
+    })
+  },
+
+  async setTaskTemplateStatus(
+    templateId: string,
+    status: import('../types/cw').CWTaskTemplateStatus,
+  ): Promise<import('../types/cw').CWTaskTemplate> {
+    return request<import('../types/cw').CWTaskTemplate>('/api/method/workshop.api.task_templates.set_status', {
+      method: 'POST',
+      body: { id: templateId, status },
+    })
+  },
+
+  async addTaskTemplateField(
+    templateId: string,
+    input: {
+      label: string
+      type: import('../types/cw').CWTaskFieldType
+      required: boolean
+      options?: string[]
+    },
+  ): Promise<import('../types/cw').CWTaskField> {
+    return request<import('../types/cw').CWTaskField>('/api/method/workshop.api.task_templates.add_field', {
+      method: 'POST',
+      body: { templateId, data: input },
+    })
+  },
+
+  async updateTaskTemplateField(
+    templateId: string,
+    fieldId: string,
+    input: {
+      label: string
+      type: import('../types/cw').CWTaskFieldType
+      required: boolean
+      options?: string[]
+    },
+  ): Promise<import('../types/cw').CWTaskTemplate> {
+    return request<import('../types/cw').CWTaskTemplate>('/api/method/workshop.api.task_templates.update_field', {
+      method: 'POST',
+      body: { templateId, fieldId, data: input },
+    })
+  },
+
+  async removeTaskTemplateField(
+    templateId: string,
+    fieldId: string,
+  ): Promise<import('../types/cw').CWTaskTemplate> {
+    return request<import('../types/cw').CWTaskTemplate>('/api/method/workshop.api.task_templates.remove_field', {
+      method: 'POST',
+      body: { templateId, fieldId },
+    })
+  },
+
+  async moveTaskTemplateField(
+    templateId: string,
+    fieldId: string,
+    direction: 'up' | 'down',
+  ): Promise<import('../types/cw').CWTaskTemplate> {
+    return request<import('../types/cw').CWTaskTemplate>('/api/method/workshop.api.task_templates.move_field', {
+      method: 'POST',
+      body: { templateId, fieldId, direction },
+    })
+  },
 }

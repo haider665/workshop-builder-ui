@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -20,10 +21,12 @@ import {
   Typography,
 } from '@mui/material'
 import { Add, Edit } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Page } from '../../components/Page'
-import { useCwStore } from '../../store/cwStore'
-import type { CWTeam, CWTeamStatus } from '../../types/cw'
+import type { CWRole, CWTeam, CWTeamStatus, CWUser } from '../../types/cw'
+import { rolesService } from '../../services/admin/rolesService'
+import { teamsService } from '../../services/admin/teamsService'
+import { usersService } from '../../services/admin/usersService'
 
 type TeamDraft = {
   name: string
@@ -46,11 +49,43 @@ function toDraft(team: CWTeam): TeamDraft {
 }
 
 export function TeamsPage() {
-  const teams = useCwStore((s) => s.teams)
-  const users = useCwStore((s) => s.users)
-  const roles = useCwStore((s) => s.roles)
-  const createTeam = useCwStore((s) => s.createTeam)
-  const updateTeam = useCwStore((s) => s.updateTeam)
+  const [teams, setTeams] = useState<CWTeam[]>([])
+  const [users, setUsers] = useState<CWUser[]>([])
+  const [roles, setRoles] = useState<CWRole[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editTeam, setEditTeam] = useState<CWTeam | null>(null)
+  const [draft, setDraft] = useState<TeamDraft>(emptyDraft())
+
+  useEffect(() => {
+    let active = true
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const [teamData, userData, roleData] = await Promise.all([
+          teamsService.list(),
+          usersService.list(),
+          rolesService.list(true),
+        ])
+        if (!active) return
+        setTeams(teamData)
+        setUsers(userData)
+        setRoles(roleData)
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Failed to load teams')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const seRoleId = useMemo(() => roles.find((r) => r.name === 'SE')?.id, [roles])
   const techRoleId = useMemo(() => roles.find((r) => r.name === 'Technician')?.id, [roles])
@@ -70,10 +105,6 @@ export function TeamsPage() {
     return map
   }, [users])
 
-  const [createOpen, setCreateOpen] = useState(false)
-  const [editTeam, setEditTeam] = useState<CWTeam | null>(null)
-  const [draft, setDraft] = useState<TeamDraft>(emptyDraft())
-
   function openCreate() {
     setDraft(emptyDraft())
     setCreateOpen(true)
@@ -84,26 +115,44 @@ export function TeamsPage() {
     setDraft(toDraft(team))
   }
 
-  function submitCreate() {
+  async function submitCreate() {
     if (!draft.name.trim() || !draft.seUserId) return
-    createTeam({
-      name: draft.name.trim(),
-      seUserId: draft.seUserId,
-      technicianUserIds: draft.technicianUserIds,
-      status: draft.status,
-    })
-    setCreateOpen(false)
+    setSaving(true)
+    setError(null)
+    try {
+      const created = await teamsService.create({
+        name: draft.name.trim(),
+        seUserId: draft.seUserId,
+        technicianUserIds: draft.technicianUserIds,
+        status: draft.status,
+      })
+      setTeams((current) => [created, ...current.filter((team) => team.id !== created.id)])
+      setCreateOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create team')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function submitEdit() {
+  async function submitEdit() {
     if (!editTeam || !draft.name.trim() || !draft.seUserId) return
-    updateTeam(editTeam.id, {
-      name: draft.name.trim(),
-      seUserId: draft.seUserId,
-      technicianUserIds: draft.technicianUserIds,
-      status: draft.status,
-    })
-    setEditTeam(null)
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await teamsService.update(editTeam.id, {
+        name: draft.name.trim(),
+        seUserId: draft.seUserId,
+        technicianUserIds: draft.technicianUserIds,
+        status: draft.status,
+      })
+      setTeams((current) => current.map((team) => (team.id === updated.id ? updated : team)))
+      setEditTeam(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update team')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const isDialogOpen = createOpen || !!editTeam
@@ -118,11 +167,23 @@ export function TeamsPage() {
       title="Admin / Teams"
       subtitle="Manage teams with SE and Technician assignments."
       actions={
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate} sx={{ fontWeight: 700 }}>
+        <Button variant="contained" startIcon={<Add />} onClick={openCreate} sx={{ fontWeight: 700 }} disabled={saving}>
           New Team
         </Button>
       }
     >
+      {error ? (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      ) : null}
+
+      {loading ? (
+        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
+          <Typography color="text.secondary">Loading teams from backend...</Typography>
+        </Paper>
+      ) : null}
+
       <Stack spacing={2}>
         {teams.length === 0 ? (
           <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
@@ -179,7 +240,7 @@ export function TeamsPage() {
                     </TableCell>
                     <TableCell align="right">
                       <Tooltip title="Edit">
-                        <IconButton onClick={() => openEdit(team)}>
+                        <IconButton onClick={() => openEdit(team)} disabled={saving}>
                           <Edit fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -192,7 +253,6 @@ export function TeamsPage() {
         )}
       </Stack>
 
-      {/* Create / Edit Dialog */}
       <Dialog open={isDialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
         <DialogTitle>{editTeam ? 'Edit Team' : 'Create Team'}</DialogTitle>
         <DialogContent>
@@ -254,8 +314,8 @@ export function TeamsPage() {
           <Button onClick={closeDialog}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={editTeam ? submitEdit : submitCreate}
-            disabled={!draft.name.trim() || !draft.seUserId}
+            onClick={() => void (editTeam ? submitEdit() : submitCreate())}
+            disabled={!draft.name.trim() || !draft.seUserId || saving}
           >
             {editTeam ? 'Save' : 'Create'}
           </Button>

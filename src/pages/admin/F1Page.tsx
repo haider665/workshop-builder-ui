@@ -7,7 +7,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
 import { f1Service } from '../../services/admin/f1Service'
@@ -20,6 +20,27 @@ function F1ConfigPage() {
   const config = useCwStore((s) => s.f1Config)
   const [draft, setDraft] = useState<string>(String(config.returnWindowDays))
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    async function loadConfig() {
+      setLoading(true)
+      try {
+        const data = await f1Service.getConfig()
+        if (active) setDraft(String(data.returnWindowDays))
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void loadConfig()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const parsed = useMemo(() => {
     const trimmed = draft.trim()
@@ -35,11 +56,11 @@ function F1ConfigPage() {
 
   const hasChanges = parsed.ok && parsed.value !== config.returnWindowDays
 
-  function save() {
+  async function save() {
     if (!parsed.ok) return
     try {
       setError(null)
-      f1Service.setReturnWindowDays(parsed.value)
+      await f1Service.setReturnWindowDays(parsed.value)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -53,7 +74,7 @@ function F1ConfigPage() {
         <Button
           variant="contained"
           onClick={save}
-          disabled={!parsed.ok || !hasChanges}
+          disabled={loading || !parsed.ok || !hasChanges}
         >
           Save
         </Button>
