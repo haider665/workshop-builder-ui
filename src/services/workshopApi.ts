@@ -338,7 +338,7 @@ export const workshopApi = {
 
   async listRoles(includeSystem = false): Promise<ApiListResponse<import('../types/cw').CWRole>> {
     const query = new URLSearchParams()
-    if (includeSystem) query.set('includeSystem', 'true')
+    if (includeSystem) query.set('includeSystem', '1')
     const suffix = query.toString() ? `?${query.toString()}` : ''
     return request<ApiListResponse<import('../types/cw').CWRole>>(
       `/api/method/workshop.api.roles.list${suffix}`,
