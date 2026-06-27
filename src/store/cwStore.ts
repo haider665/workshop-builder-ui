@@ -2738,7 +2738,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
-    syncBackend(workshopApi.submitInspectionComplete({ appointmentId: input.appointmentId, actorName: input.actorName }), 'submit inspection')
+    syncBackend(workshopApi.submitAppointmentInspection(input), 'submit inspection')
   },
 
   pushTimeline: (appointmentId, event) => {
@@ -2787,6 +2787,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.startTechnicianTimer(input), 'start technician timer')
   },
 
   pauseTechnicianTimer: (input) => {
@@ -2816,6 +2817,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.pauseTechnicianTimer(input), 'pause technician timer')
   },
 
   resumeTechnicianTimer: (input) => {
@@ -2845,6 +2847,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.resumeTechnicianTimer(input), 'resume technician timer')
   },
 
   completeTechnicianTimer: (input) => {
@@ -2893,6 +2896,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.completeTechnicianTimer(input), 'complete technician timer')
   },
 
   // ─── V4: Phase completion actions ─────────────────────────────────────────
