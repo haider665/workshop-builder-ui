@@ -908,6 +908,7 @@ export const workshopApi = {
     assignedSAUserId?: string
     assignedQCUserId?: string
     assignedTeamId?: string
+    gateEntryId?: string
     paymentStatus?: string
     concernItems?: Array<Record<string, unknown>>
     serviceItems?: Array<Record<string, unknown>>
@@ -934,6 +935,7 @@ export const workshopApi = {
       assignedSAUserId: string
       assignedQCUserId: string
       assignedTeamId: string
+      gateEntryId: string
       paymentStatus: string
       concernItems: Array<Record<string, unknown>>
       serviceItems: Array<Record<string, unknown>>
@@ -1016,7 +1018,7 @@ export const workshopApi = {
   async updateAppointmentService(
     appointmentId: string,
     serviceItemId: string,
-    data: { remark?: string; price?: number; serviceIds?: string[] },
+    data: { remark?: string; price?: number; serviceIds?: string[]; addedBySA?: boolean },
   ): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.update_service', {
       method: 'POST',
@@ -1325,6 +1327,155 @@ export const workshopApi = {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.release.release_vehicle', {
       method: 'POST',
       body: { appointmentId },
+    })
+  },
+
+  async assignConcernDiagnosis(input: {
+    appointmentId: string
+    concernItemId: string
+    seUserId: string
+    bayId?: string
+    startAt?: string
+    endAt?: string
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_concern_diagnosis', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async assignConcernTechnicians(input: {
+    appointmentId: string
+    concernItemId: string
+    technicianUserIds: string[]
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_concern_technicians', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async setConcernWorkStatus(input: {
+    appointmentId: string
+    concernItemId: string
+    status: import('../types/cw').CWConcernWorkStatus
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.transition_concern', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async assignServiceSE(input: {
+    appointmentId: string
+    serviceItemId: string
+    seUserId: string
+    bayId?: string
+    startAt?: string
+    endAt?: string
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_service_se', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async assignServiceTechnicians(input: {
+    appointmentId: string
+    serviceItemId: string
+    technicianUserIds: string[]
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_service_technicians', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async assignStageSchedule(input: {
+    appointmentId: string
+    serviceItemId: string
+    stageItemId: string
+    bayId: string
+    teamId?: string
+    seUserId?: string
+    startAt: string
+    endAt: string
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_stage_schedule', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async setStageWorkStatus(input: {
+    appointmentId: string
+    serviceItemId: string
+    stageItemId: string
+    status: import('../types/cw').CWStageWorkStatus
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.transition_stage', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async assignStageTechnicians(input: {
+    appointmentId: string
+    serviceItemId: string
+    stageItemId: string
+    technicianUserIds: string[]
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_stage_technicians', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async submitInspectionComplete(input: {
+    appointmentId: string
+    actorName: string
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.submit_diagnosis_complete', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async submitServiceComplete(input: {
+    appointmentId: string
+    actorName: string
+  }): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.submit_service_complete', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async startTechnicianTimer(input: Record<string, unknown>): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.timer_start', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async pauseTechnicianTimer(input: Record<string, unknown>): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.timer_pause', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async resumeTechnicianTimer(input: Record<string, unknown>): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.timer_resume', {
+      method: 'POST',
+      body: input,
+    })
+  },
+
+  async completeTechnicianTimer(input: Record<string, unknown>): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.timer_complete', {
+      method: 'POST',
+      body: input,
     })
   },
 

@@ -22,6 +22,7 @@ import { Add, Info } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
+import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import type { CWCustomerType } from '../../types/cw'
 
@@ -32,7 +33,6 @@ function includesLoose(haystack: string, needle: string) {
 export function CustomersPage() {
   const customers = useCwStore((s) => s.customers)
   const vehicles = useCwStore((s) => s.vehicles)
-  const createCustomer = useCwStore((s) => s.createCustomer)
   const navigate = useNavigate()
 
   const [typeFilter, setTypeFilter] = useState<CWCustomerType>('Individual')
@@ -90,10 +90,10 @@ export function CustomersPage() {
     return vehicles.filter((v) => v.customerId === customerId).length
   }
 
-  function submit() {
+  async function submit() {
     try {
       setError(null)
-      const created = createCustomer({ fullName, phone, email })
+      const created = await workshopApi.createCustomer({ fullName, phone, email })
       setFullName('')
       setPhone('')
       setEmail('')
