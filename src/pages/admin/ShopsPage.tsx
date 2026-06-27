@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -21,9 +22,8 @@ import {
   Typography,
 } from '@mui/material'
 import { Add, Edit, ToggleOff, ToggleOn } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Page } from '../../components/Page'
-import { useCwStore } from '../../store/cwStore'
 import type { CWShop, CWShopStatus, CWShopType } from '../../types/cw'
 import { shopsService } from '../../services/admin/shopsService'
 
@@ -56,13 +56,36 @@ function toDraft(shop?: CWShop): ShopDraft {
 }
 
 export function ShopsPage() {
-  const shops = useCwStore((s) => s.shops)
-
+  const [shops, setShops] = useState<CWShop[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [editShop, setEditShop] = useState<CWShop | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const [createDraft, setCreateDraft] = useState<ShopDraft>(toDraft())
   const [editDraft, setEditDraft] = useState<ShopDraft>(toDraft())
+
+  useEffect(() => {
+    let active = true
+    async function loadShops() {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await shopsService.list()
+        if (active) setShops(data)
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Failed to load shops')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void loadShops()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const hasShops = shops.length > 0
 
@@ -78,15 +101,24 @@ export function ShopsPage() {
     setCreateOpen(true)
   }
 
-  function submitCreate() {
+  async function submitCreate() {
     if (!createDraft.name.trim()) return
-    shopsService.create({
-      name: createDraft.name,
-      type: createDraft.type,
-      description: createDraft.description,
-      status: 'Active',
-    })
-    setCreateOpen(false)
+    setSaving(true)
+    setError(null)
+    try {
+      const created = await shopsService.create({
+        name: createDraft.name,
+        type: createDraft.type,
+        description: createDraft.description,
+        status: 'Active',
+      })
+      setShops((current) => [created, ...current.filter((shop) => shop.id !== created.id)])
+      setCreateOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create shop')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function openEdit(shop: CWShop) {
@@ -94,31 +126,64 @@ export function ShopsPage() {
     setEditDraft(toDraft(shop))
   }
 
-  function submitEdit() {
+  async function submitEdit() {
     if (!editShop) return
     if (!editDraft.name.trim()) return
-    shopsService.update(editShop.id, {
-      name: editDraft.name,
-      type: editDraft.type,
-      description: editDraft.description,
-    })
-    setEditShop(null)
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await shopsService.update(editShop.id, {
+        name: editDraft.name,
+        type: editDraft.type,
+        description: editDraft.description,
+      })
+      setShops((current) => current.map((shop) => (shop.id === updated.id ? updated : shop)))
+      setEditShop(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update shop')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function toggleStatus(shop: CWShop) {
-    shopsService.setStatus(shop.id, shop.status === 'Active' ? 'Inactive' : 'Active')
+  async function toggleStatus(shop: CWShop) {
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await shopsService.setStatus(
+        shop.id,
+        shop.status === 'Active' ? 'Inactive' : 'Active',
+      )
+      setShops((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update shop status')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <Page
       title="Admin / Shops"
-      subtitle="Create, edit, activate, and deactivate shops (in-memory MVP)."
+      subtitle="Create, edit, activate, and deactivate shops from the backend."
       actions={
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
+        <Button variant="contained" startIcon={<Add />} onClick={openCreate} disabled={saving}>
           New Shop
         </Button>
       }
     >
+      {error ? (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      ) : null}
+
+      {loading ? (
+        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
+          <Typography color="text.secondary">Loading shops from backend...</Typography>
+        </Paper>
+      ) : null}
+
       {!hasShops ? (
         <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
           <Stack spacing={1.5}>
@@ -129,7 +194,7 @@ export function ShopsPage() {
               Create your first Shop to begin configuring bays and task templates.
             </Typography>
             <Box>
-              <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
+              <Button variant="contained" startIcon={<Add />} onClick={openCreate} disabled={saving}>
                 Create Shop
               </Button>
             </Box>
@@ -228,13 +293,13 @@ export function ShopsPage() {
             />
             <Divider />
             <Typography variant="body2" color="text.secondary">
-              MVP note: data is stored in-memory only. Refresh clears all shops.
+              Shops are persisted in the backend. Refresh reloads the current data.
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={submitCreate} disabled={!createDraft.name.trim()}>
+          <Button variant="contained" onClick={() => void submitCreate()} disabled={!createDraft.name.trim() || saving}>
             Create
           </Button>
         </DialogActions>
@@ -278,7 +343,7 @@ export function ShopsPage() {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setEditShop(null)}>Cancel</Button>
-          <Button variant="contained" onClick={submitEdit} disabled={!editDraft.name.trim()}>
+          <Button variant="contained" onClick={() => void submitEdit()} disabled={!editDraft.name.trim() || saving}>
             Save
           </Button>
         </DialogActions>
