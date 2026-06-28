@@ -31,17 +31,6 @@ import { usersService } from '../../services/admin/usersService'
 import { shopsService } from '../../services/admin/shopsService'
 import { rolesService } from '../../services/admin/rolesService'
 
-const WORKSHOP_ROLE_NAMES = new Set([
-  'Admin',
-  'Guard',
-  'Job Creation',
-  'CRE',
-  'Technician',
-  'Service Advisor',
-  'Service Engineer',
-  'QC',
-])
-
 type UserDraft = {
   fullName: string
   email: string
@@ -116,11 +105,6 @@ export function UsersPage() {
     return map
   }, [roles])
 
-  const workshopRoleIds = useMemo(
-    () => new Set(roles.filter((role) => WORKSHOP_ROLE_NAMES.has(role.name)).map((role) => role.id)),
-    [roles],
-  )
-
   const shopNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const s of shops) map.set(s.id, s.name)
@@ -133,10 +117,10 @@ export function UsersPage() {
   })
 
   const hasShops = shops.length > 0
-  const activeRoles = roles.filter((r) => r.status === 'Active' && workshopRoleIds.has(r.id))
+  const activeRoles = roles.filter((r) => r.status === 'Active')
 
   function preferredRoleLabel(roleIds: string[]) {
-    const roleId = roleIds.find((id) => workshopRoleIds.has(id))
+    const roleId = roleIds[0]
     return roleId ? roleNameById.get(roleId) ?? 'Unknown' : '—'
   }
 
