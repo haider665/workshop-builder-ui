@@ -76,7 +76,10 @@ export function NewAppointmentPage() {
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const shops = useCwStore((s) => s.shops)
 
-  const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
+  const saRoleId = useMemo(
+    () => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id,
+    [roles],
+  )
   const saUsers = useMemo(
     () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
     [users, saRoleId],

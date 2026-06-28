@@ -55,7 +55,7 @@ export function LoginPage() {
             Workshop Platform
           </Typography>
           <Typography color="text.secondary">
-            Sign in with your Workshop account. The backend creates a Frappe session cookie and returns your roles.
+            Sign in with your Workshop account.
           </Typography>
         </Stack>
 

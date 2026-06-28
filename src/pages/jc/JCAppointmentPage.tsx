@@ -103,7 +103,10 @@ export function JCAppointmentPage() {
   const customer = useMemo(() => (appt ? customers.find((c) => c.id === appt.customerId) : null), [customers, appt])
 
   const roles = useCwStore((s) => s.roles)
-  const seRoleId = useMemo(() => roles.find((r) => r.name === 'SE')?.id, [roles])
+  const seRoleId = useMemo(
+    () => roles.find((r) => r.name === 'Service Engineer' || r.name === 'SE')?.id,
+    [roles],
+  )
   const seUsers = useMemo(
     () => users.filter((u) => u.status === 'Active' && seRoleId && u.roleIds.includes(seRoleId)),
     [users, seRoleId],
