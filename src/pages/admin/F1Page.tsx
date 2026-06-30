@@ -2,7 +2,6 @@ import {
   Alert,
   Box,
   Button,
-  Paper,
   Stack,
   TextField,
   Typography,
@@ -11,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
 import { f1Service } from '../../services/admin/f1Service'
+import { colors, radii, shadows } from '../../theme/tokens'
 
 export function F1Page() {
   return <F1ConfigPage />
@@ -68,30 +68,45 @@ function F1ConfigPage() {
 
   return (
     <Page
-      title="Admin / F1"
-      subtitle="Configure the F1 return window (in-memory MVP)."
+      title="F1 Configuration"
+      subtitle="Configure the F1 return window settings."
       actions={
         <Button
           variant="contained"
           onClick={save}
           disabled={loading || !parsed.ok || !hasChanges}
+          sx={{
+            bgcolor: colors.slate[900],
+            fontWeight: 600,
+            borderRadius: '10px',
+            px: 2.5,
+            '&:hover': { bgcolor: colors.slate[800] },
+          }}
         >
           Save
         </Button>
       }
     >
       {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
           {error}
         </Alert>
       ) : null}
 
-      <Paper sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
+      <Box
+        sx={{
+          p: 3,
+          borderRadius: radii.lg,
+          border: `1px solid ${colors.border.default}`,
+          background: colors.bg.card,
+          boxShadow: shadows.card,
+        }}
+      >
         <Stack spacing={2}>
-          <Typography variant="h6" sx={{ fontWeight: 900 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[900] }}>
             Return window
           </Typography>
-          <Typography color="text.secondary">
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
             Controls how many days a vehicle can return and still count for F1. This is stored in-memory only; a hard refresh clears it.
           </Typography>
 
@@ -117,18 +132,27 @@ function F1ConfigPage() {
             />
           </Box>
         </Stack>
-      </Paper>
+      </Box>
 
-      <Paper sx={{ p: 3, mt: 2, border: '1px solid', borderColor: 'divider' }}>
+      <Box
+        sx={{
+          p: 3,
+          mt: 2,
+          borderRadius: radii.lg,
+          border: `1px solid ${colors.border.default}`,
+          background: colors.bg.card,
+          boxShadow: shadows.card,
+        }}
+      >
         <Stack spacing={1}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: colors.slate[900] }}>
             Reporting
           </Typography>
-          <Typography color="text.secondary">
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
             Detailed F1 reporting screens are planned for Milestone 9.
           </Typography>
         </Stack>
-      </Paper>
+      </Box>
     </Page>
   )
 }

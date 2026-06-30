@@ -1,28 +1,23 @@
 import {
-  Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
-  Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Edit, ToggleOff, ToggleOn } from '@mui/icons-material'
+import { Add, Edit, Inventory, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useState } from 'react'
 import { Page } from '../../components/Page'
+import { DataTable } from '../../components/DataTable'
+import { FormDialog } from '../../components/FormDialog'
+import type { Column } from '../../components/DataTable'
 import { useCwStore } from '../../store/cwStore'
 import type { CWPart, CWPartStatus } from '../../types/cw'
+import { colors } from '../../theme/tokens'
+
+/* ─────────────────────── Helpers ─────────────────────────── */
 
 type PartDraft = {
   name: string
@@ -48,6 +43,8 @@ function fmtBDT(n?: number) {
   if (typeof n !== 'number') return '—'
   return `BDT ${n.toLocaleString('en-BD')}`
 }
+
+/* ─────────────────────── Component ─────────────────────────── */
 
 export function PartsPage() {
   const parts = useCwStore((s) => s.parts)
@@ -107,122 +104,151 @@ export function PartsPage() {
     setEditPart(null)
   }
 
+  /* ── Table Columns ── */
+
+  const columns: Column<CWPart>[] = [
+    {
+      key: 'name',
+      header: 'Part Name',
+      minWidth: 180,
+      render: (part) => (
+        <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+          {part.name}
+        </Typography>
+      ),
+    },
+    {
+      key: 'partNumber',
+      header: 'Part Number',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
+          {part.partNumber ?? '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'price',
+      header: 'Price',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700], fontWeight: 500 }}>
+          {fmtBDT(part.price)}
+        </Typography>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (part) => (
+        <Chip
+          size="small"
+          color={part.status === 'Active' ? 'success' : 'default'}
+          label={part.status}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (part) => (
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="Edit">
+            <IconButton size="small" onClick={() => openEdit(part)}>
+              <Edit fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={part.status === 'Active' ? 'Deactivate' : 'Activate'}>
+            <IconButton size="small" onClick={() => toggleStatus(part)}>
+              {part.status === 'Inactive' ? (
+                <ToggleOn fontSize="small" />
+              ) : (
+                <ToggleOff fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      ),
+    },
+  ]
+
+  /* ── Render ── */
+
   return (
     <Page
-      title="Admin / Parts"
+      title="Parts"
       subtitle="Manage inventory parts for service and repair."
       actions={
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate} sx={{ fontWeight: 700 }}>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={openCreate}
+          sx={{
+            bgcolor: colors.slate[900],
+            fontWeight: 600,
+            borderRadius: '10px',
+            px: 2.5,
+            '&:hover': { bgcolor: colors.slate[800] },
+          }}
+        >
           New Part
         </Button>
       }
     >
-      <Stack spacing={2}>
-        {parts.length === 0 ? (
-          <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-            <Stack spacing={1.5}>
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>No parts yet</Typography>
-              <Typography color="text.secondary">
-                Add parts to the inventory for SE part request workflow.
-              </Typography>
-              <Box>
-                <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-                  Add Part
-                </Button>
-              </Box>
-            </Stack>
-          </Paper>
-        ) : (
-          <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Part Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Part Number</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Price</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {parts.map((part) => (
-                  <TableRow key={part.id} hover>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 700 }}>{part.name}</Typography>
-                    </TableCell>
-                    <TableCell>{part.partNumber ?? '—'}</TableCell>
-                    <TableCell>{fmtBDT(part.price)}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        color={part.status === 'Active' ? 'success' : 'default'}
-                        label={part.status}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                        <Tooltip title="Edit">
-                          <IconButton onClick={() => openEdit(part)}>
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={part.status === 'Active' ? 'Deactivate' : 'Activate'}>
-                          <IconButton onClick={() => toggleStatus(part)}>
-                            {part.status === 'Inactive' ? (
-                              <ToggleOn fontSize="small" />
-                            ) : (
-                              <ToggleOff fontSize="small" />
-                            )}
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
-        )}
-      </Stack>
-
-      {/* Create / Edit Dialog */}
-      <Dialog open={isDialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
-        <DialogTitle>{editPart ? 'Edit Part' : 'Create Part'}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Part Name"
-              value={draft.name}
-              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Part Number (optional)"
-              value={draft.partNumber}
-              onChange={(e) => setDraft((d) => ({ ...d, partNumber: e.target.value }))}
-              fullWidth
-            />
-            <TextField
-              label="Price (BDT, optional)"
-              type="number"
-              value={draft.price}
-              onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
-              fullWidth
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={closeDialog}>Cancel</Button>
+      <DataTable
+        columns={columns}
+        rows={parts}
+        keyExtractor={(part) => part.id}
+        emptyIcon={<Inventory />}
+        emptyTitle="No parts yet"
+        emptyDescription="Add parts to the inventory for SE part request workflow."
+        emptyAction={
           <Button
             variant="contained"
-            onClick={editPart ? submitEdit : submitCreate}
-            disabled={!draft.name.trim()}
+            startIcon={<Add />}
+            onClick={openCreate}
+            sx={{
+              bgcolor: colors.slate[900],
+              fontWeight: 600,
+              borderRadius: '10px',
+              '&:hover': { bgcolor: colors.slate[800] },
+            }}
           >
-            {editPart ? 'Save' : 'Create'}
+            Add Part
           </Button>
-        </DialogActions>
-      </Dialog>
+        }
+      />
+
+      {/* ── Create / Edit Dialog ── */}
+      <FormDialog
+        open={isDialogOpen}
+        onClose={closeDialog}
+        title={editPart ? 'Edit Part' : 'Create Part'}
+        icon={editPart ? <Edit /> : <Inventory />}
+        onSubmit={editPart ? submitEdit : submitCreate}
+        submitLabel={editPart ? 'Save' : 'Create'}
+        submitDisabled={!draft.name.trim()}
+      >
+        <TextField
+          label="Part Name"
+          value={draft.name}
+          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+          required
+          fullWidth
+        />
+        <TextField
+          label="Part Number (optional)"
+          value={draft.partNumber}
+          onChange={(e) => setDraft((d) => ({ ...d, partNumber: e.target.value }))}
+          fullWidth
+        />
+        <TextField
+          label="Price (BDT, optional)"
+          type="number"
+          value={draft.price}
+          onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+          fullWidth
+        />
+      </FormDialog>
     </Page>
   )
 }

@@ -3,29 +3,24 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
   IconButton,
   MenuItem,
-  Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Edit, ToggleOff, ToggleOn } from '@mui/icons-material'
+import { Add, Edit, Store, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { Page } from '../../components/Page'
+import { DataTable } from '../../components/DataTable'
+import { FormDialog } from '../../components/FormDialog'
+import type { Column } from '../../components/DataTable'
 import type { CWShop, CWShopStatus, CWShopType } from '../../types/cw'
 import { shopsService } from '../../services/admin/shopsService'
+import { colors } from '../../theme/tokens'
+
+/* ─────────────────────── Constants ─────────────────────────── */
 
 const SHOP_TYPES: CWShopType[] = [
   'Auto',
@@ -35,6 +30,8 @@ const SHOP_TYPES: CWShopType[] = [
   'Diagnostics',
   'Custom',
 ]
+
+/* ─────────────────────── Helpers ─────────────────────────── */
 
 function statusChip(status: CWShopStatus) {
   if (status === 'Active') return <Chip size="small" color="success" label="Active" />
@@ -54,6 +51,8 @@ function toDraft(shop?: CWShop): ShopDraft {
     description: shop?.description ?? '',
   }
 }
+
+/* ─────────────────────── Component ─────────────────────────── */
 
 export function ShopsPage() {
   const [shops, setShops] = useState<CWShop[]>([])
@@ -87,14 +86,14 @@ export function ShopsPage() {
     }
   }, [])
 
-  const hasShops = shops.length > 0
-
   const sortedShops = useMemo(() => {
     return [...shops].sort((a, b) => {
       if (a.status !== b.status) return a.status === 'Active' ? -1 : 1
       return a.name.localeCompare(b.name)
     })
   }, [shops])
+
+  /* ── CRUD Operations ── */
 
   function openCreate() {
     setCreateDraft(toDraft())
@@ -162,192 +161,222 @@ export function ShopsPage() {
     }
   }
 
+  /* ── Table Columns ── */
+
+  const columns: Column<CWShop>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      minWidth: 180,
+      render: (shop) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+            {shop.name}
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 0.25 }}>
+            {shop.id}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      render: (shop) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+          {shop.type}
+        </Typography>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (shop) => statusChip(shop.status),
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      minWidth: 200,
+      render: (shop) => (
+        <Typography
+          sx={{
+            fontSize: '0.85rem',
+            color: colors.slate[500],
+            maxWidth: 520,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {shop.description || '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (shop) => (
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="Edit">
+            <IconButton size="small" onClick={() => openEdit(shop)}>
+              <Edit fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={shop.status === 'Active' ? 'Deactivate' : 'Activate'}>
+            <IconButton size="small" onClick={() => void toggleStatus(shop)}>
+              {shop.status === 'Active' ? (
+                <ToggleOn fontSize="small" />
+              ) : (
+                <ToggleOff fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      ),
+    },
+  ]
+
+  /* ── Render ── */
+
   return (
     <Page
-      title="Admin / Shops"
-      subtitle="Create, edit, activate, and deactivate shops from the backend."
+      title="Shops"
+      subtitle="Create, edit, and manage workshop shop locations."
       actions={
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate} disabled={saving}>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={openCreate}
+          disabled={saving}
+          sx={{
+            bgcolor: colors.slate[900],
+            fontWeight: 600,
+            borderRadius: '10px',
+            px: 2.5,
+            '&:hover': { bgcolor: colors.slate[800] },
+          }}
+        >
           New Shop
         </Button>
       }
     >
       {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
           {error}
         </Alert>
       ) : null}
 
-      {loading ? (
-        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Typography color="text.secondary">Loading shops from backend...</Typography>
-        </Paper>
-      ) : null}
-
-      {!hasShops ? (
-        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Stack spacing={1.5}>
-            <Typography variant="h6" sx={{ fontWeight: 800 }}>
-              No shops yet
-            </Typography>
-            <Typography color="text.secondary">
-              Create your first Shop to begin configuring bays and task templates.
-            </Typography>
-            <Box>
-              <Button variant="contained" startIcon={<Add />} onClick={openCreate} disabled={saving}>
-                Create Shop
-              </Button>
-            </Box>
-          </Stack>
-        </Paper>
-      ) : (
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 800 }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Type</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>
-                  Actions
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedShops.map((shop) => (
-                <TableRow key={shop.id} hover>
-                  <TableCell>
-                    <Typography sx={{ fontWeight: 700 }}>{shop.name}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {shop.id}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{shop.type}</TableCell>
-                  <TableCell>{statusChip(shop.status)}</TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 520 }}>
-                      {shop.description || '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                      <Tooltip title="Edit">
-                        <IconButton onClick={() => openEdit(shop)}>
-                          <Edit fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={shop.status === 'Active' ? 'Deactivate' : 'Activate'}>
-                        <IconButton onClick={() => toggleStatus(shop)}>
-                          {shop.status === 'Active' ? (
-                            <ToggleOn fontSize="small" />
-                          ) : (
-                            <ToggleOff fontSize="small" />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
-      )}
-
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Create shop</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Shop name"
-              value={createDraft.name}
-              onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Shop type"
-              select
-              value={createDraft.type}
-              onChange={(e) =>
-                setCreateDraft((d) => ({ ...d, type: e.target.value as CWShopType }))
-              }
-              fullWidth
-            >
-              {SHOP_TYPES.map((t) => (
-                <MenuItem key={t} value={t}>
-                  {t}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Description"
-              value={createDraft.description}
-              onChange={(e) =>
-                setCreateDraft((d) => ({ ...d, description: e.target.value }))
-              }
-              multiline
-              minRows={3}
-              fullWidth
-            />
-            <Divider />
-            <Typography variant="body2" color="text.secondary">
-              Shops are persisted in the backend. Refresh reloads the current data.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void submitCreate()} disabled={!createDraft.name.trim() || saving}>
-            Create
+      <DataTable
+        columns={columns}
+        rows={sortedShops}
+        keyExtractor={(shop) => shop.id}
+        loading={loading}
+        emptyIcon={<Store />}
+        emptyTitle="No shops yet"
+        emptyDescription="Create your first Shop to begin configuring bays and task templates."
+        emptyAction={
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={openCreate}
+            disabled={saving}
+            sx={{
+              bgcolor: colors.slate[900],
+              fontWeight: 600,
+              borderRadius: '10px',
+              '&:hover': { bgcolor: colors.slate[800] },
+            }}
+          >
+            Create Shop
           </Button>
-        </DialogActions>
-      </Dialog>
+        }
+      />
 
-      <Dialog open={!!editShop} onClose={() => setEditShop(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Edit shop</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Shop name"
-              value={editDraft.name}
-              onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Shop type"
-              select
-              value={editDraft.type}
-              onChange={(e) =>
-                setEditDraft((d) => ({ ...d, type: e.target.value as CWShopType }))
-              }
-              fullWidth
-            >
-              {SHOP_TYPES.map((t) => (
-                <MenuItem key={t} value={t}>
-                  {t}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Description"
-              value={editDraft.description}
-              onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
-              multiline
-              minRows={3}
-              fullWidth
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setEditShop(null)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void submitEdit()} disabled={!editDraft.name.trim() || saving}>
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* ── Create Dialog ── */}
+      <FormDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Create shop"
+        icon={<Store />}
+        onSubmit={() => void submitCreate()}
+        submitLabel="Create"
+        submitDisabled={!createDraft.name.trim() || saving}
+      >
+        <TextField
+          label="Shop name"
+          value={createDraft.name}
+          onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
+          required
+          fullWidth
+        />
+        <TextField
+          label="Shop type"
+          select
+          value={createDraft.type}
+          onChange={(e) =>
+            setCreateDraft((d) => ({ ...d, type: e.target.value as CWShopType }))
+          }
+          fullWidth
+        >
+          {SHOP_TYPES.map((t) => (
+            <MenuItem key={t} value={t}>
+              {t}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Description"
+          value={createDraft.description}
+          onChange={(e) => setCreateDraft((d) => ({ ...d, description: e.target.value }))}
+          multiline
+          minRows={3}
+          fullWidth
+        />
+      </FormDialog>
+
+      {/* ── Edit Dialog ── */}
+      <FormDialog
+        open={!!editShop}
+        onClose={() => setEditShop(null)}
+        title="Edit shop"
+        icon={<Edit />}
+        onSubmit={() => void submitEdit()}
+        submitLabel="Save"
+        submitDisabled={!editDraft.name.trim() || saving}
+      >
+        <TextField
+          label="Shop name"
+          value={editDraft.name}
+          onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+          required
+          fullWidth
+        />
+        <TextField
+          label="Shop type"
+          select
+          value={editDraft.type}
+          onChange={(e) =>
+            setEditDraft((d) => ({ ...d, type: e.target.value as CWShopType }))
+          }
+          fullWidth
+        >
+          {SHOP_TYPES.map((t) => (
+            <MenuItem key={t} value={t}>
+              {t}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Description"
+          value={editDraft.description}
+          onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
+          multiline
+          minRows={3}
+          fullWidth
+        />
+      </FormDialog>
     </Page>
   )
 }
+
