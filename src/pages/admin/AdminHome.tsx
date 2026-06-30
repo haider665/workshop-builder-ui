@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Box, InputBase, Stack, Typography } from '@mui/material'
 import {
   Store as StoreIcon,
@@ -16,6 +15,7 @@ import {
   Search,
 } from '@mui/icons-material'
 import { Link as RouterLink } from 'react-router-dom'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 /* ─────────────────────────── Types ─────────────────────────── */
@@ -31,7 +31,7 @@ type Section = {
   id: string
   label: string
   cards: ConfigCard[]
-  accent: [string, string] // gradient pair
+  accent: [string, string]
 }
 
 /* ─────────────────────── Section Data ─────────────────────── */
@@ -75,11 +75,11 @@ const sections: Section[] = [
 
 const SPRING_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const ENTRY_DURATION = '600ms'
-const HOVER_DURATION = '280ms'
+const HOVER_DURATION = '220ms'
 
 const fadeInUp = {
   '@keyframes fadeInUp': {
-    from: { opacity: 0, transform: 'translateY(24px)' },
+    from: { opacity: 0, transform: 'translateY(20px)' },
     to: { opacity: 1, transform: 'translateY(0)' },
   },
 }
@@ -96,21 +96,21 @@ const reducedMotion = {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function AdminHome() {
-  const [searchQuery, setSearchQuery] = useState('')
-  let globalCardIndex = 0
+  const [search, setSearch] = useState('')
+  const query = search.toLowerCase()
 
-  const filteredSections = searchQuery.trim()
-    ? sections
-        .map((section) => ({
-          ...section,
-          cards: section.cards.filter(
-            (card) =>
-              card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              card.desc.toLowerCase().includes(searchQuery.toLowerCase()),
-          ),
-        }))
-        .filter((section) => section.cards.length > 0)
-    : sections
+  const filteredSections = sections
+    .map((s) => ({
+      ...s,
+      cards: query
+        ? s.cards.filter(
+            (c) =>
+              c.title.toLowerCase().includes(query) ||
+              c.desc.toLowerCase().includes(query),
+          )
+        : s.cards,
+    }))
+    .filter((s) => s.cards.length > 0)
 
   return (
     <Box
@@ -154,7 +154,6 @@ export function AdminHome() {
           },
         }}
       />
-      {/* Third orb */}
       <Box
         aria-hidden="true"
         sx={{
@@ -205,7 +204,6 @@ export function AdminHome() {
           >
             Workshop configuration & management
           </Typography>
-          {/* Gradient underline */}
           <Box
             aria-hidden="true"
             sx={{
@@ -217,30 +215,44 @@ export function AdminHome() {
               opacity: 0.8,
             }}
           />
-          {/* Search bar */}
-          <InputBase
-            placeholder="Search settings..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            startAdornment={
-              <Search sx={{ fontSize: 20, color: '#94a3b8', mr: 1 }} />
-            }
-            sx={{
-              borderRadius: '12px',
-              background: 'rgba(0,0,0,0.03)',
-              border: '1px solid rgba(0,0,0,0.06)',
-              px: 2,
-              py: 1,
-              width: { xs: '100%', sm: 320 },
-              mt: 2.5,
-              fontSize: '0.9rem',
-            }}
-          />
+          {/* Search */}
+          <Box sx={{ display: 'flex', alignItems: 'center', mt: 2.5 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                borderRadius: '12px',
+                background: 'rgba(0,0,0,0.03)',
+                border: '1px solid rgba(0,0,0,0.06)',
+                px: 2,
+                py: 1,
+                width: { xs: '100%', sm: 320 },
+                transition: `border-color 200ms ${SPRING_EASE}`,
+                '&:focus-within': {
+                  borderColor: 'rgba(0,0,0,0.15)',
+                },
+              }}
+            >
+              <Search sx={{ fontSize: 20, color: '#94A3B8' }} />
+              <InputBase
+                placeholder="Search settings..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                sx={{
+                  flex: 1,
+                  fontSize: '0.875rem',
+                  color: '#0F172A',
+                  '& input::placeholder': { color: '#94A3B8', opacity: 1 },
+                }}
+              />
+            </Box>
+          </Box>
         </Box>
 
-        {/* ── Sections ── */}
-        <Stack spacing={{ xs: 3.5, md: 4.5 }}>
-          {filteredSections.map((section) => {
+        {/* ── Section Cards ── */}
+        <Stack spacing={{ xs: 2.5, md: 3 }}>
+          {filteredSections.map((section, sectionIdx) => {
             const [accentA, accentB] = section.accent
             const sectionHeaderId = `section-${section.id}`
 
@@ -249,16 +261,36 @@ export function AdminHome() {
                 key={section.id}
                 component="section"
                 aria-labelledby={sectionHeaderId}
+                sx={{
+                  borderRadius: '16px',
+                  background: '#fff',
+                  border: '1px solid rgba(0,0,0,0.07)',
+                  borderLeft: '4px solid #0F172A',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
+                  overflow: 'hidden',
+                  animation: `fadeInUp ${ENTRY_DURATION} ${SPRING_EASE} ${sectionIdx * 100}ms both`,
+                  ...reducedMotion,
+                }}
               >
-                {/* Section eyebrow */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+                {/* Section Header */}
+                <Box
+                  sx={{
+                    px: { xs: 2.5, md: 3 },
+                    pt: { xs: 2, md: 2.5 },
+                    pb: 1,
+                    borderBottom: '1px solid rgba(0,0,0,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                  }}
+                >
                   <Box
                     aria-hidden="true"
                     sx={{
-                      width: 4,
-                      height: 20,
-                      borderRadius: 2,
-                      background: `linear-gradient(180deg, ${accentA}, ${accentB})`,
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: `linear-gradient(135deg, ${accentA}, ${accentB})`,
                       flexShrink: 0,
                     }}
                   />
@@ -266,28 +298,21 @@ export function AdminHome() {
                     id={sectionHeaderId}
                     component="h2"
                     sx={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: '8px',
-                      background: `linear-gradient(135deg, ${accentA}1A, ${accentB}12)`,
-                      color: accentA,
-                      fontSize: '0.75rem',
+                      fontSize: '0.8rem',
                       fontWeight: 700,
+                      color: '#0F172A',
                       textTransform: 'uppercase',
-                      letterSpacing: '0.15em',
+                      letterSpacing: '0.1em',
                     }}
                   >
                     {section.label}
                   </Typography>
                 </Box>
 
-                {/* Card grid */}
+                {/* Items Grid */}
                 <Box
                   sx={{
                     display: 'grid',
-                    gap: { xs: 1.5, md: 2 },
                     gridTemplateColumns: {
                       xs: '1fr',
                       sm: '1fr 1fr',
@@ -295,20 +320,16 @@ export function AdminHome() {
                     },
                   }}
                 >
-                  {section.cards.map((card) => {
-                    const cardIdx = globalCardIndex++
-                    const delay = `${cardIdx * 80}ms`
-
-                    return (
-                      <DoubleBezelCard
-                        key={card.to}
-                        card={card}
-                        accentA={accentA}
-                        accentB={accentB}
-                        animDelay={delay}
-                      />
-                    )
-                  })}
+                  {section.cards.map((card, cardIdx) => (
+                    <SectionItem
+                      key={card.to}
+                      card={card}
+                      accentA={accentA}
+                      accentB={accentB}
+                      isLastRow={cardIdx >= section.cards.length - (section.cards.length % 3 || 3)}
+                      colIndex={cardIdx % 3}
+                    />
+                  ))}
                 </Box>
               </Box>
             )
@@ -319,153 +340,125 @@ export function AdminHome() {
   )
 }
 
-/* ─────────────── Double-Bezel Card Component ─────────────── */
+/* ─────────────── Section Item Component ─────────────────────── */
 
-function DoubleBezelCard({
+function SectionItem({
   card,
   accentA,
   accentB,
-  animDelay,
+  isLastRow,
+  colIndex,
 }: {
   card: ConfigCard
   accentA: string
   accentB: string
-  animDelay: string
+  isLastRow: boolean
+  colIndex: number
 }) {
   return (
-    /* Outer shell — "the tray" */
     <Box
+      component={RouterLink}
+      to={card.to}
+      aria-label={`${card.title}: ${card.desc}`}
       sx={{
-        borderRadius: '20px',
-        background: 'rgba(255,255,255,0.5)',
-        border: '1px solid rgba(0,0,0,0.08)',
-        borderTop: `3px solid ${accentA}`,
-        p: '3px',
-        animation: `fadeInUp ${ENTRY_DURATION} ${SPRING_EASE} ${animDelay} both`,
-        transition: `border-color ${HOVER_DURATION} ${SPRING_EASE}, box-shadow ${HOVER_DURATION} ${SPRING_EASE}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        textDecoration: 'none',
+        px: { xs: 2.5, md: 3 },
+        py: { xs: 2, md: 2.25 },
+        borderBottom: isLastRow ? 'none' : '1px solid rgba(0,0,0,0.04)',
+        borderRight: {
+          xs: 'none',
+          md: colIndex < 2 ? '1px solid rgba(0,0,0,0.04)' : 'none',
+        },
+        transition: `background ${HOVER_DURATION} ${SPRING_EASE}`,
         cursor: 'pointer',
         '&:hover': {
-          borderColor: `${accentA}80`,
-          borderTop: `3px solid ${accentA}`,
-          boxShadow: `0 8px 32px ${accentA}20, 0 4px 12px rgba(0,0,0,0.06)`,
-          '& .card-inner': {
-            boxShadow: `inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 3px ${accentA}0A`,
-          },
-          '& .card-icon-box': {
-            transform: 'scale(1.1)',
-          },
-          '& .card-arrow-ring': {
+          background: `linear-gradient(135deg, ${accentA}08, ${accentB}05)`,
+          '& .item-arrow': {
             opacity: 1,
             transform: 'translateX(0)',
-            background: `${accentA}12`,
+          },
+          '& .item-icon-box': {
+            transform: 'scale(1.08)',
           },
         },
-        '&:active': {
-          transform: 'scale(0.98)',
+        '&:focus-visible': {
+          outline: `2px solid ${accentA}`,
+          outlineOffset: '-2px',
+          borderRadius: '4px',
         },
         ...reducedMotion,
       }}
     >
-      {/* Inner core — "the glass plate" */}
-      <Box
-        component={RouterLink}
-        to={card.to}
-        aria-label={`${card.title}: ${card.desc}`}
-        className="card-inner"
-        sx={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          textDecoration: 'none',
-          borderRadius: '17px',
-          background: 'rgba(255,255,255,0.85)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 2px rgba(0,0,0,0.03)',
-          p: { xs: 2.5, md: 3 },
-          height: '100%',
-          transition: `box-shadow ${HOVER_DURATION} ${SPRING_EASE}`,
-          '&:focus-visible': {
-            outline: `2px solid ${accentA}`,
-            outlineOffset: '3px',
-          },
-          ...reducedMotion,
-        }}
-      >
-        <Stack direction="row" spacing={2} sx={{ flex: 1, minWidth: 0, alignItems: 'flex-start' }}>
-          {/* Icon container — gradient accent */}
-          <Box
-            className="card-icon-box"
-            aria-hidden="true"
-            sx={{
-              width: 52,
-              height: 52,
-              minWidth: 52,
-              borderRadius: '15px',
-              background: `linear-gradient(135deg, ${accentA}18, ${accentB}10)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: `transform ${HOVER_DURATION} ${SPRING_EASE}`,
-              '& .MuiSvgIcon-root': {
-                fontSize: 24,
-                color: accentA,
-              },
-              ...reducedMotion,
-            }}
-          >
-            {card.icon}
-          </Box>
-
-          {/* Text */}
-          <Box sx={{ minWidth: 0, pt: 0.25 }}>
-            <Typography
-              sx={{
-                fontWeight: 600,
-                fontSize: '1.05rem',
-                color: '#0F172A',
-                lineHeight: 1.3,
-                letterSpacing: '-0.01em',
-              }}
-            >
-              {card.title}
-            </Typography>
-            <Typography
-              sx={{
-                color: '#334155',
-                fontSize: '0.85rem',
-                mt: 0.5,
-                lineHeight: 1.55,
-                fontWeight: 450,
-              }}
-            >
-              {card.desc}
-            </Typography>
-          </Box>
-        </Stack>
-
-        {/* Arrow — Button-in-Button pattern */}
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
+        {/* Icon */}
         <Box
-          className="card-arrow-ring"
+          className="item-icon-box"
           aria-hidden="true"
           sx={{
-            width: 28,
-            height: 28,
-            minWidth: 28,
-            borderRadius: '50%',
-            background: 'rgba(0,0,0,0.04)',
+            width: 44,
+            height: 44,
+            minWidth: 44,
+            borderRadius: '12px',
+            background: `linear-gradient(135deg, ${accentA}14, ${accentB}0C)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            opacity: 0,
-            transform: 'translateX(-6px)',
-            transition: `all ${HOVER_DURATION} ${SPRING_EASE}`,
-            mt: 0.75,
-            flexShrink: 0,
+            transition: `transform ${HOVER_DURATION} ${SPRING_EASE}`,
+            '& .MuiSvgIcon-root': {
+              fontSize: 22,
+              color: '#0F172A',
+            },
             ...reducedMotion,
           }}
         >
-          <ArrowForward sx={{ fontSize: 14, color: '#334155' }} />
+          {card.icon}
         </Box>
-      </Box>
+
+        {/* Text */}
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            sx={{
+              fontWeight: 600,
+              fontSize: '0.95rem',
+              color: '#0F172A',
+              lineHeight: 1.3,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            {card.title}
+          </Typography>
+          <Typography
+            sx={{
+              color: '#64748B',
+              fontSize: '0.8rem',
+              mt: 0.25,
+              lineHeight: 1.4,
+              fontWeight: 400,
+            }}
+          >
+            {card.desc}
+          </Typography>
+        </Box>
+      </Stack>
+
+      {/* Arrow */}
+      <ArrowForward
+        className="item-arrow"
+        aria-hidden="true"
+        sx={{
+          fontSize: 16,
+          color: '#94A3B8',
+          opacity: 0,
+          transform: 'translateX(-4px)',
+          transition: `all ${HOVER_DURATION} ${SPRING_EASE}`,
+          flexShrink: 0,
+          ml: 1,
+          ...reducedMotion,
+        }}
+      />
     </Box>
   )
 }
