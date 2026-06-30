@@ -1,6 +1,32 @@
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const apiBaseUrl = configuredApiBaseUrl
 
+let csrfTokenCache: string | null = null
+
+async function getCsrfToken(): Promise<string> {
+  if (csrfTokenCache) return csrfTokenCache
+
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/method/workshop.api.auth.csrf_token`, {
+      credentials: 'include',
+    })
+    if (res.ok) {
+      const data = (await res.json()) as { message?: { csrf_token?: string } }
+      if (data.message?.csrf_token) {
+        csrfTokenCache = data.message.csrf_token
+        return csrfTokenCache
+      }
+    }
+  } catch {
+    // Fall through
+  }
+  return 'none'
+}
+
+function clearCsrfCache() {
+  csrfTokenCache = null
+}
+
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   body?: unknown
@@ -62,10 +88,14 @@ async function ensureOk(response: Response, fallbackMessage: string) {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const method = options.method ?? 'GET'
+  const csrfHeaders: Record<string, string> = method !== 'GET' ? { 'X-Frappe-CSRF-Token': await getCsrfToken() } : {}
+
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    method: options.method ?? 'GET',
+    method,
     credentials: 'include',
     headers: {
+      ...csrfHeaders,
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers ?? {}),
     },
@@ -107,18 +137,24 @@ async function uploadFile(input: { file: File; folder?: string; isPrivate?: bool
 
 export const workshopApi = {
   async login(username: string, password: string): Promise<AuthSessionDto> {
+    const csrfToken = await getCsrfToken()
     const body = new URLSearchParams()
     body.set('usr', username)
     body.set('pwd', password)
+    body.set('csrf_token', csrfToken)
 
     const response = await fetch(`${apiBaseUrl}/api/method/workshop.api.auth.login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Frappe-CSRF-Token': csrfToken,
       },
       body,
       credentials: 'include',
     })
+
+    // After login, refresh cached CSRF token (Frappe rotates it)
+    clearCsrfCache()
 
     await ensureOk(response, 'Login failed')
     return readMessage<AuthSessionDto>(response)
