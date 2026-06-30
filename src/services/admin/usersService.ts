@@ -1,21 +1,29 @@
 import type { CWUser, CWUserStatus } from '../../types/cw'
 import type { CreateUserInput, UpdateUserInput } from '../../store/cwStore'
-import { cwStore } from '../../store/cwStore'
+import { workshopApi } from '../workshopApi'
 
 export const usersService = {
-  list(): CWUser[] {
-    return cwStore.getState().users
+  async list(params: {
+    status?: CWUserStatus
+    shopId?: string
+    roleId?: string
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<CWUser[]> {
+    const response = await workshopApi.listUsers(params)
+    return response.data
   },
 
-  create(input: CreateUserInput): CWUser {
-    return cwStore.getState().createUser(input)
+  async create(input: CreateUserInput): Promise<CWUser> {
+    return workshopApi.createUser(input)
   },
 
-  update(userId: string, input: UpdateUserInput) {
-    cwStore.getState().updateUser(userId, input)
+  async update(userId: string, input: UpdateUserInput): Promise<CWUser> {
+    return workshopApi.updateUser(userId, input)
   },
 
-  setStatus(userId: string, status: CWUserStatus) {
-    cwStore.getState().setUserStatus(userId, status)
+  async setStatus(userId: string, status: CWUserStatus): Promise<CWUser> {
+    return workshopApi.setUserStatus(userId, status)
   },
 }

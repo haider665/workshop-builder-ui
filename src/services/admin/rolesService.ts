@@ -1,21 +1,22 @@
 import type { CWRole, CWRoleStatus } from '../../types/cw'
 import type { CreateRoleInput, UpdateRoleInput } from '../../store/cwStore'
-import { cwStore } from '../../store/cwStore'
+import { workshopApi } from '../workshopApi'
 
 export const rolesService = {
-  list(): CWRole[] {
-    return cwStore.getState().roles
+  async list(includeSystem = false): Promise<CWRole[]> {
+    const response = await workshopApi.listRoles(includeSystem)
+    return response.data
   },
 
-  create(input: CreateRoleInput): CWRole {
-    return cwStore.getState().createRole(input)
+  async create(input: CreateRoleInput): Promise<CWRole> {
+    return workshopApi.createRole(input)
   },
 
-  update(roleId: string, input: UpdateRoleInput) {
-    cwStore.getState().updateRole(roleId, input)
+  async update(roleId: string, input: UpdateRoleInput): Promise<CWRole> {
+    return workshopApi.updateRole(roleId, input)
   },
 
-  setStatus(roleId: string, status: CWRoleStatus) {
-    cwStore.getState().setRoleStatus(roleId, status)
+  async setStatus(roleId: string, status: CWRoleStatus): Promise<CWRole> {
+    return workshopApi.setRoleStatus(roleId, status)
   },
 }

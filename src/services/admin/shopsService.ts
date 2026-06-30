@@ -1,21 +1,22 @@
 import type { CWShop, CWShopStatus } from '../../types/cw'
 import type { CreateShopInput, UpdateShopInput } from '../../store/cwStore'
-import { cwStore } from '../../store/cwStore'
+import { workshopApi } from '../workshopApi'
 
 export const shopsService = {
-  list(): CWShop[] {
-    return cwStore.getState().shops
+  async list(): Promise<CWShop[]> {
+    const response = await workshopApi.listShops()
+    return response.data
   },
 
-  create(input: CreateShopInput): CWShop {
-    return cwStore.getState().createShop(input)
+  async create(input: CreateShopInput): Promise<CWShop> {
+    return workshopApi.createShop(input)
   },
 
-  update(shopId: string, input: UpdateShopInput) {
-    cwStore.getState().updateShop(shopId, input)
+  async update(shopId: string, input: UpdateShopInput): Promise<CWShop> {
+    return workshopApi.updateShop(shopId, input)
   },
 
-  setStatus(shopId: string, status: CWShopStatus) {
-    cwStore.getState().setShopStatus(shopId, status)
+  async setStatus(shopId: string, status: CWShopStatus): Promise<CWShop> {
+    return workshopApi.setShopStatus(shopId, status)
   },
 }

@@ -17,9 +17,10 @@ import {
   Typography,
 } from '@mui/material'
 import { Add, ArrowDownward, ArrowUpward, Delete } from '@mui/icons-material'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
+import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import type { CWTaskTemplate } from '../../types/cw'
 
@@ -67,7 +68,6 @@ export function NewJobPage() {
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const tasks = useCwStore((s) => s.tasks)
-  const createJobWithTasks = useCwStore((s) => s.createJobWithTasks)
 
   const pendingVehicleId = params.get('pendingVehicleId') ?? undefined
   const appointmentIdParam = params.get('appointmentId') ?? undefined
@@ -81,7 +81,13 @@ export function NewJobPage() {
     return appointments.find((a) => a.id === id)
   }, [appointments, appointmentIdParam, pendingVehicle?.appointmentId])
 
-  const [registrationNo, setRegistrationNo] = useState('')
+  const appointmentVehicle = useMemo(() => {
+    if (!linkedAppointment) return undefined
+    return vehicles.find((v) => v.id === linkedAppointment.vehicleId)
+  }, [linkedAppointment, vehicles])
+
+  const initialRegistrationNo = pendingVehicle?.registrationNo ?? appointmentVehicle?.registrationNo ?? ''
+  const [registrationNo, setRegistrationNo] = useState(initialRegistrationNo)
   const [shopId, setShopId] = useState('')
   const [templateId, setTemplateId] = useState('')
   const [draftTasks, setDraftTasks] = useState<DraftJobTask[]>([])
@@ -103,7 +109,7 @@ export function NewJobPage() {
 
   const activeTemplatesForShop = useMemo(() => {
     return templates
-      .filter((t) => t.status === 'Active' && (!!shopId ? t.shopId === shopId : true))
+      .filter((t) => t.status === 'Active' && (shopId ? t.shopId === shopId : true))
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [templates, shopId])
@@ -226,22 +232,6 @@ export function NewJobPage() {
       .sort((a, b) => a.fullName.localeCompare(b.fullName))
   }
 
-  useEffect(() => {
-    if (pendingVehicle?.registrationNo) setRegistrationNo(pendingVehicle.registrationNo)
-  }, [pendingVehicle])
-
-  // Pre-fill regNo from appointmentId param
-  const appointmentVehicle = useMemo(() => {
-    if (!linkedAppointment) return undefined
-    return vehicles.find((v) => v.id === linkedAppointment.vehicleId)
-  }, [linkedAppointment, vehicles])
-
-  useEffect(() => {
-    if (appointmentIdParam && appointmentVehicle?.registrationNo) {
-      setRegistrationNo(appointmentVehicle.registrationNo)
-    }
-  }, [appointmentIdParam, appointmentVehicle])
-
   function addTask() {
     const selectedTemplate = templates.find((t) => t.id === templateId)
     if (!selectedTemplate) return
@@ -301,7 +291,7 @@ export function NewJobPage() {
     })
   }
 
-  function submit() {
+  async function submit() {
     try {
       setError(null)
 
@@ -338,13 +328,13 @@ export function NewJobPage() {
         }
       })
 
-      const job = createJobWithTasks({
+      const job = await workshopApi.createJobWithTasks({
         registrationNo,
         pendingVehicleId,
         appointmentId: appointmentIdParam,
         tasks: tasksInput,
       })
-      navigate(`/jc/jobs/${job.id}`)
+      navigate(`/jc/jobs/${job.job.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -791,11 +781,7 @@ export function NewJobPage() {
             <Button variant="outlined" onClick={() => navigate('/jc/pending-vehicles')}>
               Back
             </Button>
-            <Button
-              variant="contained"
-              onClick={submit}
-              disabled={!registrationNo.trim() || !draftTasks.length}
-            >
+            <Button variant="contained" onClick={() => void submit()} disabled={!registrationNo.trim() || !draftTasks.length}>
               Create Job
             </Button>
           </Stack>

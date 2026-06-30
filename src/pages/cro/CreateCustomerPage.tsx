@@ -18,6 +18,7 @@ import {
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
+import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import type { CWCustomerType } from '../../types/cw'
 
@@ -29,7 +30,7 @@ type ParentCompanyMode = 'none' | 'existing' | 'new'
 
 export function CreateCustomerPage() {
   const navigate = useNavigate()
-  const createCustomer = useCwStore((s) => s.createCustomer)
+  const [saving, setSaving] = useState(false)
   const vehicles = useCwStore((s) => s.vehicles)
 
   const [customerType, setCustomerType] = useState<CWCustomerType>('Individual')
@@ -76,13 +77,14 @@ export function CreateCustomerPage() {
   const [transportManagerPhone, setTransportManagerPhone] = useState('')
   const [transportManagerEmail, setTransportManagerEmail] = useState('')
 
-  function handleSubmit() {
+  async function handleSubmit() {
     try {
       setError(null)
+      setSaving(true)
       if (!fullName.trim()) throw new Error('Name is required')
       if (!phone.trim()) throw new Error('Phone number is required')
 
-      createCustomer({
+      await workshopApi.createCustomer({
         fullName: fullName.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
@@ -118,6 +120,8 @@ export function CreateCustomerPage() {
       navigate('/cre/customers')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -364,8 +368,8 @@ export function CreateCustomerPage() {
           <Button variant="outlined" size="large" onClick={() => navigate('/cre/customers')} sx={{ fontWeight: 700 }}>
             Cancel
           </Button>
-          <Button variant="contained" size="large" onClick={handleSubmit} sx={{ fontWeight: 900, px: 4 }}>
-            Add Customer
+          <Button variant="contained" size="large" onClick={() => void handleSubmit()} sx={{ fontWeight: 900, px: 4 }} disabled={saving}>
+            {saving ? 'Adding…' : 'Add Customer'}
           </Button>
         </Stack>
       </Stack>

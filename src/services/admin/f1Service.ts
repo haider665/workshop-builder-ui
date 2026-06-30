@@ -1,12 +1,12 @@
 import type { CWF1Config } from '../../types/cw'
-import { cwStore } from '../../store/cwStore'
+import { workshopApi } from '../workshopApi'
 
 export const f1Service = {
-  getConfig(): CWF1Config {
-    return cwStore.getState().f1Config
+  async getConfig(): Promise<CWF1Config> {
+    return workshopApi.getF1Config()
   },
 
-  setReturnWindowDays(days: number) {
-    cwStore.getState().setF1ReturnWindowDays(days)
+  async setReturnWindowDays(days: number): Promise<CWF1Config> {
+    return workshopApi.setF1Config({ returnWindowDays: days })
   },
 }

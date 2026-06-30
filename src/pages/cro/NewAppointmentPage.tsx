@@ -25,6 +25,7 @@ import { Delete } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
+import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import type { CWConcern, CWService } from '../../types/cw'
 
@@ -70,14 +71,15 @@ export function NewAppointmentPage() {
   const concernCategories = useCwStore((s) => s.concernCategories)
   const services = useCwStore((s) => s.services)
   const appointments = useCwStore((s) => s.appointments)
-  const createAppointment = useCwStore((s) => s.createAppointment)
   const users = useCwStore((s) => s.users)
   const roles = useCwStore((s) => s.roles)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
-  const resolvePendingVehicle = useCwStore((s) => s.resolvePendingVehicle)
   const shops = useCwStore((s) => s.shops)
 
-  const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
+  const saRoleId = useMemo(
+    () => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id,
+    [roles],
+  )
   const saUsers = useMemo(
     () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
     [users, saRoleId],
@@ -218,7 +220,7 @@ export function NewAppointmentPage() {
     setServiceItems((prev) => prev.filter((i) => i.id !== id))
   }
 
-  function submit() {
+  async function submit() {
     try {
       setError(null)
       if (!selectedVehicle) throw new Error('Select a vehicle')
@@ -241,7 +243,7 @@ export function NewAppointmentPage() {
         addedBySA: false as const,
       }))
 
-      const appt = createAppointment({
+      const appt = await workshopApi.createAppointment({
         customerId: selectedCustomer.id,
         vehicleId: selectedVehicle.id,
         slotDate: slotDate || undefined,
@@ -274,12 +276,11 @@ export function NewAppointmentPage() {
       // Resolve pending vehicle if linked
       if (gateEntryId) {
         try {
-          resolvePendingVehicle(gateEntryId, {
+          await workshopApi.resolvePendingVehicle(gateEntryId, {
             customerId: selectedCustomer.id,
             vehicleId: selectedVehicle.id,
-            appointmentId: appt.id,
           })
-        } catch (_) {
+        } catch {
           // Non-fatal: gate entry may not match perfectly
         }
       }
@@ -794,7 +795,7 @@ export function NewAppointmentPage() {
           <Button variant="outlined" onClick={() => navigate('/cre/appointments')}>
             Cancel
           </Button>
-          <Button variant="contained" onClick={submit} disabled={!selectedVehicle}>
+          <Button variant="contained" onClick={() => void submit()} disabled={!selectedVehicle}>
             Create Appointment
           </Button>
         </Stack>

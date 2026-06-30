@@ -176,7 +176,10 @@ export function AppointmentDetailPage() {
   const [selectedSAUserId, setSelectedSAUserId] = useState('')
 
   // SA user list
-  const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
+  const saRoleId = useMemo(
+    () => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id,
+    [roles],
+  )
   const activeSAUsers = useMemo(
     () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
     [users, saRoleId],

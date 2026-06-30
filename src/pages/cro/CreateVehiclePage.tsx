@@ -13,6 +13,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../../components/Page'
+import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import type { CWVehicleCategory, CWVehicleSize } from '../../types/cw'
 
@@ -47,10 +48,10 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
 export function CreateVehiclePage() {
   const navigate = useNavigate()
   const customers = useCwStore((s) => s.customers)
-  const createVehicle = useCwStore((s) => s.createVehicle)
 
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   // General Information
   const [make, setMake] = useState('')
@@ -88,15 +89,16 @@ export function CreateVehiclePage() {
     [customers],
   )
 
-  function submit() {
+  async function submit() {
     try {
       setError(null)
+      setSaving(true)
       if (!customerId) throw new Error('Select a customer')
       const registrationNo = [regCity, regRegion, regClass, regSeries, regNumber].filter(Boolean).join('-')
       if (!registrationNo) throw new Error('Registration number is required')
       if (!vehicleSize) throw new Error('Vehicle size is required')
 
-      const created = createVehicle({
+      const created = await workshopApi.createVehicle({
         customerId,
         registrationNo,
         make: make.trim() || undefined,
@@ -119,6 +121,8 @@ export function CreateVehiclePage() {
       setTimeout(() => navigate(`/cre/vehicles/${created.id}`), 800)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -280,8 +284,8 @@ export function CreateVehiclePage() {
           <Button variant="text" size="large" onClick={() => navigate('/cre/vehicles')} sx={{ fontWeight: 700 }}>
             Cancel
           </Button>
-          <Button variant="contained" size="large" onClick={submit} sx={{ fontWeight: 700, px: 4 }}>
-            Add Vehicle
+          <Button variant="contained" size="large" onClick={() => void submit()} sx={{ fontWeight: 700, px: 4 }} disabled={saving}>
+            {saving ? 'Adding…' : 'Add Vehicle'}
           </Button>
         </Stack>
       </Stack>

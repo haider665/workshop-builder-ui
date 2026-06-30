@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { workshopApi } from '../services/workshopApi'
 import type {
   CWF1Config,
   CWAppointment,
@@ -52,6 +53,8 @@ import type {
   CWTeam,
   CWTeamStatus,
   CWTimelineEvent,
+  CWTechnicianAssignment,
+  CWQCItemStatus,
   CWUser,
   CWUserStatus,
   CWVehicle,
@@ -63,6 +66,12 @@ import type {
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function syncBackend(promise: Promise<unknown>, label: string) {
+  void promise.catch((error) => {
+    console.error(`Failed to sync ${label}`, error)
+  })
 }
 
 function newId() {
@@ -729,6 +738,7 @@ type CWState = {
 
   // Bay availability check
   checkBayAvailability: (bayId: string, startTime: string, endTime: string, excludeAppointmentId?: string) => boolean
+  hydrateFromBackend: () => Promise<void>
 
   // Call records (CRE CDR)
   callRecords: CWCallRecord[]
@@ -1376,6 +1386,8 @@ const DEMO_SEED = seedDemoData()
 import { buildConcernsSeed, buildServicesSeed } from './seedBuilder'
 
 function seedConcernsData(autoShopId: string, _paintShopId: string, _bodyShopId: string): { concernCategories: CWConcernCategory[]; concerns: CWConcern[] } {
+  void _paintShopId
+  void _bodyShopId
   return buildConcernsSeed(autoShopId)
 }
 
@@ -1438,6 +1450,84 @@ export const useCwStore = create<CWState>((set, get) => ({
   callRecords: [],
   reminders: [],
 
+  hydrateFromBackend: async () => {
+    const fetchAll = async <T,>(
+      loader: (page: number, pageSize: number) => Promise<{ data: T[]; meta: { total: number } }>,
+    ) => {
+      const pageSize = 100
+      const first = await loader(1, pageSize)
+      const total = first.meta.total ?? first.data.length
+      if (first.data.length >= total) return first.data
+      const pages = [first.data]
+      let page = 2
+      while ((page - 1) * pageSize < total) {
+        const next = await loader(page, pageSize)
+        pages.push(next.data)
+        if (!next.data.length) break
+        page += 1
+      }
+      return pages.flat()
+    }
+
+    const [
+      shops,
+      bays,
+      roles,
+      users,
+      customers,
+      vehicles,
+      appointments,
+      concernCategories,
+      concerns,
+      services,
+      teams,
+      taskTemplates,
+      pendingVehicles,
+      jobs,
+      tasks,
+      callRecords,
+      reminders,
+    ] = await Promise.all([
+      workshopApi.listShops(),
+      fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize })),
+      workshopApi.listRoles(false),
+      fetchAll((page, pageSize) => workshopApi.listUsers({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listCustomers({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listVehicles({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listAppointments({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listConcernCategories({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listConcerns({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listServices({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTeams({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTaskTemplates({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listPendingVehicles({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listJobs({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTasks({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listCallRecords({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listReminders({ page, pageSize })),
+    ])
+
+    set({
+      shops: shops.data,
+      bays,
+      roles: roles.data,
+      users,
+      customers,
+      vehicles,
+      appointments,
+      concernCategories,
+      concerns,
+      services,
+      teams,
+      taskTemplates,
+      pendingVehicles,
+      jobs,
+      tasks,
+      callRecords,
+      reminders,
+    })
+  },
+
   createShop: (input) => {
     const ts = nowIso()
     const shop: CWShop = {
@@ -1468,6 +1558,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : s,
       ),
     })
+    syncBackend(workshopApi.updateShop(shopId, input), 'update shop')
   },
 
   setShopStatus: (shopId, status) => {
@@ -1611,6 +1702,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ users: [user, ...get().users] })
+    syncBackend(workshopApi.createUser(input), 'create user')
     return user
   },
 
@@ -1632,6 +1724,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : u,
       ),
     })
+    syncBackend(workshopApi.updateUser(userId, input), 'update user')
   },
 
   setUserStatus: (userId, status) => {
@@ -1646,6 +1739,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : u,
       ),
     })
+    syncBackend(workshopApi.setUserStatus(userId, status), 'user status')
   },
 
   createCustomer: (input) => {
@@ -1684,6 +1778,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ customers: [customer, ...customers] })
+    syncBackend(workshopApi.createCustomer(input), 'create customer')
     return customer
   },
 
@@ -1713,6 +1808,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : c,
       ),
     })
+    syncBackend(workshopApi.updateCustomer(customerId, input), 'update customer')
   },
 
   createVehicle: (input) => {
@@ -1761,6 +1857,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ vehicles: [vehicle, ...vehicles] })
+    syncBackend(workshopApi.createVehicle(input), 'create vehicle')
     return vehicle
   },
 
@@ -1825,6 +1922,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : v,
       ),
     })
+    syncBackend(workshopApi.updateVehicle(vehicleId, input), 'update vehicle')
   },
 
   createAppointment: (input) => {
@@ -2032,6 +2130,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ appointments: [appt, ...get().appointments] })
+    syncBackend(workshopApi.createAppointment(input), 'create appointment')
     return appt
   },
 
@@ -2066,6 +2165,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.updateAppointment(appointmentId, input), 'update appointment')
   },
 
   setAppointmentStatus: (appointmentId, status) => {
@@ -2080,6 +2180,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.transitionAppointment(appointmentId, status), 'appointment status')
   },
 
   setAppointmentGateEntry: (appointmentId, gateEntryId) => {
@@ -2094,6 +2195,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.updateAppointment(appointmentId, { gateEntryId }), 'appointment gate entry')
   },
 
   addAppointmentConcern: (input) => {
@@ -2114,6 +2216,13 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.addAppointmentConcern(input.appointmentId, {
+        concernId: input.concernId,
+        remark: input.remark,
+      }),
+      'appointment concern add',
+    )
     return item
   },
 
@@ -2125,6 +2234,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.removeAppointmentConcern(appointmentId, itemId), 'appointment concern remove')
   },
 
   updateAppointmentConcernRemark: (appointmentId, itemId, remark) => {
@@ -2141,6 +2251,10 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.updateAppointmentConcern(appointmentId, itemId, { remark: remark.trim() }),
+      'appointment concern remark',
+    )
   },
 
   updateConcernItemServices: (appointmentId, itemId, serviceIds) => {
@@ -2205,6 +2319,10 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(
+      workshopApi.updateAppointmentConcern(appointmentId, itemId, { serviceIds }),
+      'appointment concern services',
+    )
   },
 
   updateConcernDiagnosisRemark: (appointmentId, itemId, remark) => {
@@ -2221,6 +2339,10 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.updateAppointmentConcern(appointmentId, itemId, { remark }),
+      'appointment diagnosis remark',
+    )
   },
 
   addAppointmentService: (input) => {
@@ -2270,6 +2392,14 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.addAppointmentService(input.appointmentId, {
+        serviceId: input.serviceId,
+        remark: input.remark,
+        addedBySA: input.addedBySA,
+      }),
+      'appointment service add',
+    )
     return item
   },
 
@@ -2281,6 +2411,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.removeAppointmentService(appointmentId, itemId), 'appointment service remove')
   },
 
   updateAppointmentService: (appointmentId, itemId, input) => {
@@ -2299,6 +2430,14 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.updateAppointmentService(appointmentId, itemId, {
+        remark: input.remark,
+        price: input.price,
+        addedBySA: input.addedBySA,
+      }),
+      'appointment service update',
+    )
   },
 
   addWhatsappLog: (input) => {
@@ -2316,6 +2455,14 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.sendWhatsapp({
+        appointmentId: input.appointmentId,
+        direction: input.direction,
+        message: input.message,
+      }),
+      'whatsapp log',
+    )
     return log
   },
 
@@ -2333,6 +2480,10 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.setCustomerApproval(input.appointmentId, { status: input.status, note: input.note }),
+      'customer approval',
+    )
   },
 
   // ─── New flow: JC assigns SE to concerns/services, SE assigns technicians ────
@@ -2360,6 +2511,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignConcernDiagnosis(input), 'assign concern diagnosis')
   },
 
   assignConcernTechnicians: (input) => {
@@ -2384,6 +2536,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignConcernTechnicians(input), 'assign concern technicians')
   },
 
   setConcernWorkStatus: (input) => {
@@ -2402,6 +2555,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.setConcernWorkStatus(input), 'concern work status')
   },
 
   assignServiceSE: (input) => {
@@ -2427,6 +2581,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignServiceSE(input), 'assign service SE')
   },
 
   assignServiceTechnicians: (input) => {
@@ -2451,6 +2606,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignServiceTechnicians(input), 'assign service technicians')
   },
 
   // ─── Stage-level scheduling (JC assigns per stage) ─────────────────────────
@@ -2495,6 +2651,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignStageSchedule(input), 'stage schedule')
   },
 
   setStageWorkStatus: (input: {
@@ -2533,6 +2690,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.setStageWorkStatus(input), 'stage work status')
   },
 
   assignStageTechnicians: (input: {
@@ -2569,6 +2727,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignStageTechnicians(input), 'assign stage technicians')
   },
 
   submitInspection: (input) => {
@@ -2588,6 +2747,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.submitAppointmentInspection(input), 'submit inspection')
   },
 
   pushTimeline: (appointmentId, event) => {
@@ -2614,8 +2774,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: { id: string }[]) =>
-          ta.map((t: any) =>
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) =>
             t.id === input.techAssignmentId
               ? { ...t, status: 'In Progress' as const, startedAt: t.startedAt ?? now }
               : t,
@@ -2636,6 +2796,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.startTechnicianTimer(input), 'start technician timer')
   },
 
   pauseTechnicianTimer: (input) => {
@@ -2643,8 +2804,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) =>
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) =>
             t.id === input.techAssignmentId
               ? { ...t, status: 'Paused' as const, pausedAt: now }
               : t,
@@ -2665,6 +2826,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.pauseTechnicianTimer(input), 'pause technician timer')
   },
 
   resumeTechnicianTimer: (input) => {
@@ -2672,8 +2834,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) => {
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) => {
             if (t.id !== input.techAssignmentId) return t
             const pausedMs = t.pausedAt ? Date.now() - new Date(t.pausedAt).getTime() : 0
             return { ...t, status: 'In Progress' as const, pausedAt: undefined, totalPausedMs: (t.totalPausedMs || 0) + pausedMs }
@@ -2694,6 +2856,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.resumeTechnicianTimer(input), 'resume technician timer')
   },
 
   completeTechnicianTimer: (input) => {
@@ -2701,8 +2864,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) => {
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) => {
             if (t.id !== input.techAssignmentId) return t
             // If paused, accumulate final pause duration
             const pausedMs = t.pausedAt ? Date.now() - new Date(t.pausedAt).getTime() : 0
@@ -2717,9 +2880,9 @@ export const useCwStore = create<CWState>((set, get) => ({
           })
 
         // Auto-mark item as Completed if all technicians are done
-        const markItemComplete = (item: any) => {
+        const markItemComplete = <T extends { technicianAssignments: CWTechnicianAssignment[]; workStatus?: CWConcernWorkStatus | CWServiceWorkStatus | CWStageWorkStatus }>(item: T) => {
           const updated = mapTech(item.technicianAssignments)
-          const allDone = updated.every((t: any) => t.status === 'Completed')
+          const allDone = updated.every((t) => t.status === 'Completed')
           return { ...item, technicianAssignments: updated, workStatus: allDone ? 'Completed' as const : item.workStatus }
         }
 
@@ -2742,6 +2905,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.completeTechnicianTimer(input), 'complete technician timer')
   },
 
   // ─── V4: Phase completion actions ─────────────────────────────────────────
@@ -2762,6 +2926,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.submitInspectionComplete({ appointmentId: input.appointmentId, actorName: input.actorName }), 'diagnosis complete')
   },
 
   submitServiceComplete: (input) => {
@@ -2780,6 +2945,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.submitServiceComplete({ appointmentId: input.appointmentId, actorName: input.actorName }), 'service complete')
   },
 
   // ─── QC actions ──────────────────────────────────────────────────────────────
@@ -2804,6 +2970,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignQc(input.appointmentId, input.qcUserId), 'assign qc')
   },
 
   qcApprove: (input) => {
@@ -2813,7 +2980,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         // QC only verifies services, not concerns
         const serviceItems = a.serviceItems.map((s) => {
           const v = input.items.find((i) => i.itemId === s.id && i.itemType === 'service')
-          return v ? { ...s, qcStatus: v.status as any, qcNote: v.note } : s
+          return v ? { ...s, qcStatus: v.status as CWQCItemStatus, qcNote: v.note } : s
         })
         return {
           ...a,
@@ -2827,6 +2994,12 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(
+      workshopApi.qcApprove(input.appointmentId, {
+        items: input.items as Array<{ itemId: string; itemType: string; status: string; note?: string }>,
+      }),
+      'qc approve',
+    )
   },
 
   qcReject: (input) => {
@@ -2840,7 +3013,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           if (!v) return s
           return {
             ...s,
-            qcStatus: v.status as any,
+            qcStatus: v.status as CWQCItemStatus,
             qcNote: v.note,
             ...(v.status === 'Failed' ? { workStatus: 'Pending' as const, technicianAssignments: [] } : {}),
           }
@@ -2864,6 +3037,13 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(
+      workshopApi.qcReject(input.appointmentId, {
+        rejectionNote: input.rejectionNote,
+        items: input.items as Array<{ itemId: string; itemType: string; status: string; note?: string }>,
+      }),
+      'qc reject',
+    )
   },
 
   assignSA: (appointmentId, saUserId) => {
@@ -2888,6 +3068,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignAppointmentSa(appointmentId, saUserId), 'assign sa')
   },
 
   confirmPayment: (input) => {
@@ -2909,6 +3090,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.confirmPayment(input.appointmentId, { actorName: input.actorName }), 'confirm payment')
   },
 
   releaseVehicle: (input) => {
@@ -2929,6 +3111,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.releaseVehicle(input.appointmentId), 'release vehicle')
   },
 
   updateServiceItemAssignment: (input) => {
@@ -2952,6 +3135,16 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    if (input.workStatus !== undefined) {
+      syncBackend(
+        workshopApi.setServiceWorkStatus({
+          appointmentId: input.appointmentId,
+          serviceItemId: input.serviceItemId,
+          status: input.workStatus,
+        }),
+        'service work status',
+      )
+    }
   },
 
   // ─── Concern Admin ──────────────────────────────────────────────────────────
@@ -2963,6 +3156,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     const ts = nowIso()
     const cat: CWConcernCategory = { id: newId(), name, shopId: input.shopId, status: 'Active', createdAt: ts, updatedAt: ts }
     set({ concernCategories: [cat, ...get().concernCategories] })
+    syncBackend(workshopApi.createConcernCategory(input), 'create concern category')
     return cat
   },
 
@@ -2974,6 +3168,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         c.id === id ? { ...c, name, shopId: input.shopId, status: input.status, updatedAt: nowIso() } : c,
       ),
     })
+    syncBackend(workshopApi.updateConcernCategory(id, input), 'update concern category')
   },
 
   createConcern: (input) => {
@@ -2993,6 +3188,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ concerns: [concern, ...get().concerns] })
+    syncBackend(workshopApi.createConcern(input), 'create concern')
     return concern
   },
 
@@ -3004,6 +3200,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         c.id === id ? { ...c, name, code: input.code !== undefined ? input.code : c.code, status: input.status, updatedAt: nowIso() } : c,
       ),
     })
+    syncBackend(workshopApi.updateConcern(id, input), 'update concern')
   },
 
   // ─── Service Admin ──────────────────────────────────────────────────────────
@@ -3028,6 +3225,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ services: [svc, ...get().services] })
+    syncBackend(workshopApi.createService(input), 'create service')
     return svc
   },
 
@@ -3054,6 +3252,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : s,
       ),
     })
+    syncBackend(workshopApi.updateService(id, input), 'update service')
   },
 
   setServiceStatus: (id, status) => {
@@ -3062,6 +3261,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         s.id === id ? { ...s, status, updatedAt: nowIso() } : s,
       ),
     })
+    syncBackend(workshopApi.setServiceStatus(id, status), 'service status')
   },
 
   createTaskTemplate: (input) => {
@@ -3082,6 +3282,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ taskTemplates: [template, ...get().taskTemplates] })
+    syncBackend(workshopApi.createTaskTemplate(input), 'create task template')
     return template
   },
 
@@ -3104,6 +3305,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.updateTaskTemplate(templateId, input), 'update task template')
   },
 
   setTaskTemplateStatus: (templateId, status) => {
@@ -3118,6 +3320,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.setTaskTemplateStatus(templateId, status), 'task template status')
   },
 
   addTaskField: (templateId, input) => {
@@ -3361,6 +3564,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.overrideTaskDependency(taskId, normalized), 'task dependency override')
   },
 
   setTaskSourceConcern: (taskId, concernId) => {
@@ -3371,6 +3575,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.setTaskSourceConcern(taskId, concernId ?? null), 'task source concern')
   },
 
   setTaskFieldValue: (taskId, fieldId, value) => {
@@ -3467,6 +3672,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ pendingVehicles: [pending, ...get().pendingVehicles] })
+    syncBackend(workshopApi.guardEntry({ registrationNo, appointmentId: input.appointmentId }), 'pending vehicle entry')
     return pending
   },
 
@@ -3482,6 +3688,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : p,
       ),
     })
+    syncBackend(workshopApi.setPendingVehicleStatus(pendingVehicleId, status), 'pending vehicle status')
   },
 
   resolvePendingVehicle: (pendingVehicleId, input) => {
@@ -3521,6 +3728,13 @@ export const useCwStore = create<CWState>((set, get) => ({
           : p,
       ),
     })
+    syncBackend(
+      workshopApi.resolvePendingVehicle(pendingVehicleId, {
+        customerId: input.customerId,
+        vehicleId: input.vehicleId,
+      }),
+      'resolve pending vehicle',
+    )
   },
 
   createJob: (input) => {
@@ -3600,6 +3814,13 @@ export const useCwStore = create<CWState>((set, get) => ({
           )
         : get().appointments,
     })
+    syncBackend(
+      workshopApi.createJob({
+        registrationNo,
+        appointmentId,
+      }),
+      'create job',
+    )
 
     return job
   },
@@ -3683,6 +3904,15 @@ export const useCwStore = create<CWState>((set, get) => ({
           )
         : get().appointments,
     })
+    syncBackend(
+      workshopApi.createJobWithTasks({
+        registrationNo,
+        pendingVehicleId: input.pendingVehicleId,
+        appointmentId,
+        tasks: input.tasks,
+      }),
+      'create job with tasks',
+    )
 
     return job
   },
@@ -3697,8 +3927,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : j,
-      ),
+        ),
     })
+    syncBackend(workshopApi.transitionJob(jobId, status), 'job status')
   },
 
   setJobTestDrive: (jobId, input) => {
@@ -3725,8 +3956,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : j,
-      ),
+        ),
     })
+    syncBackend(workshopApi.initiateTestDrive(jobId, input), 'job test drive')
   },
 
   moveJobTask: (jobId, taskId, direction) => {
@@ -3753,8 +3985,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : j,
-      ),
+        ),
     })
+    syncBackend(workshopApi.moveJobTask(jobId, taskId, direction), 'move job task')
   },
 
   // ── Team actions ──────────────────────────────────────────────────────────────
@@ -3771,6 +4004,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ teams: [team, ...get().teams] })
+    syncBackend(workshopApi.createTeam(input), 'create team')
     return team
   },
 
@@ -3787,8 +4021,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : t,
-      ),
+        ),
     })
+    syncBackend(workshopApi.updateTeam(id, input), 'update team')
   },
 
   // ── Part actions ─────────────────────────────────────────────────────────────
@@ -3918,6 +4153,7 @@ export const useCwStore = create<CWState>((set, get) => ({
   addCallRecord: (input) => {
     const rec: CWCallRecord = { ...input, id: newId() }
     set({ callRecords: [rec, ...get().callRecords] })
+    syncBackend(workshopApi.createCallRecord(input), 'call record')
     return rec
   },
 
@@ -3925,6 +4161,7 @@ export const useCwStore = create<CWState>((set, get) => ({
   createReminder: (input) => {
     const rem: CWReminder = { ...input, id: newId(), createdAt: nowIso() }
     set({ reminders: [rem, ...get().reminders] })
+    syncBackend(workshopApi.createReminder(input), 'reminder')
     return rem
   },
 
@@ -3934,6 +4171,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         r.id === id ? { ...r, status: 'Sent' as const, sentAt: nowIso() } : r,
       ),
     })
+    syncBackend(workshopApi.markReminderSent(id), 'reminder sent')
   },
 
   cancelReminder: (id) => {
@@ -3942,6 +4180,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         r.id === id ? { ...r, status: 'Cancelled' as const } : r,
       ),
     })
+    syncBackend(workshopApi.cancelReminder(id), 'reminder cancel')
   },
 }))
 

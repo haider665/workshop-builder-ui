@@ -1,21 +1,28 @@
 import type { CWBay, CWBayStatus } from '../../types/cw'
 import type { CreateBayInput, UpdateBayInput } from '../../store/cwStore'
-import { cwStore } from '../../store/cwStore'
+import { workshopApi } from '../workshopApi'
 
 export const baysService = {
-  list(): CWBay[] {
-    return cwStore.getState().bays
+  async list(params: {
+    shopId?: string
+    status?: CWBayStatus
+    search?: string
+    page?: number
+    pageSize?: number
+  } = {}): Promise<CWBay[]> {
+    const response = await workshopApi.listBays(params)
+    return response.data
   },
 
-  create(input: CreateBayInput): CWBay {
-    return cwStore.getState().createBay(input)
+  async create(input: CreateBayInput): Promise<CWBay> {
+    return workshopApi.createBay(input)
   },
 
-  update(bayId: string, input: UpdateBayInput) {
-    cwStore.getState().updateBay(bayId, input)
+  async update(bayId: string, input: UpdateBayInput): Promise<CWBay> {
+    return workshopApi.updateBay(bayId, input)
   },
 
-  setStatus(bayId: string, status: CWBayStatus) {
-    cwStore.getState().setBayStatus(bayId, status)
+  async setStatus(bayId: string, status: CWBayStatus): Promise<CWBay> {
+    return workshopApi.setBayStatus(bayId, status)
   },
 }

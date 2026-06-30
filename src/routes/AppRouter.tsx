@@ -153,7 +153,6 @@ export function AppRouter() {
                   'Technician',
                   'Service Advisor',
                   'Service Engineer',
-                  'Custom Role',
                   'Admin',
                   'Job Creation',
                 ]}
