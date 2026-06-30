@@ -1,5 +1,5 @@
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-const apiBaseUrl = import.meta.env.DEV ? '' : configuredApiBaseUrl
+const apiBaseUrl = configuredApiBaseUrl
 
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
