@@ -116,6 +116,7 @@ function buildQuery(params: Record<string, QueryValue>) {
 }
 
 async function uploadFile(input: { file: File; folder?: string; isPrivate?: boolean }): Promise<{ fileUrl: string; fileName: string; name: string }> {
+  const csrfToken = await getCsrfToken()
   const form = new FormData()
   form.set('file', input.file)
   if (input.folder) form.set('folder', input.folder)
@@ -124,6 +125,9 @@ async function uploadFile(input: { file: File; folder?: string; isPrivate?: bool
   const response = await fetch(`${apiBaseUrl}/api/method/upload_file`, {
     method: 'POST',
     credentials: 'include',
+    headers: {
+      'X-Frappe-CSRF-Token': csrfToken,
+    },
     body: form,
   })
 
@@ -172,13 +176,18 @@ export const workshopApi = {
   },
 
   async logout(): Promise<void> {
+    const csrfToken = await getCsrfToken()
     const response = await fetch(`${apiBaseUrl}/api/method/workshop.api.auth.logout`, {
       method: 'POST',
       credentials: 'include',
+      headers: {
+        'X-Frappe-CSRF-Token': csrfToken,
+      },
     })
 
     if (response.status === 401) return
     await ensureOk(response, 'Logout failed')
+    clearCsrfCache()
   },
 
   async uploadFile(file: File, opts: { folder?: string; isPrivate?: boolean } = {}) {
