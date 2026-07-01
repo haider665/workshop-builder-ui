@@ -119,7 +119,6 @@ export function UsersPage() {
     })
   }, [users])
 
-  const hasShops = shops.length > 0
   const activeRoles = roles.filter((r) => r.status === 'Active')
 
   function preferredRoleLabel(roleIds: string[]) {
