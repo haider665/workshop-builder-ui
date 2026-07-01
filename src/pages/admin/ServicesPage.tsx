@@ -49,7 +49,7 @@ const btnSx = {
 
 /* ─────────────────────── Component ─────────────────────────── */
 
-export function ServicesPage() {
+  export function ServicesPage() {
   const [shops, setShops] = useState<CWShop[]>([])
   const [services, setServices] = useState<CWService[]>([])
   const [loading, setLoading] = useState(true)
@@ -297,29 +297,18 @@ export function ServicesPage() {
 
   /* ── Shared form fields ── */
 
-  function ServiceFormFields({
-    codeVal, setCodeVal,
-    categoryVal, setCategoryVal,
-    sectionVal, setSectionVal,
-    descriptionVal, setDescriptionVal,
-    vehicleSizeVal, setVehicleSizeVal,
-    severityVal, setSeverityVal,
-    processTimeVal, setProcessTimeVal,
-    ratePerHrVal, setRatePerHrVal,
-    priceVal, setPriceVal,
-    shopIdVal, setShopIdVal,
-  }: {
-    codeVal: string; setCodeVal: (v: string) => void
-    categoryVal: string; setCategoryVal: (v: string) => void
-    sectionVal: string; setSectionVal: (v: string) => void
-    descriptionVal: string; setDescriptionVal: (v: string) => void
-    vehicleSizeVal: CWVehicleSize | ''; setVehicleSizeVal: (v: CWVehicleSize | '') => void
-    severityVal: CWServiceSeverity | ''; setSeverityVal: (v: CWServiceSeverity | '') => void
-    processTimeVal: string; setProcessTimeVal: (v: string) => void
-    ratePerHrVal: string; setRatePerHrVal: (v: string) => void
-    priceVal: string; setPriceVal: (v: string) => void
-    shopIdVal: string; setShopIdVal: (v: string) => void
-  }) {
+  function renderServiceFormFields(
+    codeVal: string, setCodeVal: (v: string) => void,
+    categoryVal: string, setCategoryVal: (v: string) => void,
+    sectionVal: string, setSectionVal: (v: string) => void,
+    descriptionVal: string, setDescriptionVal: (v: string) => void,
+    vehicleSizeVal: CWVehicleSize | '', setVehicleSizeVal: (v: CWVehicleSize | '') => void,
+    severityVal: CWServiceSeverity | '', setSeverityVal: (v: CWServiceSeverity | '') => void,
+    processTimeVal: string, setProcessTimeVal: (v: string) => void,
+    ratePerHrVal: string, setRatePerHrVal: (v: string) => void,
+    priceVal: string, setPriceVal: (v: string) => void,
+    shopIdVal: string, setShopIdVal: (v: string) => void,
+  ) {
     return (
       <>
         <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
@@ -361,30 +350,18 @@ export function ServicesPage() {
 
   /* ── Stages inline editor ── */
 
-  function StagesSection({
-    stageList,
-    onDelete,
-  }: {
-    stageList: CWServiceStageDefinition[]
-    onDelete: (id: string) => void
-  }) {
+  function renderStagesSection(
+    stageList: CWServiceStageDefinition[],
+    onDelete: (id: string) => void,
+    onAdd: () => void,
+  ) {
     return (
       <Stack spacing={1.5} sx={{ mt: 2 }}>
         <Typography sx={{ fontWeight: 700, color: colors.slate[900], fontSize: '0.9rem' }}>Stages</Typography>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField size="small" label="Stage name" value={newStageName} onChange={(e) => setNewStageName(e.target.value)} />
           <TextField size="small" label="Duration (mins)" type="number" value={newStageDuration} onChange={(e) => setNewStageDuration(e.target.value)} />
-          <Button variant="outlined" onClick={stageList === stages ? addStageToCreate : () => {
-            if (!newStageName.trim()) return
-            const dur = parseFloat(newStageDuration)
-            if (isNaN(dur) || dur <= 0) return
-            setEditStages((current) => [
-              ...current,
-              { id: newStageId(), name: newStageName.trim(), order: current.length + 1, durationMins: dur },
-            ])
-            setNewStageName('')
-            setNewStageDuration('')
-          }} sx={{ borderColor: colors.slate[300], color: colors.slate[700] }}>
+          <Button variant="outlined" onClick={onAdd} sx={{ borderColor: colors.slate[300], color: colors.slate[700] }}>
             Add stage
           </Button>
         </Stack>
@@ -399,6 +376,18 @@ export function ServicesPage() {
         )}
       </Stack>
     )
+  }
+
+  function addStageToEdit() {
+    if (!newStageName.trim()) return
+    const dur = parseFloat(newStageDuration)
+    if (isNaN(dur) || dur <= 0) return
+    setEditStages((current) => [
+      ...current,
+      { id: newStageId(), name: newStageName.trim(), order: current.length + 1, durationMins: dur },
+    ])
+    setNewStageName('')
+    setNewStageDuration('')
   }
 
   /* ── Table columns ── */
@@ -532,18 +521,18 @@ export function ServicesPage() {
           >
             <Typography sx={{ fontWeight: 700, mb: 2, color: colors.slate[900] }}>New Service</Typography>
             <Stack spacing={2}>
-              <ServiceFormFields
-                codeVal={code} setCodeVal={setCode}
-                categoryVal={category} setCategoryVal={setCategory}
-                sectionVal={section} setSectionVal={setSection}
-                descriptionVal={description} setDescriptionVal={setDescription}
-                vehicleSizeVal={vehicleSize} setVehicleSizeVal={setVehicleSize}
-                severityVal={severity} setSeverityVal={setSeverity}
-                processTimeVal={processTimeMins} setProcessTimeVal={setProcessTimeMins}
-                ratePerHrVal={ratePerHr} setRatePerHrVal={setRatePerHr}
-                priceVal={price} setPriceVal={setPrice}
-                shopIdVal={shopId} setShopIdVal={setShopId}
-              />
+              {renderServiceFormFields(
+                code, setCode,
+                category, setCategory,
+                section, setSection,
+                description, setDescription,
+                vehicleSize, setVehicleSize,
+                severity, setSeverity,
+                processTimeMins, setProcessTimeMins,
+                ratePerHr, setRatePerHr,
+                price, setPrice,
+                shopId, setShopId,
+              )}
               <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <Button variant="contained" onClick={() => void submitAdd()} disabled={saving} sx={btnSx}>
                   Save
@@ -551,10 +540,11 @@ export function ServicesPage() {
               </Box>
             </Stack>
 
-            <StagesSection
-              stageList={stages}
-              onDelete={(id) => removeCreateStage(id)}
-            />
+            {renderStagesSection(
+              stages,
+              (id) => removeCreateStage(id),
+              addStageToCreate,
+            )}
           </Box>
         ) : null}
 
@@ -630,23 +620,25 @@ export function ServicesPage() {
         submitDisabled={saving}
         maxWidth="lg"
       >
-        <ServiceFormFields
-          codeVal={editCode} setCodeVal={setEditCode}
-          categoryVal={editCategory} setCategoryVal={setEditCategory}
-          sectionVal={editSection} setSectionVal={setEditSection}
-          descriptionVal={editDescription} setDescriptionVal={setEditDescription}
-          vehicleSizeVal={editVehicleSize} setVehicleSizeVal={setEditVehicleSize}
-          severityVal={editSeverity} setSeverityVal={setEditSeverity}
-          processTimeVal={editProcessTimeMins} setProcessTimeVal={setEditProcessTimeMins}
-          ratePerHrVal={editRatePerHr} setRatePerHrVal={setEditRatePerHr}
-          priceVal={editPrice} setPriceVal={setEditPrice}
-          shopIdVal={editShopId} setShopIdVal={setEditShopId}
-        />
-        <StagesSection
-          stageList={editStages}
-          onDelete={(id) => setEditStages((current) => current.filter((item) => item.id !== id).map((item, i) => ({ ...item, order: i + 1 })))}
-        />
+        {renderServiceFormFields(
+          editCode, setEditCode,
+          editCategory, setEditCategory,
+          editSection, setEditSection,
+          editDescription, setEditDescription,
+          editVehicleSize, setEditVehicleSize,
+          editSeverity, setEditSeverity,
+          editProcessTimeMins, setEditProcessTimeMins,
+          editRatePerHr, setEditRatePerHr,
+          editPrice, setEditPrice,
+          editShopId, setEditShopId,
+        )}
+        {renderStagesSection(
+          editStages,
+          (id) => setEditStages((current) => current.filter((item) => item.id !== id).map((item, i) => ({ ...item, order: i + 1 }))),
+          addStageToEdit,
+        )}
       </FormDialog>
     </Page>
   )
 }
+

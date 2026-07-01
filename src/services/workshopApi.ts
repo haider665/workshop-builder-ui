@@ -77,9 +77,32 @@ async function ensureOk(response: Response, fallbackMessage: string) {
 
   let message = fallbackMessage
   try {
-    const payload = (await response.json()) as { message?: unknown; exception?: string }
-    if (typeof payload.message === 'string') message = payload.message
-    else if (payload.exception) message = payload.exception
+    const payload = (await response.json()) as {
+      message?: unknown
+      exception?: string
+      _server_messages?: string
+    }
+
+    // Frappe sends user-friendly errors in _server_messages as a JSON-encoded
+    // array of JSON-encoded objects: ["{\"message\":\"...\",\"title\":\"...\"}"]
+    if (payload._server_messages) {
+      try {
+        const serverMsgs = JSON.parse(payload._server_messages) as string[]
+        if (serverMsgs.length > 0) {
+          const parsed = JSON.parse(serverMsgs[0]) as { message?: string; title?: string }
+          const title = parsed.title ? `${parsed.title}: ` : ''
+          if (parsed.message) message = `${title}${parsed.message.trim()}`
+        }
+      } catch {
+        // Malformed _server_messages; fall through to other fields.
+      }
+    } else if (typeof payload.message === 'string') {
+      message = payload.message
+    } else if (payload.exception) {
+      // Strip Python exception class prefix (e.g. "frappe.exceptions.ValidationError: msg" → "msg")
+      const colonIdx = payload.exception.indexOf(':')
+      message = colonIdx > -1 ? payload.exception.slice(colonIdx + 1).trim() : payload.exception
+    }
   } catch {
     // Response was not JSON; keep the fallback message.
   }

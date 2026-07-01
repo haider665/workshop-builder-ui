@@ -219,15 +219,10 @@ export function TeamsPage() {
     },
   ]
 
-  /* ── Form Fields (shared between create & edit) ── */
-
-  function TeamFormFields({
-    draft,
-    setDraft,
-  }: {
-    draft: TeamDraft
-    setDraft: React.Dispatch<React.SetStateAction<TeamDraft>>
-  }) {
+  function renderTeamFormFields(
+    draft: TeamDraft,
+    setDraft: React.Dispatch<React.SetStateAction<TeamDraft>>,
+  ) {
     return (
       <>
         <TextField
@@ -351,7 +346,7 @@ export function TeamsPage() {
         submitLabel="Create"
         submitDisabled={!createDraft.name.trim() || !createDraft.seUserId || saving}
       >
-        <TeamFormFields draft={createDraft} setDraft={setCreateDraft} />
+        {renderTeamFormFields(createDraft, setCreateDraft)}
       </FormDialog>
 
       {/* ── Edit Dialog ── */}
@@ -364,7 +359,7 @@ export function TeamsPage() {
         submitLabel="Save"
         submitDisabled={!editDraft.name.trim() || !editDraft.seUserId || saving}
       >
-        <TeamFormFields draft={editDraft} setDraft={setEditDraft} />
+        {renderTeamFormFields(editDraft, setEditDraft)}
       </FormDialog>
     </Page>
   )

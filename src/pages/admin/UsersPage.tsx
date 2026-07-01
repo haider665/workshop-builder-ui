@@ -498,6 +498,11 @@ export function UsersPage() {
           saving
         }
       >
+        {error && createOpen ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
         {renderUserFormFields(createDraft, setCreateDraft, 'create')}
       </FormDialog>
 
@@ -517,6 +522,11 @@ export function UsersPage() {
           saving
         }
       >
+        {error && editUser ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
         {renderUserFormFields(editDraft, setEditDraft, 'edit')}
       </FormDialog>
     </Page>
