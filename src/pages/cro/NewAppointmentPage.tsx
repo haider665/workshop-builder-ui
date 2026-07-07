@@ -21,7 +21,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Delete, DirectionsCar } from '@mui/icons-material'
+import { Delete } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../../components/Page'
@@ -69,31 +69,42 @@ export function NewAppointmentPage() {
   const concerns = useCwStore((s) => s.concerns)
   const concernCategories = useCwStore((s) => s.concernCategories)
   const services = useCwStore((s) => s.services)
-  const users = useCwStore((s) => s.users)
-  const roles = useCwStore((s) => s.roles)
   const appointments = useCwStore((s) => s.appointments)
   const createAppointment = useCwStore((s) => s.createAppointment)
+  const users = useCwStore((s) => s.users)
+  const roles = useCwStore((s) => s.roles)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const resolvePendingVehicle = useCwStore((s) => s.resolvePendingVehicle)
+  const shops = useCwStore((s) => s.shops)
 
-  // Vehicle selection
+  const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
+  const saUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
+    [users, saRoleId],
+  )
+
+  // Customer → Vehicle selection (customer-first flow)
   const initVehicleId = searchParams.get('vehicleId') ?? ''
-  const [vehicleId, setVehicleId] = useState(initVehicleId)
+  const initVehicle = useMemo(() => vehicles.find((v) => v.id === initVehicleId) ?? null, [vehicles, initVehicleId])
+  const initCustomer = useMemo(() => (initVehicle ? customers.find((c) => c.id === initVehicle.customerId) ?? null : null), [customers, initVehicle])
 
-  const selectedVehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId) ?? null, [vehicles, vehicleId])
-  const selectedCustomer = useMemo(
-    () => (selectedVehicle ? customers.find((c) => c.id === selectedVehicle.customerId) ?? null : null),
-    [customers, selectedVehicle],
+  const [selectedCustomer, setSelectedCustomer] = useState<typeof customers[number] | null>(initCustomer)
+  const [selectedVehicle, setSelectedVehicle] = useState<typeof vehicles[number] | null>(initVehicle)
+
+  // Vehicles filtered by selected customer
+  const customerVehicles = useMemo(
+    () => (selectedCustomer ? vehicles.filter((v) => v.customerId === selectedCustomer.id) : []),
+    [vehicles, selectedCustomer],
   )
 
   // Concerns state
-  const [concernItems, setConcernItems] = useState<{ id: string; concernId: string; concernName: string; remark: string }[]>([])
+  const [concernItems, setConcernItems] = useState<{ id: string; concernId: string; concernName: string; processTimeMins?: number; remark: string }[]>([])
   const [selConcerns, setSelConcerns] = useState<CWConcern[]>([])
   const [concernRemark, setConcernRemark] = useState('')
 
   // Services state
   const [serviceItems, setServiceItems] = useState<
-    { id: string; serviceId: string; serviceCode: string; serviceDescription: string; timeHrs: number; ratePerHr: number; price: number; remark: string }[]
+    { id: string; serviceId: string; serviceCode: string; serviceDescription: string; processTimeMins: number; ratePerHr: number; price: number; remark: string }[]
   >([])
   const [selServices, setSelServices] = useState<CWService[]>([])
   const [serviceRemark, setServiceRemark] = useState('')
@@ -101,18 +112,34 @@ export function NewAppointmentPage() {
   // Appointment info
   const [slotDate, setSlotDate] = useState(localDateToday())
   const [slotTime, setSlotTime] = useState('')
-  const [saUserId, setSaUserId] = useState('')
   const [notes, setNotes] = useState('')
   const [gateEntryId, setGateEntryId] = useState(searchParams.get('pendingVehicleId') ?? '')
+  const [saUserId, setSaUserId] = useState('')
 
   const [error, setError] = useState<string | null>(null)
+  const [concernShopFilter, setConcernShopFilter] = useState('')
+  const [serviceShopFilter, setServiceShopFilter] = useState('')
 
-  // SA users
-  const saRole = useMemo(() => roles.find((r) => r.name === 'SA' || r.name === 'Service Advisor'), [roles])
-  const saUsers = useMemo(
-    () => (saRole ? users.filter((u) => u.roleIds.includes(saRole.id) && u.status === 'Active') : []),
-    [users, saRole],
-  )
+  const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
+  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
+
+  // Concern → shop name lookup
+  const getConcernShopName = useMemo(() => {
+    const cMap = new Map(concerns.map((c) => [c.id, c]))
+    const catMap = new Map(concernCategories.map((c) => [c.id, c]))
+    return (concernId: string) => {
+      const concern = cMap.get(concernId)
+      if (!concern) return ''
+      return shopById.get(catMap.get(concern.categoryId)?.shopId ?? '')?.name ?? ''
+    }
+  }, [concerns, concernCategories, shopById])
+
+  // Service → shop name lookup
+  const getServiceShopName = useMemo(() => {
+    const sMap = new Map(services.map((s) => [s.id, s]))
+    return (serviceId: string) => shopById.get(sMap.get(serviceId)?.shopId ?? '')?.name ?? ''
+  }, [services, shopById])
+
 
   // Booked slots on selected date
   const bookedSlots = useMemo(() => {
@@ -125,10 +152,24 @@ export function NewAppointmentPage() {
 
   // Concern categories map
   const catById = useMemo(() => new Map(concernCategories.map((c) => [c.id, c])), [concernCategories])
+  const concernShopId = useMemo(() => {
+    const cMap = new Map(concerns.map((c) => [c.id, c]))
+    return (cId: string) => catById.get(cMap.get(cId)?.categoryId ?? '')?.shopId ?? ''
+  }, [concerns, catById])
 
-  // Active concerns grouped
-  const activeConcerns = useMemo(() => concerns.filter((c) => c.status === 'Active'), [concerns])
-  const activeServices = useMemo(() => services.filter((s) => s.status === 'Active'), [services])
+  // Active concerns grouped — filtered by shop
+  const activeConcerns = useMemo(() => {
+    let list = concerns.filter((c) => c.status === 'Active')
+    if (concernShopFilter) {
+      const catIdsInShop = new Set(concernCategories.filter((cat) => cat.shopId === concernShopFilter).map((cat) => cat.id))
+      list = list.filter((c) => catIdsInShop.has(c.categoryId))
+    }
+    return list
+  }, [concerns, concernCategories, concernShopFilter])
+  const activeServices = useMemo(() => {
+    if (!serviceShopFilter) return []
+    return services.filter((s) => s.status === 'Active' && s.shopId === serviceShopFilter)
+  }, [services, serviceShopFilter])
 
   const totalBDT = useMemo(() => serviceItems.reduce((sum, i) => sum + i.price, 0), [serviceItems])
 
@@ -141,6 +182,7 @@ export function NewAppointmentPage() {
         id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${c.id}`,
         concernId: c.id,
         concernName: c.name,
+        processTimeMins: c.processTimeMins,
         remark,
       })),
     ])
@@ -162,8 +204,8 @@ export function NewAppointmentPage() {
         serviceId: s.id,
         serviceCode: s.code,
         serviceDescription: s.description,
-        timeHrs: s.timeHrs,
-        ratePerHr: s.ratePerHr,
+        processTimeMins: s.processTimeMins,
+        ratePerHr: s.ratePerHr ?? 0,
         price: s.price,
         remark,
       })),
@@ -179,8 +221,8 @@ export function NewAppointmentPage() {
   function submit() {
     try {
       setError(null)
-      if (!vehicleId) throw new Error('Select a vehicle')
-      if (!selectedCustomer) throw new Error('Vehicle has no linked customer')
+      if (!selectedVehicle) throw new Error('Select a vehicle')
+      if (!selectedCustomer) throw new Error('Select a customer')
 
       // Auto-commit any selected-but-not-yet-added concerns/services
       const pendingConcernItems = selConcerns.map((c) => ({
@@ -192,7 +234,7 @@ export function NewAppointmentPage() {
         serviceId: s.id,
         serviceCode: s.code,
         serviceDescription: s.description,
-        timeHrs: s.timeHrs,
+        processTimeMins: s.processTimeMins,
         ratePerHr: s.ratePerHr,
         price: s.price,
         remark: serviceRemark.trim(),
@@ -201,11 +243,10 @@ export function NewAppointmentPage() {
 
       const appt = createAppointment({
         customerId: selectedCustomer.id,
-        vehicleId,
+        vehicleId: selectedVehicle.id,
         slotDate: slotDate || undefined,
         slotTime: slotTime || undefined,
-        status: 'Draft',
-        assignedServiceAdvisorId: saUserId || undefined,
+        assignedSAUserId: saUserId || undefined,
         notes: notes.trim(),
         concernItems: [
           ...concernItems.map((i) => ({
@@ -220,7 +261,7 @@ export function NewAppointmentPage() {
             serviceId: i.serviceId,
             serviceCode: i.serviceCode,
             serviceDescription: i.serviceDescription,
-            timeHrs: i.timeHrs,
+            processTimeMins: i.processTimeMins,
             ratePerHr: i.ratePerHr,
             price: i.price,
             remark: i.remark,
@@ -235,7 +276,7 @@ export function NewAppointmentPage() {
         try {
           resolvePendingVehicle(gateEntryId, {
             customerId: selectedCustomer.id,
-            vehicleId,
+            vehicleId: selectedVehicle.id,
             appointmentId: appt.id,
           })
         } catch (_) {
@@ -243,7 +284,7 @@ export function NewAppointmentPage() {
         }
       }
 
-      navigate(`/cro/appointments/${appt.id}`)
+      navigate(`/cre/appointments/${appt.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -261,10 +302,10 @@ export function NewAppointmentPage() {
       subtitle="Create new appointment from here"
       actions={
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" size="small" onClick={() => navigate('/cro/vehicles')}>
+          <Button variant="outlined" size="small" onClick={() => navigate('/cre/vehicles/new')}>
             Add new vehicle
           </Button>
-          <Button variant="outlined" size="small" onClick={() => navigate('/cro/customers')}>
+          <Button variant="outlined" size="small" onClick={() => navigate('/cre/customers/new')}>
             Add new customer
           </Button>
         </Stack>
@@ -276,39 +317,71 @@ export function NewAppointmentPage() {
         {/* ── Vehicle Info ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5, bgcolor: 'background.paper' }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>Vehicle Info</Typography>
-            <FormControl fullWidth size="small">
-              <InputLabel>Vehicle</InputLabel>
-              <Select
-                label="Vehicle"
-                value={vehicleId}
-                onChange={(e) => setVehicleId(e.target.value)}
-                renderValue={(val) => {
-                  const v = vehicles.find((x) => x.id === val)
-                  if (!v) return 'Select vehicle'
+            <Typography sx={{ fontWeight: 900, mb: 2 }}>Customer & Vehicle</Typography>
+
+            {/* Customer Autocomplete (searchable) */}
+            <Autocomplete
+              size="small"
+              options={customers.slice().sort((a, b) => a.fullName.localeCompare(b.fullName))}
+              getOptionLabel={(c) => `${c.fullName} · ${c.phone}`}
+              value={selectedCustomer}
+              onChange={(_, val) => {
+                setSelectedCustomer(val)
+                setSelectedVehicle(null) // reset vehicle when customer changes
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Customer"
+                  placeholder="Type customer name or phone…"
+                />
+              )}
+              isOptionEqualToValue={(opt, val) => opt.id === val.id}
+              sx={{ mb: 2 }}
+            />
+
+            {/* Vehicle Autocomplete (filtered by customer, searchable) */}
+            {selectedCustomer && (
+              <Autocomplete
+                size="small"
+                options={customerVehicles}
+                getOptionLabel={(v) => {
                   const mm = [v.make, v.model].filter(Boolean).join(' ')
-                  return `${v.registrationNo}${mm ? ` – ${mm}` : ''} · VIN: ${v.vin ?? '—'}`
+                  return `${v.registrationNo}${mm ? ` – ${mm}` : ''}`
                 }}
-                startAdornment={<DirectionsCar sx={{ mr: 1, color: 'text.secondary' }} />}
-              >
-                {vehicles.map((v) => {
+                value={selectedVehicle}
+                onChange={(_, val) => setSelectedVehicle(val)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Select Vehicle"
+                    placeholder="Type registration no…"
+                  />
+                )}
+                renderOption={(props, v) => {
                   const mm = [v.make, v.model].filter(Boolean).join(' ')
-                  const cust = customers.find((c) => c.id === v.customerId)
                   return (
-                    <MenuItem key={v.id} value={v.id}>
+                    <li {...props} key={v.id}>
                       <Stack>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>
                           {v.registrationNo}{mm ? ` – ${mm}` : ''}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {cust?.fullName ?? '—'} · VIN: {v.vin ?? '—'}
+                          VIN: {v.vin ?? '—'}
                         </Typography>
                       </Stack>
-                    </MenuItem>
+                    </li>
                   )
-                })}
-              </Select>
-            </FormControl>
+                }}
+                isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                noOptionsText={customerVehicles.length === 0 ? 'No vehicles for this customer' : 'No match'}
+              />
+            )}
+            {!selectedCustomer && (
+              <Typography variant="body2" color="text.secondary">
+                Select a customer first to see their vehicles.
+              </Typography>
+            )}
 
             {selectedVehicle && (
               <>
@@ -378,18 +451,32 @@ export function NewAppointmentPage() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800, width: 40 }}>SI</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {concernItems.map((item, idx) => (
+                  {concernItems.map((item, idx) => {
+                    const shopName = getConcernShopName(item.concernId)
+                    return (
                     <TableRow key={item.id}>
                       <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
                       <TableCell>
                         <Stack>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.concernName}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.concernName}{typeof item.processTimeMins === 'number' ? ` (${item.processTimeMins} mins)` : ''}</Typography>
                         </Stack>
+                      </TableCell>
+                      <TableCell>
+                        {shopName ? <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {typeof item.processTimeMins === 'number' ? (
+                          <Chip size="small" label={`${item.processTimeMins} mins`} color="info" sx={{ fontWeight: 700 }} />
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">—</Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
@@ -400,19 +487,29 @@ export function NewAppointmentPage() {
                         </IconButton>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                 </TableBody>
               </Table>
             )}
 
             {/* Add concern row */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Shop</InputLabel>
+                <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value)}>
+                  <MenuItem value="">All Shops</MenuItem>
+                  {activeShops.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <Autocomplete
                 multiple
                 size="small"
-                options={activeConcerns}
+                options={activeConcerns.filter((c) => !concernShopFilter || concernShopId(c.id) === concernShopFilter)}
                 groupBy={(o) => catById.get(o.categoryId)?.name ?? 'Other'}
-                getOptionLabel={(o) => o.name}
+                getOptionLabel={(o) => `${o.name} (${o.processTimeMins ?? '?'} mins)`}
                 value={selConcerns}
                 onChange={(_, val) => setSelConcerns(val)}
                 disableCloseOnSelect
@@ -447,8 +544,13 @@ export function NewAppointmentPage() {
         {/* ── Service Requests ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <Box sx={{ p: 2.5 }}>
-            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Select a shop to filter services, then pick services to include in the appointment.
+                </Typography>
+              </Box>
               {serviceItems.length > 0 && (
                 <Tooltip title="Total labour estimate">
                   <Chip
@@ -466,6 +568,7 @@ export function NewAppointmentPage() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800, width: 40 }}>SI</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 800 }}>Time</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 800 }}>Price (BDT)</TableCell>
@@ -473,22 +576,27 @@ export function NewAppointmentPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {serviceItems.map((item, idx) => (
+                  {serviceItems.map((item, idx) => {
+                    const shopName = getServiceShopName(item.serviceId)
+                    return (
                     <TableRow key={item.id}>
                       <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
                       <TableCell>
                         <Stack>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.serviceDescription}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.serviceDescription} ({item.processTimeMins} mins)</Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                             {item.serviceCode}
                           </Typography>
                         </Stack>
                       </TableCell>
                       <TableCell>
+                        {shopName ? <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
+                      </TableCell>
+                      <TableCell>
                         <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Typography variant="body2">{item.timeHrs} hrs</Typography>
+                        <Typography variant="body2">{item.processTimeMins} mins</Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Typography sx={{ fontWeight: 700 }}>{item.price.toLocaleString('en-BD')}</Typography>
@@ -499,9 +607,10 @@ export function NewAppointmentPage() {
                         </IconButton>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                   <TableRow>
-                    <TableCell colSpan={4} sx={{ fontWeight: 800, textAlign: 'right', border: 'none' }}>
+                    <TableCell colSpan={5} sx={{ fontWeight: 800, textAlign: 'right', border: 'none' }}>
                       Total Labour Estimate
                     </TableCell>
                     <TableCell align="right" sx={{ border: 'none' }}>
@@ -517,12 +626,21 @@ export function NewAppointmentPage() {
 
             {/* Add service row */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Shop</InputLabel>
+                <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value)}>
+                  <MenuItem value="">All Shops</MenuItem>
+                  {activeShops.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <Autocomplete
                 multiple
                 size="small"
-                options={activeServices}
+                options={activeServices.filter((s) => !serviceShopFilter || s.shopId === serviceShopFilter)}
                 groupBy={(o) => o.category}
-                getOptionLabel={(o) => `${o.code} – ${o.description}`}
+                getOptionLabel={(o) => `${o.code} – ${o.description} (${o.processTimeMins} mins)`}
                 value={selServices}
                 onChange={(_, val) => setSelServices(val)}
                 disableCloseOnSelect
@@ -539,7 +657,7 @@ export function NewAppointmentPage() {
                     <Stack>
                       <Typography variant="body2">{o.description}</Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {o.code} · {o.timeHrs}h · BDT {o.price.toLocaleString('en-BD')}
+                        {o.code} · {o.processTimeMins}m · BDT {o.price.toLocaleString('en-BD')}
                       </Typography>
                     </Stack>
                   </li>
@@ -644,22 +762,19 @@ export function NewAppointmentPage() {
 
               {/* Service Advisor + Notes */}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <FormControl size="small" sx={{ flex: '1 1 240px' }}>
-                  <InputLabel>Service Advisor</InputLabel>
-                  <Select
-                    label="Service Advisor"
-                    value={saUserId}
-                    onChange={(e) => setSaUserId(e.target.value)}
-                  >
-                    <MenuItem value="">— None —</MenuItem>
-                    {saUsers.map((u) => (
-                      <MenuItem key={u.id} value={u.id}>
-                        {u.fullName} · {u.mobile}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
+                <TextField
+                  select
+                  size="small"
+                  label="Assign Service Advisor"
+                  value={saUserId}
+                  onChange={(e) => setSaUserId(e.target.value)}
+                  sx={{ flex: '1 1 200px' }}
+                >
+                  <MenuItem value="">— None —</MenuItem>
+                  {saUsers.map((u) => (
+                    <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                  ))}
+                </TextField>
                 <TextField
                   size="small"
                   label="Additional Note"
@@ -676,10 +791,10 @@ export function NewAppointmentPage() {
 
         {/* ── Actions ── */}
         <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
-          <Button variant="outlined" onClick={() => navigate('/cro/appointments')}>
+          <Button variant="outlined" onClick={() => navigate('/cre/appointments')}>
             Cancel
           </Button>
-          <Button variant="contained" onClick={submit} disabled={!vehicleId}>
+          <Button variant="contained" onClick={submit} disabled={!selectedVehicle}>
             Create Appointment
           </Button>
         </Stack>

@@ -145,24 +145,10 @@ export function NewJobPage() {
     return map
   }, [users])
 
-  const appointmentPrefillRoleId = (linkedAppointment?.assignedRoleId ?? '').trim() || undefined
-
-  const appointmentPrefillUserIds = useMemo(() => {
-    const ids = linkedAppointment?.assignedUserIds ?? []
-    if (!ids.length) return []
-    const active = new Set(users.filter((u) => u.status === 'Active').map((u) => u.id))
-    return ids.filter((id) => active.has(id))
-  }, [linkedAppointment?.assignedUserIds, users])
-
-  const appointmentPrefillSummary = useMemo(() => {
-    if (!appointmentPrefillRoleId && !appointmentPrefillUserIds.length) return null
-    const roleLabel = appointmentPrefillRoleId ? roleNameById.get(appointmentPrefillRoleId) ?? '—' : null
-    const userLabels = appointmentPrefillUserIds.map((id) => userNameById.get(id)).filter(Boolean) as string[]
-    const parts: string[] = []
-    if (roleLabel) parts.push(`Role: ${roleLabel}`)
-    if (userLabels.length) parts.push(`Users: ${userLabels.join(', ')}`)
-    return parts.length ? parts.join(' • ') : null
-  }, [appointmentPrefillRoleId, appointmentPrefillUserIds, roleNameById, userNameById])
+  // Legacy prefill removed — appointments no longer carry assignedRoleId/assignedUserIds
+  const appointmentPrefillRoleId: string | undefined = undefined
+  const appointmentPrefillUserIds: string[] = []
+  const appointmentPrefillSummary: string | null = null
 
   const bayNameById = useMemo(() => {
     const map = new Map<string, string>()

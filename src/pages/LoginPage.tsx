@@ -1,54 +1,35 @@
-import {
-  alpha,
-  Box,
-  Button,
-  Chip,
-  Container,
-  Divider,
-  FormControl,
-  FormControlLabel,
-  FormGroup,
-  Paper,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material'
-import { useMemo, useState } from 'react'
+import { alpha, Alert, Box, Button, Container, Paper, Stack, TextField, Typography } from '@mui/material'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../store/sessionStore'
-import { ALL_ROLES } from '../types/roles'
-import type { Role } from '../types/roles'
-
-function normalizeRoles(selected: Record<Role, boolean>): Role[] {
-  return ALL_ROLES.filter((r) => selected[r])
-}
 
 export function LoginPage() {
   const login = useSessionStore((s) => s.login)
+  const status = useSessionStore((s) => s.status)
+  const sessionError = useSessionStore((s) => s.error)
   const navigate = useNavigate()
   const location = useLocation()
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from
-    ?.pathname
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
+  const [username, setUsername] = useState('Administrator')
+  const [password, setPassword] = useState('admin')
+  const [error, setError] = useState<string | null>(null)
 
-  const [name, setName] = useState('Demo User')
-  const [selectedRoles, setSelectedRoles] = useState<Record<Role, boolean>>({
-    Admin: true,
-    Guard: false,
-    'Job Creation': false,
-    CRO: false,
-    Technician: false,
-    'Service Advisor': false,
-    'Service Engineer': false,
-    'Custom Role': false,
-  })
-  const [showAllRoles, setShowAllRoles] = useState(false)
+  const loading = status === 'loading'
 
-  const activeRoles = useMemo(
-    () => normalizeRoles(selectedRoles),
-    [selectedRoles],
-  )
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+
+    try {
+      await login(username.trim(), password)
+      setPassword('')
+      navigate(from ?? '/', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed')
+    }
+  }
 
   return (
     <Box
@@ -74,82 +55,41 @@ export function LoginPage() {
             Workshop Platform
           </Typography>
           <Typography color="text.secondary">
-            MVP mode: everything is stored in-memory only. A hard refresh (Ctrl+Shift+R) clears all data.
+            Sign in with your Workshop account. The backend creates a Frappe session cookie and returns your roles.
           </Typography>
         </Stack>
 
         <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Stack spacing={2.5}>
+          <Stack component="form" spacing={2.5} onSubmit={handleSubmit}>
+            {error || sessionError ? <Alert severity="error">{error ?? sessionError}</Alert> : null}
+
             <TextField
-              label="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              label="Username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="username"
+              disabled={loading}
               fullWidth
             />
 
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ flexWrap: 'wrap' }}
-              useFlexGap
-            >
-              {activeRoles.length ? (
-                activeRoles.map((r) => <Chip key={r} label={r} />)
-              ) : (
-                <Chip color="warning" label="Select at least one role" />
-              )}
-            </Stack>
-
-            <Divider />
-
-            <Stack
-              direction="row"
-              sx={{ justifyContent: 'space-between', alignItems: 'center' }}
-            >
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Roles
-              </Typography>
-              <FormControlLabel
-                control={<Switch checked={showAllRoles} onChange={(e) => setShowAllRoles(e.target.checked)} />}
-                label="Show all"
-              />
-            </Stack>
-
-            <FormControl component="fieldset">
-              <FormGroup>
-                {ALL_ROLES.filter((r) => showAllRoles || ['Admin', 'Guard', 'Job Creation', 'CRO', 'Technician'].includes(r)).map(
-                  (role) => (
-                    <FormControlLabel
-                      key={role}
-                      control={
-                        <Switch
-                          checked={selectedRoles[role]}
-                          onChange={(e) =>
-                            setSelectedRoles((prev) => ({
-                              ...prev,
-                              [role]: e.target.checked,
-                            }))
-                          }
-                        />
-                      }
-                      label={role}
-                    />
-                  ),
-                )}
-              </FormGroup>
-            </FormControl>
+            <TextField
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              disabled={loading}
+              fullWidth
+            />
 
             <Button
+              type="submit"
               variant="contained"
               size="large"
-              disabled={!activeRoles.length || !name.trim()}
-              onClick={() => {
-                login({ name: name.trim(), roles: activeRoles })
-                navigate(from ?? '/', { replace: true })
-              }}
+              disabled={loading || !username.trim() || !password}
               sx={{ py: 1.25, fontWeight: 800 }}
             >
-              Sign in
+              {loading ? 'Signing in...' : 'Sign in'}
             </Button>
           </Stack>
         </Paper>

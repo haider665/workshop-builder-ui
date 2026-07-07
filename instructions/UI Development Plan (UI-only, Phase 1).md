@@ -1,6 +1,7 @@
 # Continental Works — UI Development Plan (UI-only, Phase 1)
 
 **Date:** 2026-05-13  
+**Last Updated:** 2026-05-17  
 **Scope:** Frontend/UI only for Phase 1 as defined in the SRS. No backend/Frappe work in this plan.
 
 > Note on stack: The SRS references Next.js, but this repo is a Vite + React + TypeScript UI. This plan assumes we continue with the current Vite/React UI for now, while keeping the same API-driven architecture and role-based access patterns.
@@ -223,17 +224,25 @@ MVP implementation note:
 
 ### Milestone 3 — CRO Module
 **Output:** customer/vehicle/appointment management + WhatsApp composer UI.
+
+**Scope clarification (2026-05-17):**
+- CRO owns customer management, vehicle management, and appointment management end-to-end.
+- Once a Service Advisor is assigned to a job/appointment, **CRO must not initiate customer contact** except for appointment-related communications (reminders, rescheduling, cancellation). All other customer-facing communication (approvals, status updates, additional work authorization) transfers to the Service Advisor.
+- UI must reflect this: WhatsApp/contact actions on job/customer detail screens are hidden or disabled for CRO once a Service Advisor is assigned, except for appointment-type message templates.
+
 - Customers: create/edit/search, detail view shows vehicle + appointment history
 - Vehicles: register/search, update odometer at each visit
 - Appointments: create/list/filter, status indicator
 - WhatsApp:
-  - message templates selection
+  - message templates selection (filtered by contact-permission context — appointment-only templates visible to CRO post-SA assignment)
   - compose/preview/send
   - message log UI
 
 **Acceptance criteria**
-- Duplicate-prevention is represented in UI (error messages on “duplicate phone/email/reg”).
+- Duplicate-prevention is represented in UI (error messages on "duplicate phone/email/reg").
 - Appointment statuses follow the SRS state machine in UI.
+- CRO contact actions are gated: once SA is assigned, only appointment-type communication actions are enabled for CRO.
+- SA-assigned status is visible on customer/appointment detail so CRO can see the handoff.
 
 ---
 
@@ -260,23 +269,33 @@ MVP implementation note:
 
 ### Milestone 5 — Job Creation Module (core orchestration UI)
 **Output:** dashboards + job creation + dependency + gatepass/test drive UIs.
+
+**Scope clarification (2026-05-17):**
+- **Concerns → Job Card flow:** At the time of vehicle diagnosis, concerns are captured as a single Job Card. The Job Controller (JC) may then **break down, split, and redistribute** those concerns into separate tasks assigned to different teams and bays. UI must support this decomposition workflow — a concern on the job card is not a fixed atomic unit; JC has full authority to divide it.
+- **Customer approvals:** All customer approval requests (additional work, cost overruns, scope changes, etc.) are handled **exclusively by the Service Advisor**. JC and technician UIs must not expose customer approval actions. Only the SA role sees and acts on approval flows.
+
 - Dashboard listing active jobs/vehicles with counts by task status
 - Pending vehicles screen (from guard entries)
 - Create Job flow:
   - choose vehicle
   - select shop(s)
-  - choose tasks from templates
+  - initial concerns captured as a Job Card at diagnosis
+  - JC can split/divide concerns from the Job Card into multiple tasks, assigning each to different teams/bays
   - for each task: planned time window, bay (availability UI), assign users (availability UI)
   - dependency management (Finish-to-Start)
 - Job detail view:
   - tasks list with statuses, blocked indicators
+  - concern-to-task decomposition panel (JC only)
   - override dependency unblock with reason
   - gatepass approval (only when all tasks completed; otherwise show blocked reason)
   - test drive initiation form + return logging
+  - customer approval requests: visible/actionable **only to Service Advisor role**
 
 **Acceptance criteria**
 - UI prevents invalid actions (e.g., gatepass approval when tasks not completed) while still allowing override flows where SRS permits.
 - Dependencies are visible and blocks are clearly communicated.
+- JC can decompose a Job Card concern into N tasks across different teams/bays.
+- Customer approval request UI is role-gated: only SA can initiate or respond to approval requests; JC/technician views do not show these actions.
 
 ---
 

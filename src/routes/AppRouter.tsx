@@ -9,15 +9,22 @@ import { ConcernsPage } from '../pages/admin/ConcernsPage'
 import { ServicesPage } from '../pages/admin/ServicesPage'
 import { BaysPage } from '../pages/admin/BaysPage'
 import { F1Page } from '../pages/admin/F1Page'
+import { PartsPage } from '../pages/admin/PartsPage'
+import { PartRequestsPage } from '../pages/admin/PartRequestsPage'
 import { RolesPage } from '../pages/admin/RolesPage'
 import { ShopsPage } from '../pages/admin/ShopsPage'
+import { AdminReportsPage } from '../pages/admin/AdminReportsPage'
 import { TaskTemplatesPage } from '../pages/admin/TaskTemplatesPage'
+import { TeamsPage } from '../pages/admin/TeamsPage'
 import { UsersPage } from '../pages/admin/UsersPage'
 import { GuardHome } from '../pages/guard/GuardHome'
 import { JobControllerHome } from '../pages/jc/JobControllerHome'
+import { JCCalendarPage } from '../pages/jc/JCCalendarPage'
 import { JobDetailsPage } from '../pages/jc/JobDetailsPage'
 import { NewJobPage } from '../pages/jc/NewJobPage'
 import { PendingVehiclesPage } from '../pages/jc/PendingVehiclesPage'
+import { JCGanttFullPage } from '../pages/jc/JCGanttFullPage'
+import { JCBayManagementPage } from '../pages/jc/JCBayManagementPage'
 import { CroHome } from '../pages/cro/CroHome'
 import { AppointmentsPage } from '../pages/cro/AppointmentsPage'
 import { NewAppointmentPage } from '../pages/cro/NewAppointmentPage'
@@ -26,8 +33,19 @@ import { CustomersPage } from '../pages/cro/CustomersPage'
 import { CustomerDetailPage } from '../pages/cro/CustomerDetailPage'
 import { VehiclesPage } from '../pages/cro/VehiclesPage'
 import { VehicleDetailPage } from '../pages/cro/VehicleDetailPage'
+import { CreateVehiclePage } from '../pages/cro/CreateVehiclePage'
+import { CreateCustomerPage } from '../pages/cro/CreateCustomerPage'
 import { WhatsappPage } from '../pages/cro/WhatsappPage'
+import { CRECalendarPage } from '../pages/cro/CRECalendarPage'
+import { CRECallPage } from '../pages/cro/CRECallPage'
+import { CRERemindersPage } from '../pages/cro/CRERemindersPage'
 import { SAAppointmentsPage } from '../pages/sa/SAAppointmentsPage'
+import { SAAppointmentDetailPage } from '../pages/sa/SAAppointmentDetailPage'
+import { SACalendarPage } from '../pages/sa/SACalendarPage'
+import { SEAppointmentsPage } from '../pages/se/SEAppointmentsPage'
+import { SECalendarPage } from '../pages/se/SECalendarPage'
+import { SEAppointmentDetailPage } from '../pages/se/SEAppointmentDetailPage'
+import { JCAppointmentPage } from '../pages/jc/JCAppointmentPage'
 import { TasksHome } from '../pages/tasks/TasksHome'
 import { CalendarPage } from '../pages/tasks/CalendarPage'
 import { TaskDetailPage } from '../pages/tasks/TaskDetailPage'
@@ -36,6 +54,10 @@ import { EmployeeRecordDetailPage } from '../pages/records/EmployeeRecordDetailP
 import { EmployeeRecordsPage } from '../pages/records/EmployeeRecordsPage'
 import { VehicleHistoryDetailPage } from '../pages/records/VehicleHistoryDetailPage'
 import { VehicleHistoryPage } from '../pages/records/VehicleHistoryPage'
+import { TechnicianDashboardPage } from '../pages/technician/TechnicianDashboardPage'
+import { TechnicianTaskPage } from '../pages/technician/TechnicianTaskPage'
+import { QCAppointmentsPage } from '../pages/qc/QCAppointmentsPage'
+import { QCAppointmentDetailPage } from '../pages/qc/QCAppointmentDetailPage'
 
 export function AppRouter() {
   return (
@@ -56,6 +78,10 @@ export function AppRouter() {
             <Route path="/admin/f1" element={<F1Page />} />
             <Route path="/admin/concerns" element={<ConcernsPage />} />
             <Route path="/admin/services" element={<ServicesPage />} />
+            <Route path="/admin/teams" element={<TeamsPage />} />
+            <Route path="/admin/parts" element={<PartsPage />} />
+            <Route path="/admin/part-requests" element={<PartRequestsPage />} />
+            <Route path="/admin/reports" element={<AdminReportsPage />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Guard']} />}>
@@ -65,32 +91,59 @@ export function AppRouter() {
           <Route element={<RequireRole anyOf={['Job Creation']} />}>
             <Route path="/jc" element={<JobControllerHome />} />
             <Route path="/jc/pending-vehicles" element={<PendingVehiclesPage />} />
+            <Route path="/jc/appointments/:appointmentId" element={<JCAppointmentPage />} />
+            <Route path="/jc/calendar" element={<JCCalendarPage />} />
+            <Route path="/jc/gantt" element={<JCGanttFullPage />} />
+            <Route path="/jc/bays" element={<JCBayManagementPage />} />
           </Route>
 
           {/* Job creation + detail: accessible to Job Creation, Service Advisor, and CRO */}
-          <Route element={<RequireRole anyOf={['Job Creation', 'Service Advisor', 'CRO']} />}>
+          <Route element={<RequireRole anyOf={['Job Creation', 'Service Advisor', 'CRE']} />}>
             <Route path="/jc/jobs/new" element={<NewJobPage />} />
             <Route path="/jc/jobs/:jobId" element={<JobDetailsPage />} />
           </Route>
 
-          <Route element={<RequireRole anyOf={['CRO']} />}>
-            <Route path="/cro" element={<CroHome />} />
-            <Route path="/cro/customers" element={<CustomersPage />} />
-            <Route path="/cro/customers/:customerId" element={<CustomerDetailPage />} />
-            <Route path="/cro/vehicles" element={<VehiclesPage />} />
-            <Route path="/cro/vehicles/:vehicleId" element={<VehicleDetailPage />} />
-            <Route path="/cro/appointments" element={<AppointmentsPage />} />
-            <Route path="/cro/appointments/new" element={<NewAppointmentPage />} />
-            <Route path="/cro/whatsapp" element={<WhatsappPage />} />
+          <Route element={<RequireRole anyOf={['CRE']} />}>
+            <Route path="/cre" element={<CroHome />} />
+            <Route path="/cre/customers" element={<CustomersPage />} />
+            <Route path="/cre/customers/new" element={<CreateCustomerPage />} />
+            <Route path="/cre/customers/:customerId" element={<CustomerDetailPage />} />
+            <Route path="/cre/vehicles" element={<VehiclesPage />} />
+            <Route path="/cre/vehicles/new" element={<CreateVehiclePage />} />
+            <Route path="/cre/vehicles/:vehicleId" element={<VehicleDetailPage />} />
+            <Route path="/cre/appointments" element={<AppointmentsPage />} />
+            <Route path="/cre/appointments/new" element={<NewAppointmentPage />} />
+            <Route path="/cre/whatsapp" element={<WhatsappPage />} />
+            <Route path="/cre/calendar" element={<CRECalendarPage />} />
+            <Route path="/cre/calls" element={<CRECallPage />} />
+            <Route path="/cre/reminders" element={<CRERemindersPage />} />
           </Route>
 
           {/* Appointment detail: accessible to both CRO and Service Advisor */}
-          <Route element={<RequireRole anyOf={['CRO', 'Service Advisor']} />}>
-            <Route path="/cro/appointments/:appointmentId" element={<AppointmentDetailPage />} />
+          <Route element={<RequireRole anyOf={['CRE', 'Service Advisor']} />}>
+            <Route path="/cre/appointments/:appointmentId" element={<AppointmentDetailPage />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Service Advisor']} />}>
             <Route path="/sa/appointments" element={<SAAppointmentsPage />} />
+            <Route path="/sa/appointments/:appointmentId" element={<SAAppointmentDetailPage />} />
+            <Route path="/sa/calendar" element={<SACalendarPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['Service Engineer']} />}>
+            <Route path="/se/appointments" element={<SEAppointmentsPage />} />
+            <Route path="/se/appointments/:appointmentId" element={<SEAppointmentDetailPage />} />
+            <Route path="/se/calendar" element={<SECalendarPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['Technician']} />}>
+            <Route path="/technician" element={<TechnicianDashboardPage />} />
+            <Route path="/technician/task/:appointmentId/:itemType/:itemId" element={<TechnicianTaskPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['QC']} />}>
+            <Route path="/qc/appointments" element={<QCAppointmentsPage />} />
+            <Route path="/qc/appointments/:appointmentId" element={<QCAppointmentDetailPage />} />
           </Route>
 
           <Route
@@ -112,7 +165,7 @@ export function AppRouter() {
             <Route path="/calendar" element={<CalendarPage />} />
           </Route>
 
-          <Route element={<RequireRole anyOf={['Admin', 'Job Creation', 'CRO']} />}>
+          <Route element={<RequireRole anyOf={['Admin', 'Job Creation', 'CRE']} />}>
             <Route path="/vehicle-history" element={<VehicleHistoryPage />} />
             <Route path="/vehicle-history/:registrationNo" element={<VehicleHistoryDetailPage />} />
           </Route>

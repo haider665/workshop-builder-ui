@@ -76,29 +76,18 @@ export function TasksHome() {
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
-  const users = useCwStore((s) => s.users)
 
   const isSA = user?.roles.includes('Service Advisor') ?? false
 
-  // SA appointments (assigned to this user or unassigned SA Review)
-  const currentUser = useMemo(
-    () => (user ? users.find((u) => u.fullName === user.name) ?? null : null),
-    [users, user],
-  )
-  const SA_ACTIVE: CWAppointmentStatus[] = ['SA Review', 'Customer Notified', 'Customer Approved']
+  // SA appointments (show all with SA assignment at appointment level)
+  const SA_ACTIVE: CWAppointmentStatus[] = ['SA Inspection', 'SA Reviewed', 'Customer Notified', 'Customer Approved', 'Customer Rejected', 'Diagnosis Assigned', 'Diagnosis In Progress', 'Diagnosis Complete', 'Service Approval Pending', 'Service Approved', 'Service Assigned', 'Service In Progress', 'Service Complete', 'Payment Pending', 'Payment Done']
   const saAppointments = useMemo(() => {
     if (!isSA) return []
     return appointments.filter((a) => {
       if (!SA_ACTIVE.includes(a.status as CWAppointmentStatus)) return false
-      if (currentUser) {
-        return (
-          a.assignedServiceAdvisorId === currentUser.id ||
-          (!a.assignedServiceAdvisorId && a.status === 'SA Review')
-        )
-      }
-      return true
+      return !!a.assignedSAUserId
     })
-  }, [appointments, isSA, currentUser])
+  }, [appointments, isSA])
 
   const [templateId, setTemplateId] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
@@ -185,17 +174,19 @@ export function TasksHome() {
                 {saAppointments.map((appt) => {
                   const v = vehicles.find((x) => x.id === appt.vehicleId)
                   const c = customers.find((x) => x.id === appt.customerId)
-                  const statusColorMap: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
-                    'SA Review': 'info',
+                  const statusColorMap: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error' | 'primary'> = {
+                    'SA Inspection': 'primary',
+                    'SA Reviewed': 'warning',
                     'Customer Notified': 'warning',
                     'Customer Approved': 'success',
+                    'Service In Progress': 'primary',
                   }
                   return (
                     <TableRow
                       key={appt.id}
                       hover
                       sx={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/cro/appointments/${appt.id}`)}
+                      onClick={() => navigate(`/sa/appointments/${appt.id}`)}
                     >
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>

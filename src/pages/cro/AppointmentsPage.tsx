@@ -29,29 +29,51 @@ function includesLoose(haystack: string, needle: string) {
 
 function statusColor(status: string): 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' {
   const map: Record<string, 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info'> = {
-    Draft: 'default',
-    Confirmed: 'primary',
-    'SA Review': 'info',
+    'New': 'info',
+    'SA Inspection': 'primary',
+    'SA Reviewed': 'warning',
     'Customer Notified': 'warning',
     'Customer Approved': 'success',
     'Customer Rejected': 'error',
-    'Job Created': 'primary',
-    'In Progress': 'info',
-    Closed: 'success',
+    'Diagnosis Assigned': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'success',
+    'Service Approval Pending': 'warning',
+    'Service Approved': 'success',
+    'Service Assigned': 'info',
+    'Service In Progress': 'primary',
+    'Service Complete': 'success',
+    'QC Assigned': 'info',
+    'QC Approved': 'success',
+    'QC Rejected': 'error',
+    'Payment Pending': 'warning',
+    'Payment Done': 'success',
+    Released: 'success',
   }
   return map[status] ?? 'default'
 }
 
 const ALL_STATUSES: CWAppointmentStatus[] = [
-  'Draft',
-  'Confirmed',
-  'SA Review',
+  'New',
+  'SA Inspection',
+  'SA Reviewed',
   'Customer Notified',
   'Customer Approved',
   'Customer Rejected',
-  'Job Created',
-  'Service Processing',
-  'Closed',
+  'Diagnosis Assigned',
+  'Diagnosis In Progress',
+  'Diagnosis Complete',
+  'Service Approval Pending',
+  'Service Approved',
+  'Service Assigned',
+  'Service In Progress',
+  'Service Complete',
+  'QC Assigned',
+  'QC Approved',
+  'QC Rejected',
+  'Payment Pending',
+  'Payment Done',
+  'Released',
 ]
 
 export function AppointmentsPage() {
@@ -95,7 +117,7 @@ export function AppointmentsPage() {
           variant="contained"
           startIcon={<Add />}
           component={RouterLink}
-          to="/cro/appointments/new"
+          to="/cre/appointments/new"
         >
           New Appointment
         </Button>
@@ -153,7 +175,7 @@ export function AppointmentsPage() {
                       key={appt.id}
                       hover
                       sx={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/cro/appointments/${appt.id}`)}
+                      onClick={() => navigate(`/cre/appointments/${appt.id}`)}
                     >
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>

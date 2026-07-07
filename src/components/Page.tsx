@@ -6,9 +6,10 @@ export function Page(props: {
   subtitle?: string
   actions?: ReactNode
   children?: ReactNode
+  fullWidth?: boolean
 }) {
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
+    <Container maxWidth={props.fullWidth ? false : 'lg'} sx={{ py: 3, px: props.fullWidth ? { xs: 2, sm: 3 } : undefined }}>
       <Box
         sx={{
           display: 'flex',

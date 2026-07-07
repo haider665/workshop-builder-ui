@@ -46,11 +46,11 @@ export function PendingVehiclesPage() {
   }
 
   function apptChip(status: string) {
-    if (status === 'Confirmed') return <Chip size="small" color="info" label="Confirmed" />
-    if (status === 'Vehicle Arrived') return <Chip size="small" color="success" label="Vehicle Arrived" />
-    if (status === 'Job Created') return <Chip size="small" color="success" label="Job Created" />
-    if (status === 'Cancelled') return <Chip size="small" color="default" label="Cancelled" />
-    return <Chip size="small" color="default" label="Draft" />
+    if (status === 'New') return <Chip size="small" color="info" label="New" />
+    if (status === 'SA Inspection') return <Chip size="small" color="primary" label="Inspection" />
+    if (status === 'Payment Done') return <Chip size="small" color="success" label="Paid" />
+    if (status === 'Released') return <Chip size="small" color="success" label="Released" />
+    return <Chip size="small" color="default" label={status} />
   }
 
   function labelCustomer(customerId?: string) {

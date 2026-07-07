@@ -1,26 +1,15 @@
 import {
   Alert,
-  Autocomplete,
   Box,
   Button,
-  Checkbox,
   Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
-  FormControl,
-  IconButton,
-  InputLabel,
   MenuItem,
   Paper,
-  Select,
   Stack,
-  Step,
-  StepConnector,
-  StepLabel,
-  Stepper,
   Table,
   TableBody,
   TableCell,
@@ -29,117 +18,55 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import {
-  Add,
-  CheckCircle,
-  Delete,
-  Done,
-  ExpandLess,
-  ExpandMore,
-  PauseCircle,
-  PendingActions,
-  PlayArrow,
-  RadioButtonUnchecked,
-  Send,
-  WhatsApp,
-} from '@mui/icons-material'
-import { Fragment, useMemo, useState } from 'react'
+import { Send } from '@mui/icons-material'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { FieldRenderer } from '../../components/FieldRenderer'
 import { Page } from '../../components/Page'
+import { WorkflowTimeline } from '../../components/WorkflowTimeline'
+import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { useCwStore } from '../../store/cwStore'
-import { useSessionStore } from '../../store/sessionStore'
-import { tasksService } from '../../services/tasks/tasksService'
-import type { CWConcern, CWService, CWTaskField, CWTaskFieldValue, CWTaskStatus } from '../../types/cw'
-
-function sortTaskFields(fields: CWTaskField[]) {
-  return fields.slice().sort((a, b) => a.order - b.order)
-}
-
-function validateTaskRequired(fields: CWTaskField[], values: Record<string, CWTaskFieldValue>) {
-  const missing: string[] = []
-  for (const f of fields) {
-    if (!f.required) continue
-    const v = values[f.id]
-    const ok =
-      v !== null &&
-      v !== undefined &&
-      (typeof v === 'boolean' || typeof v === 'number' || (Array.isArray(v) ? v.length > 0 : String(v).trim().length > 0))
-    if (!ok) missing.push(f.label)
-  }
-  return missing
-}
-
-function taskStatusChip(status: CWTaskStatus) {
-  const map: Record<CWTaskStatus, { label: string; color: 'default' | 'info' | 'primary' | 'warning' | 'success' }> = {
-    Assigned: { label: 'Assigned', color: 'info' },
-    'In Progress': { label: 'In Progress', color: 'primary' },
-    Pending: { label: 'Pending', color: 'warning' },
-    Completed: { label: 'Completed', color: 'success' },
-  }
-  const { label, color } = map[status] ?? { label: status, color: 'default' }
-  return <Chip size="small" label={label} color={color} />
-}
-
-function toIso(local: string) {
-  if (!local) return ''
-  const d = new Date(local)
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString()
-}
-
-function overlaps(as: number, ae: number, bs: number, be: number) {
-  return as < be && bs < ae
-}
-
-const CYCLE_STAGES = [
-  'Appointment Created',
-  'Assigned SA',
-  'SA Reviewed',
-  'Customer Notified',
-  'Customer Approved',
-  'Service Processing',
-  'Closed',
-]
-
-function stageIndex(status: string): number {
-  const map: Record<string, number> = {
-    Draft: 0,
-    Confirmed: 0,
-    'SA Review': 1,
-    'SA Reviewed': 2,
-    'Customer Notified': 3,
-    'Customer Approved': 4,
-    'Customer Rejected': 3,
-    'Service Processing': 5,
-    Closed: 6,
-  }
-  return map[status] ?? 0
-}
-
-function statusColor(status: string): 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' {
-  const map: Record<string, 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info'> = {
-    Draft: 'default',
-    Confirmed: 'primary',
-    'SA Review': 'info',
-    'SA Reviewed': 'info',
-    'Customer Notified': 'warning',
-    'Customer Approved': 'success',
-    'Customer Rejected': 'error',
-    'Service Processing': 'primary',
-    Closed: 'success',
-  }
-  return map[status] ?? 'default'
-}
 
 function fmtBDT(n: number) {
   return `BDT ${n.toLocaleString('en-BD')}`
 }
 
-function fmtDateTime(iso: string) {
+function fmtDate(iso?: string) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function fmtDateTime(iso?: string) {
+  if (!iso) return '—'
   return new Date(iso).toLocaleString('en-GB', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
   })
+}
+
+
+function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
+  const map: Record<string, 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error'> = {
+    'New': 'info',
+    'SA Inspection': 'primary',
+    'SA Reviewed': 'warning',
+    'Customer Notified': 'warning',
+    'Customer Approved': 'success',
+    'Customer Rejected': 'error',
+    'Diagnosis Assigned': 'info',
+    'Diagnosis In Progress': 'primary',
+    'Diagnosis Complete': 'success',
+    'Service Approval Pending': 'warning',
+    'Service Approved': 'success',
+    'Service Assigned': 'info',
+    'Service In Progress': 'primary',
+    'Service Complete': 'success',
+    'QC Assigned': 'info',
+    'QC Approved': 'success',
+    'QC Rejected': 'error',
+    'Payment Pending': 'warning',
+    'Payment Done': 'success',
+    Released: 'success',
+  }
+  return map[status] ?? 'default'
 }
 
 export function AppointmentDetailPage() {
@@ -149,826 +76,528 @@ export function AppointmentDetailPage() {
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
   const users = useCwStore((s) => s.users)
-  const roles = useCwStore((s) => s.roles)
-  const services = useCwStore((s) => s.services)
-  const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
-  const addAppointmentConcern = useCwStore((s) => s.addAppointmentConcern)
-  const removeAppointmentConcern = useCwStore((s) => s.removeAppointmentConcern)
-  const addAppointmentService = useCwStore((s) => s.addAppointmentService)
-  const removeAppointmentService = useCwStore((s) => s.removeAppointmentService)
-  const concerns = useCwStore((s) => s.concerns)
-  const concernCategories = useCwStore((s) => s.concernCategories)
-  const activeConcerns = useMemo(() => concerns.filter((c) => c.status === 'Active'), [concerns])
-  const catById = useMemo(() => new Map(concernCategories.map((c) => [c.id, c])), [concernCategories])
-  const addWhatsappLog = useCwStore((s) => s.addWhatsappLog)
-  const setCustomerApproval = useCwStore((s) => s.setCustomerApproval)
-  const updateServiceItemAssignment = useCwStore((s) => s.updateServiceItemAssignment)
-
-  const shops = useCwStore((s) => s.shops)
   const bays = useCwStore((s) => s.bays)
-  const taskTemplates = useCwStore((s) => s.taskTemplates)
-  const tasks = useCwStore((s) => s.tasks)
-  const taskFieldValues = useCwStore((s) => s.taskFieldValues)
-  const createTaskFromTemplate = useCwStore((s) => s.createTaskFromTemplate)
-  const addSATaskToAppointment = useCwStore((s) => s.addSATaskToAppointment)
+  const catalogServices = useCwStore((s) => s.services)
+  const partRequests = useCwStore((s) => s.partRequests)
+  const shops = useCwStore((s) => s.shops)
+  const allConcerns = useCwStore((s) => s.concerns)
+  const concernCategories = useCwStore((s) => s.concernCategories)
+  const addWhatsappLog = useCwStore((s) => s.addWhatsappLog)
+  const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
+  const setCustomerApproval = useCwStore((s) => s.setCustomerApproval)
+  const pushTimeline = useCwStore((s) => s.pushTimeline)
+  const confirmPayment = useCwStore((s) => s.confirmPayment)
+  const assignQC = useCwStore((s) => s.assignQC)
+  const assignSA = useCwStore((s) => s.assignSA)
+  const roles = useCwStore((s) => s.roles)
 
-  const appt = useMemo(() => appointments.find((a) => a.id === appointmentId), [appointments, appointmentId])
-
-  const vehicle = useMemo(() => (appt ? vehicles.find((v) => v.id === appt.vehicleId) ?? null : null), [vehicles, appt])
-  const customer = useMemo(() => (appt ? customers.find((c) => c.id === appt.customerId) ?? null : null), [customers, appt])
-  const saUser = useMemo(() => (appt?.assignedServiceAdvisorId ? users.find((u) => u.id === appt.assignedServiceAdvisorId) ?? null : null), [users, appt])
-
-
-  const sessionUser = useSessionStore((s) => s.user)
-  const isSA = useMemo(() => sessionUser?.roles.some((r) => r === 'Service Advisor') ?? false, [sessionUser])
-
-  const activeServices = useMemo(() => services.filter((s) => s.status === 'Active'), [services])
-
-  // Task builder helpers
-  const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
-  const activeRoles = useMemo(() => roles.filter((r) => r.status === 'Active'), [roles])
-  // SA task builder form state
-  const [taskShopId, setTaskShopId] = useState('')
-  const [taskTemplateId, setTaskTemplateId] = useState('')
-  const [taskStartLocal, setTaskStartLocal] = useState('')
-  const [taskEndLocal, setTaskEndLocal] = useState('')
-  const [taskRoleIds, setTaskRoleIds] = useState<string[]>([])
-  const [taskBayId, setTaskBayId] = useState('')
-  const [taskUserIds, setTaskUserIds] = useState<string[]>([])
-  const [taskError, setTaskError] = useState<string | null>(null)
-  const activeTemplatesForShop = useMemo(
-    () => taskTemplates.filter((t) => t.status === 'Active' && (taskShopId ? t.shopId === taskShopId : true)),
-    [taskTemplates, taskShopId],
+  const appt = useMemo(
+    () => appointments.find((a) => a.id === appointmentId) ?? null,
+    [appointments, appointmentId],
   )
-  const baysByShop = useMemo(() => {
-    const map = new Map<string, typeof bays>()
-    for (const b of bays) {
-      if (b.status === 'Inactive') continue
-      const arr = map.get(b.shopId) ?? []
-      arr.push(b)
-      map.set(b.shopId, arr)
-    }
+
+  const vehicle = useMemo(() => (appt ? vehicles.find((v) => v.id === appt.vehicleId) : null), [vehicles, appt])
+  const customer = useMemo(() => (appt ? customers.find((c) => c.id === appt.customerId) : null), [customers, appt])
+
+  const userNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const u of users) map.set(u.id, u.fullName)
+    return map
+  }, [users])
+
+  const bayNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const b of bays) map.set(b.id, b.name)
     return map
   }, [bays])
-  const roleNameById = useMemo(() => new Map(roles.map((r) => [r.id, r.name])), [roles])
-  const templateById = useMemo(() => new Map(taskTemplates.map((t) => [t.id, t])), [taskTemplates])
-  const userNameById = useMemo(() => new Map(users.map((u) => [u.id, u.fullName])), [users])
-  const saTaskObjects = useMemo(
-    () => (appt ? (appt.saTaskIds ?? []).map((id) => tasks.find((t) => t.id === id)).filter(Boolean) as typeof tasks : []),
-    [tasks, appt],
-  )
 
-  // Available users for the inline add form
-  const addFormAvailableUsers = useMemo(() => {
-    const startIso = toIso(taskStartLocal)
-    const endIso = toIso(taskEndLocal)
-    const start = Date.parse(startIso)
-    const end = Date.parse(endIso)
-    const windowValid = Number.isFinite(start) && Number.isFinite(end) && end > start
-    const busyNames = new Set<string>()
-    if (windowValid) {
-      for (const t of tasks) {
-        if (t.status === 'Completed' || !t.plannedStartAt || !t.plannedEndAt) continue
-        const ts = Date.parse(t.plannedStartAt), te = Date.parse(t.plannedEndAt)
-        if (!overlaps(start, end, ts, te)) continue
-        const assignees = t.assignedToNames?.length ? t.assignedToNames : [t.assignedToName]
-        for (const n of assignees) busyNames.add(n)
-      }
+  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
+
+  // Concern → shop name lookup: concernId → concern → categoryId → category → shopId → shop
+  const getConcernShopName = useMemo(() => {
+    const cMap = new Map(allConcerns.map((c) => [c.id, c]))
+    const catMap = new Map(concernCategories.map((c) => [c.id, c]))
+    return (concernId: string) => {
+      const concern = cMap.get(concernId)
+      if (!concern) return ''
+      const shopId = catMap.get(concern.categoryId)?.shopId ?? ''
+      return shopById.get(shopId)?.name ?? ''
     }
-    return users
-      .filter((u) => u.status === 'Active')
-      .filter((u) => (taskRoleIds.length ? taskRoleIds.some((rid) => u.roleIds.includes(rid)) : true))
-      .filter((u) => (taskShopId && u.shopIds.length ? u.shopIds.includes(taskShopId) : true))
-      .map((u) => ({ ...u, busy: busyNames.has(u.fullName) }))
-      .sort((a, b) => Number(a.busy) - Number(b.busy) || a.fullName.localeCompare(b.fullName))
-  }, [tasks, users, taskStartLocal, taskEndLocal, taskRoleIds, taskShopId])
+  }, [allConcerns, concernCategories, shopById])
 
-  function addDraftTask() {
-    if (!appt) return
-    if (!taskShopId || !taskTemplateId) return
-    if (!taskStartLocal || !taskEndLocal) { setTaskError('Set start and end time.'); return }
-    if (taskUserIds.length === 0) { setTaskError('Assign at least one person.'); return }
-    const startIso = toIso(taskStartLocal)
-    const endIso = toIso(taskEndLocal)
-    if (Date.parse(endIso) <= Date.parse(startIso)) { setTaskError('End must be after start.'); return }
-    const tpl = templateById.get(taskTemplateId)
-    if (!tpl) { setTaskError('Template not found.'); return }
-    setTaskError(null)
-    const primaryName = users.find((u) => u.id === taskUserIds[0])!.fullName
-    const allNames = taskUserIds.map((id) => users.find((u) => u.id === id)!.fullName)
-    const task = createTaskFromTemplate({
-      templateId: taskTemplateId,
-      assignedToName: primaryName,
-      assignedToNames: allNames,
-      assignedRoleId: taskRoleIds.length === 1 ? taskRoleIds[0] : undefined,
-      bayId: taskBayId || undefined,
-      plannedStartAt: startIso,
-      plannedEndAt: endIso,
-      title: tpl.name,
-    })
-    addSATaskToAppointment(appt.id, task.id)
-    // Reset form except shop
-    setTaskTemplateId('')
-    setTaskStartLocal('')
-    setTaskEndLocal('')
-    setTaskRoleIds([])
-    setTaskBayId('')
-    setTaskUserIds([])
-  }
-
-  // SA existing task inline editing
-  const [selectedExistingTaskId, setSelectedExistingTaskId] = useState<string | null>(null)
-
-  // SA add concern
-  const [selConcern, setSelConcern] = useState<CWConcern | null>(null)
-  const [concernRemark, setConcernRemark] = useState('')
-
-  // SA add service
-  const [selService, setSelService] = useState<CWService | null>(null)
-  const [serviceRemark, setServiceRemark] = useState('')
-
-  // SA reassign
-
-  // Per-service form state for Service Process panel (keyed by serviceItemId)
-  const [svcForm, setSvcForm] = useState<Record<string, { userIds: string[]; startLocal: string; endLocal: string }>>({})
-
-  // WhatsApp compose
-  const [waDialogOpen, setWaDialogOpen] = useState(false)
-  const [waMessage, setWaMessage] = useState('')
-
-  // Customer approval note
-  const [approvalNote, setApprovalNote] = useState('')
-
-  const [error] = useState<string | null>(null)
+  // Service → shop name lookup: serviceId → service → shopId → shop
+  const getServiceShopName = useMemo(() => {
+    const sMap = new Map(catalogServices.map((s) => [s.id, s]))
+    return (serviceId: string) => {
+      const svc = sMap.get(serviceId)
+      return svc ? shopById.get(svc.shopId)?.name ?? '' : ''
+    }
+  }, [catalogServices, shopById])
 
   if (!appt) {
     return (
-      <Page title="Appointment not found">
+      <Page title="Appointment Not Found">
         <Alert severity="error">Appointment not found.</Alert>
       </Page>
     )
   }
 
-  const currentStage = stageIndex(appt.status)
-  const totalBDT = appt.serviceItems.reduce((s, i) => s + i.price, 0)
+  const totalBDT = appt.serviceItems.reduce((sum, s) => sum + s.price, 0)
 
-  function addSAConcern() {
-    if (!selConcern) return
-    addAppointmentConcern({
-      appointmentId: appt!.id,
-      concernId: selConcern.id,
-      concernName: selConcern.name,
-      remark: concernRemark.trim(),
-    })
-    setSelConcern(null)
-    setConcernRemark('')
-  }
+  // ── Workflow flags ──
+  const isReviewed = appt.status === 'SA Reviewed'
+  const isCustomerNotified = appt.status === 'Customer Notified'
+  const isDiagnosisComplete = appt.status === 'Diagnosis Complete'
+  const isServiceApprovalPending = appt.status === 'Service Approval Pending'
+  const isServiceComplete = appt.status === 'Service Complete'
+  const isQCApproved = appt.status === 'QC Approved'
+  const isPaymentPending = appt.status === 'Payment Pending'
 
-  function addSAService() {
-    if (!selService) return
-    addAppointmentService({
-      appointmentId: appt!.id,
-      serviceId: selService.id,
-      serviceCode: selService.code,
-      serviceDescription: selService.description,
-      timeHrs: selService.timeHrs,
-      ratePerHr: selService.ratePerHr,
-      price: selService.price,
-      remark: serviceRemark.trim(),
-      addedBySA: true,
-    })
-    setSelService(null)
-    setServiceRemark('')
+  const canSendConcernWA = isReviewed
+  const canSendServiceWA = isDiagnosisComplete
+  const canApprove = isCustomerNotified || isServiceApprovalPending
+  const canAssignQC = isServiceComplete
+  const canSendPaymentWA = isQCApproved
+  const canConfirmPayment = isPaymentPending
+
+  // WhatsApp dialog state
+  const [waDialogOpen, setWaDialogOpen] = useState(false)
+  const [waMessage, setWaMessage] = useState('')
+  const [waDialogPurpose, setWaDialogPurpose] = useState<'concern-approval' | 'service-approval' | 'payment'>('concern-approval')
+  const [approvalNote, setApprovalNote] = useState('')
+
+  // QC user selection
+  const qcRoleId = useMemo(() => roles.find((r) => r.name === 'QC')?.id, [roles])
+  const activeQCUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)),
+    [users, qcRoleId],
+  )
+  const [selectedQCUserId, setSelectedQCUserId] = useState('')
+  const [selectedSAUserId, setSelectedSAUserId] = useState('')
+
+  // SA user list
+  const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
+  const activeSAUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
+    [users, saRoleId],
+  )
+  const assignedSA = useMemo(
+    () => (appt ? users.find((u) => u.id === appt.assignedSAUserId) : null),
+    [users, appt],
+  )
+
+  function openWhatsApp(purpose: 'concern-approval' | 'service-approval' | 'payment') {
+    setWaDialogPurpose(purpose)
+    const name = customer?.fullName ?? 'Customer'
+    const reg = vehicle?.registrationNo ?? ''
+
+    if (purpose === 'concern-approval') {
+      const concernBlock = appt!.concernItems.map((c) => {
+        let block = `• ${c.concernName}`
+        if (c.remark) block += `\n  Note: ${c.remark}`
+        return block
+      }).join('\n')
+      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nConcerns:\n${concernBlock}\n\nProposed Services:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm.`)
+    } else if (purpose === 'service-approval') {
+      const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
+      const concernBlock = appt!.concernItems.map((c) => {
+        const lines: string[] = [`• ${c.concernName}`]
+        if (c.diagnosisRemark) lines.push(`  Diagnosis: ${c.diagnosisRemark}`)
+        const cServices = (c.serviceIds ?? []).map((sid) => catalogServices.find((s) => s.id === sid)).filter(Boolean)
+        if (cServices.length > 0) {
+          lines.push(`  Services: ${cServices.map((s) => s ? `${s.code} (${fmtBDT(s.price)})` : '').join(', ')}`)
+        }
+        const cParts = allParts.filter((pr) => pr.concernItemId === c.id)
+        if (cParts.length > 0) {
+          lines.push(`  Parts: ${cParts.map((pr) => `${pr.partName} x${pr.quantity ?? 1}${typeof pr.price === 'number' ? ` (${fmtBDT(pr.price)})` : ''}${pr.deliveryDate ? ` ETA: ${pr.deliveryDate}` : ''}`).join(', ')}`)
+        }
+        return lines.join('\n')
+      }).join('\n\n')
+      const globalServices = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
+      const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const grandTotal = serviceTotal + partsTotal
+      setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nDiagnosis Report:\n${concernBlock}\n\nAll Services:\n${globalServices}\n\nServices Total: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts Total: ${fmtBDT(partsTotal)}` : ''}\nGrand Total: ${fmtBDT(grandTotal)}\n\nPlease confirm to proceed.`)
+    } else {
+      const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
+      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
+      const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const grandTotal = serviceTotal + partsTotal
+      let partBlock = ''
+      if (allParts.length > 0) {
+        partBlock = `\n\nParts Used:\n${allParts.map((pr) => `• ${pr.partName} x${pr.quantity ?? 1}${typeof pr.price === 'number' ? ` — ${fmtBDT(pr.price * (pr.quantity ?? 1))}` : ''}`).join('\n')}`
+      }
+      setWaMessage(`Dear ${name},\n\nGreat news! Your vehicle ${reg} is ready for pickup.\n\nCompleted Services:\n${serviceList}${partBlock}\n\nServices: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts: ${fmtBDT(partsTotal)}` : ''}\nTotal Due: ${fmtBDT(grandTotal)}\n\nPickup Hours: 9:00 AM - 6:00 PM (Sat-Thu)\n\nPlease make payment at the cashier counter to collect your vehicle. We accept Cash, Card, and Mobile Banking.\n\nThank you for choosing Continental Workshop!`)
+    }
+    setWaDialogOpen(true)
   }
 
   function sendWhatsapp() {
-    if (!waMessage.trim()) return
     addWhatsappLog({
       appointmentId: appt!.id,
-      message: waMessage.trim(),
-      authorName: sessionUser?.name ?? 'CRO',
       direction: 'outbound',
+      authorName: 'CRE',
+      message: waMessage.trim(),
     })
-    setAppointmentStatus(appt!.id, 'Customer Notified')
+    if (waDialogPurpose === 'concern-approval') {
+      setAppointmentStatus(appt!.id, 'Customer Notified')
+      pushTimeline(appt!.id, { actor: 'CRE', action: 'WhatsApp sent for concern/service approval' })
+    } else if (waDialogPurpose === 'service-approval') {
+      setAppointmentStatus(appt!.id, 'Service Approval Pending')
+      pushTimeline(appt!.id, { actor: 'CRE', action: 'WhatsApp sent for service approval (post-diagnosis)' })
+    } else {
+      setAppointmentStatus(appt!.id, 'Payment Pending')
+      pushTimeline(appt!.id, { actor: 'CRE', action: 'WhatsApp sent for payment' })
+    }
     setWaDialogOpen(false)
     setWaMessage('')
   }
 
-  function handleApproval(decision: 'Approved' | 'Rejected') {
-    setCustomerApproval({
-      appointmentId: appt!.id,
-      status: decision,
-      note: approvalNote.trim() || undefined,
-    })
-    setAppointmentStatus(appt!.id, decision === 'Approved' ? 'Customer Approved' : 'Customer Rejected')
-  }
-
-  function sendToSAReview() {
-    setAppointmentStatus(appt!.id, 'SA Review')
-  }
-
-  function saveServiceAssignment(svcId: string) {
-    const f = svcForm[svcId]
-    if (!f || !f.userIds.length || !f.startLocal || !f.endLocal) return
-    updateServiceItemAssignment({
-      appointmentId: appt!.id,
-      serviceItemId: svcId,
-      assignedUserIds: f.userIds,
-      plannedStartAt: toIso(f.startLocal),
-      plannedEndAt: toIso(f.endLocal),
-      workStatus: 'Pending',
-    })
+  function handleApproval(status: 'Approved' | 'Rejected') {
+    setCustomerApproval({ appointmentId: appt!.id, status, note: approvalNote.trim() || undefined })
+    if (status === 'Approved') {
+      if (isCustomerNotified) {
+        setAppointmentStatus(appt!.id, 'Customer Approved')
+        pushTimeline(appt!.id, { actor: 'CRE', action: 'Customer approved concerns — ready for JC diagnosis assignment' })
+      } else if (isServiceApprovalPending) {
+        setAppointmentStatus(appt!.id, 'Service Approved')
+        pushTimeline(appt!.id, { actor: 'CRE', action: 'Customer approved services — ready for JC service assignment' })
+      }
+    } else {
+      setAppointmentStatus(appt!.id, 'Customer Rejected')
+      pushTimeline(appt!.id, { actor: 'CRE', action: `Customer rejected${approvalNote.trim() ? `: ${approvalNote.trim()}` : ''}` })
+    }
+    setApprovalNote('')
   }
 
   return (
-    <Page
-      title={`Appointment · ${vehicle?.registrationNo ?? '—'}`}
-      subtitle={`${customer?.fullName ?? '—'} · Created ${fmtDateTime(appt.createdAt)}`}
-      actions={
-        <Chip label={appt.status} color={statusColor(appt.status)} sx={{ fontWeight: 700 }} />
-      }
-    >
-      <Stack spacing={3}>
-        {error && <Alert severity="error">{error}</Alert>}
+    <Page title="Appointment" subtitle={`#${appt.id.slice(0, 8)}`}>
+      <Stack spacing={2.5}>
+        {/* ── Workflow Timeline ── */}
+        <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
-        {/* ── Cycle tracker ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 3, overflow: 'auto' }}>
-          <Typography sx={{ fontWeight: 900, mb: 2 }}>Workshop Cycle</Typography>
-          <Stepper
-            activeStep={currentStage}
-            connector={<StepConnector />}
-            sx={{ overflowX: 'auto', pb: 1 }}
-          >
-            {CYCLE_STAGES.map((label, idx) => (
-              <Step key={label} completed={idx < currentStage}>
-                <StepLabel
-                  slots={{ stepIcon: () => {
-                    if (idx < currentStage) return <CheckCircle sx={{ color: 'success.main', fontSize: 22 }} />
-                    if (idx === currentStage) return <PendingActions sx={{ color: 'primary.main', fontSize: 22 }} />
-                    return <RadioButtonUnchecked sx={{ color: 'text.disabled', fontSize: 22 }} />
-                  }}}
-                >
-                  <Typography variant="caption" sx={{ fontWeight: idx === currentStage ? 800 : 400 }}>
-                    {label}
-                  </Typography>
-                </StepLabel>
-              </Step>
-            ))}
-          </Stepper>
+        {/* ── Vehicle & Customer Info (collapsible) ── */}
+        <VehicleInfoBanner appointmentId={appt.id} />
 
-          {/* Workflow buttons */}
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
-            {appt.status === 'Draft' && (
-              <Button variant="outlined" size="small" onClick={sendToSAReview}>
-                Send to SA Review
-              </Button>
-            )}
-            {appt.status === 'SA Reviewed' && !isSA && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<WhatsApp />}
-                onClick={() => setWaDialogOpen(true)}
-              >
-                Notify Customer
-              </Button>
-            )}
-            {appt.status === 'Customer Approved' && !isSA && (
-              <Button
-                variant="contained"
-                color="primary"
-                size="small"
-                onClick={() => setAppointmentStatus(appt.id, 'Service Processing')}
-              >
-                Start Service Processing
-              </Button>
-            )}
-          </Box>
-        </Paper>
-
-        {/* ── Vehicle & Customer ── */}
+        {/* ── Summary ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 2 }}>Vehicle & Customer</Typography>
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Registration', value: vehicle?.registrationNo },
-              { label: 'Make', value: vehicle?.make },
-              { label: 'Model', value: vehicle?.model },
-              { label: 'VIN', value: vehicle?.vin },
-              { label: 'Customer', value: customer?.fullName },
-              { label: 'Phone', value: customer?.phone },
-              { label: 'Email', value: customer?.email },
-              { label: 'Slot Date', value: appt.slotDate },
-              { label: 'Slot Time', value: appt.slotTime },
-              { label: 'Service Advisor', value: saUser?.fullName },
-            ].map(({ label, value }) => (
-              <Box key={label} sx={{ flex: '1 1 180px', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                <Typography variant="caption" color="text.secondary">{label}</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{value ?? '—'}</Typography>
-              </Box>
-            ))}
-          </Box>
-          {appt.notes && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="caption" color="text.secondary">Note</Typography>
-              <Typography variant="body2">{appt.notes}</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" color="text.secondary">Vehicle</Typography>
+              <Typography sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                {vehicle?.registrationNo ?? '—'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {[vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || '—'}
+              </Typography>
             </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" color="text.secondary">Customer</Typography>
+              <Typography sx={{ fontWeight: 700 }}>{customer?.fullName ?? '—'}</Typography>
+              <Typography variant="caption" color="text.secondary">{customer?.phone ?? ''}</Typography>
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" color="text.secondary">Status</Typography>
+              <Chip label={appt.status} size="small" color={statusColor(appt.status)} sx={{ fontWeight: 700, mt: 0.5 }} />
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" color="text.secondary">Total</Typography>
+              <Typography sx={{ fontWeight: 700 }}>{fmtBDT(totalBDT)}</Typography>
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" color="text.secondary">Created</Typography>
+              <Typography variant="body2">{fmtDate(appt.createdAt)}</Typography>
+            </Box>
+          </Stack>
+          {appt.slotDate && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Slot: {fmtDate(appt.slotDate)} {appt.slotTime ?? ''}
+            </Typography>
+          )}
+          {appt.concerns && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Notes: {appt.concerns}
+            </Typography>
           )}
         </Paper>
+
+        {/* ── Service Advisor Assignment ── */}
+        {!appt.assignedSAUserId ? (
+          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+              No Service Advisor Assigned
+            </Typography>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <TextField select size="small" label="Assign Service Advisor" value={selectedSAUserId}
+                onChange={(e) => setSelectedSAUserId(e.target.value)} sx={{ minWidth: 280 }}>
+                <MenuItem value="">— Select SA —</MenuItem>
+                {activeSAUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+              </TextField>
+              <Button variant="contained" color="warning" disabled={!selectedSAUserId}
+                onClick={() => { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') }}>
+                Assign SA
+              </Button>
+            </Stack>
+          </Paper>
+        ) : (
+          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Service Advisor: <strong>{assignedSA?.fullName ?? appt.assignedSAUserId}</strong>
+            </Typography>
+          </Paper>
+        )}
 
         {/* ── Concerns ── */}
         <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 2 }}>Concerns</Typography>
-          {appt.concernItems.length > 0 ? (
-            <Table size="small" sx={{ mb: 2 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>SI</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
-                  {['SA Review', 'Customer Notified'].includes(appt.status) && <TableCell />}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {appt.concernItems.map((item, idx) => (
-                  <TableRow key={item.id}>
-                    <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.concernName}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
-                    </TableCell>
-                    {['SA Review', 'Customer Notified'].includes(appt.status) && (
-                      <TableCell>
-                        <IconButton size="small" color="error" onClick={() => removeAppointmentConcern(appt.id, item.id)}>
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>
+            Concerns ({appt.concernItems.length})
+          </Typography>
+          {appt.concernItems.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No concerns listed.</Typography>
           ) : (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>No concerns listed.</Typography>
-          )}
-
-          {/* SA can add concerns during SA Review or Customer Notified */}
-          {['SA Review', 'Customer Notified'].includes(appt.status) && (
-            <>
-              <Divider sx={{ mb: 2 }} />
-              <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Add concern (SA)</Typography>
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, alignItems: 'flex-start' }}>
-                <Autocomplete
-                  size="small"
-                  options={activeConcerns}
-                  groupBy={(o) => catById.get(o.categoryId)?.name ?? 'Other'}
-                  getOptionLabel={(o) => o.name}
-                  value={selConcern}
-                  onChange={(_, val) => setSelConcern(val)}
-                  sx={{ flex: '2 1 280px' }}
-                  renderInput={(params) => <TextField {...params} label="Concern" />}
-                />
-                <TextField
-                  size="small"
-                  label="Remark"
-                  value={concernRemark}
-                  onChange={(e) => setConcernRemark(e.target.value)}
-                  sx={{ flex: '2 1 200px' }}
-                />
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
-                  onClick={addSAConcern}
-                  disabled={!selConcern}
-                  sx={{ height: 40 }}
-                >
-                  Add
-                </Button>
-              </Box>
-            </>
-          )}
-        </Paper>
-
-        {/* ── Service Items ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
-            <Chip label={`Total: ${fmtBDT(totalBDT)}`} color="primary" sx={{ fontWeight: 700 }} />
-          </Box>
-
-          {appt.serviceItems.length > 0 ? (
-            <Table size="small" sx={{ mb: 2 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>SI</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>Time</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>Price (BDT)</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>By</TableCell>
-                  {['SA Review', 'Customer Notified'].includes(appt.status) && <TableCell />}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {appt.serviceItems.map((item, idx) => (
-                  <TableRow key={item.id}>
-                    <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
-                    <TableCell>
-                      <Stack>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.serviceDescription}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                          {item.serviceCode}
-                        </Typography>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
-                    </TableCell>
-                    <TableCell align="right">{item.timeHrs}h</TableCell>
-                    <TableCell align="right">
-                      <Typography sx={{ fontWeight: 700 }}>{item.price.toLocaleString('en-BD')}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      {item.addedBySA ? (
-                        <Chip label="SA" size="small" color="info" />
-                      ) : (
-                        <Chip label="CRO" size="small" />
-                      )}
-                    </TableCell>
-                    {['SA Review', 'Customer Notified'].includes(appt.status) && (
-                      <TableCell>
-                        <IconButton size="small" color="error" onClick={() => removeAppointmentService(appt.id, item.id)}>
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-                <TableRow>
-                  <TableCell colSpan={4} sx={{ textAlign: 'right', fontWeight: 800, border: 'none' }}>
-                    Total Labour Estimate
-                  </TableCell>
-                  <TableCell align="right" sx={{ border: 'none' }}>
-                    <Typography sx={{ fontWeight: 900, color: 'primary.main' }}>
-                      {totalBDT.toLocaleString('en-BD')}
-                    </Typography>
-                  </TableCell>
-                  <TableCell colSpan={2} sx={{ border: 'none' }} />
-                </TableRow>
-              </TableBody>
-            </Table>
-          ) : (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              No services added yet.
-            </Typography>
-          )}
-
-          {/* SA can add services during SA Review or Customer Notified */}
-          {['SA Review', 'Customer Notified'].includes(appt.status) && (
-            <>
-              <Divider sx={{ mb: 2 }} />
-              <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
-                Add service (SA)
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, alignItems: 'flex-start' }}>
-                <Autocomplete
-                  size="small"
-                  options={activeServices}
-                  groupBy={(o) => o.category}
-                  getOptionLabel={(o) => `${o.code} – ${o.description}`}
-                  value={selService}
-                  onChange={(_, val) => setSelService(val)}
-                  sx={{ flex: '2 1 280px' }}
-                  renderInput={(params) => <TextField {...params} label="Service" />}
-                />
-                <TextField
-                  size="small"
-                  label="Remark"
-                  value={serviceRemark}
-                  onChange={(e) => setServiceRemark(e.target.value)}
-                  sx={{ flex: '2 1 200px' }}
-                />
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
-                  onClick={addSAService}
-                  disabled={!selService}
-                  sx={{ height: 40 }}
-                >
-                  Add
-                </Button>
-              </Box>
-            </>
-          )}
-        </Paper>
-
-        {/* ── SA Tasks ── */}
-        {isSA && (
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 2 }}>Tasks</Typography>
-
-          {/* Existing SA tasks */}
-          {saTaskObjects.length > 0 && (
-            <Box sx={{ mb: 2 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800 }}>Task</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Assigned To</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Time Window</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                    <TableCell />
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {saTaskObjects.map((t) => {
-                    const isExpanded = selectedExistingTaskId === t.id
-                    const fieldVals = taskFieldValues[t.id] ?? {}
-                    const orderedFields = sortTaskFields(t.fields)
-                    const missing = validateTaskRequired(orderedFields, fieldVals)
-                    const canStart = t.status === 'Assigned'
-                    const canMarkInProgress = t.status === 'In Progress'
-                    const canComplete = t.status === 'In Progress' && missing.length === 0
-                    const canResume = t.status === 'Pending'
-                    return (
-                      <Fragment key={t.id}>
-                        <TableRow
-                          hover
-                          sx={{ cursor: 'pointer' }}
-                          onClick={() => setSelectedExistingTaskId(isExpanded ? null : t.id)}
-                        >
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{t.title}</Typography>
-                            <Typography variant="caption" color="text.secondary">{t.templateName}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">
-                              {(t.assignedToNames?.length ? t.assignedToNames : [t.assignedToName]).join(', ')}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="caption">
-                              {t.plannedStartAt ? new Date(t.plannedStartAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
-                              {' → '}
-                              {t.plannedEndAt ? new Date(t.plannedEndAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{taskStatusChip(t.status)}</TableCell>
-                          <TableCell sx={{ width: 32, p: 0.5 }}>
-                            <IconButton size="small">
-                              {isExpanded ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                        {isExpanded && (
-                          <TableRow key={`${t.id}-detail`}>
-                            <TableCell colSpan={5} sx={{ p: 0, bgcolor: 'action.hover' }}>
-                              <Box sx={{ p: 2 }}>
-                                <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 700, flex: 1 }}>Fill task fields on behalf of technician</Typography>
-                                  {(canStart || canResume) && (
-                                    <Button
-                                      size="small"
-                                      variant="contained"
-                                      color="primary"
-                                      startIcon={<PlayArrow />}
-                                      onClick={(e) => { e.stopPropagation(); tasksService.setStatus(t.id, { status: 'In Progress' }) }}
-                                    >
-                                      Start
-                                    </Button>
-                                  )}
-                                  {canMarkInProgress && (
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      color="warning"
-                                      startIcon={<PauseCircle />}
-                                      onClick={(e) => { e.stopPropagation(); tasksService.setStatus(t.id, { status: 'Pending' }) }}
-                                    >
-                                      Mark Pending
-                                    </Button>
-                                  )}
-                                  {canComplete && (
-                                    <Button
-                                      size="small"
-                                      variant="contained"
-                                      color="success"
-                                      startIcon={<Done />}
-                                      onClick={(e) => { e.stopPropagation(); tasksService.setStatus(t.id, { status: 'Completed' }) }}
-                                    >
-                                      Complete
-                                    </Button>
-                                  )}
-                                  {t.status === 'In Progress' && missing.length > 0 && (
-                                    <Typography variant="caption" color="error">Fill required: {missing.join(', ')}</Typography>
-                                  )}
-                                </Box>
-                                {orderedFields.length === 0 ? (
-                                  <Typography variant="body2" color="text.secondary">No fields for this template.</Typography>
-                                ) : (
-                                  <Stack spacing={1.5}>
-                                    {orderedFields.map((f) => (
-                                      <Box key={f.id}>
-                                        <FieldRenderer
-                                          field={f}
-                                          value={fieldVals[f.id] ?? null}
-                                          onChange={(val: CWTaskFieldValue) => tasksService.setFieldValue(t.id, f.id, val)}
-                                        />
-                                      </Box>
-                                    ))}
-                                  </Stack>
-                                )}
-                              </Box>
-                            </TableCell>
-                          </TableRow>
+            <Stack spacing={2}>
+              {appt.concernItems.map((c) => {
+                const concernServices = (c.serviceIds ?? []).map((sid) => catalogServices.find((s) => s.id === sid)).filter(Boolean)
+                const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
+                const shopName = getConcernShopName(c.concernId)
+                return (
+                  <Box key={c.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: c.workStatus === 'Completed' ? 'success.main' : 'divider' }}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography sx={{ fontWeight: 800 }}>
+                        {c.concernName}
+                        {typeof c.processTimeMins === 'number' && (
+                          <Typography component="span" variant="caption" sx={{ ml: 1, px: 1, py: 0.25, bgcolor: 'info.main', color: 'white', borderRadius: 1, fontWeight: 700 }}>
+                            {c.processTimeMins}m
+                          </Typography>
                         )}
-                      </Fragment>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+                      </Typography>
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        {shopName && <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} />}
+                        {c.assignedSEUserId && <Chip size="small" label={userNameById.get(c.assignedSEUserId) ?? '—'} variant="outlined" />}
+                        {c.bayId && <Chip size="small" label={bayNameById.get(c.bayId) ?? '—'} variant="outlined" />}
+                        {c.workStatus ? (
+                          <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
+                        ) : null}
+                      </Stack>
+                    </Stack>
+                    {c.remark && <Typography variant="body2" color="text.secondary">{c.remark}</Typography>}
+                    {c.diagnosisRemark && (
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        <strong>SE Diagnosis:</strong> {c.diagnosisRemark}
+                      </Typography>
+                    )}
+                    {c.plannedStartAt && (
+                      <Typography variant="caption" color="text.secondary">
+                        {fmtDateTime(c.plannedStartAt)} → {fmtDateTime(c.plannedEndAt)}
+                      </Typography>
+                    )}
+                    {c.technicianAssignments.length > 0 && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                        Technicians: {c.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ')}
+                      </Typography>
+                    )}
 
-              {/* Finish SA Work: notify customer once all tasks complete */}
-              {isSA && saTaskObjects.every((t) => t.status === 'Completed') && appt.status === 'SA Review' && (
-                <Box sx={{ mt: 1.5 }}>
-                  <Button
-                    variant="contained"
-                    color="success"
-                    size="small"
-                    startIcon={<Send />}
-                    onClick={() => setAppointmentStatus(appt.id, 'SA Reviewed')}
-                  >
-                    All Tasks Done — Notify CRO
-                  </Button>
-                </Box>
-              )}
-            </Box>
-          )}
+                    {/* Services linked to this concern */}
+                    {concernServices.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.main' }}>Services:</Typography>
+                        <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                          {concernServices.map((svc) => svc && (
+                            <Chip key={svc.id} size="small" label={`${svc.code} · ${svc.description} · ${fmtBDT(svc.price)}`} color="info" variant="outlined" />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
 
-          {saTaskObjects.length === 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>No tasks assigned yet.</Typography>
-          )}
-
-          {taskError && <Alert severity="error" sx={{ mb: 2 }}>{taskError}</Alert>}
-
-          {/* Add task form — all fields inline */}
-          <Divider sx={{ mb: 2 }} />
-          <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>Add Task</Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-            <TextField
-              select
-              size="small"
-              label="Shop"
-              value={taskShopId}
-              onChange={(e) => { setTaskShopId(e.target.value); setTaskTemplateId(''); setTaskBayId(''); setTaskUserIds([]) }}
-            >
-              <MenuItem value="">— Select shop —</MenuItem>
-              {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-            </TextField>
-            <TextField
-              select
-              size="small"
-              label="Task Template"
-              value={taskTemplateId}
-              onChange={(e) => setTaskTemplateId(e.target.value)}
-              disabled={!taskShopId}
-            >
-              <MenuItem value="">— Select template —</MenuItem>
-              {activeTemplatesForShop.filter((t) => t.shopId === taskShopId).map((t) => (
-                <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              size="small"
-              label="Start Time"
-              type="datetime-local"
-              value={taskStartLocal}
-              onChange={(e) => { setTaskStartLocal(e.target.value); setTaskUserIds([]) }}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              size="small"
-              label="End Time"
-              type="datetime-local"
-              value={taskEndLocal}
-              onChange={(e) => { setTaskEndLocal(e.target.value); setTaskUserIds([]) }}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              select
-              size="small"
-              label="Role Filter (optional)"
-              value={taskRoleIds}
-              onChange={(e) => {
-                const v = (e.target as HTMLInputElement).value as unknown
-                const ids = Array.isArray(v) ? (v as string[]) : [String(v)]
-                setTaskRoleIds(ids.filter(Boolean))
-                setTaskUserIds([])
-              }}
-              slotProps={{ select: { multiple: true, renderValue: (s) => (s as string[]).map((id) => roleNameById.get(id)).filter(Boolean).join(', ') || '—' } }}
-            >
-              {activeRoles.map((r) => (
-                <MenuItem key={r.id} value={r.id}>
-                  <Checkbox checked={taskRoleIds.includes(r.id)} size="small" />
-                  {r.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              select
-              size="small"
-              label="Bay (optional)"
-              value={taskBayId}
-              onChange={(e) => setTaskBayId(e.target.value)}
-              disabled={!taskShopId}
-            >
-              <MenuItem value="">— None —</MenuItem>
-              {(baysByShop.get(taskShopId) ?? []).map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
-            </TextField>
-            <TextField
-              select
-              size="small"
-              label="Assign People"
-              value={taskUserIds}
-              onChange={(e) => {
-                const v = (e.target as HTMLInputElement).value as unknown
-                const ids = Array.isArray(v) ? (v as string[]) : [String(v)]
-                setTaskUserIds(ids.filter(Boolean))
-              }}
-              helperText={taskStartLocal && taskEndLocal ? 'Filtered by availability & role.' : 'Set times to filter availability.'}
-              slotProps={{ select: { multiple: true, renderValue: (s) => (s as string[]).map((id) => userNameById.get(id)).filter(Boolean).join(', ') || '—' } }}
-              sx={{ gridColumn: { sm: 'span 2' } }}
-            >
-              {addFormAvailableUsers.map((u) => (
-                <MenuItem key={u.id} value={u.id}>
-                  <Checkbox checked={taskUserIds.includes(u.id)} size="small" />
-                  <Box>
-                    <Typography variant="body2" sx={{ color: u.busy ? 'text.disabled' : 'text.primary' }}>{u.fullName}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {u.roleIds.map((rid) => roleNameById.get(rid)).filter(Boolean).join(', ') || '—'}
-                      {u.busy ? ' · Busy' : ''}
-                    </Typography>
+                    {/* Parts for this concern */}
+                    {concernParts.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'secondary.main' }}>Parts:</Typography>
+                        <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                          {concernParts.map((pr) => (
+                            <Stack key={pr.id} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', px: 1, py: 0.5, bgcolor: 'white', borderRadius: 0.5, border: '1px solid', borderColor: 'divider' }}>
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{pr.partName}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Qty: {pr.quantity ?? 1}{pr.partNumber ? ` · #${pr.partNumber}` : ''}
+                                  {typeof pr.price === 'number' ? ` · ${fmtBDT(pr.price)}` : ''}
+                                  {pr.deliveryDate ? ` · ETA: ${pr.deliveryDate}` : ''}
+                                </Typography>
+                              </Box>
+                              <Chip size="small" label={pr.status}
+                                color={pr.status === 'Fulfilled' ? 'success' : pr.status === 'Labeled' ? 'info' : pr.status === 'Rejected' ? 'error' : 'warning'}
+                              />
+                            </Stack>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
                   </Box>
-                </MenuItem>
-              ))}
-              {addFormAvailableUsers.length === 0 && <MenuItem value="" disabled>No matching users</MenuItem>}
-            </TextField>
-          </Box>
-          <Box sx={{ mt: 1.5 }}>
-            <Button
-              variant="outlined"
-              startIcon={<Add />}
-              onClick={addDraftTask}
-              disabled={!taskShopId || !taskTemplateId}
-            >
-              Add Task
-            </Button>
-          </Box>
+                )
+              })}
+            </Stack>
+          )}
         </Paper>
+
+        {/* ── Services ── */}
+        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
+          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>
+            Services ({appt.serviceItems.length})
+          </Typography>
+          {appt.serviceItems.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No services listed.</Typography>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Price</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>SA</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Bay</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Technicians</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {appt.serviceItems.map((s) => {
+                  const svcShopName = getServiceShopName(s.serviceId)
+                  return (
+                  <TableRow key={s.id}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription}</Typography>
+                      <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      {svcShopName ? <Chip size="small" label={svcShopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
+                    </TableCell>
+                    <TableCell><Typography variant="body2">{fmtBDT(s.price)}</Typography></TableCell>
+                    <TableCell><Typography variant="body2">{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell><Typography variant="body2">{s.bayId ? (bayNameById.get(s.bayId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {s.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      {s.workStatus ? (
+                        <Chip
+                          label={s.workStatus}
+                          size="small"
+                          color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'}
+                          sx={{ fontWeight: 700 }}
+                        />
+                      ) : '—'}
+                    </TableCell>
+                  </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </Paper>
+
+        {/* ── WhatsApp: Concern Approval (1st round) ── */}
+        {canSendConcernWA && (
+          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'info.main' }}>
+              Send WhatsApp for Customer Approval
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Review complete. Send concerns and services to customer for approval.
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('concern-approval')}>
+              Compose WhatsApp
+            </Button>
+          </Paper>
         )}
 
-        {/* ── SA Assignment ── */}
-        {!isSA && (
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1 }}>Service Advisor</Typography>
-          <Typography variant="body2">
-            {saUser ? `${saUser.fullName} (${saUser.mobile ?? '—'})` : 'Not assigned'}
-          </Typography>
-        </Paper>
+        {/* ── WhatsApp: Service Approval (2nd round, after diagnosis) ── */}
+        {canSendServiceWA && (
+          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+              Diagnosis Complete — Send Service Approval
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              SE completed diagnosis and may have added services. Send updated list to customer.
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('service-approval')}>
+              Compose WhatsApp (Services)
+            </Button>
+          </Paper>
+        )}
+
+        {/* ── Customer Approval (both rounds) ── */}
+        {canApprove && (
+          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'success.main' }}>
+              {isCustomerNotified ? 'Record Customer Approval (Concerns)' : 'Record Customer Approval (Services)'}
+            </Typography>
+            <TextField label="Customer Note (optional)" value={approvalNote}
+              onChange={(e) => setApprovalNote(e.target.value)} fullWidth multiline minRows={2} sx={{ mb: 1.5 }} />
+            <Stack direction="row" spacing={1.5}>
+              <Button variant="contained" color="success" onClick={() => handleApproval('Approved')}>Approve</Button>
+              <Button variant="outlined" color="error" onClick={() => handleApproval('Rejected')}>Reject</Button>
+            </Stack>
+          </Paper>
+        )}
+
+        {/* ── Assign QC ── */}
+        {canAssignQC && (
+          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'info.main' }}>
+              Services Complete — Assign QC
+            </Typography>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <TextField select size="small" label="QC Inspector" value={selectedQCUserId}
+                onChange={(e) => setSelectedQCUserId(e.target.value)} sx={{ minWidth: 250 }}>
+                <MenuItem value="">— Select QC —</MenuItem>
+                {activeQCUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+              </TextField>
+              <Button variant="contained" color="info" disabled={!selectedQCUserId}
+                onClick={() => { assignQC({ appointmentId: appt.id, qcUserId: selectedQCUserId }); setSelectedQCUserId('') }}>
+                Assign QC
+              </Button>
+            </Stack>
+          </Paper>
+        )}
+
+        {/* ── WhatsApp: Payment ── */}
+        {canSendPaymentWA && (
+          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+              QC Approved — Send Payment Request
+            </Typography>
+            <Button variant="contained" color="success" startIcon={<Send />}
+              onClick={() => openWhatsApp('payment')}>
+              Compose WhatsApp (Payment)
+            </Button>
+          </Paper>
+        )}
+
+        {/* ── Confirm Payment ── */}
+        {canConfirmPayment && (
+          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1, color: 'success.main' }}>
+              Confirm Payment Received
+            </Typography>
+            <Button variant="contained" color="success" size="large"
+              onClick={() => confirmPayment({ appointmentId: appt.id, actorName: 'CRE' })}
+              sx={{ fontWeight: 900 }}>
+              Payment Received — Issue Gate Pass
+            </Button>
+          </Paper>
         )}
 
         {/* ── WhatsApp Log ── */}
-        {!isSA && (
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography sx={{ fontWeight: 900 }}>WhatsApp Communication</Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              color="success"
-              startIcon={<WhatsApp />}
-              onClick={() => {
-                const parts = []
-                parts.push(`*Appointment Summary*`)
-                if (customer) parts.push(`Customer: ${customer.fullName}`)
-                if (vehicle) parts.push(`Vehicle: ${vehicle.registrationNo} - ${vehicle.make ?? ''} ${vehicle.model ?? ''}`)
-                parts.push(`\n*Services Requested:*`)
-                appt.serviceItems.forEach((s, i) => {
-                  parts.push(`${i + 1}. ${s.serviceDescription} — BDT ${s.price.toLocaleString('en-BD')}`)
-                })
-                parts.push(`\n*Total Estimate: ${fmtBDT(totalBDT)}*`)
-                parts.push(`\nPlease confirm your approval.`)
-                setWaMessage(parts.join('\n'))
-                setWaDialogOpen(true)
-              }}
-            >
-              Compose
-            </Button>
-          </Box>
-
-          {appt.whatsappLogs.length > 0 ? (
+        {appt.whatsappLogs.length > 0 && (
+          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
+            <Typography sx={{ fontWeight: 900, mb: 1.5 }}>WhatsApp Communication</Typography>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -981,292 +610,46 @@ export function AppointmentDetailPage() {
               <TableBody>
                 {appt.whatsappLogs.map((log) => (
                   <TableRow key={log.id}>
+                    <TableCell><Typography variant="caption">{fmtDateTime(log.sentAt)}</Typography></TableCell>
                     <TableCell>
-                      <Typography variant="caption">{fmtDateTime(log.sentAt)}</Typography>
+                      <Chip label={log.direction} size="small" color={log.direction === 'outbound' ? 'success' : 'default'} />
                     </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={log.direction}
-                        size="small"
-                        color={log.direction === 'outbound' ? 'success' : 'default'}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption">{log.authorName}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                        {log.message}
-                      </Typography>
-                    </TableCell>
+                    <TableCell><Typography variant="caption">{log.authorName}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{log.message}</Typography></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No messages sent yet.
-            </Typography>
-          )}
-
-          {/* ── Customer Approval (inside WA section) ── */}
-          {['Customer Notified', 'Customer Approved', 'Customer Rejected'].includes(appt.status) && (
-            <Box sx={{ mt: 3, pt: 2.5, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Typography sx={{ fontWeight: 900, mb: 2 }}>Customer Approval</Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, alignItems: 'center', mb: 2 }}>
-                <Typography variant="body2">Status:</Typography>
-                <Chip
-                  label={appt.customerApprovalStatus}
-                  color={
-                    appt.customerApprovalStatus === 'Approved'
-                      ? 'success'
-                      : appt.customerApprovalStatus === 'Rejected'
-                      ? 'error'
-                      : 'default'
-                  }
-                  sx={{ fontWeight: 700 }}
-                />
-              </Box>
-
-              {appt.customerApprovalStatus === 'Pending' && (
-                <Stack spacing={2}>
-                  <TextField
-                    size="small"
-                    label="Note (optional)"
-                    value={approvalNote}
-                    onChange={(e) => setApprovalNote(e.target.value)}
-                    sx={{ maxWidth: 400 }}
-                  />
-                  <Stack direction="row" spacing={1}>
-                    <Button variant="contained" color="success" onClick={() => handleApproval('Approved')}>
-                      Mark Approved
-                    </Button>
-                    <Button variant="outlined" color="error" onClick={() => handleApproval('Rejected')}>
-                      Mark Rejected
-                    </Button>
-                  </Stack>
-                </Stack>
-              )}
-
-              {appt.customerApprovalStatus !== 'Pending' && appt.customerApprovalNote && (
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="caption" color="text.secondary">Note</Typography>
-                  <Typography variant="body2">{appt.customerApprovalNote}</Typography>
-                </Box>
-              )}
-
-              {appt.customerApprovalStatus === 'Approved' && appt.status === 'Customer Approved' && (
-                <Box sx={{ mt: 2, p: 1.5, bgcolor: 'success.50', border: '1px solid', borderColor: 'success.200', borderRadius: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.dark', mb: 1 }}>
-                    ✓ Customer approved — click "Start Service Processing" above to proceed
-                  </Typography>
-                </Box>
-              )}
-
-              {appt.customerApprovalStatus === 'Rejected' && (
-                <Box sx={{ mt: 2, p: 1.5, bgcolor: 'warning.50', border: '1px solid', borderColor: 'warning.200', borderRadius: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'warning.dark', mb: 1 }}>
-                    Customer rejected — revise and send back to SA for review
-                  </Typography>
-                  <Button variant="outlined" color="warning" size="small" onClick={() => setAppointmentStatus(appt.id, 'SA Review')}>
-                    Send Back to SA Review
-                  </Button>
-                </Box>
-              )}
-            </Box>
-          )}
-        </Paper>
+          </Paper>
         )}
 
-        {/* ── Service Process ── */}
-        {isSA && ['Service Processing', 'Closed'].includes(appt.status) && appt.serviceItems.length > 0 && (
+        {/* ── Customer Approval Status ── */}
+        {appt.customerApprovalStatus !== 'Pending' && (
           <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 0.5 }}>Service Process</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Assign technicians + time to each service and track progress.
-            </Typography>
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {appt.serviceItems.map((svc) => {
-                const hasAssignment = svc.assignedUserIds && svc.assignedUserIds.length > 0
-                const form = svcForm[svc.id] ?? { userIds: [], startLocal: '', endLocal: '' }
-                const workStatusColor =
-                  svc.workStatus === 'Completed' ? 'success' :
-                  svc.workStatus === 'In Progress' ? 'primary' :
-                  svc.workStatus === 'Pending' ? 'warning' : 'default'
-
-                return (
-                  <Box key={svc.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{svc.serviceDescription}</Typography>
-                        <Typography variant="caption" color="text.secondary">{svc.serviceCode} · {fmtBDT(svc.price)}</Typography>
-                        {svc.remark && <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>({svc.remark})</Typography>}
-                      </Box>
-                      {hasAssignment && svc.workStatus && (
-                        <Chip
-                          label={svc.workStatus}
-                          color={workStatusColor as 'success' | 'primary' | 'warning' | 'default'}
-                          size="small"
-                          sx={{ fontWeight: 700 }}
-                        />
-                      )}
-                    </Box>
-
-                    {!hasAssignment ? (
-                      // Assignment form
-                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>Assign Technicians</InputLabel>
-                          <Select
-                            label="Assign Technicians"
-                            multiple
-                            value={form.userIds}
-                            onChange={(e) => {
-                              const v = e.target.value as string[]
-                              setSvcForm((p) => ({ ...p, [svc.id]: { ...form, userIds: v } }))
-                            }}
-                            renderValue={(sel) => (sel as string[]).map((id) => userNameById.get(id)).filter(Boolean).join(', ')}
-                          >
-                            {users.filter((u) => u.status === 'Active').map((u) => (
-                              <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                        <TextField
-                          size="small"
-                          label="Start Time"
-                          type="datetime-local"
-                          value={form.startLocal}
-                          onChange={(e) => setSvcForm((p) => ({ ...p, [svc.id]: { ...form, startLocal: e.target.value } }))}
-                          slotProps={{ inputLabel: { shrink: true } }}
-                        />
-                        <TextField
-                          size="small"
-                          label="End Time"
-                          type="datetime-local"
-                          value={form.endLocal}
-                          onChange={(e) => setSvcForm((p) => ({ ...p, [svc.id]: { ...form, endLocal: e.target.value } }))}
-                          slotProps={{ inputLabel: { shrink: true } }}
-                        />
-                        <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
-                          <Button
-                            variant="contained"
-                            size="small"
-                            disabled={!form.userIds.length || !form.startLocal || !form.endLocal}
-                            onClick={() => saveServiceAssignment(svc.id)}
-                          >
-                            Save Assignment
-                          </Button>
-                        </Box>
-                      </Box>
-                    ) : (
-                      // Assignment summary + status buttons
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Assigned to:</Typography>
-                        <Typography variant="body2" sx={{ mb: 0.5 }}>
-                          {(svc.assignedUserIds ?? []).map((id) => userNameById.get(id)).filter(Boolean).join(', ')}
-                        </Typography>
-                        {svc.plannedStartAt && svc.plannedEndAt && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                            {new Date(svc.plannedStartAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                            {' → '}
-                            {new Date(svc.plannedEndAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </Typography>
-                        )}
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                          {svc.workStatus !== 'In Progress' && svc.workStatus !== 'Completed' && (
-                            <Button size="small" variant="outlined" color="primary"
-                              onClick={() => updateServiceItemAssignment({ appointmentId: appt.id, serviceItemId: svc.id, workStatus: 'In Progress' })}
-                            >
-                              Mark In Progress
-                            </Button>
-                          )}
-                          {svc.workStatus === 'In Progress' && (
-                            <>
-                              <Button size="small" variant="outlined" color="warning"
-                                onClick={() => updateServiceItemAssignment({ appointmentId: appt.id, serviceItemId: svc.id, workStatus: 'Pending' })}
-                              >
-                                Mark Pending
-                              </Button>
-                              <Button size="small" variant="contained" color="success"
-                                onClick={() => updateServiceItemAssignment({ appointmentId: appt.id, serviceItemId: svc.id, workStatus: 'Completed' })}
-                              >
-                                Mark Completed
-                              </Button>
-                            </>
-                          )}
-                          {svc.workStatus === 'Completed' && (
-                            <Chip label="✓ Completed" color="success" size="small" sx={{ fontWeight: 700 }} />
-                          )}
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                )
-              })}
-            </Box>
-
-            {/* Close Appointment when all done */}
-            {appt.status === 'Service Processing' && appt.serviceItems.every((s) => s.workStatus === 'Completed') && (
-              <Box sx={{ mt: 2.5, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="body2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>
-                  ✓ All services completed — ready to close.
-                </Typography>
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={() => setAppointmentStatus(appt.id, 'Closed')}
-                >
-                  Close Appointment
-                </Button>
-              </Box>
-            )}
-
-            {appt.status === 'Closed' && (
-              <Box sx={{ mt: 2.5, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                <Chip label="✓ Appointment Closed" color="success" sx={{ fontWeight: 700 }} />
-              </Box>
+            <Typography sx={{ fontWeight: 900, mb: 1 }}>Customer Approval</Typography>
+            <Chip
+              label={appt.customerApprovalStatus}
+              color={appt.customerApprovalStatus === 'Approved' ? 'success' : 'error'}
+              sx={{ fontWeight: 700 }}
+            />
+            {appt.customerApprovalNote && (
+              <Typography variant="body2" sx={{ mt: 1 }}>Note: {appt.customerApprovalNote}</Typography>
             )}
           </Paper>
         )}
       </Stack>
 
-      {/* WhatsApp compose dialog */}
+      {/* WhatsApp Dialog */}
       <Dialog open={waDialogOpen} onClose={() => setWaDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, alignItems: 'center' }}>
-            <WhatsApp color="success" />
-            <Typography sx={{ fontWeight: 700 }}>Send WhatsApp Message</Typography>
-          </Box>
-        </DialogTitle>
+        <DialogTitle>Compose WhatsApp Message</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            {customer?.phone && (
-              <Typography variant="body2" color="text.secondary">
-                To: {customer.phone} ({customer.fullName})
-              </Typography>
-            )}
-            <TextField
-              label="Message"
-              multiline
-              minRows={6}
-              fullWidth
-              value={waMessage}
-              onChange={(e) => setWaMessage(e.target.value)}
-            />
-          </Stack>
+          <TextField value={waMessage} onChange={(e) => setWaMessage(e.target.value)}
+            fullWidth multiline minRows={8} sx={{ mt: 1 }} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWaDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<Send />}
-            onClick={sendWhatsapp}
-            disabled={!waMessage.trim()}
-          >
-            Log &amp; Send
+          <Button variant="contained" color="success" startIcon={<Send />} onClick={sendWhatsapp} disabled={!waMessage.trim()}>
+            Send
           </Button>
         </DialogActions>
       </Dialog>

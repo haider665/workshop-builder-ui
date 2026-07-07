@@ -115,6 +115,8 @@ export type CWTask = {
   plannedEndAt?: string
   dependsOnTaskIds?: string[]
   dependencyOverrideReason?: string
+  /** ID of the appointment concern this task was created from (JC decomposition) */
+  sourceConcernId?: string
   fields: CWTaskField[]
   createdAt: string
   updatedAt: string
@@ -138,18 +140,62 @@ export type CWTaskAttachment = {
 }
 
 export type CWCustomerStatus = 'Active' | 'Inactive'
+export type CWCustomerType = 'Individual' | 'Corporate'
+
+export type CWAddress = {
+  division?: string
+  city?: string
+  postalCode?: string
+  street?: string
+}
+
+export type CWOccupation = {
+  type?: string
+  companyName?: string
+  designation?: string
+}
+
+export type CWCorporateInfo = {
+  parentCompanyName?: string
+  parentCompanyAddress?: CWAddress
+  transportOfficerName?: string
+  transportOfficerPhone?: string
+  transportOfficerEmail?: string
+  transportManagerName?: string
+  transportManagerPhone?: string
+  transportManagerEmail?: string
+  note?: string
+  socialMedia?: string
+}
 
 export type CWCustomer = {
   id: string
   fullName: string
   phone: string
   email?: string
+  type?: CWCustomerType
+  address?: CWAddress
+  occupation?: CWOccupation
+  // Driver info
+  isSelfDriven?: boolean
+  driverName?: string
+  driverPhone?: string
+  isPersonalUse?: boolean
+  // Corporate
+  corporate?: CWCorporateInfo
+  // Socials
+  whatsappLink?: string
+  facebookLink?: string
+  linkedinLink?: string
+  googleLink?: string
   status: CWCustomerStatus
   createdAt: string
   updatedAt: string
 }
 
 export type CWVehicleStatus = 'Active' | 'Inactive'
+export type CWVehicleCategory = 'SUV' | 'Sedan' | 'Hatchback' | 'Pickup' | 'Van' | 'Truck' | 'Bus' | 'Other'
+export type CWVehicleSize = 'Small' | 'Medium' | 'Large'
 
 export type CWVehicle = {
   id: string
@@ -159,12 +205,23 @@ export type CWVehicle = {
   model?: string
   vin?: string
   odometerKm?: number
+  vehicleCategory?: CWVehicleCategory
+  vehicleSize: CWVehicleSize
+  modelVariant?: string
+  countryOfOrigin?: string
+  countryOfAssembly?: string
+  exteriorColor?: string
+  exteriorColorCode?: string
+  interiorColor?: string
+  interiorColorCode?: string
+  tyreSize?: string
+  additionalNotes?: string
   status: CWVehicleStatus
   createdAt: string
   updatedAt: string
 }
 
-export type CWPendingVehicleStatus = 'Pending' | 'Job Created'
+export type CWPendingVehicleStatus = 'Pending' | 'Resolved' | 'Job Created'
 
 export type CWPendingVehicle = {
   id: string
@@ -185,6 +242,7 @@ export type CWConcernCategoryStatus = 'Active' | 'Inactive'
 export type CWConcernCategory = {
   id: string
   name: string
+  shopId: string
   status: CWConcernCategoryStatus
   createdAt: string
   updatedAt: string
@@ -195,7 +253,9 @@ export type CWConcernStatus = 'Active' | 'Inactive'
 export type CWConcern = {
   id: string
   categoryId: string
+  code: string             // e.g. "CC-BRK-001"
   name: string
+  processTimeMins?: number
   status: CWConcernStatus
   createdAt: string
   updatedAt: string
@@ -204,27 +264,77 @@ export type CWConcern = {
 // ─── Services (Admin-managed, seeded from CSV) ────────────────────────────────
 
 export type CWServiceStatus = 'Active' | 'Inactive'
+export type CWServiceSeverity = 'Light' | 'Medium' | 'Severe'
+
+// Admin-defined stage for a service (master data)
+export type CWServiceStageDefinition = {
+  id: string
+  name: string             // "Disassembly", "Body Repair", or any custom name
+  order: number            // sequential position (1, 2, 3...)
+  durationMins: number     // estimated time
+}
 
 export type CWService = {
   id: string
   code: string
   category: string
+  section?: string          // "Painting", "Body Repair", "Brakes", etc.
   description: string
-  timeHrs: number
-  ratePerHr: number
-  price: number
+  vehicleSize?: CWVehicleSize
+  severity?: CWServiceSeverity  // Body/Paint only
+  processTimeMins: number  // LTS (Auto) or TOTAL_STAGE_TIME (Body/Paint)
+  ratePerHr?: number       // optional — not in client data
+  price: number            // MRP
+  shopId: string
   status: CWServiceStatus
+  stages?: CWServiceStageDefinition[]  // admin-managed, any shop
   createdAt: string
   updatedAt: string
 }
 
+// ─── Per-technician assignment with timer ──────────────────────────────────────
+
+export type CWTechnicianAssignmentStatus = 'Assigned' | 'In Progress' | 'Paused' | 'Completed'
+
+export type CWTechnicianAssignment = {
+  id: string
+  technicianUserId: string
+  status: CWTechnicianAssignmentStatus
+  assignmentRemark?: string
+  startedAt?: string
+  pausedAt?: string
+  completedAt?: string
+  totalPausedMs: number
+  notes?: string
+}
+
 // ─── Appointment concern / service line items ─────────────────────────────────
+
+export type CWConcernWorkStatus = 'Pending' | 'In Progress' | 'Completed'
+
+export type CWQCItemStatus = 'Passed' | 'Failed'
 
 export type CWAppointmentConcernItem = {
   id: string
   concernId: string
   concernName: string
   remark: string
+  // Process time in minutes (from concern definition)
+  processTimeMins?: number
+  diagnosisRemark?: string
+  // Services linked to this concern
+  serviceIds?: string[]
+  // JC assigns SE + bay:
+  assignedSEUserId?: string
+  bayId?: string
+  plannedStartAt?: string
+  plannedEndAt?: string
+  // SE assigns technicians:
+  technicianAssignments: CWTechnicianAssignment[]
+  workStatus?: CWConcernWorkStatus
+  // QC verification:
+  qcStatus?: CWQCItemStatus
+  qcNote?: string
 }
 
 export type CWServiceWorkStatus = 'Pending' | 'In Progress' | 'Completed'
@@ -234,16 +344,50 @@ export type CWAppointmentServiceItem = {
   serviceId: string
   serviceCode: string
   serviceDescription: string
-  timeHrs: number
-  ratePerHr: number
+  processTimeMins: number
+  ratePerHr?: number
   price: number
   remark: string
   addedBySA: boolean
-  // Service process assignment
+  // JC assigns SE + bay (used when NO stages):
+  assignedSEUserId?: string
+  bayId?: string
+  // SE assigns technicians (used when NO stages):
+  technicianAssignments: CWTechnicianAssignment[]
   workStatus?: CWServiceWorkStatus
-  assignedUserIds?: string[]
   plannedStartAt?: string
   plannedEndAt?: string
+  // Stage-level scheduling (when service has stages):
+  stageItems?: CWAppointmentServiceStageItem[]
+  // QC verification:
+  qcStatus?: CWQCItemStatus
+  qcNote?: string
+}
+
+// ─── Runtime stage instances (auto-populated from service stage definitions) ──
+
+export type CWStageWorkStatus = 'Pending' | 'Scheduled' | 'In Progress' | 'Completed'
+
+export type CWAppointmentServiceStageItem = {
+  id: string
+  stageDefinitionId: string    // links to CWServiceStageDefinition.id
+  stageName: string
+  stageOrder: number
+  durationMins: number
+  // JC assigns per stage (same flow as service-level):
+  bayId?: string
+  teamId?: string
+  assignedSEUserId?: string
+  plannedStartAt?: string
+  plannedEndAt?: string
+  // SE assigns technicians (same as current flow):
+  technicianAssignments: CWTechnicianAssignment[]
+  // Sequential dependency:
+  dependsOnStageId?: string    // previous stage item's ID
+  // Execution:
+  workStatus: CWStageWorkStatus
+  actualStartAt?: string
+  actualEndAt?: string
 }
 
 export type CWWhatsappLog = {
@@ -254,19 +398,73 @@ export type CWWhatsappLog = {
   message: string
 }
 
+// ─── Inspection checklist (Health Check) ──────────────────────────────────────
+
+export type CWInspectionCondition = 'Good' | 'Warning' | 'Bad'
+
+export type CWInspectionCheck = {
+  id: string
+  category: string        // 'System Component' | 'Scheduled Maintenance' | 'Tire/Brake Wire'
+  section?: string        // e.g. 'Brake System', 'Left Front'
+  label: string
+  checked: boolean
+  condition?: CWInspectionCondition
+  remark?: string
+  photoUrl?: string       // base64 data URL for MVP
+  note?: string
+}
+
+// ─── Vehicle exterior/interior view checklists ────────────────────────────────
+
+export type CWVehicleView = 'Front' | 'Right' | 'Left' | 'Rear' | 'Interior'
+
+export type CWVehicleViewCheck = {
+  id: string
+  view: CWVehicleView
+  label: string
+  checked: boolean
+  remark?: string
+  photoUrl?: string
+}
+
+// ─── Timeline ─────────────────────────────────────────────────────────────────
+
+export type CWTimelineEvent = {
+  id: string
+  timestamp: string
+  actor: string
+  action: string
+  details?: string
+}
+
+// ─── 16-status workflow ───────────────────────────────────────────────────────
+
 export type CWAppointmentStatus =
-  | 'Draft'
-  | 'Confirmed'
-  | 'SA Review'
+  | 'New'
+  | 'SA Inspection'
   | 'SA Reviewed'
   | 'Customer Notified'
   | 'Customer Approved'
   | 'Customer Rejected'
-  | 'Service Processing'
-  | 'Vehicle Arrived'
-  | 'Job Created'
-  | 'Cancelled'
-  | 'Closed'
+  | 'Diagnosis Assigned'
+  | 'Diagnosis In Progress'
+  | 'Diagnosis Complete'
+  | 'Service Approval Pending'
+  | 'Service Approved'
+  | 'Service Assigned'
+  | 'Service In Progress'
+  | 'Service Complete'
+  | 'QC Assigned'
+  | 'QC Approved'
+  | 'QC Rejected'
+  | 'Payment Pending'
+  | 'Payment Done'
+  | 'Released'
+
+export type CWAppointmentPhoto = {
+  side: string           // 'front' | 'rear' | 'left' | 'right'
+  dataUrl: string        // base64 for MVP
+}
 
 export type CWAppointment = {
   id: string
@@ -279,20 +477,35 @@ export type CWAppointment = {
   slotTime?: string
   scheduledAt?: string
   status: CWAppointmentStatus
+  // CRO assigns SA
+  assignedSAUserId?: string
+  // SA assigns QC
+  assignedQCUserId?: string
+  qcRejectionNote?: string
+  // SA inspection
+  inspectionChecks: CWInspectionCheck[]
+  vehicleViewChecks: CWVehicleViewCheck[]
+  // SA photos & vehicle condition
+  currentMileage?: number
+  currentFuelLevel?: string
+  photos: CWAppointmentPhoto[]
   // Structured concern/service items
   concernItems: CWAppointmentConcernItem[]
   serviceItems: CWAppointmentServiceItem[]
-  // Customer approval
+  // Customer approval (used for both approval rounds)
   customerApprovalStatus: 'Pending' | 'Approved' | 'Rejected'
   customerApprovalNote?: string
   whatsappLogs: CWWhatsappLog[]
-  // Assignment
-  assignedServiceAdvisorId?: string
-  assignedRoleId?: string
-  assignedUserIds: string[]
+  // Workflow timeline
+  timeline: CWTimelineEvent[]
+  // Gate entry link
   gateEntryId?: string
-  /** Task IDs for SA review tasks */
-  saTaskIds: string[]
+  // JC assignment
+  assignedTeamId?: string
+  // Payment & release
+  paymentStatus: 'Pending' | 'Done'
+  gatePassIssuedAt?: string
+  releasedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -312,4 +525,85 @@ export type CWJob = {
   testDriveExpectedReturnAt?: string
   createdAt: string
   updatedAt: string
+}
+
+// ─── Teams (Admin-managed) ────────────────────────────────────────────────────
+
+export type CWTeamStatus = 'Active' | 'Inactive'
+
+export type CWTeam = {
+  id: string
+  name: string
+  seUserId: string
+  technicianUserIds: string[]
+  status: CWTeamStatus
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Parts (Admin-managed) ────────────────────────────────────────────────────
+
+export type CWPartStatus = 'Active' | 'Inactive'
+
+export type CWPart = {
+  id: string
+  name: string
+  partNumber?: string
+  price?: number
+  status: CWPartStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type CWPartRequestStatus = 'Requested' | 'Labeled' | 'Fulfilled' | 'Rejected'
+
+export type CWPartRequest = {
+  id: string
+  appointmentId: string
+  concernItemId?: string
+  partName: string
+  partNumber?: string
+  price?: number
+  quantity?: number
+  deliveryDate?: string
+  status: CWPartRequestStatus
+  requestedBy: string
+  labeledBy?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Call Detail Records (CRE) ────────────────────────────────────────────────
+
+export type CWCallDirection = 'inbound' | 'outbound'
+
+export type CWCallRecord = {
+  id: string
+  appointmentId?: string
+  customerId?: string
+  customerName: string
+  direction: CWCallDirection
+  durationSecs: number
+  startedAt: string
+  notes: string
+  createdBy: string
+}
+
+// ─── Reminders / Follow-ups (CRE) ────────────────────────────────────────────
+
+export type CWReminderStatus = 'Pending' | 'Sent' | 'Cancelled'
+export type CWReminderType = 'follow-up' | 'reminder' | 'next-service'
+
+export type CWReminder = {
+  id: string
+  appointmentId: string
+  customerId: string
+  customerName: string
+  vehicleReg: string
+  type: CWReminderType
+  scheduledAt: string
+  message: string
+  status: CWReminderStatus
+  sentAt?: string
+  createdAt: string
 }
