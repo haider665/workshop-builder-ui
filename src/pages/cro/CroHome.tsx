@@ -3,10 +3,9 @@ import {
   Box,
   Button,
   Chip,
-  Divider,
+  IconButton,
+  InputAdornment,
   MenuItem,
-  Paper,
-
   Stack,
   Table,
   TableBody,
@@ -14,37 +13,36 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
-import { CalendarMonth, DirectionsCar, People, Schedule } from '@mui/icons-material'
+import {
+  CalendarMonth,
+  DirectionsCar,
+  People,
+  Schedule,
+  Search,
+  Visibility,
+  WavingHand,
+} from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
-import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
+import { colors, radii, shadows } from '../../theme/tokens'
+
+/* ─────────────────────── Helpers ─────────────────────────── */
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function fmtTime(time?: string) {
-  return time ?? ''
-}
 
-function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
-  return (
-    <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', flex: 1, minWidth: 180 }}>
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-        <Box sx={{ bgcolor: `${color}`, color: 'white', borderRadius: 2, p: 1, display: 'flex' }}>
-          {icon}
-        </Box>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 900 }}>{value}</Typography>
-          <Typography variant="body2" color="text.secondary">{label}</Typography>
-        </Box>
-      </Stack>
-    </Paper>
-  )
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good Morning'
+  if (h < 17) return 'Good Afternoon'
+  return 'Good Evening'
 }
 
 function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
@@ -61,6 +59,7 @@ function statusColor(status: string): 'default' | 'info' | 'warning' | 'success'
     'Service Assigned': 'info',
     'Service In Progress': 'primary',
     'Service Complete': 'success',
+    'Service Approved': 'success',
     'QC Assigned': 'info',
     'QC Approved': 'success',
     'QC Rejected': 'error',
@@ -71,6 +70,139 @@ function statusColor(status: string): 'default' | 'info' | 'warning' | 'success'
   return map[status] ?? 'default'
 }
 
+function actionNeeded(status: string) {
+  const map: Record<string, string> = {
+    'New': 'Assign Service Advisor',
+    'SA Inspection': 'Awaiting SA Inspection',
+    'SA Reviewed': 'Send for Customer Approval',
+    'Customer Notified': 'Awaiting Customer Response',
+    'Customer Approved': 'Assign JC / Diagnosis',
+    'Customer Rejected': 'Follow Up with Customer',
+    'Diagnosis Assigned': 'Awaiting Diagnosis',
+    'Diagnosis In Progress': 'Diagnosis In Progress',
+    'Diagnosis Complete': 'Review Diagnosis',
+    'Service Assigned': 'Awaiting Service Start',
+    'Service In Progress': 'Service In Progress',
+    'Service Complete': 'Assign QC',
+    'Service Approved': 'Assign QC',
+    'QC Assigned': 'Awaiting QC',
+    'QC Approved': 'Process Payment',
+    'QC Rejected': 'Rework Required',
+    'Payment Pending': 'Collect Payment',
+    'Payment Done': 'Release Vehicle',
+    'Released': 'Completed',
+  }
+  return map[status] ?? status
+}
+
+/* ─────────────── Stat Card (Figma-inspired dark) ────────── */
+
+function DashStatCard({
+  icon,
+  title,
+  value,
+  gradient,
+  details,
+}: {
+  icon: React.ReactNode
+  title: string
+  value: number
+  gradient: string
+  details?: { label: string; value: number }[]
+}) {
+  return (
+    <Box
+      sx={{
+        flex: 1,
+        minWidth: 200,
+        borderRadius: radii.lg,
+        background: gradient,
+        color: '#fff',
+        p: 2.5,
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: '0 8px 28px rgba(0,0,0,0.2)',
+        },
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          top: -20,
+          right: -20,
+          width: 100,
+          height: 100,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.08)',
+        },
+      }}
+    >
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
+        <Box sx={{
+          bgcolor: 'rgba(255,255,255,0.18)',
+          borderRadius: '10px',
+          p: 0.8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          {icon}
+        </Box>
+        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {title}
+        </Typography>
+      </Stack>
+      <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1, mb: details ? 1.5 : 0 }}>
+        {value}
+      </Typography>
+      {details && (
+        <Stack spacing={0.5} sx={{ mt: 'auto' }}>
+          {details.map((d) => (
+            <Stack key={d.label} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography sx={{ fontSize: '0.75rem', opacity: 0.75 }}>{d.label}</Typography>
+              <Typography sx={{ fontSize: '0.8rem', fontWeight: 700 }}>{d.value}</Typography>
+            </Stack>
+          ))}
+        </Stack>
+      )}
+    </Box>
+  )
+}
+
+/* ─────────────── Section Card wrapper ────────────────────── */
+
+const sectionSx = {
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.border.default}`,
+  background: colors.bg.card,
+  boxShadow: shadows.card,
+  overflow: 'hidden',
+} as const
+
+const headerCellSx = {
+  background: colors.bg.subtle,
+  borderBottom: `1px solid ${colors.border.default}`,
+  color: colors.slate[600],
+  fontSize: '0.7rem',
+  fontWeight: 700,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  py: 1.5,
+  '&:first-of-type': { pl: 3 },
+  '&:last-of-type': { pr: 3 },
+} as const
+
+const bodyCellSx = {
+  borderBottom: `1px solid ${colors.border.subtle}`,
+  py: 1.5,
+  '&:first-of-type': { pl: 3 },
+  '&:last-of-type': { pr: 3 },
+} as const
+
+/* ═══════════════════════ Main Component ═══════════════════ */
+
 export function CroHome() {
   const navigate = useNavigate()
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
@@ -79,12 +211,11 @@ export function CroHome() {
   const appointments = useCwStore((s) => s.appointments)
   const users = useCwStore((s) => s.users)
 
-
   const [selectedGateEntryId, setSelectedGateEntryId] = useState<string | null>(null)
   const [make, setMake] = useState('') // repurposed: holds selected vehicleId
   const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null)
-
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Stats
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -96,12 +227,8 @@ export function CroHome() {
     () => appointments.filter((a) => a.status !== 'Released' && a.status !== 'Payment Done'),
     [appointments],
   )
-  const upcomingAppointments = useMemo(
-    () => appointments.filter((a) => a.slotDate && a.slotDate > todayStr).sort((a, b) => (a.slotDate ?? '').localeCompare(b.slotDate ?? '')),
-    [appointments, todayStr],
-  )
 
-  // Walk-ins: all pending gate entries without an appointment (both known and unknown vehicles)
+  // Walk-ins
   const walkIns = useMemo(() => {
     return pendingVehicles
       .filter((p) => p.status === 'Pending')
@@ -141,113 +268,228 @@ export function CroHome() {
     navigate(`/cre/appointments/new?vehicleId=${selectedKnownVehicle.id}&pendingVehicleId=${selectedGateEntry.id}`)
   }
 
-  // All appointments sorted by date
-  const allAppointmentsSorted = useMemo(
-    () => appointments.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [appointments],
-  )
+  // All appointments sorted + filtered
+  const allAppointmentsSorted = useMemo(() => {
+    let list = appointments.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter((a) => {
+        const veh = vehicles.find((v) => v.id === a.vehicleId)
+        const cust = customers.find((c) => c.id === a.customerId)
+        return (
+          veh?.registrationNo.toLowerCase().includes(q) ||
+          cust?.fullName.toLowerCase().includes(q) ||
+          a.status.toLowerCase().includes(q)
+        )
+      })
+    }
+    return list
+  }, [appointments, vehicles, customers, searchQuery])
+
+  // Sub-stats for cards
+  const walkinOrders = todayAppointments.filter((a) => pendingVehicles.some((p) => p.appointmentId === a.id)).length
+  const previouslyBooked = todayAppointments.length - walkinOrders
+
+  const todayFormatted = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 
   return (
-    <Page title="CRE Dashboard" subtitle="Customer Relationship Executive">
-      <Stack spacing={3}>
-        {/* Stats */}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <StatCard icon={<CalendarMonth />} label="Today's Appointments" value={todayAppointments.length} color="#1976d2" />
-          <StatCard icon={<Schedule />} label="Active / In Progress" value={activeAppointments.length} color="#ed6c02" />
-          <StatCard icon={<People />} label="Total Customers" value={customers.length} color="#2e7d32" />
-          <StatCard icon={<DirectionsCar />} label="Walk-ins Pending" value={walkIns.length} color="#9c27b0" />
-        </Stack>
-
-        {/* Walk-ins */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, fontSize: '1.05rem' }}>
-              Walk-ins ({walkIns.length})
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Temporary gate entries needing customer + vehicle resolution.
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* ── Greeting Header ── */}
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Box>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+              <WavingHand sx={{ color: '#f59e0b', fontSize: '1.5rem' }} />
+              <Typography sx={{
+                fontWeight: 800,
+                fontSize: { xs: '1.5rem', md: '1.85rem' },
+                color: colors.slate[900],
+                letterSpacing: '-0.02em',
+              }}>
+                {getGreeting()}!
+              </Typography>
+            </Stack>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+              Your task stats are ready for today!
             </Typography>
           </Box>
-          <Divider />
-          {walkIns.length ? (
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Registration</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Vehicle</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Arrived</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {walkIns.map((p) => {
-                  const v = vehicles.find((vv) => normalizeRegistrationNo(vv.registrationNo) === normalizeRegistrationNo(p.registrationNo)) ?? null
-                  const c = v ? customers.find((cc) => cc.id === v.customerId) ?? null : null
-                  return (
-                    <TableRow key={p.id} hover selected={p.id === selectedGateEntryId}>
-                      <TableCell sx={{ fontWeight: 800 }}>{p.registrationNo}</TableCell>
-                      <TableCell>{c ? c.fullName : <Typography variant="body2" color="text.secondary">New</Typography>}</TableCell>
-                      <TableCell>{v ? [v.make, v.model].filter(Boolean).join(' ') || '—' : <Typography variant="body2" color="text.secondary">New</Typography>}</TableCell>
-                      <TableCell>{new Date(p.arrivedAt).toLocaleString()}</TableCell>
-                      <TableCell align="right">
-                        <Button
-                          size="small"
-                          variant={p.id === selectedGateEntryId ? 'outlined' : 'contained'}
-                          onClick={() => { setError(null); resetForm(); setSelectedGateEntryId(p.id) }}
-                          sx={{ fontWeight: 900 }}
-                        >
-                          {p.id === selectedGateEntryId ? 'Selected' : 'Resolve'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          ) : (
-            <Box sx={{ p: 2.5 }}>
-              <Typography color="text.secondary">No walk-ins pending.</Typography>
-            </Box>
-          )}
-        </Paper>
+          <Typography sx={{
+            color: colors.slate[500],
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            textAlign: 'right',
+            display: { xs: 'none', md: 'block' },
+          }}>
+            {todayFormatted}
+          </Typography>
+        </Stack>
 
-        {/* Resolve Panel */}
+        {/* ── Stat Cards (Dark, Figma-inspired) ── */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <DashStatCard
+            icon={<CalendarMonth fontSize="small" />}
+            title="Orders"
+            value={todayAppointments.length}
+            gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
+            details={[
+              { label: 'Walk-in orders', value: walkinOrders },
+              { label: 'Previously Booked', value: previouslyBooked },
+            ]}
+          />
+          <DashStatCard
+            icon={<Schedule fontSize="small" />}
+            title="Active / In Progress"
+            value={activeAppointments.length}
+            gradient="linear-gradient(135deg, #0F766E 0%, #14B8A6 100%)"
+            details={[
+              { label: 'Individual', value: customers.filter((c) => c.type === 'Individual').length },
+              { label: 'Corporate', value: customers.filter((c) => c.type === 'Corporate').length },
+            ]}
+          />
+          <DashStatCard
+            icon={<People fontSize="small" />}
+            title="Total Customers"
+            value={customers.length}
+            gradient="linear-gradient(135deg, #334155 0%, #475569 100%)"
+          />
+          <DashStatCard
+            icon={<DirectionsCar fontSize="small" />}
+            title="Walk-ins Pending"
+            value={walkIns.length}
+            gradient={walkIns.length > 0 ? 'linear-gradient(135deg, #9333EA 0%, #A855F7 100%)' : 'linear-gradient(135deg, #334155 0%, #475569 100%)'}
+          />
+        </Stack>
+
+        {/* ── Walk-ins Section ── */}
+        {walkIns.length > 0 && (
+          <Box sx={sectionSx}>
+            <Box sx={{ px: 3, pt: 2.5, pb: 2 }}>
+              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: '1.05rem', color: colors.slate[900] }}>
+                    Walk-ins ({walkIns.length})
+                  </Typography>
+                  <Typography sx={{ color: colors.slate[500], fontSize: '0.8rem' }}>
+                    Temporary gate entries needing customer + vehicle resolution.
+                  </Typography>
+                </Box>
+              </Stack>
+            </Box>
+
+            {/* Walk-in cards (horizontal scroll, Figma-inspired) */}
+            <Box sx={{
+              display: 'flex',
+              gap: 2,
+              px: 3,
+              pb: 2.5,
+              overflowX: 'auto',
+              '&::-webkit-scrollbar': { height: 6 },
+              '&::-webkit-scrollbar-thumb': { borderRadius: 3, background: colors.slate[300] },
+            }}>
+              {walkIns.map((p) => {
+                const v = vehicles.find((vv) => normalizeRegistrationNo(vv.registrationNo) === normalizeRegistrationNo(p.registrationNo)) ?? null
+                const c = v ? customers.find((cc) => cc.id === v.customerId) ?? null : null
+                const isSelected = p.id === selectedGateEntryId
+                return (
+                  <Box
+                    key={p.id}
+                    sx={{
+                      minWidth: 260,
+                      maxWidth: 300,
+                      borderRadius: radii.md,
+                      border: isSelected ? `2px solid ${colors.slate[900]}` : `1px solid ${colors.border.default}`,
+                      background: isSelected ? colors.slate[50] : colors.bg.card,
+                      p: 2,
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                      '&:hover': { borderColor: colors.slate[400] },
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900], mb: 0.5, fontFamily: 'monospace' }}>
+                      {p.registrationNo}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500], mb: 0.5 }}>
+                      {c ? c.fullName : 'New customer'} · {v ? [v.make, v.model].filter(Boolean).join(' ') : 'New vehicle'}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400], mb: 1.5 }}>
+                      {new Date(p.arrivedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </Typography>
+                    <Button
+                      variant={isSelected ? 'outlined' : 'contained'}
+                      size="small"
+                      fullWidth
+                      onClick={() => { setError(null); resetForm(); setSelectedGateEntryId(p.id) }}
+                      sx={{
+                        bgcolor: isSelected ? 'transparent' : colors.slate[900],
+                        color: isSelected ? colors.slate[900] : '#fff',
+                        borderColor: isSelected ? colors.slate[900] : undefined,
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        '&:hover': { bgcolor: isSelected ? colors.slate[100] : colors.slate[800] },
+                      }}
+                    >
+                      {isSelected ? 'Selected' : 'Create appointment'}
+                    </Button>
+                  </Box>
+                )
+              })}
+            </Box>
+          </Box>
+        )}
+
+        {/* ── Resolve Panel ── */}
         {selectedGateEntry && (
-          <Paper sx={{ p: 2.5, border: '2px solid', borderColor: 'warning.main' }}>
+          <Box sx={{
+            p: 2.5,
+            borderRadius: radii.lg,
+            border: `2px solid ${colors.slate[900]}`,
+            background: colors.bg.card,
+            boxShadow: shadows.elevated,
+          }}>
             <Stack spacing={2}>
               <Box>
-                <Typography sx={{ fontWeight: 900 }}>Resolve Walk-in</Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography sx={{ fontWeight: 700, color: colors.slate[900] }}>Resolve Walk-in</Typography>
+                <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>
                   Registration: <strong>{selectedGateEntry.registrationNo}</strong>
                 </Typography>
               </Box>
-              {error && <Alert severity="error">{error}</Alert>}
+              {error && <Alert severity="error" sx={{ borderRadius: '10px' }}>{error}</Alert>}
 
               {selectedKnownVehicle && selectedKnownCustomer ? (
                 <Stack spacing={2}>
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <Typography sx={{ fontWeight: 700 }}>Existing vehicle found</Typography>
-                    <Typography variant="body2" color="text.secondary">
+                  <Box sx={{ p: 2, borderRadius: radii.md, border: `1px solid ${colors.border.default}`, background: colors.bg.subtle }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', color: colors.slate[900] }}>Existing vehicle found</Typography>
+                    <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>
                       Customer: <strong>{selectedKnownCustomer.fullName}</strong> · {selectedKnownCustomer.phone}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>
                       Vehicle: <strong>{selectedKnownVehicle.registrationNo}</strong> · {[selectedKnownVehicle.make, selectedKnownVehicle.model].filter(Boolean).join(' ')}
                     </Typography>
-                  </Paper>
-                  <Button variant="contained" size="large" onClick={submitExistingWalkIn} sx={{ fontWeight: 900 }}>
+                  </Box>
+                  <Button variant="contained" size="large" onClick={submitExistingWalkIn} sx={{
+                    fontWeight: 700,
+                    bgcolor: colors.slate[900],
+                    borderRadius: '10px',
+                    '&:hover': { bgcolor: colors.slate[800] },
+                  }}>
                     Create Appointment for Walk-in
                   </Button>
                 </Stack>
               ) : (
                 <Stack spacing={2}>
-                  <Alert severity="info" sx={{ fontWeight: 600 }}>
+                  <Alert severity="info" sx={{ borderRadius: '10px' }}>
                     No existing vehicle found for <strong>{selectedGateEntry.registrationNo}</strong>. Select an existing customer & vehicle or create new ones.
                   </Alert>
 
                   {/* Select existing customer */}
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <Typography sx={{ fontWeight: 700, mb: 1.5 }}>1) Customer</Typography>
+                  <Box sx={{ p: 2, borderRadius: radii.md, border: `1px solid ${colors.border.default}` }}>
+                    <Typography sx={{ fontWeight: 600, mb: 1.5, color: colors.slate[900], fontSize: '0.9rem' }}>1) Customer</Typography>
                     <TextField
                       select size="small" label="Select Existing Customer" fullWidth
                       value={createdCustomerId ?? ''}
@@ -259,23 +501,23 @@ export function CroHome() {
                       ))}
                     </TextField>
                     <Button
-                      variant="outlined" size="small" sx={{ mt: 1.5, fontWeight: 700 }}
+                      variant="outlined" size="small" sx={{ mt: 1.5, fontWeight: 600, borderColor: colors.slate[300], color: colors.slate[700] }}
                       onClick={() => navigate('/cre/customers/new')}
                     >
                       + Create New Customer
                     </Button>
-                  </Paper>
+                  </Box>
 
                   {/* Select existing vehicle or create */}
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <Typography sx={{ fontWeight: 700, mb: 1.5 }}>2) Vehicle</Typography>
+                  <Box sx={{ p: 2, borderRadius: radii.md, border: `1px solid ${colors.border.default}` }}>
+                    <Typography sx={{ fontWeight: 600, mb: 1.5, color: colors.slate[900], fontSize: '0.9rem' }}>2) Vehicle</Typography>
                     {createdCustomerId ? (
                       <>
                         {(() => {
                           const custVehicles = vehicles.filter((v) => v.customerId === createdCustomerId)
                           if (custVehicles.length === 0) {
                             return (
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                              <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem', mb: 1 }}>
                                 No vehicles for this customer.
                               </Typography>
                             )
@@ -298,7 +540,7 @@ export function CroHome() {
                         })()}
                         <Stack direction="row" spacing={1.5}>
                           <Button
-                            variant="outlined" size="small" sx={{ fontWeight: 700 }}
+                            variant="outlined" size="small" sx={{ fontWeight: 600, borderColor: colors.slate[300], color: colors.slate[700] }}
                             onClick={() => navigate('/cre/vehicles/new')}
                           >
                             + Create New Vehicle
@@ -316,7 +558,7 @@ export function CroHome() {
                                 setError(e instanceof Error ? e.message : String(e))
                               }
                             }}
-                            sx={{ fontWeight: 900 }}
+                            sx={{ fontWeight: 700, bgcolor: colors.slate[900], borderRadius: '10px', '&:hover': { bgcolor: colors.slate[800] } }}
                             disabled={!make}
                           >
                             Create Appointment for Walk-in
@@ -324,45 +566,76 @@ export function CroHome() {
                         </Stack>
                       </>
                     ) : (
-                      <Typography variant="body2" color="text.secondary">Select a customer first.</Typography>
+                      <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>Select a customer first.</Typography>
                     )}
-                  </Paper>
+                  </Box>
                 </Stack>
               )}
-              <Button variant="text" onClick={resetForm} sx={{ alignSelf: 'flex-start' }}>Cancel</Button>
-            </Stack>
-          </Paper>
-        )}
-
-        {/* All Appointments List */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5 }}>
-            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <Box>
-                <Typography sx={{ fontWeight: 900, fontSize: '1.05rem' }}>
-                  All Appointments ({appointments.length})
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Follow up, remind, and manage all customer appointments.
-                </Typography>
-              </Box>
-              <Button variant="contained" component={RouterLink} to="/cre/appointments/new" sx={{ fontWeight: 700 }}>
-                + New Appointment
-              </Button>
+              <Button variant="text" onClick={resetForm} sx={{ alignSelf: 'flex-start', color: colors.slate[500] }}>Cancel</Button>
             </Stack>
           </Box>
-          <Divider />
+        )}
+
+        {/* ── Appointments Section ── */}
+        <Box sx={sectionSx}>
+          <Box sx={{ px: 3, pt: 2.5, pb: 2 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: '1.05rem', color: colors.slate[900] }}>
+                  Appointments
+                </Typography>
+                <Typography sx={{ color: colors.slate[500], fontSize: '0.8rem' }}>
+                  List of entered appointments
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                <TextField
+                  size="small"
+                  placeholder="Type to Search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Search sx={{ fontSize: '1.1rem', color: colors.slate[400] }} />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                  sx={{ minWidth: 220 }}
+                />
+                <Button
+                  variant="contained"
+                  component={RouterLink}
+                  to="/cre/appointments/new"
+                  sx={{
+                    bgcolor: colors.slate[900],
+                    fontWeight: 600,
+                    borderRadius: '10px',
+                    px: 2.5,
+                    whiteSpace: 'nowrap',
+                    '&:hover': { bgcolor: colors.slate[800] },
+                  }}
+                >
+                  + New Appointment
+                </Button>
+              </Stack>
+            </Stack>
+          </Box>
+
           {allAppointmentsSorted.length ? (
             <Table size="small">
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Vehicle</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>SA</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell>Order ID</TableCell>
+                  <TableCell>Customer</TableCell>
+                  <TableCell>Vehicle</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>SA</TableCell>
+                  <TableCell>Action Needed</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="right">View</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -371,19 +644,70 @@ export function CroHome() {
                   const cust = customers.find((c) => c.id === a.customerId)
                   const sa = a.assignedSAUserId ? users.find((u) => u.id === a.assignedSAUserId) : null
                   return (
-                    <TableRow key={a.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/cre/appointments/${a.id}`)}>
-                      <TableCell sx={{ fontWeight: 700 }}>{veh?.registrationNo ?? '—'}</TableCell>
-                      <TableCell>{cust?.fullName ?? '—'}</TableCell>
-                      <TableCell>{fmtDate(a.slotDate)}</TableCell>
-                      <TableCell>{fmtTime(a.slotTime)}</TableCell>
-                      <TableCell>{sa?.fullName ?? '—'}</TableCell>
+                    <TableRow
+                      key={a.id}
+                      hover
+                      sx={{
+                        cursor: 'pointer',
+                        '& .MuiTableCell-body': bodyCellSx,
+                        '&:hover': { background: colors.bg.cardHover },
+                      }}
+                      onClick={() => navigate(`/cre/appointments/${a.id}`)}
+                    >
                       <TableCell>
-                        <Chip size="small" label={a.status} color={statusColor(a.status)} sx={{ fontWeight: 700 }} />
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: colors.slate[900], fontFamily: 'monospace' }}>
+                          #{a.id.slice(-6).toUpperCase()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: colors.slate[900] }}>
+                          {cust?.fullName ?? '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                          <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700] }}>
+                            {veh ? `${veh.make ?? ''} ${veh.model ?? ''}`.trim() || veh.registrationNo : '—'}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
+                          {fmtDate(a.slotDate)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.82rem', color: colors.slate[600] }}>
+                          {sa?.fullName ?? '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={actionNeeded(a.status)}
+                          sx={{
+                            fontWeight: 600,
+                            fontSize: '0.72rem',
+                            bgcolor: colors.slate[100],
+                            color: colors.slate[700],
+                            border: `1px solid ${colors.border.default}`,
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="small" label={a.status} color={statusColor(a.status)} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                       </TableCell>
                       <TableCell align="right">
-                        <Button size="small" variant="outlined" component={RouterLink} to={`/cre/appointments/${a.id}`}>
-                          View
-                        </Button>
+                        <Tooltip title="View appointment">
+                          <IconButton
+                            size="small"
+                            component={RouterLink}
+                            to={`/cre/appointments/${a.id}`}
+                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                          >
+                            <Visibility fontSize="small" sx={{ color: colors.slate[500] }} />
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   )
@@ -391,53 +715,14 @@ export function CroHome() {
               </TableBody>
             </Table>
           ) : (
-            <Box sx={{ p: 2.5 }}>
-              <Typography color="text.secondary">No appointments yet.</Typography>
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+                {searchQuery ? 'No appointments match your search.' : 'No appointments yet.'}
+              </Typography>
             </Box>
           )}
-        </Paper>
-
-        {/* Upcoming Appointments */}
-        {upcomingAppointments.length > 0 && (
-          <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-            <Box sx={{ p: 2.5 }}>
-              <Typography sx={{ fontWeight: 900, fontSize: '1.05rem' }}>
-                Upcoming ({upcomingAppointments.length})
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Follow up and remind customers of upcoming appointments.
-              </Typography>
-            </Box>
-            <Divider />
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Vehicle</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {upcomingAppointments.slice(0, 20).map((a) => {
-                  const veh = vehicles.find((v) => v.id === a.vehicleId)
-                  const cust = customers.find((c) => c.id === a.customerId)
-                  return (
-                    <TableRow key={a.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/cre/appointments/${a.id}`)}>
-                      <TableCell sx={{ fontWeight: 700 }}>{veh?.registrationNo ?? '—'}</TableCell>
-                      <TableCell>{cust?.fullName ?? '—'}</TableCell>
-                      <TableCell>{fmtDate(a.slotDate)}</TableCell>
-                      <TableCell>
-                        <Chip size="small" label={a.status} color={statusColor(a.status)} sx={{ fontWeight: 700 }} />
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </Paper>
-        )}
+        </Box>
       </Stack>
-    </Page>
+    </Box>
   )
 }

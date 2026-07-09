@@ -38,8 +38,21 @@ import { useSessionStore } from '../store/sessionStore'
 const drawerWidth = 264
 const SPRING_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 
-/* ─────────────────── Section Accent Map ─────────────────────── */
+/* ─────────────────── Dark Sidebar Palette ─────────────────── */
 
+const sb = {
+  bg: '#0F172A',
+  bgSubtle: 'rgba(255,255,255,0.06)',
+  bgSelected: 'rgba(255,255,255,0.12)',
+  bgHover: 'rgba(255,255,255,0.08)',
+  text: 'rgba(255,255,255,0.92)',
+  textMuted: 'rgba(255,255,255,0.55)',
+  textFaint: 'rgba(255,255,255,0.35)',
+  border: 'rgba(255,255,255,0.08)',
+  accent: '#FFFFFF',
+  iconDefault: 'rgba(255,255,255,0.5)',
+  iconSelected: '#FFFFFF',
+} as const
 
 /* ─────────────────────── Types ─────────────────────────────── */
 
@@ -158,7 +171,7 @@ export function AppShell() {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'linear-gradient(180deg, #FBFBFE 0%, #F5F6FA 100%)',
+        background: sb.bg,
       }}
     >
       {/* ── Brand Header ── */}
@@ -169,12 +182,12 @@ export function AppShell() {
               width: 38,
               height: 38,
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #0F172A, #1E293B)',
+              background: 'rgba(255,255,255,0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              boxShadow: '0 2px 8px rgba(15,23,42,0.15)',
+              border: '1px solid rgba(255,255,255,0.1)',
             }}
           >
             <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: 13, letterSpacing: 1 }}>
@@ -185,7 +198,7 @@ export function AppShell() {
             <Typography
               sx={{
                 fontSize: '0.65rem',
-                color: '#94A3B8',
+                color: sb.textFaint,
                 letterSpacing: '0.18em',
                 fontWeight: 600,
                 textTransform: 'uppercase',
@@ -194,14 +207,14 @@ export function AppShell() {
             >
               Continental Works
             </Typography>
-            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#0F172A', lineHeight: 1.3 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: sb.text, lineHeight: 1.3 }}>
               Workshop
             </Typography>
           </Box>
         </Box>
       </Box>
 
-      <Divider sx={{ borderColor: 'rgba(0,0,0,0.06)', mx: 2 }} />
+      <Divider sx={{ borderColor: sb.border, mx: 2 }} />
 
       {/* ── Navigation List ── */}
       <List
@@ -218,7 +231,7 @@ export function AppShell() {
                   component="h3"
                   sx={{
                     fontSize: '0.65rem',
-                    color: '#64748B',
+                    color: sb.textFaint,
                     fontWeight: 700,
                     letterSpacing: '0.15em',
                     textTransform: 'uppercase',
@@ -249,13 +262,13 @@ export function AppShell() {
                 my: '2px',
                 py: 0.85,
                 px: 1.5,
-                color: selected ? '#0F172A' : '#1E293B',
+                color: selected ? sb.accent : sb.textMuted,
                 transition: `all 200ms ${SPRING_EASE}`,
                 '&.Mui-selected': {
-                  backgroundColor: 'rgba(15,23,42,0.08)',
-                  color: '#0F172A',
-                  '&:hover': { backgroundColor: 'rgba(15,23,42,0.10)' },
-                  '& .MuiListItemIcon-root': { color: '#0F172A' },
+                  backgroundColor: sb.bgSelected,
+                  color: sb.accent,
+                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.15)' },
+                  '& .MuiListItemIcon-root': { color: sb.iconSelected },
                   /* Left accent indicator */
                   '&::before': {
                     content: '""',
@@ -266,16 +279,16 @@ export function AppShell() {
                     width: 4,
                     height: 24,
                     borderRadius: '0 3px 3px 0',
-                    background: '#0F172A',
+                    background: sb.accent,
                   },
                 },
                 '&:hover': {
-                  backgroundColor: 'rgba(0,0,0,0.03)',
-                  color: '#0F172A',
-                  '& .MuiListItemIcon-root': { color: '#0F172A' },
+                  backgroundColor: sb.bgHover,
+                  color: sb.text,
+                  '& .MuiListItemIcon-root': { color: sb.text },
                 },
                 '&:focus-visible': {
-                  outline: '2px solid #0F172A',
+                  outline: `2px solid ${sb.accent}`,
                   outlineOffset: '-2px',
                 },
               }}
@@ -283,7 +296,7 @@ export function AppShell() {
               <ListItemIcon
                 sx={{
                   minWidth: 34,
-                  color: selected ? '#0F172A' : '#64748B',
+                  color: selected ? sb.iconSelected : sb.iconDefault,
                   transition: `color 200ms ${SPRING_EASE}`,
                   '& .MuiSvgIcon-root': { fontSize: 20 },
                 }}
@@ -305,7 +318,7 @@ export function AppShell() {
         })}
       </List>
 
-      <Divider sx={{ borderColor: 'rgba(0,0,0,0.06)', mx: 2 }} />
+      <Divider sx={{ borderColor: sb.border, mx: 2 }} />
 
       {/* ── User Footer ── */}
       <Box sx={{ p: 1.5 }}>
@@ -316,7 +329,7 @@ export function AppShell() {
             gap: 1.25,
             p: 1.5,
             borderRadius: '12px',
-            background: 'rgba(0,0,0,0.03)',
+            background: sb.bgSubtle,
           }}
         >
           {/* Avatar */}
@@ -325,7 +338,8 @@ export function AppShell() {
               width: 32,
               height: 32,
               borderRadius: '50%',
-              background: '#0F172A',
+              background: 'rgba(255,255,255,0.15)',
+              border: '1px solid rgba(255,255,255,0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -348,7 +362,7 @@ export function AppShell() {
               sx={{
                 fontSize: '0.85rem',
                 fontWeight: 600,
-                color: '#0F172A',
+                color: sb.text,
                 lineHeight: 1.3,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -360,7 +374,7 @@ export function AppShell() {
             <Typography
               sx={{
                 fontSize: '0.72rem',
-                color: '#94A3B8',
+                color: sb.textMuted,
                 lineHeight: 1.4,
                 mt: 0.15,
                 overflow: 'hidden',
@@ -377,15 +391,15 @@ export function AppShell() {
             aria-label="Logout"
             size="small"
             sx={{
-              color: '#94A3B8',
+              color: sb.textMuted,
               flexShrink: 0,
               transition: `all 200ms ${SPRING_EASE}`,
               '&:hover': {
-                backgroundColor: '#FEF2F2',
-                color: '#DC2626',
+                backgroundColor: 'rgba(239,68,68,0.15)',
+                color: '#FCA5A5',
               },
               '&:focus-visible': {
-                outline: '2px solid #DC2626',
+                outline: '2px solid #FCA5A5',
                 outlineOffset: '-2px',
               },
             }}
@@ -400,8 +414,8 @@ export function AppShell() {
   const drawerPaper = {
     width: drawerWidth,
     boxSizing: 'border-box' as const,
-    backgroundColor: 'transparent',
-    borderRight: '1px solid rgba(0,0,0,0.06)',
+    backgroundColor: sb.bg,
+    borderRight: `1px solid ${sb.border}`,
     boxShadow: 'none',
   }
 
@@ -417,9 +431,9 @@ export function AppShell() {
                 left: 0,
                 right: 0,
                 height: 56,
-                backgroundColor: 'rgba(251,251,254,0.85)',
+                backgroundColor: 'rgba(15,23,42,0.95)',
                 backdropFilter: 'blur(12px)',
-                borderBottom: '1px solid rgba(0,0,0,0.06)',
+                borderBottom: `1px solid ${sb.border}`,
                 display: 'flex',
                 alignItems: 'center',
                 px: 1,
@@ -430,16 +444,16 @@ export function AppShell() {
                 onClick={() => setMobileOpen((v) => !v)}
                 aria-label="Open navigation menu"
                 sx={{
-                  color: '#0F172A',
+                  color: '#fff',
                   '&:focus-visible': {
-                    outline: '2px solid #6366f1',
+                    outline: '2px solid #fff',
                     outlineOffset: '2px',
                   },
                 }}
               >
                 <Menu />
               </IconButton>
-              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', ml: 1, color: '#0F172A' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', ml: 1, color: '#fff' }}>
                 Continental Works
               </Typography>
             </Box>

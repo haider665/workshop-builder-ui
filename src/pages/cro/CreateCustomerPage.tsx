@@ -130,7 +130,7 @@ export function CreateCustomerPage() {
 
   return (
     <Page title="New Customer" subtitle="Create new customer from here">
-      <Stack spacing={3} sx={{ maxWidth: 860 }}>
+      <Stack spacing={3}>
         {/* Type toggle */}
         <ToggleButtonGroup
           value={customerType}
