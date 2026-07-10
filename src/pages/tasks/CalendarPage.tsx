@@ -2,11 +2,12 @@ export function CalendarPage() {
   return <TasksCalendarPage />
 }
 
-import { Box, Button, ButtonGroup, Divider, Paper, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
-import { ChevronLeft, ChevronRight, Today } from '@mui/icons-material'
+import { Box, Button, ButtonGroup, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { ChevronLeft, ChevronRight, CalendarMonth, Today } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
+import { colors, radii, shadows } from '../../theme/tokens'
 import { useSessionStore } from '../../store/sessionStore'
 import { useCwStore } from '../../store/cwStore'
 import type { CWTask } from '../../types/cw'
@@ -85,13 +86,8 @@ function TaskBlock(props: {
 }) {
   const { task, shopName, bayName, onClick, compact, blocked } = props
 
-  const titleVariant = compact ? 'caption' : 'body2'
-  const metaVariant = compact ? 'caption' : 'caption'
-  const timeVariant = compact ? 'caption' : 'caption'
-
   return (
-    <Paper
-      variant="outlined"
+    <Box
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -101,20 +97,24 @@ function TaskBlock(props: {
       sx={{
         p: compact ? 0.75 : 1,
         cursor: 'pointer',
-        '&:hover': { backgroundColor: 'action.hover' },
+        borderRadius: radii.sm,
+        border: `1px solid ${colors.border.subtle}`,
+        bgcolor: colors.bg.card,
+        transition: 'all 0.15s ease',
+        '&:hover': { bgcolor: colors.bg.cardHover, boxShadow: shadows.card, borderColor: colors.border.default },
       }}
     >
-      <Typography variant={titleVariant} sx={{ fontWeight: 900 }} noWrap={compact}>
+      <Typography noWrap={compact} sx={{ fontWeight: 800, fontSize: compact ? '0.72rem' : '0.82rem', color: colors.slate[900] }}>
         {task.title}
       </Typography>
-      <Typography variant={metaVariant} color="text.secondary" noWrap={compact}>
+      <Typography noWrap={compact} sx={{ fontSize: compact ? '0.65rem' : '0.75rem', color: colors.slate[500] }}>
         {task.registrationNo ?? '—'} · {shopName} · {bayName}
         {blocked ? ' · Blocked' : ''}
       </Typography>
-      <Typography variant={timeVariant} color="text.secondary" noWrap={compact}>
+      <Typography noWrap={compact} sx={{ fontSize: compact ? '0.65rem' : '0.75rem', color: colors.slate[400] }}>
         {formatTimeRange(task)}
       </Typography>
-    </Paper>
+    </Box>
   )
 }
 
@@ -198,101 +198,76 @@ function TasksCalendarPage() {
     }
   }
 
-  return (
-    <Page title="Calendar" subtitle="Read-only task calendar (month/week views).">
-      <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-          <ToggleButtonGroup
-            value={mode}
-            exclusive
-            onChange={(_, v) => {
-              if (!v) return
-              setMode(v)
-            }}
-            size="small"
-          >
-            <ToggleButton value="month">Month</ToggleButton>
-            <ToggleButton value="week">Week</ToggleButton>
-          </ToggleButtonGroup>
-          <Box sx={{ flexGrow: 1 }} />
-          <ButtonGroup variant="outlined" size="small">
-            <Button onClick={goPrev} startIcon={<ChevronLeft />}>Prev</Button>
-            <Button onClick={() => setCursor(new Date())} startIcon={<Today />}>Today</Button>
-            <Button onClick={goNext} endIcon={<ChevronRight />}>Next</Button>
-          </ButtonGroup>
-        </Stack>
-        <Typography sx={{ mt: 1, fontWeight: 900 }}>{title}</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Showing tasks assigned to {user?.name ?? '—'}.
-        </Typography>
-      </Paper>
+  const navBtnSx = { borderColor: colors.border.strong, color: colors.slate[700], fontWeight: 600, fontSize: '0.82rem' }
 
-      {mode === 'week' ? (
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-            {weekDays.map((d) => (
-              <Box key={dayKeyLocal(d)} sx={{ p: 1.5, borderRight: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
-                  {d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                </Typography>
-                <Divider sx={{ my: 1 }} />
-                <Stack spacing={1}>
-                  {(tasksByDay.get(dayKeyLocal(d)) ?? []).map((t) => (
-                    <TaskBlock
-                      key={t.id}
-                      task={t}
-                      shopName={shopNameById.get(t.shopId) ?? '—'}
-                      bayName={t.bayId ? bayNameById.get(t.bayId) ?? '—' : '—'}
-                      blocked={isTaskBlocked(t, tasksById)}
-                      onClick={() => navigate(`/tasks/${t.id}`)}
-                    />
-                  ))}
-                  {(tasksByDay.get(dayKeyLocal(d)) ?? []).length ? null : (
-                    <Typography variant="caption" color="text.secondary">
-                      —
-                    </Typography>
-                  )}
-                </Stack>
-              </Box>
-            ))}
+  return (
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Calendar
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Read-only task calendar (month/week views).</Typography>
           </Box>
-        </Paper>
-      ) : (
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((w) => (
-              <Box key={w} sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
-                  {w}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-            {monthGrid.map((d) => {
-              const key = dayKeyLocal(d)
-              const inMonth = d.getMonth() === cursor.getMonth()
-              const dayTasks = tasksByDay.get(key) ?? []
-              return (
-                <Box
-                  key={key}
-                  sx={{
-                    minHeight: 120,
-                    p: 1,
-                    borderTop: '1px solid',
-                    borderRight: '1px solid',
-                    borderColor: 'divider',
-                    backgroundColor: inMonth ? 'transparent' : 'action.hover',
-                  }}
-                >
-                  <Typography variant="caption" color={inMonth ? 'text.primary' : 'text.secondary'} sx={{ fontWeight: 800 }}>
-                    {d.getDate()}
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+            <ToggleButtonGroup
+              value={mode}
+              exclusive
+              onChange={(_, v) => {
+                if (!v) return
+                setMode(v)
+              }}
+              size="small"
+              sx={{
+                '& .MuiToggleButton-root': {
+                  borderRadius: radii.sm,
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  textTransform: 'none',
+                  px: 2,
+                },
+              }}
+            >
+              <ToggleButton value="month">Month</ToggleButton>
+              <ToggleButton value="week">Week</ToggleButton>
+            </ToggleButtonGroup>
+            <ButtonGroup variant="outlined" size="small">
+              <Button onClick={goPrev} startIcon={<ChevronLeft />} sx={navBtnSx}>Prev</Button>
+              <Button onClick={() => setCursor(new Date())} startIcon={<Today />} sx={navBtnSx}>Today</Button>
+              <Button onClick={goNext} endIcon={<ChevronRight />} sx={navBtnSx}>Next</Button>
+            </ButtonGroup>
+          </Stack>
+        </Stack>
+
+        {/* Calendar info */}
+        <SectionCard title={title} icon={<CalendarMonth sx={{ fontSize: '1rem' }} />}>
+          <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
+            Showing tasks assigned to {user?.name ?? '—'}.
+          </Typography>
+        </SectionCard>
+
+        {/* Calendar grid */}
+        {mode === 'week' ? (
+          <Box sx={{
+            borderRadius: radii.lg,
+            border: `1px solid ${colors.border.default}`,
+            bgcolor: colors.bg.card,
+            boxShadow: shadows.card,
+            overflow: 'hidden',
+          }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              {weekDays.map((d) => (
+                <Box key={dayKeyLocal(d)} sx={{ p: 1.5, borderRight: `1px solid ${colors.border.subtle}` }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: colors.slate[900], mb: 1 }}>
+                    {d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                   </Typography>
-                  <Stack spacing={0.75} sx={{ mt: 1 }}>
-                    {dayTasks.slice(0, 3).map((t) => (
+                  <Box sx={{ height: '1px', bgcolor: colors.border.default, mb: 1 }} />
+                  <Stack spacing={1}>
+                    {(tasksByDay.get(dayKeyLocal(d)) ?? []).map((t) => (
                       <TaskBlock
                         key={t.id}
-                        compact
                         task={t}
                         shopName={shopNameById.get(t.shopId) ?? '—'}
                         bayName={t.bayId ? bayNameById.get(t.bayId) ?? '—' : '—'}
@@ -300,18 +275,77 @@ function TasksCalendarPage() {
                         onClick={() => navigate(`/tasks/${t.id}`)}
                       />
                     ))}
-                    {dayTasks.length > 3 ? (
-                      <Typography variant="caption" color="text.secondary">
-                        +{dayTasks.length - 3} more
+                    {(tasksByDay.get(dayKeyLocal(d)) ?? []).length ? null : (
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
+                        —
                       </Typography>
-                    ) : null}
+                    )}
                   </Stack>
                 </Box>
-              )
-            })}
+              ))}
+            </Box>
           </Box>
-        </Paper>
-      )}
-    </Page>
+        ) : (
+          <Box sx={{
+            borderRadius: radii.lg,
+            border: `1px solid ${colors.border.default}`,
+            bgcolor: colors.bg.card,
+            boxShadow: shadows.card,
+            overflow: 'hidden',
+          }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((w) => (
+                <Box key={w} sx={{ p: 1, borderBottom: `1px solid ${colors.border.default}`, bgcolor: colors.bg.subtle }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: colors.slate[600], letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    {w}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              {monthGrid.map((d) => {
+                const key = dayKeyLocal(d)
+                const inMonth = d.getMonth() === cursor.getMonth()
+                const dayTasks = tasksByDay.get(key) ?? []
+                return (
+                  <Box
+                    key={key}
+                    sx={{
+                      minHeight: 120,
+                      p: 1,
+                      borderTop: `1px solid ${colors.border.subtle}`,
+                      borderRight: `1px solid ${colors.border.subtle}`,
+                      backgroundColor: inMonth ? 'transparent' : colors.bg.subtle,
+                    }}
+                  >
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: inMonth ? colors.slate[900] : colors.slate[400] }}>
+                      {d.getDate()}
+                    </Typography>
+                    <Stack spacing={0.75} sx={{ mt: 1 }}>
+                      {dayTasks.slice(0, 3).map((t) => (
+                        <TaskBlock
+                          key={t.id}
+                          compact
+                          task={t}
+                          shopName={shopNameById.get(t.shopId) ?? '—'}
+                          bayName={t.bayId ? bayNameById.get(t.bayId) ?? '—' : '—'}
+                          blocked={isTaskBlocked(t, tasksById)}
+                          onClick={() => navigate(`/tasks/${t.id}`)}
+                        />
+                      ))}
+                      {dayTasks.length > 3 ? (
+                        <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500], fontWeight: 600 }}>
+                          +{dayTasks.length - 3} more
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                  </Box>
+                )
+              })}
+            </Box>
+          </Box>
+        )}
+      </Stack>
+    </Box>
   )
 }

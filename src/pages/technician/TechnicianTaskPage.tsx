@@ -6,17 +6,18 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Paper,
+  IconButton,
   Stack,
   TextField,
   Typography,
 } from '@mui/material'
-import { Pause, PlayArrow, Stop, Timer } from '@mui/icons-material'
+import { ArrowBack, Assignment, Pause, PlayArrow, Stop, Timer } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
+import { colors, radii, shadows } from '../../theme/tokens'
 
 function formatDuration(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -26,7 +27,28 @@ function formatDuration(ms: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+/* ── Info Row — label / value pair inside SectionCard ──────── */
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <Stack direction="row" sx={{ alignItems: 'center', py: 1.25, borderBottom: `1px solid ${colors.border.subtle}` }}>
+      <Typography sx={{ width: 180, flexShrink: 0, fontSize: '0.82rem', color: colors.slate[500], fontWeight: 500 }}>{label}</Typography>
+      <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900], flex: 1 }}>{value}</Typography>
+    </Stack>
+  )
+}
+
+/* ── Status color map ─────────────────────────────────────── */
+function timerGradient(status: string) {
+  switch (status) {
+    case 'In Progress': return 'linear-gradient(135deg, #059669 0%, #10b981 100%)'
+    case 'Paused': return 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)'
+    case 'Completed': return 'linear-gradient(135deg, #475569 0%, #64748B 100%)'
+    default: return 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)'
+  }
+}
+
 export function TechnicianTaskPage() {
+  const navigate = useNavigate()
   const { appointmentId, itemType, itemId } = useParams<{
     appointmentId: string
     itemType: string
@@ -113,9 +135,9 @@ export function TechnicianTaskPage() {
 
   if (!appt || !item || !assignment) {
     return (
-      <Page title="Task Not Found">
+      <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
         <Alert severity="error">Task not found.</Alert>
-      </Page>
+      </Box>
     )
   }
 
@@ -163,137 +185,168 @@ export function TechnicianTaskPage() {
     })
   }
 
-  const statusBgColor =
-    assignment.status === 'In Progress' ? 'success.main'
-    : assignment.status === 'Paused' ? 'warning.main'
-    : assignment.status === 'Completed' ? 'grey.600'
-    : 'info.main'
-
   return (
-    <Page title={item.name} subtitle={`${vehicle?.registrationNo ?? '—'} · ${customer?.fullName ?? ''}`}>
-      <Stack spacing={3} sx={{ maxWidth: 600, mx: 'auto' }}>
-        {/* Vehicle + Customer Info */}
-        <VehicleInfoBanner appointmentId={appointmentId!} />
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 2 }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+            <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+          </IconButton>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              {item.name}
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+              {vehicle?.registrationNo ?? '—'} · {customer?.fullName ?? ''}
+            </Typography>
+          </Box>
+        </Stack>
 
-        {/* Timer Display */}
-        <Paper sx={{ p: 4, textAlign: 'center', bgcolor: statusBgColor, color: 'white', borderRadius: 3 }}>
-          <Timer sx={{ fontSize: 48, mb: 1 }} />
-          <Typography variant="h2" sx={{ fontWeight: 900, fontFamily: 'monospace', letterSpacing: 4 }}>
-            {formatDuration(elapsed)}
-          </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 700, mt: 1, textTransform: 'uppercase' }}>
-            {assignment.status}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.8 }}>
-            {itemType === 'concern' ? 'Concern Diagnosis' : 'Service Task'}
-          </Typography>
-        </Paper>
+        <Stack spacing={3} sx={{ maxWidth: 600, mx: 'auto', width: '100%' }}>
+          {/* Vehicle + Customer Info */}
+          <VehicleInfoBanner appointmentId={appointmentId!} />
 
-        {/* Task Info */}
-        <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-          <Stack spacing={1}>
-            <Box>
-              <Typography variant="body2" color="text.secondary">Task</Typography>
-              <Typography sx={{ fontWeight: 800 }}>{item.name}</Typography>
-            </Box>
-            {item.remark && (
-              <Box>
-                <Typography variant="body2" color="text.secondary">Remark</Typography>
-                <Typography variant="body2">{item.remark}</Typography>
-              </Box>
-            )}
-            <Box>
-              <Typography variant="body2" color="text.secondary">Vehicle</Typography>
-              <Typography variant="body2">{vehicle?.registrationNo} · {vehicle?.make} {vehicle?.model}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="body2" color="text.secondary">Customer</Typography>
-              <Typography variant="body2">{customer?.fullName}</Typography>
-            </Box>
-          </Stack>
-        </Paper>
+          {/* Timer Display */}
+          <Box sx={{
+            p: 4,
+            textAlign: 'center',
+            background: timerGradient(assignment.status),
+            color: 'white',
+            borderRadius: radii.lg,
+            boxShadow: shadows.elevated,
+          }}>
+            <Timer sx={{ fontSize: 48, mb: 1 }} />
+            <Typography sx={{ fontWeight: 900, fontFamily: 'monospace', letterSpacing: 4, fontSize: { xs: '2.5rem', md: '3rem' } }}>
+              {formatDuration(elapsed)}
+            </Typography>
+            <Typography sx={{ fontWeight: 700, mt: 1, textTransform: 'uppercase', fontSize: '1.1rem', letterSpacing: '0.05em' }}>
+              {assignment.status}
+            </Typography>
+            <Typography sx={{ mt: 0.5, opacity: 0.8, fontSize: '0.85rem' }}>
+              {itemType === 'concern' ? 'Concern Diagnosis' : 'Service Task'}
+            </Typography>
+          </Box>
 
-        {/* Controls */}
-        {assignment.status === 'Assigned' && (
-          <Button variant="contained" color="success" size="large" startIcon={<PlayArrow />}
-            onClick={handleStart} sx={{ py: 2, fontSize: 18, fontWeight: 900 }}>
-            Start
-          </Button>
-        )}
+          {/* Task Info */}
+          <SectionCard title="Task Details" icon={<Assignment sx={{ fontSize: '1rem' }} />}>
+            <InfoRow label="Task" value={item.name} />
+            {item.remark && <InfoRow label="Remark" value={item.remark} />}
+            <InfoRow label="Vehicle" value={`${vehicle?.registrationNo} · ${vehicle?.make} ${vehicle?.model}`} />
+            <InfoRow label="Customer" value={customer?.fullName} />
+          </SectionCard>
 
-        {assignment.status === 'In Progress' && (
-          <Stack direction="row" spacing={2}>
-            <Button variant="contained" color="warning" size="large" startIcon={<Pause />}
-              onClick={handlePause} sx={{ py: 2, flex: 1, fontWeight: 900, fontSize: 16 }}>
-              Pause
+          {/* Controls */}
+          {assignment.status === 'Assigned' && (
+            <Button variant="contained" size="large" startIcon={<PlayArrow />}
+              onClick={handleStart} sx={{
+                py: 2, fontSize: 18, fontWeight: 900,
+                bgcolor: colors.status.success, borderRadius: radii.md,
+                '&:hover': { bgcolor: '#059669' },
+              }}>
+              Start
             </Button>
-            <Button variant="contained" color="error" size="large" startIcon={<Stop />}
-              onClick={handleFinish} sx={{ py: 2, flex: 1, fontWeight: 900, fontSize: 16 }}>
-              Finish
-            </Button>
-          </Stack>
-        )}
+          )}
 
-        {assignment.status === 'Paused' && (
-          <Stack direction="row" spacing={2}>
-            <Button variant="contained" color="success" size="large" startIcon={<PlayArrow />}
-              onClick={handleResume} sx={{ py: 2, flex: 1, fontWeight: 900, fontSize: 16 }}>
-              Resume
-            </Button>
-            <Button variant="contained" color="error" size="large" startIcon={<Stop />}
-              onClick={handleFinish} sx={{ py: 2, flex: 1, fontWeight: 900, fontSize: 16 }}>
-              Finish
-            </Button>
-          </Stack>
-        )}
+          {assignment.status === 'In Progress' && (
+            <Stack direction="row" spacing={2}>
+              <Button variant="contained" size="large" startIcon={<Pause />}
+                onClick={handlePause} sx={{
+                  py: 2, flex: 1, fontWeight: 900, fontSize: 16,
+                  bgcolor: colors.status.warning, borderRadius: radii.md,
+                  '&:hover': { bgcolor: '#d97706' },
+                }}>
+                Pause
+              </Button>
+              <Button variant="contained" size="large" startIcon={<Stop />}
+                onClick={handleFinish} sx={{
+                  py: 2, flex: 1, fontWeight: 900, fontSize: 16,
+                  bgcolor: colors.status.error, borderRadius: radii.md,
+                  '&:hover': { bgcolor: '#dc2626' },
+                }}>
+                Finish
+              </Button>
+            </Stack>
+          )}
 
-        {assignment.status === 'Completed' && (
-          <Alert severity="success" sx={{ fontWeight: 700 }}>
-            Task completed. Total time: {formatDuration(elapsed)}
-          </Alert>
-        )}
+          {assignment.status === 'Paused' && (
+            <Stack direction="row" spacing={2}>
+              <Button variant="contained" size="large" startIcon={<PlayArrow />}
+                onClick={handleResume} sx={{
+                  py: 2, flex: 1, fontWeight: 900, fontSize: 16,
+                  bgcolor: colors.status.success, borderRadius: radii.md,
+                  '&:hover': { bgcolor: '#059669' },
+                }}>
+                Resume
+              </Button>
+              <Button variant="contained" size="large" startIcon={<Stop />}
+                onClick={handleFinish} sx={{
+                  py: 2, flex: 1, fontWeight: 900, fontSize: 16,
+                  bgcolor: colors.status.error, borderRadius: radii.md,
+                  '&:hover': { bgcolor: '#dc2626' },
+                }}>
+                Finish
+              </Button>
+            </Stack>
+          )}
 
-        {/* Notes (before finish) */}
-        {assignment.status !== 'Completed' && (
-          <TextField
-            label="Notes (optional — added on finish)"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            multiline
-            minRows={3}
-            fullWidth
-          />
-        )}
+          {assignment.status === 'Completed' && (
+            <Alert severity="success" sx={{ fontWeight: 700, borderRadius: radii.md }}>
+              Task completed. Total time: {formatDuration(elapsed)}
+            </Alert>
+          )}
 
-        {/* Show notes after completion */}
-        {assignment.status === 'Completed' && assignment.notes && (
-          <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="body2" color="text.secondary">Notes</Typography>
-            <Typography variant="body2">{assignment.notes}</Typography>
-          </Paper>
-        )}
+          {/* Notes (before finish) */}
+          {assignment.status !== 'Completed' && (
+            <TextField
+              label="Notes (optional — added on finish)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              multiline
+              minRows={3}
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: radii.sm,
+                  fontSize: '0.85rem',
+                },
+              }}
+            />
+          )}
+
+          {/* Show notes after completion */}
+          {assignment.status === 'Completed' && assignment.notes && (
+            <SectionCard title="Notes" icon={<Assignment sx={{ fontSize: '1rem' }} />}>
+              <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700], py: 0.5 }}>{assignment.notes}</Typography>
+            </SectionCard>
+          )}
+        </Stack>
       </Stack>
 
       {/* Pause Reason Dialog */}
-      <Dialog open={pauseDialogOpen} onClose={() => setPauseDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 900, color: 'warning.main' }}>Pause Task</DialogTitle>
+      <Dialog open={pauseDialogOpen} onClose={() => setPauseDialogOpen(false)} fullWidth maxWidth="sm"
+        slotProps={{ paper: { sx: { borderRadius: radii.lg, boxShadow: shadows.dialog } } }}>
+        <DialogTitle sx={{ fontWeight: 900, color: colors.status.warning }}>Pause Task</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 2 }}>
             Pausing will notify the Service Engineer for review. Please provide a reason.
           </Typography>
           <TextField
             autoFocus fullWidth size="small" label="Pause Reason" multiline rows={3}
             value={pauseReason} onChange={(e) => setPauseReason(e.target.value)}
             placeholder="Why are you pausing this task?"
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
           />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => { setPauseDialogOpen(false); setPauseReason('') }}>Cancel</Button>
-          <Button variant="contained" color="warning" onClick={confirmPause} disabled={!pauseReason.trim()}>
+          <Button onClick={() => { setPauseDialogOpen(false); setPauseReason('') }}
+            sx={{ borderRadius: '10px', color: colors.slate[600] }}>Cancel</Button>
+          <Button variant="contained" onClick={confirmPause} disabled={!pauseReason.trim()}
+            sx={{ bgcolor: colors.status.warning, borderRadius: '10px', fontWeight: 600, '&:hover': { bgcolor: '#d97706' } }}>
             Confirm Pause
           </Button>
         </DialogActions>
       </Dialog>
-    </Page>
+    </Box>
   )
 }

@@ -9,7 +9,6 @@ import {
   FormControl,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Stack,
   Table,
@@ -20,10 +19,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { NotificationsActive, Send, Cancel } from '@mui/icons-material'
+import { NotificationsActive, Send, Cancel, Schedule, CheckCircle, Inbox } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
+import { StatCard } from '../../components/StatCard'
 import { useCwStore } from '../../store/cwStore'
+import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import { colors, radii } from '../../theme/tokens'
 import type { CWReminderType } from '../../types/cw'
 
 function fmtDateTime(iso: string) {
@@ -95,61 +96,70 @@ export function CRERemindersPage() {
   const sentCount = reminders.filter((r) => r.status === 'Sent').length
 
   return (
-    <Page title="Reminders & Follow-ups" subtitle="Schedule WhatsApp follow-ups after service completion">
-      <Stack spacing={2.5}>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Reminders & Follow-ups
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Schedule WhatsApp follow-ups after service completion</Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<NotificationsActive />}
+            onClick={() => setDialogOpen(true)}
+            sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+          >
+            Schedule Reminder
+          </Button>
+        </Stack>
+
         {/* Stats */}
-        <Stack direction="row" spacing={2}>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900, color: 'warning.main' }}>{pendingCount}</Typography>
-            <Typography variant="body2" color="text.secondary">Pending</Typography>
-          </Paper>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900, color: 'success.main' }}>{sentCount}</Typography>
-            <Typography variant="body2" color="text.secondary">Sent</Typography>
-          </Paper>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900 }}>{reminders.length}</Typography>
-            <Typography variant="body2" color="text.secondary">Total</Typography>
-          </Paper>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <StatCard icon={<Schedule fontSize="small" />} title="PENDING" value={pendingCount} gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" />
+          <StatCard icon={<CheckCircle fontSize="small" />} title="SENT" value={sentCount} gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)" />
+          <StatCard icon={<Inbox fontSize="small" />} title="TOTAL" value={reminders.length} gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)" />
         </Stack>
 
         {/* Reminders Table */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box>
-              <Typography sx={{ fontWeight: 900 }}>All Reminders</Typography>
-              <Typography variant="body2" color="text.secondary">Follow-ups and reminders for completed services</Typography>
-            </Box>
-            <Button variant="contained" startIcon={<NotificationsActive />} onClick={() => setDialogOpen(true)} sx={{ fontWeight: 700 }}>
-              Schedule Reminder
-            </Button>
+        <Box sx={tableSectionSx}>
+          <Box sx={tableHeaderSx}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <Box sx={tableHeaderIconSx}><NotificationsActive sx={{ fontSize: '1rem' }} /></Box>
+              <Typography sx={tableHeaderTitleSx}>All Reminders</Typography>
+              <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                {reminders.length}
+              </Box>
+            </Stack>
           </Box>
           {reminders.length > 0 ? (
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Vehicle</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Type</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Scheduled</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Message</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>Actions</TableCell>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell>Customer</TableCell>
+                  <TableCell>Vehicle</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Scheduled</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Message</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {reminders.map((r) => (
-                  <TableRow key={r.id} hover>
-                    <TableCell sx={{ fontWeight: 700 }}>{r.customerName}</TableCell>
+                  <TableRow key={r.id} hover sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                    <TableCell sx={{ fontWeight: 700, color: colors.slate[900] }}>{r.customerName}</TableCell>
                     <TableCell>{r.vehicleReg}</TableCell>
                     <TableCell>
-                      <Chip size="small" label={r.type} color={r.type === 'follow-up' ? 'info' : r.type === 'next-service' ? 'warning' : 'default'} sx={{ fontWeight: 700 }} />
+                      <Chip size="small" label={r.type} color={r.type === 'follow-up' ? 'info' : r.type === 'next-service' ? 'warning' : 'default'} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                     </TableCell>
                     <TableCell>{fmtDateTime(r.scheduledAt)}</TableCell>
                     <TableCell>
                       <Chip size="small" label={r.status}
                         color={r.status === 'Sent' ? 'success' : r.status === 'Cancelled' ? 'error' : 'warning'}
-                        sx={{ fontWeight: 700 }} />
+                        sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                     </TableCell>
                     <TableCell sx={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {r.message}
@@ -158,17 +168,17 @@ export function CRERemindersPage() {
                       {r.status === 'Pending' && (
                         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                           <Button size="small" variant="contained" color="success" startIcon={<Send />}
-                            onClick={() => markReminderSent(r.id)} sx={{ fontWeight: 700 }}>
+                            onClick={() => markReminderSent(r.id)} sx={{ fontWeight: 700, borderRadius: radii.sm, fontSize: '0.75rem' }}>
                             Send
                           </Button>
                           <Button size="small" variant="outlined" color="error" startIcon={<Cancel />}
-                            onClick={() => cancelReminder(r.id)} sx={{ fontWeight: 700 }}>
+                            onClick={() => cancelReminder(r.id)} sx={{ fontWeight: 700, borderRadius: radii.sm, fontSize: '0.75rem' }}>
                             Cancel
                           </Button>
                         </Stack>
                       )}
                       {r.status === 'Sent' && r.sentAt && (
-                        <Typography variant="caption" color="text.secondary">Sent {fmtDateTime(r.sentAt)}</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>Sent {fmtDateTime(r.sentAt)}</Typography>
                       )}
                     </TableCell>
                   </TableRow>
@@ -176,11 +186,11 @@ export function CRERemindersPage() {
               </TableBody>
             </Table>
           ) : (
-            <Box sx={{ p: 2.5 }}>
-              <Typography color="text.secondary">No reminders scheduled. Click "Schedule Reminder" to create one.</Typography>
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No reminders scheduled. Click "Schedule Reminder" to create one.</Typography>
             </Box>
           )}
-        </Paper>
+        </Box>
       </Stack>
 
       {/* Create Reminder Dialog */}
@@ -234,11 +244,12 @@ export function CRERemindersPage() {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={!appointmentId}>
+          <Button variant="contained" onClick={handleCreate} disabled={!appointmentId}
+            sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', '&:hover': { bgcolor: colors.slate[800] } }}>
             Schedule
           </Button>
         </DialogActions>
       </Dialog>
-    </Page>
+    </Box>
   )
 }

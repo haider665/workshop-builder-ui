@@ -2,8 +2,9 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   IconButton,
-  Paper,
+  InputAdornment,
   Snackbar,
   Stack,
   Table,
@@ -15,14 +16,20 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Add, MoreVert } from '@mui/icons-material'
+import { Add, DirectionsCar, Search, Visibility } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { StatCard } from '../../components/StatCard'
+import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 
 function includesLoose(haystack: string, needle: string) {
   return haystack.toLowerCase().includes(needle.toLowerCase())
+}
+
+function statusChipColor(status: string): 'success' | 'default' {
+  return status === 'Active' ? 'success' : 'default'
 }
 
 export function VehiclesPage() {
@@ -61,54 +68,98 @@ export function VehiclesPage() {
     [filtered, page, rowsPerPage],
   )
 
-  return (
-    <Page
-      title="Vehicles"
-      actions={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => navigate('/cre/vehicles/new')}
-          sx={{ fontWeight: 700, borderRadius: 2, px: 3 }}
-        >
-          Create New Vehicles
-        </Button>
-      }
-    >
-      <Snackbar
-        open={successOpen}
-        onClose={() => setSuccessOpen(false)}
-        autoHideDuration={2500}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
-          {successMessage}
-        </Alert>
-      </Snackbar>
+  const activeCount = useMemo(() => vehicles.filter((v) => v.status === 'Active').length, [vehicles])
 
-      <Stack spacing={2}>
+  const uniqueMakes = useMemo(() => new Set(vehicles.map((v) => v.make).filter(Boolean)).size, [vehicles])
+
+  return (
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Vehicles
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage all registered vehicles</Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => navigate('/cre/vehicles/new')}
+            sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+          >
+            Create New Vehicle
+          </Button>
+        </Stack>
+
+        {/* Stat Cards */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <StatCard
+            icon={<DirectionsCar fontSize="small" />}
+            title="TOTAL VEHICLES"
+            value={vehicles.length}
+            gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
+          />
+          <StatCard
+            icon={<DirectionsCar fontSize="small" />}
+            title="ACTIVE"
+            value={activeCount}
+            gradient="linear-gradient(135deg, #065f46 0%, #10b981 100%)"
+          />
+          <StatCard
+            icon={<DirectionsCar fontSize="small" />}
+            title="UNIQUE MAKES"
+            value={uniqueMakes}
+            gradient="linear-gradient(135deg, #1e3a5f 0%, #3b82f6 100%)"
+          />
+        </Stack>
+
+        {/* Search */}
         <TextField
           size="small"
-          placeholder="Type to Search"
+          placeholder="Search by registration, customer, make, model, VIN..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           fullWidth
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search sx={{ fontSize: '1.1rem', color: colors.slate[400] }} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem', bgcolor: colors.bg.page } }}
         />
 
-        <Paper variant="outlined">
+        {/* Table */}
+        <Box sx={tableSectionSx}>
+          <Box sx={tableHeaderSx}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <Box sx={tableHeaderIconSx}><DirectionsCar sx={{ fontSize: '1rem' }} /></Box>
+              <Typography sx={tableHeaderTitleSx}>VEHICLES</Typography>
+              <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                {filtered.length}
+              </Box>
+            </Stack>
+          </Box>
+
           {filtered.length === 0 ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography color="text.secondary">No vehicles found.</Typography>
+              <Typography sx={{ color: colors.slate[500] }}>No vehicles found.</Typography>
             </Box>
           ) : (
             <Table size="small">
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Model</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>VIN</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Registration Number</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
-                  <TableCell />
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell>Model</TableCell>
+                  <TableCell>VIN</TableCell>
+                  <TableCell>Registration</TableCell>
+                  <TableCell>Customer</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="right">View</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -120,24 +171,39 @@ export function VehiclesPage() {
                     <TableRow
                       key={v.id}
                       hover
-                      sx={{ cursor: 'pointer' }}
+                      sx={{ cursor: 'pointer', '& .MuiTableCell-body': bodyCellSx }}
                       onClick={() => navigate(`/cre/vehicles/${v.id}`)}
                     >
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{modelDisplay}</Typography>
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: colors.slate[900] }}>{modelDisplay}</Typography>
                         {brandDisplay && (
-                          <Typography variant="caption" color="text.secondary">{brandDisplay}</Typography>
+                          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>{brandDisplay}</Typography>
                         )}
                       </TableCell>
-                      <TableCell>{v.vin ?? '—'}</TableCell>
-                      <TableCell>{v.registrationNo}</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>{c?.fullName ?? '—'}</TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700], fontFamily: 'monospace' }}>{v.vin ?? '—'}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: colors.slate[800] }}>{v.registrationNo}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: colors.slate[800] }}>{c?.fullName ?? '—'}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={v.status}
+                          color={statusChipColor(v.status)}
+                          size="small"
+                          sx={{ fontWeight: 700, fontSize: '0.72rem' }}
+                        />
+                      </TableCell>
                       <TableCell align="right">
                         <IconButton
                           size="small"
                           onClick={(e) => { e.stopPropagation(); navigate(`/cre/vehicles/${v.id}`) }}
+                          sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}
                         >
-                          <MoreVert fontSize="small" />
+                          <Visibility sx={{ fontSize: '1rem', color: colors.slate[600] }} />
                         </IconButton>
                       </TableCell>
                     </TableRow>
@@ -155,8 +221,19 @@ export function VehiclesPage() {
             onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0) }}
             rowsPerPageOptions={[10, 25, 50]}
           />
-        </Paper>
+        </Box>
+
+        <Snackbar
+          open={successOpen}
+          onClose={() => setSuccessOpen(false)}
+          autoHideDuration={2500}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
+            {successMessage}
+          </Alert>
+        </Snackbar>
       </Stack>
-    </Page>
+    </Box>
   )
 }

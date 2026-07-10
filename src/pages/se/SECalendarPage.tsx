@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
-import { Page } from '../../components/Page'
+import { Box, Stack, Typography } from '@mui/material'
+import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded'
+import { SectionCard } from '../../components/SectionCard'
 import { AppointmentCalendar } from '../../components/AppointmentCalendar'
 import { useCwStore } from '../../store/cwStore'
+import { colors } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
 
 const SE_STATUSES: CWAppointmentStatus[] = [
@@ -41,14 +44,27 @@ export function SECalendarPage() {
   }, [customers])
 
   return (
-    <Page title="SE Calendar" subtitle="Appointment calendar for Service Engineers">
-      <AppointmentCalendar
-        appointments={relevant}
-        vehicleRegById={vehicleRegById}
-        customerNameById={customerNameById}
-        basePath="/se/appointments"
-        title="SE Appointment Calendar"
-      />
-    </Page>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        <Box>
+          <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+            SE Calendar
+          </Typography>
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+            Appointment calendar for Service Engineers
+          </Typography>
+        </Box>
+
+        <SectionCard title="SE Appointment Calendar" icon={<CalendarMonthRoundedIcon sx={{ fontSize: '1rem' }} />}>
+          <AppointmentCalendar
+            appointments={relevant}
+            vehicleRegById={vehicleRegById}
+            customerNameById={customerNameById}
+            basePath="/se/appointments"
+            title="SE Appointment Calendar"
+          />
+        </SectionCard>
+      </Stack>
+    </Box>
   )
 }

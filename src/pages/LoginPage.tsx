@@ -1,9 +1,10 @@
-import { Alert, Box, Button, Container, Divider, Paper, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Container, Divider, Stack, TextField, Typography } from '@mui/material'
 import { keyframes } from '@mui/system'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../store/sessionStore'
+import { colors, radii, shadows, motion } from '../theme/tokens'
 
 const float = keyframes`
   0%, 100% { transform: translate(0, 0) scale(1); }
@@ -15,6 +16,107 @@ const pulse = keyframes`
   0%, 100% { opacity: 0.15; }
   50% { opacity: 0.25; }
 `
+
+const shimmer = keyframes`
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+`
+
+/* ── Styles defined outside component to avoid re-creation ── */
+
+const inputSx = {
+  '& .MuiOutlinedInput-root': {
+    borderRadius: radii.sm,
+    backgroundColor: colors.slate[50],
+    transition: `all ${motion.normal} ${motion.springEase}`,
+    '& fieldset': {
+      borderColor: colors.border.default,
+      transition: `border-color ${motion.normal} ease`,
+    },
+    '&:hover fieldset': {
+      borderColor: colors.slate[300],
+    },
+    '&.Mui-focused fieldset': {
+      borderColor: colors.border.focus,
+      borderWidth: '1.5px',
+    },
+    '&.Mui-focused': {
+      backgroundColor: colors.bg.card,
+      boxShadow: `0 0 0 3px ${colors.slate[100]}`,
+    },
+  },
+  '& .MuiInputLabel-root': {
+    color: colors.slate[400],
+    fontSize: '0.85rem',
+    fontWeight: 500,
+    '&.Mui-focused': {
+      color: colors.slate[900],
+      fontWeight: 600,
+    },
+  },
+  '& .MuiOutlinedInput-input': {
+    color: colors.slate[900],
+    fontSize: '0.92rem',
+    padding: '14px 16px',
+    fontWeight: 500,
+  },
+} as const
+
+const pageBackground = {
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: `linear-gradient(145deg, ${colors.slate[950]} 0%, ${colors.slate[900]} 40%, ${colors.slate[800]} 100%)`,
+  position: 'relative' as const,
+  overflow: 'hidden',
+} as const
+
+const cardSx = {
+  p: { xs: 4, sm: 5 },
+  borderRadius: radii.xl,
+  backgroundColor: colors.bg.card,
+  border: `1px solid ${colors.border.default}`,
+  boxShadow: `${shadows.dialog}, 0 0 0 1px rgba(255,255,255,0.05)`,
+  position: 'relative' as const,
+  overflow: 'hidden',
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '3px',
+    background: `linear-gradient(90deg, ${colors.slate[900]}, ${colors.slate[600]}, ${colors.slate[900]})`,
+    backgroundSize: '200% 100%',
+    animation: `${shimmer} 6s ease-in-out infinite`,
+  },
+} as const
+
+const submitButtonSx = {
+  py: 1.5,
+  mt: 1,
+  fontWeight: 700,
+  fontSize: '0.9rem',
+  letterSpacing: '0.02em',
+  borderRadius: '10px',
+  textTransform: 'none' as const,
+  bgcolor: colors.slate[900],
+  color: '#fff',
+  transition: `all ${motion.normal} ${motion.springEase}`,
+  '&:hover': {
+    bgcolor: colors.slate[800],
+    transform: 'translateY(-1px)',
+    boxShadow: shadows.elevated,
+  },
+  '&:active': {
+    transform: 'translateY(0)',
+  },
+  '&.Mui-disabled': {
+    bgcolor: colors.slate[200],
+    color: colors.slate[400],
+  },
+} as const
 
 export function LoginPage() {
   const login = useSessionStore((s) => s.login)
@@ -43,59 +145,16 @@ export function LoginPage() {
     }
   }
 
-  const inputSx = {
-    '& .MuiOutlinedInput-root': {
-      borderRadius: '12px',
-      backgroundColor: '#f8f9fa',
-      transition: 'all 0.2s ease',
-      '& fieldset': {
-        borderColor: '#e0e0e0',
-        transition: 'border-color 0.2s ease',
-      },
-      '&:hover fieldset': {
-        borderColor: '#bbb',
-      },
-      '&.Mui-focused fieldset': {
-        borderColor: '#1a1a1a',
-        borderWidth: '1.5px',
-      },
-      '&.Mui-focused': {
-        backgroundColor: '#fff',
-      },
-    },
-    '& .MuiInputLabel-root': {
-      color: '#888',
-      '&.Mui-focused': {
-        color: '#1a1a1a',
-      },
-    },
-    '& .MuiOutlinedInput-input': {
-      color: '#1a1a1a',
-      fontSize: '0.95rem',
-      padding: '14px 16px',
-    },
-  }
-
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#0a0a0a',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
+    <Box sx={pageBackground}>
       {/* Ambient gradient orbs */}
       <Box
         sx={{
           position: 'absolute',
           width: '600px',
           height: '600px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)',
+          borderRadius: radii.full,
+          background: `radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)`,
           top: '-15%',
           left: '-10%',
           animation: `${float} 20s ease-in-out infinite`,
@@ -107,8 +166,8 @@ export function LoginPage() {
           position: 'absolute',
           width: '500px',
           height: '500px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(200,170,110,0.08) 0%, transparent 70%)',
+          borderRadius: radii.full,
+          background: `radial-gradient(circle, rgba(200,170,110,0.08) 0%, transparent 70%)`,
           bottom: '-10%',
           right: '-5%',
           animation: `${float} 25s ease-in-out infinite reverse`,
@@ -120,39 +179,42 @@ export function LoginPage() {
           position: 'absolute',
           width: '300px',
           height: '300px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%)',
+          borderRadius: radii.full,
+          background: `radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%)`,
           top: '60%',
           left: '50%',
           animation: `${pulse} 8s ease-in-out infinite`,
           pointerEvents: 'none',
         }}
       />
+      {/* Subtle grid pattern overlay */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `radial-gradient(${colors.slate[700]} 1px, transparent 1px)`,
+          backgroundSize: '32px 32px',
+          opacity: 0.15,
+          pointerEvents: 'none',
+        }}
+      />
 
       <Container maxWidth="xs" sx={{ position: 'relative', zIndex: 1 }}>
-        <Paper
-          elevation={0}
-          sx={{
-            p: { xs: 4, sm: 5 },
-            borderRadius: '24px',
-            backgroundColor: '#ffffff',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)',
-          }}
-        >
+        <Box sx={cardSx}>
           <Stack spacing={1} sx={{ mb: 4, textAlign: 'center' }}>
             {/* Logo mark */}
             <Box
               sx={{
                 width: 48,
                 height: 48,
-                borderRadius: '14px',
-                background: 'linear-gradient(135deg, #1a1a1a 0%, #333 100%)',
+                borderRadius: radii.md,
+                background: `linear-gradient(135deg, ${colors.slate[900]} 0%, ${colors.slate[700]} 100%)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 mx: 'auto',
                 mb: 1,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                boxShadow: shadows.elevated,
               }}
             >
               <Typography sx={{ color: '#fff', fontWeight: 900, fontSize: '1.2rem', letterSpacing: '-0.02em' }}>
@@ -163,7 +225,7 @@ export function LoginPage() {
             <Typography
               variant="overline"
               sx={{
-                color: '#999',
+                color: colors.slate[400],
                 letterSpacing: '0.2em',
                 fontSize: '0.65rem',
                 fontWeight: 600,
@@ -176,7 +238,7 @@ export function LoginPage() {
               variant="h5"
               sx={{
                 fontWeight: 800,
-                color: '#1a1a1a',
+                color: colors.slate[900],
                 letterSpacing: '-0.03em',
                 lineHeight: 1.2,
               }}
@@ -186,7 +248,7 @@ export function LoginPage() {
 
             <Typography
               sx={{
-                color: '#888',
+                color: colors.slate[500],
                 fontSize: '0.875rem',
                 lineHeight: 1.5,
               }}
@@ -195,14 +257,15 @@ export function LoginPage() {
             </Typography>
           </Stack>
 
-          <Divider sx={{ mb: 3, borderColor: '#f0f0f0' }} />
+          <Divider sx={{ mb: 3, borderColor: colors.border.subtle }} />
 
           <Stack component="form" spacing={2.5} onSubmit={handleSubmit}>
             {error || sessionError ? (
               <Alert
                 severity="error"
                 sx={{
-                  borderRadius: '12px',
+                  borderRadius: radii.sm,
+                  border: `1px solid rgba(239,68,68,0.2)`,
                   '& .MuiAlert-icon': { alignItems: 'center' },
                 }}
               >
@@ -237,30 +300,7 @@ export function LoginPage() {
               size="large"
               disabled={loading || !username.trim() || !password}
               disableElevation
-              sx={{
-                py: 1.5,
-                mt: 1,
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                letterSpacing: '0.02em',
-                borderRadius: '12px',
-                textTransform: 'none',
-                background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)',
-                color: '#fff',
-                transition: 'all 0.25s ease',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #2d2d2d 0%, #444 100%)',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
-                },
-                '&:active': {
-                  transform: 'translateY(0)',
-                },
-                '&.Mui-disabled': {
-                  background: '#e0e0e0',
-                  color: '#aaa',
-                },
-              }}
+              sx={submitButtonSx}
             >
               {loading ? 'Signing in…' : 'Sign in'}
             </Button>
@@ -270,13 +310,15 @@ export function LoginPage() {
             sx={{
               mt: 3,
               textAlign: 'center',
-              color: '#bbb',
-              fontSize: '0.75rem',
+              color: colors.slate[400],
+              fontSize: '0.72rem',
+              fontWeight: 500,
+              letterSpacing: '0.03em',
             }}
           >
             Workshop Management Platform
           </Typography>
-        </Paper>
+        </Box>
       </Container>
     </Box>
   )
