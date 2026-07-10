@@ -1,6 +1,6 @@
 import {
   Alert,
-
+  Box,
   Button,
   Chip,
   IconButton,
@@ -12,7 +12,6 @@ import {
 } from '@mui/material'
 import { Add, Edit, Groups } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
@@ -45,9 +44,17 @@ function toDraft(team?: CWTeam): TeamDraft {
 }
 
 function statusChip(status: CWTeamStatus) {
-  if (status === 'Active') return <Chip size="small" color="success" label="Active" />
-  return <Chip size="small" color="default" label="Inactive" />
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
+
+const btnSx = {
+  bgcolor: colors.slate[900],
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2.5,
+  '&:hover': { bgcolor: colors.slate[800] },
+} as const
 
 /* ─────────────────────── Component ─────────────────────────── */
 
@@ -283,58 +290,54 @@ export function TeamsPage() {
   /* ── Render ── */
 
   return (
-    <Page
-      title="Admin / Teams"
-      subtitle="Manage teams with SE and Technician assignments."
-      actions={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openCreate}
-          disabled={saving}
-          sx={{
-            bgcolor: colors.slate[900],
-            fontWeight: 600,
-            borderRadius: '10px',
-            px: 2.5,
-            '&:hover': { bgcolor: colors.slate[800] },
-          }}
-        >
-          New Team
-        </Button>
-      }
-    >
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      <DataTable
-        columns={columns}
-        rows={teams}
-        keyExtractor={(team) => team.id}
-        loading={loading}
-        emptyIcon={<Groups />}
-        emptyTitle="No teams yet"
-        emptyDescription="Create teams to group Service Engineers with Technicians for assignment."
-        emptyAction={
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Teams
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage teams with SE and Technician assignments.</Typography>
+          </Box>
           <Button
             variant="contained"
             startIcon={<Add />}
             onClick={openCreate}
             disabled={saving}
-            sx={{
-              bgcolor: colors.slate[900],
-              fontWeight: 600,
-              borderRadius: '10px',
-              '&:hover': { bgcolor: colors.slate[800] },
-            }}
+            sx={btnSx}
           >
-            Create Team
+            New Team
           </Button>
-        }
-      />
+        </Stack>
+
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        <DataTable
+          columns={columns}
+          rows={teams}
+          keyExtractor={(team) => team.id}
+          loading={loading}
+          emptyIcon={<Groups />}
+          emptyTitle="No teams yet"
+          emptyDescription="Create teams to group Service Engineers with Technicians for assignment."
+          emptyAction={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              disabled={saving}
+              sx={btnSx}
+            >
+              Create Team
+            </Button>
+          }
+        />
+      </Stack>
 
       {/* ── Create Dialog ── */}
       <FormDialog
@@ -361,6 +364,6 @@ export function TeamsPage() {
       >
         {renderTeamFormFields(editDraft, setEditDraft)}
       </FormDialog>
-    </Page>
+    </Box>
   )
 }

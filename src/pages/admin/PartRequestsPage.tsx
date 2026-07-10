@@ -12,12 +12,11 @@ import {
 } from '@mui/material'
 import { Inventory2 } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
 import { DataTable } from '../../components/DataTable'
 import type { Column } from '../../components/DataTable'
 import { useCwStore } from '../../store/cwStore'
 import type { CWPartRequest, CWPartRequestStatus } from '../../types/cw'
-import { colors } from '../../theme/tokens'
+import { colors, pageLayout } from '../../theme/tokens'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -28,6 +27,14 @@ const STATUS_COLORS: Record<CWPartRequestStatus, 'warning' | 'info' | 'success' 
   Fulfilled: 'success',
   Rejected: 'error',
 }
+
+const btnSx = {
+  bgcolor: colors.slate[900],
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2.5,
+  '&:hover': { bgcolor: colors.slate[800] },
+} as const
 
 /* ─────────────────────── Component ─────────────────────────── */
 
@@ -224,7 +231,7 @@ export function PartRequestsPage() {
       key: 'status',
       header: 'Status',
       render: (pr) => (
-        <Chip size="small" label={pr.status} color={STATUS_COLORS[pr.status]} sx={{ fontWeight: 700 }} />
+        <Chip size="small" label={pr.status} color={STATUS_COLORS[pr.status]} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
       ),
     },
     {
@@ -240,12 +247,7 @@ export function PartRequestsPage() {
                 size="small"
                 variant="contained"
                 onClick={() => startEdit(pr.id)}
-                sx={{
-                  fontWeight: 700,
-                  bgcolor: colors.slate[900],
-                  borderRadius: '8px',
-                  '&:hover': { bgcolor: colors.slate[800] },
-                }}
+                sx={btnSx}
               >
                 Label
               </Button>
@@ -254,7 +256,7 @@ export function PartRequestsPage() {
                 variant="outlined"
                 color="error"
                 onClick={() => rejectRequest(pr.id)}
-                sx={{ fontWeight: 700, borderRadius: '8px' }}
+                sx={{ fontWeight: 700, borderRadius: '10px' }}
               >
                 Reject
               </Button>
@@ -269,7 +271,7 @@ export function PartRequestsPage() {
                 variant="contained"
                 color="success"
                 onClick={submitLabel}
-                sx={{ fontWeight: 700, borderRadius: '8px' }}
+                sx={{ fontWeight: 700, borderRadius: '10px' }}
               >
                 Save
               </Button>
@@ -277,7 +279,7 @@ export function PartRequestsPage() {
                 size="small"
                 variant="outlined"
                 onClick={() => setEditingId(null)}
-                sx={{ fontWeight: 700, borderRadius: '8px' }}
+                sx={{ fontWeight: 700, borderRadius: '10px' }}
               >
                 Cancel
               </Button>
@@ -292,12 +294,22 @@ export function PartRequestsPage() {
   /* ── Render ── */
 
   return (
-    <Page title="Part Requests" subtitle="Label and manage part requests from Service Engineers">
-      <Snackbar open={successOpen} onClose={() => setSuccessOpen(false)} autoHideDuration={2500} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled">{successMsg}</Alert>
-      </Snackbar>
+    <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Part Requests
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Label and manage part requests from Service Engineers</Typography>
+          </Box>
+        </Stack>
 
-      <Stack spacing={2.5}>
+        <Snackbar open={successOpen} onClose={() => setSuccessOpen(false)} autoHideDuration={2500} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled">{successMsg}</Alert>
+        </Snackbar>
+
         {/* ── Status Filter ── */}
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
           <ToggleButtonGroup
@@ -349,6 +361,6 @@ export function PartRequestsPage() {
           emptyDescription="Part requests from Service Engineers will appear here."
         />
       </Stack>
-    </Page>
+    </Box>
   )
 }

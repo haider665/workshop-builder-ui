@@ -7,7 +7,6 @@ import {
   FormControlLabel,
   IconButton,
   MenuItem,
-  Paper,
   Stack,
   Switch,
   TextField,
@@ -18,6 +17,7 @@ import {
   Add,
   ArrowDownward,
   ArrowUpward,
+  Assignment,
   Delete,
   Edit,
   Visibility,
@@ -25,10 +25,11 @@ import {
 } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
 import { DataTable, type Column } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
-import { colors, radii, shadows } from '../../theme/tokens'
+import { colors, radii, pageLayout } from '../../theme/tokens'
+import { tableSectionSx } from '../../theme/tableStyles'
 import type {
   CWShop,
   CWTaskField,
@@ -61,8 +62,8 @@ const btnSx = {
 } as const
 
 function statusChip(status: CWTaskTemplateStatus) {
-  if (status === 'Active') return <Chip size="small" color="success" label="Active" />
-  return <Chip size="small" color="default" label="Inactive" />
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
 
 function parseOptions(text: string) {
@@ -389,8 +390,8 @@ export function TaskTemplatesPage() {
       key: 'required',
       render: (row) =>
         row.required
-          ? <Chip size="small" color="warning" label="Yes" />
-          : <Chip size="small" label="No" />,
+          ? <Chip size="small" color="warning" label="Yes" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+          : <Chip size="small" label="No" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />,
     },
     {
       header: 'Options',
@@ -439,24 +440,25 @@ export function TaskTemplatesPage() {
   /* ── No shops guard ── */
   if (!hasShops) {
     return (
-      <Page title="Admin / Task Templates" subtitle="Build task templates and dynamic forms.">
-        <Paper
-          sx={{
-            p: 4,
-            border: `1px solid ${colors.border.default}`,
-            borderRadius: radii.lg,
-            boxShadow: shadows.card,
-          }}
-        >
-          <Stack spacing={1.5}>
-            <Typography variant="h6" sx={{ fontWeight: 800, color: colors.slate[900] }}>Create a shop first</Typography>
-            <Typography sx={{ color: colors.slate[500] }}>Task templates belong to a shop. Create at least one shop to continue.</Typography>
-            <Box>
-              <Button variant="contained" component={RouterLink} to="/admin/shops" sx={btnSx}>Go to Shops</Button>
-            </Box>
-          </Stack>
-        </Paper>
-      </Page>
+      <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
+        <Stack spacing={3.5}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Task Templates
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Build task templates and dynamic forms.</Typography>
+          </Box>
+          <SectionCard title="SETUP REQUIRED" icon={<Assignment sx={{ fontSize: '1rem' }} />}>
+            <Stack spacing={1.5} sx={{ py: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: colors.slate[900] }}>Create a shop first</Typography>
+              <Typography sx={{ color: colors.slate[500] }}>Task templates belong to a shop. Create at least one shop to continue.</Typography>
+              <Box>
+                <Button variant="contained" component={RouterLink} to="/admin/shops" sx={btnSx}>Go to Shops</Button>
+              </Box>
+            </Stack>
+          </SectionCard>
+        </Stack>
+      </Box>
     )
   }
 
@@ -490,117 +492,96 @@ export function TaskTemplatesPage() {
   )
 
   return (
-    <Page
-      title="Admin / Task Templates"
-      subtitle="Create templates and design dynamic forms."
-      actions={
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant={showPreview ? 'outlined' : 'contained'}
-            startIcon={showPreview ? <VisibilityOff /> : <Visibility />}
-            onClick={() => setShowPreview((v) => !v)}
-            disabled={!selectedTemplate}
-            sx={showPreview ? { fontWeight: 600, borderRadius: '10px', px: 2.5 } : btnSx}
-          >
-            {showPreview ? 'Hide Preview' : 'Preview'}
-          </Button>
-          <Button variant="contained" startIcon={<Add />} onClick={openCreateTemplate} disabled={saving} sx={btnSx}>
-            New Template
-          </Button>
-        </Stack>
-      }
-    >
-      {error ? <Alert severity="error" sx={{ mb: 2, borderRadius: radii.sm }}>{error}</Alert> : null}
-      {loading ? (
-        <Paper sx={{ p: 4, border: `1px solid ${colors.border.default}`, borderRadius: radii.lg, boxShadow: shadows.card }}>
-          <Typography sx={{ color: colors.slate[500] }}>Loading task templates from backend...</Typography>
-        </Paper>
-      ) : null}
-
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '360px 1fr' }, gap: 2 }}>
-        {/* ── Left sidebar: shop selector + template list ── */}
-        <Paper
-          sx={{
-            border: `1px solid ${colors.border.default}`,
-            borderRadius: radii.lg,
-            boxShadow: shadows.card,
-            overflow: 'hidden',
-          }}
-        >
-          <Stack spacing={1.5} sx={{ p: 2 }}>
-            <TextField label="Shop" select value={effectiveShopId} onChange={(e) => setShopId(e.target.value)} fullWidth>
-              {shops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-            </TextField>
-            <Divider />
-            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: colors.slate[900] }}>Templates</Typography>
-            {templatesForShop.length ? (
-              <Stack spacing={1}>
-                {templatesForShop.map((t) => {
-                  const selected = t.id === effectiveSelectedTemplateId
-                  return (
-                    <Paper
-                      key={t.id}
-                      variant="outlined"
-                      sx={{
-                        p: 1.5,
-                        cursor: 'pointer',
-                        borderRadius: radii.sm,
-                        borderColor: selected ? colors.slate[900] : colors.border.default,
-                        backgroundColor: selected ? colors.bg.cardHover : 'transparent',
-                        transition: 'all 150ms ease',
-                        '&:hover': { borderColor: colors.slate[400] },
-                      }}
-                      onClick={() => setSelectedTemplateId(t.id)}
-                    >
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                          <Typography sx={{ fontWeight: 800, color: colors.slate[900] }} noWrap>{t.name}</Typography>
-                          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }} noWrap>{t.fields.length} field{t.fields.length === 1 ? '' : 's'}</Typography>
-                        </Box>
-                        {statusChip(t.status)}
-                      </Stack>
-                    </Paper>
-                  )
-                })}
-              </Stack>
-            ) : (
-              <Typography sx={{ color: colors.slate[500] }}>No templates yet for {selectedShop?.name ?? 'this shop'}.</Typography>
-            )}
-          </Stack>
-        </Paper>
-
-        {/* ── Right panel: selected template detail + fields ── */}
-        <Stack spacing={2}>
-          {!selectedTemplate ? (
-            <Paper
-              sx={{
-                p: 4,
-                border: `1px solid ${colors.border.default}`,
-                borderRadius: radii.lg,
-                boxShadow: shadows.card,
-              }}
+    <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Task Templates
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Create templates and design dynamic forms.</Typography>
+          </Box>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant={showPreview ? 'outlined' : 'contained'}
+              startIcon={showPreview ? <VisibilityOff /> : <Visibility />}
+              onClick={() => setShowPreview((v) => !v)}
+              disabled={!selectedTemplate}
+              sx={showPreview ? { fontWeight: 600, borderRadius: '10px', px: 2.5 } : btnSx}
             >
-              <Stack spacing={1.5}>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: colors.slate[900] }}>Select or create a template</Typography>
-                <Typography sx={{ color: colors.slate[500] }}>Choose a template on the left, or create a new one.</Typography>
-              </Stack>
-            </Paper>
-          ) : (
-            <>
-              {/* Template header card */}
-              <Paper
-                sx={{
-                  p: 2,
-                  border: `1px solid ${colors.border.default}`,
-                  borderRadius: radii.lg,
-                  boxShadow: shadows.card,
-                }}
-              >
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-                  <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, color: colors.slate[900] }} noWrap>{selectedTemplate.name}</Typography>
-                    <Typography sx={{ color: colors.slate[500] }} noWrap>{selectedTemplate.description || '—'}</Typography>
-                  </Box>
+              {showPreview ? 'Hide Preview' : 'Preview'}
+            </Button>
+            <Button variant="contained" startIcon={<Add />} onClick={openCreateTemplate} disabled={saving} sx={btnSx}>
+              New Template
+            </Button>
+          </Stack>
+        </Stack>
+
+        {error ? <Alert severity="error" sx={{ borderRadius: radii.sm }}>{error}</Alert> : null}
+        {loading ? (
+          <Box sx={{ ...tableSectionSx, p: 4 }}>
+            <Typography sx={{ color: colors.slate[500] }}>Loading task templates from backend...</Typography>
+          </Box>
+        ) : null}
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '360px 1fr' }, gap: 2 }}>
+          {/* ── Left sidebar: shop selector + template list ── */}
+          <Box sx={{ ...tableSectionSx }}>
+            <Stack spacing={1.5} sx={{ p: 2 }}>
+              <TextField label="Shop" select value={effectiveShopId} onChange={(e) => setShopId(e.target.value)} fullWidth>
+                {shops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+              </TextField>
+              <Divider />
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: colors.slate[900], textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.78rem' }}>Templates</Typography>
+              {templatesForShop.length ? (
+                <Stack spacing={1}>
+                  {templatesForShop.map((t) => {
+                    const selected = t.id === effectiveSelectedTemplateId
+                    return (
+                      <Box
+                        key={t.id}
+                        sx={{
+                          p: 1.5,
+                          cursor: 'pointer',
+                          borderRadius: radii.sm,
+                          border: `1px solid ${selected ? colors.slate[900] : colors.border.default}`,
+                          backgroundColor: selected ? colors.bg.cardHover : 'transparent',
+                          transition: 'all 150ms ease',
+                          '&:hover': { borderColor: colors.slate[400] },
+                        }}
+                        onClick={() => setSelectedTemplateId(t.id)}
+                      >
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                            <Typography sx={{ fontWeight: 800, color: colors.slate[900] }} noWrap>{t.name}</Typography>
+                            <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }} noWrap>{t.fields.length} field{t.fields.length === 1 ? '' : 's'}</Typography>
+                          </Box>
+                          {statusChip(t.status)}
+                        </Stack>
+                      </Box>
+                    )
+                  })}
+                </Stack>
+              ) : (
+                <Typography sx={{ color: colors.slate[500] }}>No templates yet for {selectedShop?.name ?? 'this shop'}.</Typography>
+              )}
+            </Stack>
+          </Box>
+
+          {/* ── Right panel: selected template detail + fields ── */}
+          <Stack spacing={2}>
+            {!selectedTemplate ? (
+              <SectionCard title="GETTING STARTED" icon={<Assignment sx={{ fontSize: '1rem' }} />}>
+                <Stack spacing={1.5} sx={{ py: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 800, color: colors.slate[900] }}>Select or create a template</Typography>
+                  <Typography sx={{ color: colors.slate[500] }}>Choose a template on the left, or create a new one.</Typography>
+                </Stack>
+              </SectionCard>
+            ) : (
+              <>
+                {/* Template header card */}
+                <SectionCard title="TEMPLATE DETAILS" icon={<Assignment sx={{ fontSize: '1rem' }} />} actions={
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                     {statusChip(selectedTemplate.status)}
                     <Button
@@ -621,107 +602,108 @@ export function TaskTemplatesPage() {
                       {selectedTemplate.status === 'Active' ? 'Deactivate' : 'Activate'}
                     </Button>
                   </Stack>
-                </Stack>
-              </Paper>
+                }>
+                  <Stack spacing={0.5} sx={{ py: 0.5 }}>
+                    <Stack direction="row" sx={{ alignItems: 'center', py: 1.25, borderBottom: `1px solid ${colors.border.subtle}` }}>
+                      <Typography sx={{ width: 180, flexShrink: 0, fontSize: '0.82rem', color: colors.slate[500], fontWeight: 500 }}>Name</Typography>
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900], flex: 1 }}>{selectedTemplate.name}</Typography>
+                    </Stack>
+                    <Stack direction="row" sx={{ alignItems: 'center', py: 1.25 }}>
+                      <Typography sx={{ width: 180, flexShrink: 0, fontSize: '0.82rem', color: colors.slate[500], fontWeight: 500 }}>Description</Typography>
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900], flex: 1 }}>{selectedTemplate.description || '—'}</Typography>
+                    </Stack>
+                  </Stack>
+                </SectionCard>
 
-              {/* Fields section */}
-              <Box>
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                  <Typography sx={{ fontWeight: 900, color: colors.slate[900], fontSize: '1rem' }}>Form fields</Typography>
-                  <Button variant="contained" startIcon={<Add />} onClick={openAddField} disabled={saving} sx={btnSx}>Add Field</Button>
-                </Stack>
-                <DataTable<CWTaskField>
-                  columns={fieldColumns}
-                  rows={sortedFields}
-                  keyExtractor={(f) => f.id}
-                  emptyTitle="No fields yet"
-                  emptyDescription="Add your first field to begin."
-                  emptyAction={
-                    <Button variant="contained" startIcon={<Add />} onClick={openAddField} disabled={saving} sx={btnSx}>
-                      Add Field
-                    </Button>
-                  }
-                />
-              </Box>
+                {/* Fields section */}
+                <Box>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                    <Typography sx={{ fontWeight: 900, color: colors.slate[900], fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Form fields</Typography>
+                    <Button variant="contained" startIcon={<Add />} onClick={openAddField} disabled={saving} sx={btnSx}>Add Field</Button>
+                  </Stack>
+                  <DataTable<CWTaskField>
+                    columns={fieldColumns}
+                    rows={sortedFields}
+                    keyExtractor={(f) => f.id}
+                    emptyTitle="No fields yet"
+                    emptyDescription="Add your first field to begin."
+                    emptyAction={
+                      <Button variant="contained" startIcon={<Add />} onClick={openAddField} disabled={saving} sx={btnSx}>
+                        Add Field
+                      </Button>
+                    }
+                  />
+                </Box>
 
-              {/* Preview section */}
-              {showPreview ? (
-                <Paper
-                  sx={{
-                    p: 2,
-                    border: `1px solid ${colors.border.default}`,
-                    borderRadius: radii.lg,
-                    boxShadow: shadows.card,
-                  }}
-                >
-                  <Stack spacing={2}>
-                    <Typography sx={{ fontWeight: 900, color: colors.slate[900], fontSize: '1rem' }}>Preview</Typography>
+                {/* Preview section */}
+                {showPreview ? (
+                  <SectionCard title="PREVIEW" icon={<Visibility sx={{ fontSize: '1rem' }} />}>
                     {!sortedFields.length ? (
-                      <Typography sx={{ color: colors.slate[500] }}>Add fields to preview the form.</Typography>
+                      <Typography sx={{ color: colors.slate[500], py: 1 }}>Add fields to preview the form.</Typography>
                     ) : (
-                      <Stack spacing={2}>
+                      <Stack spacing={2} sx={{ py: 1 }}>
                         {sortedFields.map((f) => <PreviewField key={f.id} field={f} />)}
                       </Stack>
                     )}
-                  </Stack>
-                </Paper>
-              ) : null}
-            </>
-          )}
-        </Stack>
-      </Box>
+                  </SectionCard>
+                ) : null}
+              </>
+            )}
+          </Stack>
+        </Box>
 
-      {/* ── Create template dialog ── */}
-      <FormDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Create template"
-        icon={<Add />}
-        onSubmit={() => void submitCreateTemplate()}
-        submitLabel="Create"
-        submitDisabled={!templateDraft.name.trim() || saving}
-      >
-        {templateFormFields}
-      </FormDialog>
+        {/* ── Create template dialog ── */}
+        <FormDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          title="Create template"
+          icon={<Add />}
+          onSubmit={() => void submitCreateTemplate()}
+          submitLabel="Create"
+          submitDisabled={!templateDraft.name.trim() || saving}
+        >
+          {templateFormFields}
+        </FormDialog>
 
-      {/* ── Edit template dialog ── */}
-      <FormDialog
-        open={!!editTemplate}
-        onClose={() => setEditTemplate(null)}
-        title="Edit template"
-        icon={<Edit />}
-        onSubmit={() => void submitEditTemplate()}
-        submitLabel="Save"
-        submitDisabled={!templateDraft.name.trim() || saving}
-      >
-        {templateFormFields}
-      </FormDialog>
+        {/* ── Edit template dialog ── */}
+        <FormDialog
+          open={!!editTemplate}
+          onClose={() => setEditTemplate(null)}
+          title="Edit template"
+          icon={<Edit />}
+          onSubmit={() => void submitEditTemplate()}
+          submitLabel="Save"
+          submitDisabled={!templateDraft.name.trim() || saving}
+        >
+          {templateFormFields}
+        </FormDialog>
 
-      {/* ── Add field dialog ── */}
-      <FormDialog
-        open={addFieldOpen}
-        onClose={() => setAddFieldOpen(false)}
-        title="Add field"
-        icon={<Add />}
-        onSubmit={() => void submitAddField()}
-        submitLabel="Add"
-        submitDisabled={!fieldDraft.label.trim() || saving}
-      >
-        {fieldFormFields}
-      </FormDialog>
+        {/* ── Add field dialog ── */}
+        <FormDialog
+          open={addFieldOpen}
+          onClose={() => setAddFieldOpen(false)}
+          title="Add field"
+          icon={<Add />}
+          onSubmit={() => void submitAddField()}
+          submitLabel="Add"
+          submitDisabled={!fieldDraft.label.trim() || saving}
+        >
+          {fieldFormFields}
+        </FormDialog>
 
-      {/* ── Edit field dialog ── */}
-      <FormDialog
-        open={!!editField}
-        onClose={() => setEditField(null)}
-        title="Edit field"
-        icon={<Edit />}
-        onSubmit={() => void submitEditField()}
-        submitLabel="Save"
-        submitDisabled={!fieldDraft.label.trim() || saving}
-      >
-        {fieldFormFields}
-      </FormDialog>
-    </Page>
+        {/* ── Edit field dialog ── */}
+        <FormDialog
+          open={!!editField}
+          onClose={() => setEditField(null)}
+          title="Edit field"
+          icon={<Edit />}
+          onSubmit={() => void submitEditField()}
+          submitLabel="Save"
+          submitDisabled={!fieldDraft.label.trim() || saving}
+        >
+          {fieldFormFields}
+        </FormDialog>
+      </Stack>
+    </Box>
   )
 }

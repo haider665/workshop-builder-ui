@@ -16,7 +16,6 @@ import {
 } from '@mui/material'
 import { Add, Category, ListAlt, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
@@ -28,8 +27,8 @@ import { colors } from '../../theme/tokens'
 /* ─────────────────────── Helpers ─────────────────────────── */
 
 function statusChip(status: string) {
-  if (status === 'Active') return <Chip size="small" color="success" label="Active" />
-  return <Chip size="small" color="default" label="Inactive" />
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
 
 const btnSx = {
@@ -332,50 +331,55 @@ export function ConcernsPage() {
   /* ── Render ── */
 
   return (
-    <Page
-      title="Admin / Concerns"
-      subtitle="Manage concern categories and items used in appointments."
-      actions={
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={openCatDialog}
-            disabled={saving}
-            sx={btnSx}
-          >
-            New Category
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={openConcernDialog}
-            disabled={saving}
-            sx={btnSx}
-          >
-            New Concern
-          </Button>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Concerns
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage concern categories and items used in appointments.</Typography>
+          </Box>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCatDialog}
+              disabled={saving}
+              sx={btnSx}
+            >
+              New Category
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openConcernDialog}
+              disabled={saving}
+              sx={btnSx}
+            >
+              New Concern
+            </Button>
+          </Stack>
         </Stack>
-      }
-    >
-      <Snackbar
-        open={successOpen}
-        onClose={() => setSuccessOpen(false)}
-        autoHideDuration={2500}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
-          {successMessage}
-        </Alert>
-      </Snackbar>
 
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
-          {error}
-        </Alert>
-      ) : null}
+        <Snackbar
+          open={successOpen}
+          onClose={() => setSuccessOpen(false)}
+          autoHideDuration={2500}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%', borderRadius: '10px' }}>
+            {successMessage}
+          </Alert>
+        </Snackbar>
 
-      <Stack spacing={3}>
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
+
         {/* ── Categories Table ── */}
         <Box>
           <Typography
@@ -512,6 +516,6 @@ export function ConcernsPage() {
           fullWidth
         />
       </FormDialog>
-    </Page>
+    </Box>
   )
 }

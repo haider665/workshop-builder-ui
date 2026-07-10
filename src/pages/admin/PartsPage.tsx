@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   Chip,
   IconButton,
@@ -9,13 +10,12 @@ import {
 } from '@mui/material'
 import { Add, Edit, Inventory, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useState } from 'react'
-import { Page } from '../../components/Page'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
 import { useCwStore } from '../../store/cwStore'
 import type { CWPart, CWPartStatus } from '../../types/cw'
-import { colors } from '../../theme/tokens'
+import { colors, pageLayout } from '../../theme/tokens'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -43,6 +43,14 @@ function fmtBDT(n?: number) {
   if (typeof n !== 'number') return '—'
   return `BDT ${n.toLocaleString('en-BD')}`
 }
+
+const btnSx = {
+  bgcolor: colors.slate[900],
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2.5,
+  '&:hover': { bgcolor: colors.slate[800] },
+} as const
 
 /* ─────────────────────── Component ─────────────────────────── */
 
@@ -143,6 +151,7 @@ export function PartsPage() {
           size="small"
           color={part.status === 'Active' ? 'success' : 'default'}
           label={part.status}
+          sx={{ fontWeight: 700, fontSize: '0.72rem' }}
         />
       ),
     },
@@ -174,81 +183,78 @@ export function PartsPage() {
   /* ── Render ── */
 
   return (
-    <Page
-      title="Parts"
-      subtitle="Manage inventory parts for service and repair."
-      actions={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openCreate}
-          sx={{
-            bgcolor: colors.slate[900],
-            fontWeight: 600,
-            borderRadius: '10px',
-            px: 2.5,
-            '&:hover': { bgcolor: colors.slate[800] },
-          }}
-        >
-          New Part
-        </Button>
-      }
-    >
-      <DataTable
-        columns={columns}
-        rows={parts}
-        keyExtractor={(part) => part.id}
-        emptyIcon={<Inventory />}
-        emptyTitle="No parts yet"
-        emptyDescription="Add parts to the inventory for SE part request workflow."
-        emptyAction={
+    <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Parts
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage inventory parts for service and repair.</Typography>
+          </Box>
           <Button
             variant="contained"
             startIcon={<Add />}
             onClick={openCreate}
-            sx={{
-              bgcolor: colors.slate[900],
-              fontWeight: 600,
-              borderRadius: '10px',
-              '&:hover': { bgcolor: colors.slate[800] },
-            }}
+            sx={btnSx}
           >
-            Add Part
+            New Part
           </Button>
-        }
-      />
+        </Stack>
 
-      {/* ── Create / Edit Dialog ── */}
-      <FormDialog
-        open={isDialogOpen}
-        onClose={closeDialog}
-        title={editPart ? 'Edit Part' : 'Create Part'}
-        icon={editPart ? <Edit /> : <Inventory />}
-        onSubmit={editPart ? submitEdit : submitCreate}
-        submitLabel={editPart ? 'Save' : 'Create'}
-        submitDisabled={!draft.name.trim()}
-      >
-        <TextField
-          label="Part Name"
-          value={draft.name}
-          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-          required
-          fullWidth
+        {/* Table */}
+        <DataTable
+          columns={columns}
+          rows={parts}
+          keyExtractor={(part) => part.id}
+          emptyIcon={<Inventory />}
+          emptyTitle="No parts yet"
+          emptyDescription="Add parts to the inventory for SE part request workflow."
+          emptyAction={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              sx={btnSx}
+            >
+              Add Part
+            </Button>
+          }
         />
-        <TextField
-          label="Part Number (optional)"
-          value={draft.partNumber}
-          onChange={(e) => setDraft((d) => ({ ...d, partNumber: e.target.value }))}
-          fullWidth
-        />
-        <TextField
-          label="Price (BDT, optional)"
-          type="number"
-          value={draft.price}
-          onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
-          fullWidth
-        />
-      </FormDialog>
-    </Page>
+
+        {/* ── Create / Edit Dialog ── */}
+        <FormDialog
+          open={isDialogOpen}
+          onClose={closeDialog}
+          title={editPart ? 'Edit Part' : 'Create Part'}
+          icon={editPart ? <Edit /> : <Inventory />}
+          onSubmit={editPart ? submitEdit : submitCreate}
+          submitLabel={editPart ? 'Save' : 'Create'}
+          submitDisabled={!draft.name.trim()}
+        >
+          <TextField
+            label="Part Name"
+            value={draft.name}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            required
+            fullWidth
+          />
+          <TextField
+            label="Part Number (optional)"
+            value={draft.partNumber}
+            onChange={(e) => setDraft((d) => ({ ...d, partNumber: e.target.value }))}
+            fullWidth
+          />
+          <TextField
+            label="Price (BDT, optional)"
+            type="number"
+            value={draft.price}
+            onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+            fullWidth
+          />
+        </FormDialog>
+      </Stack>
+    </Box>
   )
 }

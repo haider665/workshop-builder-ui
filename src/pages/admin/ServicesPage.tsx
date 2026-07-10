@@ -5,6 +5,7 @@ import {
   Chip,
   FormControl,
   IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Select,
@@ -14,16 +15,16 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Edit, MiscellaneousServices, ToggleOff, ToggleOn } from '@mui/icons-material'
+import { Edit, FilterList, MiscellaneousServices, Search, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
 import type { CWService, CWServiceSeverity, CWServiceStageDefinition, CWShop, CWVehicleSize } from '../../types/cw'
 import { shopsService } from '../../services/admin/shopsService'
 import { servicesService } from '../../services/admin/servicesService'
-import { colors, radii, shadows } from '../../theme/tokens'
+import { colors, radii } from '../../theme/tokens'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -454,7 +455,7 @@ const btnSx = {
     {
       key: 'status',
       header: 'Status',
-      render: (s) => <Chip size="small" label={s.status} color={s.status === 'Active' ? 'success' : 'default'} />,
+      render: (s) => <Chip size="small" label={s.status} color={s.status === 'Active' ? 'success' : 'default'} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />,
     },
     {
       key: 'actions',
@@ -481,45 +482,41 @@ const btnSx = {
   /* Since DataTable doesn't support expand/collapse, we keep inline table but style it with tokens */
 
   return (
-    <Page
-      title="Services"
-      subtitle="Manage service catalogue used in appointments."
-      actions={
-        <Button variant="contained" onClick={() => setAddOpen((v) => !v)} disabled={saving} sx={btnSx}>
-          {addOpen ? 'Cancel' : '+ Add Service'}
-        </Button>
-      }
-    >
-      <Snackbar
-        open={successOpen}
-        onClose={() => setSuccessOpen(false)}
-        autoHideDuration={2500}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%', borderRadius: '10px' }}>
-          {successMessage}
-        </Alert>
-      </Snackbar>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Services
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage service catalogue used in appointments.</Typography>
+          </Box>
+          <Button variant="contained" onClick={() => setAddOpen((v) => !v)} disabled={saving} sx={btnSx}>
+            {addOpen ? 'Cancel' : '+ Add Service'}
+          </Button>
+        </Stack>
 
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
-          {error}
-        </Alert>
-      ) : null}
+        <Snackbar
+          open={successOpen}
+          onClose={() => setSuccessOpen(false)}
+          autoHideDuration={2500}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%', borderRadius: '10px' }}>
+            {successMessage}
+          </Alert>
+        </Snackbar>
 
-      <Stack spacing={2}>
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
+
         {/* ── Inline Add Form ── */}
         {addOpen ? (
-          <Box
-            sx={{
-              p: 2.5,
-              borderRadius: radii.lg,
-              border: `2px solid ${colors.slate[900]}`,
-              background: colors.bg.card,
-              boxShadow: shadows.card,
-            }}
-          >
-            <Typography sx={{ fontWeight: 700, mb: 2, color: colors.slate[900] }}>New Service</Typography>
+          <SectionCard title="New Service" icon={<MiscellaneousServices sx={{ fontSize: '1rem' }} />}>
             <Stack spacing={2}>
               {renderServiceFormFields(
                 code, setCode,
@@ -545,26 +542,27 @@ const btnSx = {
               (id) => removeCreateStage(id),
               addStageToCreate,
             )}
-          </Box>
+          </SectionCard>
         ) : null}
 
         {/* ── Filter Bar ── */}
-        <Box
-          sx={{
-            p: 2,
-            borderRadius: radii.lg,
-            border: `1px solid ${colors.border.default}`,
-            background: colors.bg.card,
-            boxShadow: shadows.card,
-          }}
-        >
+        <SectionCard title="Filters" icon={<FilterList sx={{ fontSize: '1rem' }} />}>
           <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
             <TextField
               size="small"
-              label="Search code or description"
+              placeholder="Search code or description..."
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              sx={{ flex: '2 1 250px' }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search sx={{ fontSize: '1.1rem', color: colors.slate[400] }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+              sx={{ flex: '2 1 250px', '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem', bgcolor: colors.bg.page } }}
             />
             <FormControl size="small" sx={{ flex: '1 1 160px' }}>
               <InputLabel>Category</InputLabel>
@@ -588,7 +586,7 @@ const btnSx = {
               </Select>
             </FormControl>
           </Stack>
-        </Box>
+        </SectionCard>
 
         <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
           {hasFilter
@@ -638,7 +636,6 @@ const btnSx = {
           addStageToEdit,
         )}
       </FormDialog>
-    </Page>
+    </Box>
   )
 }
-

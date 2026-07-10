@@ -10,46 +10,21 @@ import {
   Typography,
 } from '@mui/material'
 import {
+  Assessment,
   Assignment,
   Build,
   DirectionsCar,
   Groups,
   People,
+  Store,
   TrendingUp,
 } from '@mui/icons-material'
 import { useMemo } from 'react'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
 import { StatCard } from '../../components/StatCard'
+import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { useCwStore } from '../../store/cwStore'
-import { colors, radii, shadows } from '../../theme/tokens'
-
-/* ─────────────────── Card wrapper helper ─────────────────── */
-
-function SectionCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return (
-    <Box
-      sx={{
-        borderRadius: radii.lg,
-        border: `1px solid ${colors.border.default}`,
-        background: colors.bg.card,
-        boxShadow: shadows.card,
-        overflow: 'hidden',
-      }}
-    >
-      <Box sx={{ px: 3, pt: 2.5, pb: subtitle ? 0.5 : 2 }}>
-        <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[900] }}>
-          {title}
-        </Typography>
-        {subtitle ? (
-          <Typography sx={{ color: colors.slate[500], fontSize: '0.8rem', mt: 0.25 }}>
-            {subtitle}
-          </Typography>
-        ) : null}
-      </Box>
-      {children}
-    </Box>
-  )
-}
+import { colors } from '../../theme/tokens'
 
 /* ─────────────────── Main Component ─────────────────────── */
 
@@ -168,8 +143,16 @@ export function AdminReportsPage() {
   }, [appointments, teams, users])
 
   return (
-    <Page title="Reports" subtitle="Workshop analytics and operational overview">
-      <Stack spacing={3}>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Box>
+          <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+            Reports
+          </Typography>
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Workshop analytics and operational overview</Typography>
+        </Box>
+
         {/* ── KPI Cards ── */}
         <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 2 }}>
           <StatCard icon={<Assignment />} label="Total Appointments" value={appointments.length} />
@@ -181,15 +164,7 @@ export function AdminReportsPage() {
         </Stack>
 
         {/* ── Revenue ── */}
-        <Box
-          sx={{
-            p: 3,
-            borderRadius: radii.lg,
-            border: `1px solid ${colors.border.default}`,
-            background: colors.bg.card,
-            boxShadow: shadows.card,
-          }}
-        >
+        <SectionCard title="Revenue & Metrics" icon={<TrendingUp sx={{ fontSize: '1rem' }} />}>
           <Stack direction="row" spacing={4} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <Box>
               <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>Total Revenue (Completed)</Typography>
@@ -210,90 +185,57 @@ export function AdminReportsPage() {
               </Typography>
             </Box>
           </Stack>
-        </Box>
+        </SectionCard>
 
         {/* ── Status Breakdown + Shop Utilization ── */}
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5}>
           {/* Status Breakdown */}
-          <Box
-            sx={{
-              flex: 1,
-              p: 3,
-              borderRadius: radii.lg,
-              border: `1px solid ${colors.border.default}`,
-              background: colors.bg.card,
-              boxShadow: shadows.card,
-            }}
-          >
-            <Typography sx={{ fontWeight: 700, color: colors.slate[900], mb: 2 }}>
-              Appointment Status Breakdown
-            </Typography>
-            <Stack spacing={1}>
-              {statusBreakdown.map(([status, count]) => (
-                <Stack key={status} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Chip size="small" label={status} sx={{ fontWeight: 600 }} />
-                  <Typography sx={{ fontWeight: 700, color: colors.slate[900] }}>{count}</Typography>
-                </Stack>
-              ))}
-              {statusBreakdown.length === 0 && (
-                <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>No appointments yet.</Typography>
-              )}
-            </Stack>
+          <Box sx={{ flex: 1 }}>
+            <SectionCard title="Status Breakdown" icon={<Assessment sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={1}>
+                {statusBreakdown.map(([status, count]) => (
+                  <Stack key={status} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Chip size="small" label={status} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+                    <Typography sx={{ fontWeight: 700, color: colors.slate[900] }}>{count}</Typography>
+                  </Stack>
+                ))}
+                {statusBreakdown.length === 0 && (
+                  <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>No appointments yet.</Typography>
+                )}
+              </Stack>
+            </SectionCard>
           </Box>
 
           {/* Shop Utilization */}
-          <Box
-            sx={{
-              flex: 1,
-              p: 3,
-              borderRadius: radii.lg,
-              border: `1px solid ${colors.border.default}`,
-              background: colors.bg.card,
-              boxShadow: shadows.card,
-            }}
-          >
-            <Typography sx={{ fontWeight: 700, color: colors.slate[900], mb: 2 }}>
-              Shop & Bay Utilization
-            </Typography>
-            <Stack spacing={1.5}>
-              {shopUtilization.map((s) => {
-                const pct = s.total > 0 ? Math.round((s.occupied / s.total) * 100) : 0
-                return (
-                  <Box key={s.name}>
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[900] }}>{s.name}</Typography>
-                      <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
-                        {s.occupied}/{s.total} bays ({pct}%)
-                      </Typography>
-                    </Stack>
-                    <Box sx={{ height: 8, bgcolor: colors.slate[100], borderRadius: 4, overflow: 'hidden' }}>
-                      <Box sx={{ height: '100%', width: `${pct}%`, bgcolor: pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981', borderRadius: 4, transition: 'width 0.5s' }} />
+          <Box sx={{ flex: 1 }}>
+            <SectionCard title="Shop & Bay Utilization" icon={<Store sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={1.5}>
+                {shopUtilization.map((s) => {
+                  const pct = s.total > 0 ? Math.round((s.occupied / s.total) * 100) : 0
+                  return (
+                    <Box key={s.name}>
+                      <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[900] }}>{s.name}</Typography>
+                        <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
+                          {s.occupied}/{s.total} bays ({pct}%)
+                        </Typography>
+                      </Stack>
+                      <Box sx={{ height: 8, bgcolor: colors.slate[100], borderRadius: 4, overflow: 'hidden' }}>
+                        <Box sx={{ height: '100%', width: `${pct}%`, bgcolor: pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981', borderRadius: 4, transition: 'width 0.5s' }} />
+                      </Box>
                     </Box>
-                  </Box>
-                )
-              })}
-            </Stack>
+                  )
+                })}
+              </Stack>
+            </SectionCard>
           </Box>
         </Stack>
 
         {/* ── Top Services ── */}
-        <SectionCard title="Top 10 Services" subtitle="Most frequently booked services">
+        <SectionCard title="Top 10 Services" icon={<Build sx={{ fontSize: '1rem' }} />}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{
-                '& .MuiTableCell-head': {
-                  background: colors.bg.subtle,
-                  borderBottom: `1px solid ${colors.border.default}`,
-                  color: colors.slate[600],
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                  py: 1.5,
-                  '&:first-of-type': { pl: 3 },
-                  '&:last-of-type': { pr: 3 },
-                },
-              }}>
+              <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
                 <TableCell>#</TableCell>
                 <TableCell>Service</TableCell>
                 <TableCell align="right">Bookings</TableCell>
@@ -302,14 +244,7 @@ export function AdminReportsPage() {
             </TableHead>
             <TableBody>
               {topServices.map((s, i) => (
-                <TableRow key={i} hover sx={{
-                  '& .MuiTableCell-body': {
-                    borderBottom: `1px solid ${colors.border.subtle}`,
-                    py: 1.5,
-                    '&:first-of-type': { pl: 3 },
-                    '&:last-of-type': { pr: 3 },
-                  },
-                }}>
+                <TableRow key={i} hover sx={{ '& .MuiTableCell-body': bodyCellSx }}>
                   <TableCell sx={{ color: colors.slate[400] }}>#{i + 1}</TableCell>
                   <TableCell sx={{ fontWeight: 600, color: colors.slate[900] }}>{s.desc}</TableCell>
                   <TableCell align="right" sx={{ color: colors.slate[700] }}>{s.count}</TableCell>
@@ -328,23 +263,10 @@ export function AdminReportsPage() {
         </SectionCard>
 
         {/* ── Team Workload ── */}
-        <SectionCard title="Team Workload" subtitle="Active and completed tasks per SE">
+        <SectionCard title="Team Workload" icon={<Groups sx={{ fontSize: '1rem' }} />}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{
-                '& .MuiTableCell-head': {
-                  background: colors.bg.subtle,
-                  borderBottom: `1px solid ${colors.border.default}`,
-                  color: colors.slate[600],
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                  py: 1.5,
-                  '&:first-of-type': { pl: 3 },
-                  '&:last-of-type': { pr: 3 },
-                },
-              }}>
+              <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
                 <TableCell>Service Engineer</TableCell>
                 <TableCell align="right">Active Tasks</TableCell>
                 <TableCell align="right">Completed</TableCell>
@@ -352,17 +274,10 @@ export function AdminReportsPage() {
             </TableHead>
             <TableBody>
               {teamWorkload.map((t, i) => (
-                <TableRow key={i} hover sx={{
-                  '& .MuiTableCell-body': {
-                    borderBottom: `1px solid ${colors.border.subtle}`,
-                    py: 1.5,
-                    '&:first-of-type': { pl: 3 },
-                    '&:last-of-type': { pr: 3 },
-                  },
-                }}>
+                <TableRow key={i} hover sx={{ '& .MuiTableCell-body': bodyCellSx }}>
                   <TableCell sx={{ fontWeight: 600, color: colors.slate[900] }}>{t.se}</TableCell>
                   <TableCell align="right">
-                    <Chip size="small" label={t.active} color={t.active > 3 ? 'error' : t.active > 1 ? 'warning' : 'success'} sx={{ fontWeight: 700 }} />
+                    <Chip size="small" label={t.active} color={t.active > 3 ? 'error' : t.active > 1 ? 'warning' : 'success'} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                   </TableCell>
                   <TableCell align="right" sx={{ color: colors.slate[700] }}>{t.completed}</TableCell>
                 </TableRow>
@@ -378,6 +293,6 @@ export function AdminReportsPage() {
           </Table>
         </SectionCard>
       </Stack>
-    </Page>
+    </Box>
   )
 }

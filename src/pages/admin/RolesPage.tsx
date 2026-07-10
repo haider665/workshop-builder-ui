@@ -11,7 +11,6 @@ import {
 } from '@mui/material'
 import { Add, Edit, Security, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
@@ -22,8 +21,8 @@ import { colors } from '../../theme/tokens'
 /* ─────────────────────── Helpers ─────────────────────────── */
 
 function statusChip(status: CWRoleStatus) {
-  if (status === 'Active') return <Chip size="small" color="success" label="Active" />
-  return <Chip size="small" color="default" label="Inactive" />
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
 
 type RoleDraft = {
@@ -163,8 +162,8 @@ export function RolesPage() {
           size="small"
           label={role.isSystem ? 'System' : 'Custom'}
           sx={{
-            fontWeight: 600,
-            fontSize: '0.75rem',
+            fontWeight: 700,
+            fontSize: '0.72rem',
             color: colors.slate[700],
           }}
         />
@@ -217,42 +216,16 @@ export function RolesPage() {
   /* ── Render ── */
 
   return (
-    <Page
-      title="Admin / Roles"
-      subtitle="Create and manage roles from the backend."
-      actions={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openCreate}
-          disabled={saving}
-          sx={{
-            bgcolor: colors.slate[900],
-            fontWeight: 600,
-            borderRadius: '10px',
-            px: 2.5,
-            '&:hover': { bgcolor: colors.slate[800] },
-          }}
-        >
-          New Role
-        </Button>
-      }
-    >
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      <DataTable
-        columns={columns}
-        rows={sortedRoles}
-        keyExtractor={(role) => role.id}
-        loading={loading}
-        emptyIcon={<Security />}
-        emptyTitle="No roles yet"
-        emptyDescription="Create your first Role to begin assigning permissions to technicians."
-        emptyAction={
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Admin / Roles
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Create and manage roles from the backend.</Typography>
+          </Box>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -262,62 +235,95 @@ export function RolesPage() {
               bgcolor: colors.slate[900],
               fontWeight: 600,
               borderRadius: '10px',
+              px: 2.5,
               '&:hover': { bgcolor: colors.slate[800] },
             }}
           >
-            Create Role
+            New Role
           </Button>
-        }
-      />
+        </Stack>
 
-      {/* ── Create Dialog ── */}
-      <FormDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Create role"
-        icon={<Security />}
-        onSubmit={() => void submitCreate()}
-        submitLabel="Create"
-        submitDisabled={!createDraft.name.trim() || saving}
-      >
-        <>
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        <DataTable
+          columns={columns}
+          rows={sortedRoles}
+          keyExtractor={(role) => role.id}
+          loading={loading}
+          emptyIcon={<Security />}
+          emptyTitle="No roles yet"
+          emptyDescription="Create your first Role to begin assigning permissions to technicians."
+          emptyAction={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              disabled={saving}
+              sx={{
+                bgcolor: colors.slate[900],
+                fontWeight: 600,
+                borderRadius: '10px',
+                '&:hover': { bgcolor: colors.slate[800] },
+              }}
+            >
+              Create Role
+            </Button>
+          }
+        />
+
+        {/* ── Create Dialog ── */}
+        <FormDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          title="Create role"
+          icon={<Security />}
+          onSubmit={() => void submitCreate()}
+          submitLabel="Create"
+          submitDisabled={!createDraft.name.trim() || saving}
+        >
+          <>
+            <TextField
+              label="Role name"
+              value={createDraft.name}
+              onChange={(e) => setCreateDraft({ name: e.target.value })}
+              required
+              fullWidth
+              autoFocus
+            />
+            <Box>
+              <Typography variant="body2" sx={{ color: colors.slate[500] }}>
+                Only workshop roles are shown here. Custom roles created here will be editable.
+              </Typography>
+            </Box>
+          </>
+        </FormDialog>
+
+        {/* ── Edit Dialog ── */}
+        <FormDialog
+          open={!!editRole}
+          onClose={() => setEditRole(null)}
+          title="Edit role"
+          icon={<Edit />}
+          onSubmit={() => void submitEdit()}
+          submitLabel="Save"
+          submitDisabled={!editDraft.name.trim() || saving}
+        >
           <TextField
             label="Role name"
-            value={createDraft.name}
-            onChange={(e) => setCreateDraft({ name: e.target.value })}
+            value={editDraft.name}
+            onChange={(e) => setEditDraft({ name: e.target.value })}
             required
             fullWidth
             autoFocus
+            disabled={!!editRole?.isSystem}
+            helperText={editRole?.isSystem ? 'System roles cannot be renamed in the MVP.' : undefined}
           />
-          <Box>
-            <Typography variant="body2" sx={{ color: colors.slate[500] }}>
-              Only workshop roles are shown here. Custom roles created here will be editable.
-            </Typography>
-          </Box>
-        </>
-      </FormDialog>
-
-      {/* ── Edit Dialog ── */}
-      <FormDialog
-        open={!!editRole}
-        onClose={() => setEditRole(null)}
-        title="Edit role"
-        icon={<Edit />}
-        onSubmit={() => void submitEdit()}
-        submitLabel="Save"
-        submitDisabled={!editDraft.name.trim() || saving}
-      >
-        <TextField
-          label="Role name"
-          value={editDraft.name}
-          onChange={(e) => setEditDraft({ name: e.target.value })}
-          required
-          fullWidth
-          autoFocus
-          disabled={!!editRole?.isSystem}
-          helperText={editRole?.isSystem ? 'System roles cannot be renamed in the MVP.' : undefined}
-        />
-      </FormDialog>
-    </Page>
+        </FormDialog>
+      </Stack>
+    </Box>
   )
 }

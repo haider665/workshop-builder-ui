@@ -17,7 +17,6 @@ import {
 } from '@mui/material'
 import { Add, Block, Edit, PersonAdd, ToggleOff, ToggleOn, Visibility, VisibilityOff } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
@@ -52,9 +51,9 @@ function toDraft(user?: CWUser): UserDraft {
 }
 
 function statusChip(status: CWUserStatus) {
-  if (status === 'Active') return <Chip size="small" color="success" label="Active" />
-  if (status === 'Suspended') return <Chip size="small" color="warning" label="Suspended" />
-  return <Chip size="small" color="default" label="Inactive" />
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  if (status === 'Suspended') return <Chip size="small" color="warning" label="Suspended" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
 
 /* ─────────────────────── Component ─────────────────────────── */
@@ -429,42 +428,18 @@ export function UsersPage() {
   /* ── Render ── */
 
   return (
-    <Page
-      title="Admin / Users"
-      subtitle="Create users, assign roles and shops from the backend."
-      actions={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openCreate}
-          disabled={!activeRoles.length || saving}
-          sx={{
-            bgcolor: colors.slate[900],
-            fontWeight: 600,
-            borderRadius: '10px',
-            px: 2.5,
-            '&:hover': { bgcolor: colors.slate[800] },
-          }}
-        >
-          New User
-        </Button>
-      }
-    >
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      <DataTable
-        columns={columns}
-        rows={sortedUsers}
-        keyExtractor={(u) => u.id}
-        loading={loading}
-        emptyIcon={<PersonAdd />}
-        emptyTitle="No users yet"
-        emptyDescription="Create your first user to begin assigning roles and shops."
-        emptyAction={
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Admin / Users
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+              Create users, assign roles and shops from the backend.
+            </Typography>
+          </Box>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -474,61 +449,94 @@ export function UsersPage() {
               bgcolor: colors.slate[900],
               fontWeight: 600,
               borderRadius: '10px',
+              px: 2.5,
               '&:hover': { bgcolor: colors.slate[800] },
             }}
           >
-            Create User
+            New User
           </Button>
-        }
-      />
+        </Stack>
 
-      {/* ── Create Dialog ── */}
-      <FormDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Create user"
-        icon={<PersonAdd />}
-        onSubmit={() => void submitCreate()}
-        submitLabel="Create"
-        submitDisabled={
-          !createDraft.fullName.trim() ||
-          !createDraft.email.trim() ||
-          !createDraft.mobile.trim() ||
-          !createDraft.roleIds.length ||
-          saving
-        }
-      >
-        {error && createOpen ? (
+        {error ? (
           <Alert severity="error" sx={{ borderRadius: '10px' }}>
             {error}
           </Alert>
         ) : null}
-        {renderUserFormFields(createDraft, setCreateDraft, 'create')}
-      </FormDialog>
 
-      {/* ── Edit Dialog ── */}
-      <FormDialog
-        open={!!editUser}
-        onClose={() => setEditUser(null)}
-        title="Edit user"
-        icon={<Edit />}
-        onSubmit={() => void submitEdit()}
-        submitLabel="Save"
-        submitDisabled={
-          !editDraft.fullName.trim() ||
-          !editDraft.email.trim() ||
-          !editDraft.mobile.trim() ||
-          !editDraft.roleIds.length ||
-          saving
-        }
-      >
-        {error && editUser ? (
-          <Alert severity="error" sx={{ borderRadius: '10px' }}>
-            {error}
-          </Alert>
-        ) : null}
-        {renderUserFormFields(editDraft, setEditDraft, 'edit')}
-      </FormDialog>
-    </Page>
+        <DataTable
+          columns={columns}
+          rows={sortedUsers}
+          keyExtractor={(u) => u.id}
+          loading={loading}
+          emptyIcon={<PersonAdd />}
+          emptyTitle="No users yet"
+          emptyDescription="Create your first user to begin assigning roles and shops."
+          emptyAction={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              disabled={!activeRoles.length || saving}
+              sx={{
+                bgcolor: colors.slate[900],
+                fontWeight: 600,
+                borderRadius: '10px',
+                '&:hover': { bgcolor: colors.slate[800] },
+              }}
+            >
+              Create User
+            </Button>
+          }
+        />
+
+        {/* ── Create Dialog ── */}
+        <FormDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          title="Create user"
+          icon={<PersonAdd />}
+          onSubmit={() => void submitCreate()}
+          submitLabel="Create"
+          submitDisabled={
+            !createDraft.fullName.trim() ||
+            !createDraft.email.trim() ||
+            !createDraft.mobile.trim() ||
+            !createDraft.roleIds.length ||
+            saving
+          }
+        >
+          {error && createOpen ? (
+            <Alert severity="error" sx={{ borderRadius: '10px' }}>
+              {error}
+            </Alert>
+          ) : null}
+          {renderUserFormFields(createDraft, setCreateDraft, 'create')}
+        </FormDialog>
+
+        {/* ── Edit Dialog ── */}
+        <FormDialog
+          open={!!editUser}
+          onClose={() => setEditUser(null)}
+          title="Edit user"
+          icon={<Edit />}
+          onSubmit={() => void submitEdit()}
+          submitLabel="Save"
+          submitDisabled={
+            !editDraft.fullName.trim() ||
+            !editDraft.email.trim() ||
+            !editDraft.mobile.trim() ||
+            !editDraft.roleIds.length ||
+            saving
+          }
+        >
+          {error && editUser ? (
+            <Alert severity="error" sx={{ borderRadius: '10px' }}>
+              {error}
+            </Alert>
+          ) : null}
+          {renderUserFormFields(editDraft, setEditDraft, 'edit')}
+        </FormDialog>
+      </Stack>
+    </Box>
   )
 }

@@ -12,7 +12,6 @@ import {
 } from '@mui/material'
 import { Add, Edit, Store, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
@@ -34,8 +33,8 @@ const SHOP_TYPES: CWShopType[] = [
 /* ─────────────────────── Helpers ─────────────────────────── */
 
 function statusChip(status: CWShopStatus) {
-  if (status === 'Active') return <Chip size="small" color="success" label="Active" />
-  return <Chip size="small" color="default" label="Inactive" />
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
 
 type ShopDraft = {
@@ -240,42 +239,18 @@ export function ShopsPage() {
   /* ── Render ── */
 
   return (
-    <Page
-      title="Shops"
-      subtitle="Create, edit, and manage workshop shop locations."
-      actions={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openCreate}
-          disabled={saving}
-          sx={{
-            bgcolor: colors.slate[900],
-            fontWeight: 600,
-            borderRadius: '10px',
-            px: 2.5,
-            '&:hover': { bgcolor: colors.slate[800] },
-          }}
-        >
-          New Shop
-        </Button>
-      }
-    >
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      <DataTable
-        columns={columns}
-        rows={sortedShops}
-        keyExtractor={(shop) => shop.id}
-        loading={loading}
-        emptyIcon={<Store />}
-        emptyTitle="No shops yet"
-        emptyDescription="Create your first Shop to begin configuring bays and task templates."
-        emptyAction={
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Shops
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+              Create, edit, and manage workshop shop locations.
+            </Typography>
+          </Box>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -285,98 +260,130 @@ export function ShopsPage() {
               bgcolor: colors.slate[900],
               fontWeight: 600,
               borderRadius: '10px',
+              px: 2.5,
               '&:hover': { bgcolor: colors.slate[800] },
             }}
           >
-            Create Shop
+            New Shop
           </Button>
-        }
-      />
+        </Stack>
 
-      {/* ── Create Dialog ── */}
-      <FormDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Create shop"
-        icon={<Store />}
-        onSubmit={() => void submitCreate()}
-        submitLabel="Create"
-        submitDisabled={!createDraft.name.trim() || saving}
-      >
-        <TextField
-          label="Shop name"
-          value={createDraft.name}
-          onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
-          required
-          fullWidth
-        />
-        <TextField
-          label="Shop type"
-          select
-          value={createDraft.type}
-          onChange={(e) =>
-            setCreateDraft((d) => ({ ...d, type: e.target.value as CWShopType }))
-          }
-          fullWidth
-        >
-          {SHOP_TYPES.map((t) => (
-            <MenuItem key={t} value={t}>
-              {t}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          label="Description"
-          value={createDraft.description}
-          onChange={(e) => setCreateDraft((d) => ({ ...d, description: e.target.value }))}
-          multiline
-          minRows={3}
-          fullWidth
-        />
-      </FormDialog>
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
 
-      {/* ── Edit Dialog ── */}
-      <FormDialog
-        open={!!editShop}
-        onClose={() => setEditShop(null)}
-        title="Edit shop"
-        icon={<Edit />}
-        onSubmit={() => void submitEdit()}
-        submitLabel="Save"
-        submitDisabled={!editDraft.name.trim() || saving}
-      >
-        <TextField
-          label="Shop name"
-          value={editDraft.name}
-          onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
-          required
-          fullWidth
-        />
-        <TextField
-          label="Shop type"
-          select
-          value={editDraft.type}
-          onChange={(e) =>
-            setEditDraft((d) => ({ ...d, type: e.target.value as CWShopType }))
+        <DataTable
+          columns={columns}
+          rows={sortedShops}
+          keyExtractor={(shop) => shop.id}
+          loading={loading}
+          emptyIcon={<Store />}
+          emptyTitle="No shops yet"
+          emptyDescription="Create your first Shop to begin configuring bays and task templates."
+          emptyAction={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              disabled={saving}
+              sx={{
+                bgcolor: colors.slate[900],
+                fontWeight: 600,
+                borderRadius: '10px',
+                '&:hover': { bgcolor: colors.slate[800] },
+              }}
+            >
+              Create Shop
+            </Button>
           }
-          fullWidth
-        >
-          {SHOP_TYPES.map((t) => (
-            <MenuItem key={t} value={t}>
-              {t}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          label="Description"
-          value={editDraft.description}
-          onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
-          multiline
-          minRows={3}
-          fullWidth
         />
-      </FormDialog>
-    </Page>
+
+        {/* ── Create Dialog ── */}
+        <FormDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          title="Create shop"
+          icon={<Store />}
+          onSubmit={() => void submitCreate()}
+          submitLabel="Create"
+          submitDisabled={!createDraft.name.trim() || saving}
+        >
+          <TextField
+            label="Shop name"
+            value={createDraft.name}
+            onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
+            required
+            fullWidth
+          />
+          <TextField
+            label="Shop type"
+            select
+            value={createDraft.type}
+            onChange={(e) =>
+              setCreateDraft((d) => ({ ...d, type: e.target.value as CWShopType }))
+            }
+            fullWidth
+          >
+            {SHOP_TYPES.map((t) => (
+              <MenuItem key={t} value={t}>
+                {t}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Description"
+            value={createDraft.description}
+            onChange={(e) => setCreateDraft((d) => ({ ...d, description: e.target.value }))}
+            multiline
+            minRows={3}
+            fullWidth
+          />
+        </FormDialog>
+
+        {/* ── Edit Dialog ── */}
+        <FormDialog
+          open={!!editShop}
+          onClose={() => setEditShop(null)}
+          title="Edit shop"
+          icon={<Edit />}
+          onSubmit={() => void submitEdit()}
+          submitLabel="Save"
+          submitDisabled={!editDraft.name.trim() || saving}
+        >
+          <TextField
+            label="Shop name"
+            value={editDraft.name}
+            onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+            required
+            fullWidth
+          />
+          <TextField
+            label="Shop type"
+            select
+            value={editDraft.type}
+            onChange={(e) =>
+              setEditDraft((d) => ({ ...d, type: e.target.value as CWShopType }))
+            }
+            fullWidth
+          >
+            {SHOP_TYPES.map((t) => (
+              <MenuItem key={t} value={t}>
+                {t}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Description"
+            value={editDraft.description}
+            onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
+            multiline
+            minRows={3}
+            fullWidth
+          />
+        </FormDialog>
+      </Stack>
+    </Box>
   )
 }
-
