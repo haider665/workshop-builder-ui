@@ -541,19 +541,325 @@ export type CWTeam = {
   updatedAt: string
 }
 
-// ─── Parts (Admin-managed) ────────────────────────────────────────────────────
+// ─── Parts Division (Phase 2) ─────────────────────────────────────────────────
+
+// ── Part Catalog ──────────────────────────────────────────────────────────────
 
 export type CWPartStatus = 'Active' | 'Inactive'
 
 export type CWPart = {
   id: string
   name: string
-  partNumber?: string
-  price?: number
+  partNumber: string
+  description?: string
+  category?: string                      // "Engine Parts", "Brake System", "Body Parts", etc.
+  brand?: string                         // "Bosch", "Brembo", "Denso", etc.
+  modelVariant?: string                  // "Sedan XLE", "SUV Sport", etc.
+  vehicleFitment?: string[]              // e.g. ["Toyota Corolla 2020"]
+  alternatePartNumbers?: string[]        // supersession / interchangeability
+  mediaUrls?: string[]
+  rackLocation?: string                  // e.g. "A-3-14"
+  binNumber?: string
+  reorderLevel?: number                  // triggers procurement when stock ≤ this
+  stockCount?: number                    // current unit count (denormalized for display)
   status: CWPartStatus
   createdAt: string
   updatedAt: string
 }
+
+// ── Stock Units ───────────────────────────────────────────────────────────────
+
+export type CWStockUnitStatus =
+  | 'Pending Procurement'
+  | 'Available'
+  | 'Reserved'
+  | 'WIP'
+  | 'Consumed'
+  | 'Returned-Restockable'
+  | 'Returned-Defective'
+  | 'Vendor Claim'
+
+export type CWPartStockUnit = {
+  id: string
+  partId: string
+  status: CWStockUnitStatus
+  reservedForAppointmentId?: string
+  reservedForVehicleId?: string
+  costPrice: number
+  sellPrice: number
+  poId?: string
+  grnId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ── Vendors ───────────────────────────────────────────────────────────────────
+
+export type CWVendorSourcingType = 'Local' | 'Foreign'
+export type CWVendorStatus = 'Active' | 'Inactive'
+
+export type CWVendor = {
+  id: string
+  name: string
+  code: string
+  contactPerson?: string
+  phone?: string
+  email?: string
+  address?: string
+  sourcingType: CWVendorSourcingType
+  qualityRating: number                  // 0–100
+  returnsHistory: number
+  preferred: boolean
+  status: CWVendorStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type CWPricingSourcingType = 'OEM' | 'Genuine' | 'Aftermarket'
+
+export type CWVendorPartPrice = {
+  id: string
+  vendorId: string
+  partId: string
+  unitPrice: number
+  currency: 'BDT' | 'USD' | 'EUR'
+  leadTimeDays: number
+  sourcingType: CWPricingSourcingType
+  moq?: number
+  lastUpdated: string
+}
+
+// ── Estimate Lines ────────────────────────────────────────────────────────────
+
+export type CWEstimateLineStatus =
+  | 'Requested'
+  | 'Identified'
+  | 'Priced'
+  | 'Submitted'                          // 🔒 PRICE LOCKED
+  | 'Approved'
+  | 'Declined'
+  | 'Fulfilled'
+  | 'Substitution Required'
+
+export type CWEstimateLineOption = {
+  vendorId: string
+  vendorName: string
+  sourcingType: CWPricingSourcingType
+  unitPrice: number
+  sellPrice: number
+}
+
+export type CWEstimateLine = {
+  id: string
+  appointmentId: string
+  concernItemId?: string
+  // SE-provided
+  description: string
+  mediaUrls?: string[]
+  requestedByUserId: string
+  // Buyer-provided
+  partId?: string
+  partNumber?: string
+  partName?: string
+  // Pricing
+  vendorId?: string
+  unitPrice?: number
+  sellPrice?: number
+  quantity: number
+  sourcingType?: CWPricingSourcingType
+  currency?: 'BDT' | 'USD' | 'EUR'
+  // Availability
+  inStock: boolean
+  estimatedDeliveryDate?: string
+  advanceRequired: boolean
+  // Options
+  options?: CWEstimateLineOption[]
+  // State
+  status: CWEstimateLineStatus
+  submittedAt?: string
+  approvedAt?: string
+  declinedAt?: string
+  substitutedByLineId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ── Purchase Orders ───────────────────────────────────────────────────────────
+
+export type CWPurchaseOrderStatus =
+  | 'Awaiting Advance'
+  | 'Draft'
+  | 'Pending Approval'
+  | 'Issued'
+  | 'Rejected'
+  | 'In Transit'
+  | 'Received'
+  | 'Partially Received'
+  | 'Closed'
+  | 'Cancelled'
+
+export type CWPOLine = {
+  id: string
+  partId: string
+  partNumber: string
+  partName: string
+  quantity: number
+  unitPrice: number
+  discount?: number
+  lineTotal: number
+  receivedQty: number
+  estimateLineId?: string
+}
+
+export type CWPurchaseOrder = {
+  id: string
+  poNumber: string
+  vendorId: string
+  status: CWPurchaseOrderStatus
+  currency: 'BDT' | 'USD' | 'EUR'
+  sourcingType: CWVendorSourcingType
+  expectedArrivalDate: string
+  totalAmount: number
+  advanceRequired: boolean
+  advanceConfirmedAt?: string
+  advanceConfirmedByUserId?: string
+  submittedAt?: string
+  approvedAt?: string
+  approvedByUserId?: string
+  rejectedAt?: string
+  rejectionReason?: string
+  blockedAppointmentIds: string[]
+  lines: CWPOLine[]
+  createdByUserId: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ── Goods Receipt Notes ───────────────────────────────────────────────────────
+
+export type CWGRNLineCondition = 'Good' | 'Damaged' | 'Wrong Item'
+
+export type CWGRNLine = {
+  id: string
+  poLineId: string
+  partId: string
+  receivedQty: number
+  acceptedQty: number
+  rejectedQty: number
+  sellPrice: number
+  condition: CWGRNLineCondition
+  notes?: string
+}
+
+export type CWGoodsReceiptNote = {
+  id: string
+  grnNumber: string
+  poId: string
+  receivedByUserId: string
+  receivedAt: string
+  lines: CWGRNLine[]
+  notes?: string
+  discrepancyNotes?: string
+}
+
+// ── Requisitions ──────────────────────────────────────────────────────────────
+
+export type CWRequisitionStatus =
+  | 'Created'
+  | 'Sent to Store'
+  | 'Request Received'
+  | 'Part Ready'
+  | 'Partially Ready'
+  | 'Picked'
+  | 'Received'
+  | 'Closed'
+  | 'Return Raised'
+  | 'Cancelled'
+
+export type CWRequisitionLineStatus =
+  | 'Pending'
+  | 'Part Ready'
+  | 'Picked'
+  | 'Received'
+  | 'Return Raised'
+  | 'Closed'
+
+export type CWRequisitionLine = {
+  id: string
+  partId: string
+  partNumber: string
+  partName: string
+  quantity: number
+  stockUnitIds: string[]
+  rackLocation?: string
+  status: CWRequisitionLineStatus
+  pendingReason?: string                 // "procure" | "substitute"
+}
+
+export type CWRequisition = {
+  id: string
+  requisitionNumber: string
+  appointmentId: string
+  requestedByUserId: string
+  urgencyNote?: string
+  status: CWRequisitionStatus
+  lines: CWRequisitionLine[]
+  pickedByUserId?: string
+  pickedAt?: string
+  pickProofUrl?: string
+  receivedByUserId?: string
+  receivedAt?: string
+  receiveProofUrl?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ── Returns & RTV ─────────────────────────────────────────────────────────────
+
+export type CWReturnReasonCode = 'Defective' | 'Wrong Part' | 'Not Used' | 'Excess'
+export type CWReturnDisposition = 'Restockable' | 'Defective-RTV'
+export type CWReturnStatus = 'Raised' | 'Received at Store' | 'Dispositioned' | 'Closed'
+
+export type CWPartReturn = {
+  id: string
+  requisitionId: string
+  requisitionLineId: string
+  partId: string
+  stockUnitId: string
+  appointmentId: string
+  reasonCode: CWReturnReasonCode
+  photoUrl?: string
+  raisedByUserId: string
+  raisedAt: string
+  returnProofUrl?: string
+  receivedByUserId?: string
+  receivedAt?: string
+  receiveProofUrl?: string
+  disposition?: CWReturnDisposition
+  dispositionedByUserId?: string
+  dispositionedAt?: string
+  vendorClaimId?: string
+  status: CWReturnStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type CWVendorClaimStatus = 'Open' | 'Resolved' | 'Rejected'
+export type CWVendorClaimType = 'Replacement' | 'Credit'
+
+export type CWVendorClaim = {
+  id: string
+  vendorId: string
+  poId: string
+  partId: string
+  returnId: string
+  claimType: CWVendorClaimType
+  status: CWVendorClaimStatus
+  createdAt: string
+  resolvedAt?: string
+}
+
+// ── Part Requests (Legacy / Phase 1 compat) ───────────────────────────────────
 
 export type CWPartRequestStatus = 'Requested' | 'Labeled' | 'Fulfilled' | 'Rejected'
 
@@ -606,4 +912,69 @@ export type CWReminder = {
   status: CWReminderStatus
   sentAt?: string
   createdAt: string
+}
+
+/* ──────────────── Notification ──────────────────────────────────── */
+
+export type CWNotificationCategory =
+  | 'parts_request'
+  | 'estimate'
+  | 'purchase_order'
+  | 'requisition'
+  | 'grn'
+  | 'return'
+  | 'advance'
+  | 'invoice'
+  | 'general'
+
+export type CWNotification = {
+  id: string
+  title: string
+  message: string
+  category: CWNotificationCategory
+  /** The role(s) this notification targets */
+  targetRoles: string[]
+  /** Specific user ID if targeted to one person */
+  targetUserId?: string
+  /** Link to navigate to on click */
+  actionUrl?: string
+  /** Reference entity ID (e.g. PO id, requisition id) */
+  referenceId?: string
+  read: boolean
+  createdAt: string
+}
+
+/* ──────────────── Invoice (Parts Hook) ──────────────────────────── */
+
+export type CWInvoiceStatus = 'Draft' | 'Issued' | 'Paid' | 'Cancelled'
+
+export type CWInvoiceLine = {
+  id: string
+  partId: string
+  partNumber: string
+  partName: string
+  quantity: number
+  unitPrice: number
+  sellPrice: number
+  lineTotal: number
+  requisitionLineId?: string
+}
+
+export type CWInvoice = {
+  id: string
+  invoiceNumber: string
+  appointmentId: string
+  status: CWInvoiceStatus
+  lines: CWInvoiceLine[]
+  subtotal: number
+  tax: number
+  taxRate: number
+  total: number
+  advanceApplied: number
+  netPayable: number
+  issuedAt?: string
+  paidAt?: string
+  createdByUserId: string
+  createdAt: string
+  updatedAt: string
 }

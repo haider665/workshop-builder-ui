@@ -7,6 +7,7 @@ export type Role =
   | 'Service Advisor'
   | 'Service Engineer'
   | 'QC'
+  | 'Parts'
 
 export const CORE_ROLES: Role[] = ['Admin', 'Guard', 'Job Creation']
 
@@ -16,6 +17,7 @@ export const OPTIONAL_ROLES: Role[] = [
   'Service Advisor',
   'Service Engineer',
   'QC',
+  'Parts',
 ]
 
 export const ALL_ROLES: Role[] = [...CORE_ROLES, ...OPTIONAL_ROLES]

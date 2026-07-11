@@ -3,6 +3,7 @@ import {
   Button,
   Chip,
   IconButton,
+  MenuItem,
   Stack,
   TextField,
   Tooltip,
@@ -19,29 +20,54 @@ import { colors, pageLayout } from '../../theme/tokens'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
+const CATEGORY_PRESETS = [
+  'Engine',
+  'Brakes',
+  'Body',
+  'Electrical',
+  'Cooling',
+  'Transmission',
+  'HVAC',
+  'Paint',
+  'Suspension',
+  'Exhaust',
+] as const
+
 type PartDraft = {
   name: string
   partNumber: string
-  price: string
+  description: string
+  category: string
+  rackLocation: string
+  binNumber: string
+  reorderLevel: string
   status: CWPartStatus
 }
 
 function emptyDraft(): PartDraft {
-  return { name: '', partNumber: '', price: '', status: 'Active' }
+  return {
+    name: '',
+    partNumber: '',
+    description: '',
+    category: '',
+    rackLocation: '',
+    binNumber: '',
+    reorderLevel: '',
+    status: 'Active',
+  }
 }
 
 function toDraft(part: CWPart): PartDraft {
   return {
     name: part.name,
-    partNumber: part.partNumber ?? '',
-    price: typeof part.price === 'number' ? String(part.price) : '',
+    partNumber: part.partNumber,
+    description: part.description ?? '',
+    category: part.category ?? '',
+    rackLocation: part.rackLocation ?? '',
+    binNumber: part.binNumber ?? '',
+    reorderLevel: typeof part.reorderLevel === 'number' ? String(part.reorderLevel) : '',
     status: part.status,
   }
-}
-
-function fmtBDT(n?: number) {
-  if (typeof n !== 'number') return '—'
-  return `BDT ${n.toLocaleString('en-BD')}`
 }
 
 const btnSx = {
@@ -74,22 +100,30 @@ export function PartsPage() {
   }
 
   function submitCreate() {
-    if (!draft.name.trim()) return
+    if (!draft.name.trim() || !draft.partNumber.trim()) return
     createPart({
       name: draft.name.trim(),
-      partNumber: draft.partNumber.trim() || undefined,
-      price: draft.price.trim() ? Number(draft.price.trim()) : undefined,
+      partNumber: draft.partNumber.trim(),
+      description: draft.description.trim() || undefined,
+      category: draft.category || undefined,
+      rackLocation: draft.rackLocation.trim() || undefined,
+      binNumber: draft.binNumber.trim() || undefined,
+      reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
       status: draft.status,
     })
     setCreateOpen(false)
   }
 
   function submitEdit() {
-    if (!editPart || !draft.name.trim()) return
+    if (!editPart || !draft.name.trim() || !draft.partNumber.trim()) return
     updatePart(editPart.id, {
       name: draft.name.trim(),
-      partNumber: draft.partNumber.trim() || undefined,
-      price: draft.price.trim() ? Number(draft.price.trim()) : undefined,
+      partNumber: draft.partNumber.trim(),
+      description: draft.description.trim() || undefined,
+      category: draft.category || undefined,
+      rackLocation: draft.rackLocation.trim() || undefined,
+      binNumber: draft.binNumber.trim() || undefined,
+      reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
       status: draft.status,
     })
     setEditPart(null)
@@ -100,7 +134,11 @@ export function PartsPage() {
     updatePart(part.id, {
       name: part.name,
       partNumber: part.partNumber,
-      price: part.price,
+      description: part.description,
+      category: part.category,
+      rackLocation: part.rackLocation,
+      binNumber: part.binNumber,
+      reorderLevel: part.reorderLevel,
       status: next,
     })
   }
@@ -130,16 +168,39 @@ export function PartsPage() {
       header: 'Part Number',
       render: (part) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
-          {part.partNumber ?? '—'}
+          {part.partNumber}
         </Typography>
       ),
     },
     {
-      key: 'price',
-      header: 'Price',
+      key: 'category',
+      header: 'Category',
+      render: (part) =>
+        part.category ? (
+          <Chip
+            size="small"
+            label={part.category}
+            sx={{ fontWeight: 600, fontSize: '0.72rem' }}
+          />
+        ) : (
+          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>—</Typography>
+        ),
+    },
+    {
+      key: 'rackLocation',
+      header: 'Rack Location',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', fontFamily: 'monospace', color: colors.slate[600] }}>
+          {part.rackLocation ?? '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'reorderLevel',
+      header: 'Reorder Level',
       render: (part) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700], fontWeight: 500 }}>
-          {fmtBDT(part.price)}
+          {typeof part.reorderLevel === 'number' ? part.reorderLevel : '—'}
         </Typography>
       ),
     },
@@ -191,7 +252,7 @@ export function PartsPage() {
             <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
               Parts
             </Typography>
-            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage inventory parts for service and repair.</Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage the part catalog for service and repair.</Typography>
           </Box>
           <Button
             variant="contained"
@@ -210,7 +271,7 @@ export function PartsPage() {
           keyExtractor={(part) => part.id}
           emptyIcon={<Inventory />}
           emptyTitle="No parts yet"
-          emptyDescription="Add parts to the inventory for SE part request workflow."
+          emptyDescription="Add parts to the catalog for SE part request workflow."
           emptyAction={
             <Button
               variant="contained"
@@ -231,7 +292,7 @@ export function PartsPage() {
           icon={editPart ? <Edit /> : <Inventory />}
           onSubmit={editPart ? submitEdit : submitCreate}
           submitLabel={editPart ? 'Save' : 'Create'}
-          submitDisabled={!draft.name.trim()}
+          submitDisabled={!draft.name.trim() || !draft.partNumber.trim()}
         >
           <TextField
             label="Part Name"
@@ -241,16 +302,54 @@ export function PartsPage() {
             fullWidth
           />
           <TextField
-            label="Part Number (optional)"
+            label="Part Number"
             value={draft.partNumber}
             onChange={(e) => setDraft((d) => ({ ...d, partNumber: e.target.value }))}
+            required
             fullWidth
           />
           <TextField
-            label="Price (BDT, optional)"
+            label="Description"
+            value={draft.description}
+            onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+            multiline
+            minRows={2}
+            fullWidth
+          />
+          <TextField
+            label="Category"
+            value={draft.category}
+            onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
+            select
+            fullWidth
+          >
+            <MenuItem value="">
+              <em>None</em>
+            </MenuItem>
+            {CATEGORY_PRESETS.map((cat) => (
+              <MenuItem key={cat} value={cat}>
+                {cat}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Rack Location"
+            value={draft.rackLocation}
+            onChange={(e) => setDraft((d) => ({ ...d, rackLocation: e.target.value }))}
+            placeholder="e.g. A-3-14"
+            fullWidth
+          />
+          <TextField
+            label="Bin Number"
+            value={draft.binNumber}
+            onChange={(e) => setDraft((d) => ({ ...d, binNumber: e.target.value }))}
+            fullWidth
+          />
+          <TextField
+            label="Reorder Level"
             type="number"
-            value={draft.price}
-            onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+            value={draft.reorderLevel}
+            onChange={(e) => setDraft((d) => ({ ...d, reorderLevel: e.target.value }))}
             fullWidth
           />
         </FormDialog>

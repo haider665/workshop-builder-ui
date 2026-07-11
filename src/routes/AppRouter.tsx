@@ -58,6 +58,11 @@ import { TechnicianDashboardPage } from '../pages/technician/TechnicianDashboard
 import { TechnicianTaskPage } from '../pages/technician/TechnicianTaskPage'
 import { QCAppointmentsPage } from '../pages/qc/QCAppointmentsPage'
 import { QCAppointmentDetailPage } from '../pages/qc/QCAppointmentDetailPage'
+import { InventoryTrackerPage } from '../pages/parts/InventoryTrackerPage'
+import { PurchaseOrdersPage } from '../pages/parts/PurchaseOrdersPage'
+import { VendorManagementPage } from '../pages/parts/VendorManagementPage'
+import { CounterDeskPage } from '../pages/parts/CounterDeskPage'
+import { EstimatorPage } from '../pages/parts/EstimatorPage'
 
 export function AppRouter() {
   return (
@@ -82,6 +87,14 @@ export function AppRouter() {
             <Route path="/admin/parts" element={<PartsPage />} />
             <Route path="/admin/part-requests" element={<PartRequestsPage />} />
             <Route path="/admin/reports" element={<AdminReportsPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['Parts', 'Admin']} />}>
+            <Route path="/parts/inventory" element={<InventoryTrackerPage />} />
+            <Route path="/parts/purchase-orders" element={<PurchaseOrdersPage />} />
+            <Route path="/parts/vendors" element={<VendorManagementPage />} />
+            <Route path="/parts/counter-desk" element={<CounterDeskPage />} />
+            <Route path="/parts/estimator" element={<EstimatorPage />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Guard']} />}>

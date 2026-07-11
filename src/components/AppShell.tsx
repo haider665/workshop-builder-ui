@@ -16,9 +16,11 @@ import {
   Assignment,
   Badge,
   CalendarMonth,
+  Calculate,
   DirectionsCar,
   DoorFront,
   Groups,
+  Inventory,
   Logout,
   Menu,
   NotificationsActive,
@@ -26,12 +28,16 @@ import {
   Phone,
   ReceiptLong,
   Settings,
+  ShoppingCart,
+  Store,
+  Storefront,
 } from '@mui/icons-material'
 import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Role } from '../types/roles'
 import { useSessionStore } from '../store/sessionStore'
+import { useCwStore } from '../store/cwStore'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -63,6 +69,30 @@ type NavItem = {
   icon?: ReactElement
   anyOfRoles: Role[]
   exactMatch?: boolean
+}
+
+/* ─────────────────────── Notification Badge ────────────────── */
+
+function NotificationBadge() {
+  const count = useCwStore((s) => s.getUnreadCount)()
+  if (count === 0) return null
+  return (
+    <Box
+      sx={{
+        bgcolor: '#ef4444',
+        color: '#fff',
+        borderRadius: '9999px',
+        px: 0.75,
+        fontSize: '0.65rem',
+        fontWeight: 700,
+        lineHeight: '16px',
+        minWidth: 16,
+        textAlign: 'center',
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </Box>
+  )
 }
 
 /* ─────────────────────── Component ─────────────────────────── */
@@ -121,6 +151,13 @@ export function AppShell() {
       { kind: 'link', label: 'Parts', to: '/admin/parts', icon: <Settings />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Part Requests', to: '/admin/part-requests', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Reports', to: '/admin/reports', icon: <Assignment />, anyOfRoles: ['Admin'] },
+
+      { kind: 'section', label: 'Parts Department', anyOfRoles: ['Parts', 'Admin'] },
+      { kind: 'link', label: 'Purchase Module', to: '/parts/purchase-orders', icon: <ShoppingCart />, anyOfRoles: ['Parts', 'Admin'] },
+      { kind: 'link', label: 'Vendor Management', to: '/parts/vendors', icon: <Storefront />, anyOfRoles: ['Parts', 'Admin'] },
+      { kind: 'link', label: 'Counter Desk', to: '/parts/counter-desk', icon: <Store />, anyOfRoles: ['Parts', 'Admin'] },
+      { kind: 'link', label: 'Inventory Tracker', to: '/parts/inventory', icon: <Inventory />, anyOfRoles: ['Parts', 'Admin'] },
+      { kind: 'link', label: 'Estimator', to: '/parts/estimator', icon: <Calculate />, anyOfRoles: ['Parts', 'Admin'] },
 
       {
         kind: 'link',
@@ -304,7 +341,16 @@ export function AppShell() {
                 {item.icon}
               </ListItemIcon>
               <ListItemText
-                primary={item.label}
+                primary={
+                  item.label === 'Notifications' ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {item.label}
+                      <NotificationBadge />
+                    </Box>
+                  ) : (
+                    item.label
+                  )
+                }
                 sx={{
                   '& .MuiListItemText-primary': {
                     fontSize: '0.85rem',
