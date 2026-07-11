@@ -9,7 +9,6 @@ import {
   IconButton,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Stack,
   Table,
@@ -21,10 +20,19 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Delete } from '@mui/icons-material'
+import {
+  Delete,
+  DirectionsCar,
+  Build,
+  MiscellaneousServices,
+  CalendarMonth,
+  ArrowBack,
+} from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
+import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
+import { colors, radii } from '../../theme/tokens'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import type { CWConcern, CWService } from '../../types/cw'
@@ -59,6 +67,15 @@ function addDays(isoDate: string, n: number) {
 
 function fmtBDT(n: number) {
   return `BDT ${n.toLocaleString('en-BD')}`
+}
+
+/* ── Shared field styling ── */
+const fieldSx = {
+  '& .MuiOutlinedInput-root': {
+    borderRadius: radii.sm,
+    fontSize: '0.85rem',
+    bgcolor: colors.bg.page,
+  },
 }
 
 export function NewAppointmentPage() {
@@ -298,508 +315,531 @@ export function NewAppointmentPage() {
   )
 
   return (
-    <Page
-      title="New Appointment"
-      subtitle="Create new appointment from here"
-      actions={
-        <Stack direction="row" spacing={1}>
-          <Button variant="outlined" size="small" onClick={() => navigate('/cre/vehicles/new')}>
-            Add new vehicle
-          </Button>
-          <Button variant="outlined" size="small" onClick={() => navigate('/cre/customers/new')}>
-            Add new customer
-          </Button>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* ── Header ── */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+            <IconButton onClick={() => navigate('/cre/appointments')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+                New Appointment
+              </Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Create new appointment from here</Typography>
+            </Box>
+          </Stack>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate('/cre/vehicles/new')}
+              sx={{ borderColor: colors.border.strong, color: colors.slate[700], borderRadius: '10px', fontWeight: 600, '&:hover': { borderColor: colors.slate[400] } }}
+            >
+              Add new vehicle
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate('/cre/customers/new')}
+              sx={{ borderColor: colors.border.strong, color: colors.slate[700], borderRadius: '10px', fontWeight: 600, '&:hover': { borderColor: colors.slate[400] } }}
+            >
+              Add new customer
+            </Button>
+          </Stack>
         </Stack>
-      }
-    >
-      <Stack spacing={3}>
-        {error && <Alert severity="error">{error}</Alert>}
 
-        {/* ── Vehicle Info ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5, bgcolor: 'background.paper' }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>Customer & Vehicle</Typography>
+        {error && <Alert severity="error" sx={{ borderRadius: radii.sm }}>{error}</Alert>}
 
-            {/* Customer Autocomplete (searchable) */}
+        {/* ── Customer & Vehicle ── */}
+        <SectionCard title="Customer & Vehicle" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />}>
+          {/* Customer Autocomplete (searchable) */}
+          <Autocomplete
+            size="small"
+            options={customers.slice().sort((a, b) => a.fullName.localeCompare(b.fullName))}
+            getOptionLabel={(c) => `${c.fullName} · ${c.phone}`}
+            value={selectedCustomer}
+            onChange={(_, val) => {
+              setSelectedCustomer(val)
+              setSelectedVehicle(null) // reset vehicle when customer changes
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Select Customer"
+                placeholder="Type customer name or phone…"
+                sx={fieldSx}
+              />
+            )}
+            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+            sx={{ mb: 2 }}
+          />
+
+          {/* Vehicle Autocomplete (filtered by customer, searchable) */}
+          {selectedCustomer && (
             <Autocomplete
               size="small"
-              options={customers.slice().sort((a, b) => a.fullName.localeCompare(b.fullName))}
-              getOptionLabel={(c) => `${c.fullName} · ${c.phone}`}
-              value={selectedCustomer}
-              onChange={(_, val) => {
-                setSelectedCustomer(val)
-                setSelectedVehicle(null) // reset vehicle when customer changes
+              options={customerVehicles}
+              getOptionLabel={(v) => {
+                const mm = [v.make, v.model].filter(Boolean).join(' ')
+                return `${v.registrationNo}${mm ? ` – ${mm}` : ''}`
               }}
+              value={selectedVehicle}
+              onChange={(_, val) => setSelectedVehicle(val)}
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Select Customer"
-                  placeholder="Type customer name or phone…"
+                  label="Select Vehicle"
+                  placeholder="Type registration no…"
+                  sx={fieldSx}
                 />
               )}
-              isOptionEqualToValue={(opt, val) => opt.id === val.id}
-              sx={{ mb: 2 }}
-            />
-
-            {/* Vehicle Autocomplete (filtered by customer, searchable) */}
-            {selectedCustomer && (
-              <Autocomplete
-                size="small"
-                options={customerVehicles}
-                getOptionLabel={(v) => {
-                  const mm = [v.make, v.model].filter(Boolean).join(' ')
-                  return `${v.registrationNo}${mm ? ` – ${mm}` : ''}`
-                }}
-                value={selectedVehicle}
-                onChange={(_, val) => setSelectedVehicle(val)}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Select Vehicle"
-                    placeholder="Type registration no…"
-                  />
-                )}
-                renderOption={(props, v) => {
-                  const mm = [v.make, v.model].filter(Boolean).join(' ')
-                  return (
-                    <li {...props} key={v.id}>
-                      <Stack>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {v.registrationNo}{mm ? ` – ${mm}` : ''}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          VIN: {v.vin ?? '—'}
-                        </Typography>
-                      </Stack>
-                    </li>
-                  )
-                }}
-                isOptionEqualToValue={(opt, val) => opt.id === val.id}
-                noOptionsText={customerVehicles.length === 0 ? 'No vehicles for this customer' : 'No match'}
-              />
-            )}
-            {!selectedCustomer && (
-              <Typography variant="body2" color="text.secondary">
-                Select a customer first to see their vehicles.
-              </Typography>
-            )}
-
-            {selectedVehicle && (
-              <>
-                <Divider sx={{ my: 2 }} />
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={3}
-                  sx={{ flexWrap: 'wrap' }}
-                  useFlexGap
-                >
-                  <Stack spacing={0.5} sx={{ flex: '1 1 200px' }}>
-                    <Typography variant="caption" color="text.secondary">Registration Number</Typography>
-                    <Typography sx={{ fontWeight: 700 }}>{selectedVehicle.registrationNo}</Typography>
-                  </Stack>
-                  <Stack spacing={0.5} sx={{ flex: '1 1 200px' }}>
-                    <Typography variant="caption" color="text.secondary">Customer</Typography>
-                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <Typography sx={{ fontWeight: 700 }}>{selectedCustomer?.fullName ?? '—'}</Typography>
-                      {selectedCustomer?.email && (
-                        <Typography variant="caption" color="text.secondary">{selectedCustomer.email}</Typography>
-                      )}
-                    </Stack>
-                  </Stack>
-                  <Stack spacing={0.5} sx={{ flex: '1 1 140px' }}>
-                    <Typography variant="caption" color="text.secondary">Manufacturer</Typography>
-                    <Typography sx={{ fontWeight: 700 }}>{selectedVehicle.make ?? '—'}</Typography>
-                  </Stack>
-                  <Stack spacing={0.5} sx={{ flex: '1 1 140px' }}>
-                    <Typography variant="caption" color="text.secondary">Model/Variant</Typography>
-                    <Typography sx={{ fontWeight: 700 }}>{selectedVehicle.model ?? '—'}</Typography>
-                  </Stack>
-                </Stack>
-
-                {/* Gate entry link */}
-                {pendingEntries.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <FormControl size="small" sx={{ minWidth: 240 }}>
-                      <InputLabel>Link gate entry (optional)</InputLabel>
-                      <Select
-                        label="Link gate entry (optional)"
-                        value={gateEntryId}
-                        onChange={(e) => setGateEntryId(e.target.value)}
-                      >
-                        <MenuItem value="">— None —</MenuItem>
-                        {pendingEntries.map((p) => (
-                          <MenuItem key={p.id} value={p.id}>
-                            {p.registrationNo} (arrived {new Date(p.arrivedAt).toLocaleTimeString()})
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Box>
-                )}
-              </>
-            )}
-          </Box>
-        </Paper>
-
-        {/* ── Concerns ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>Concerns</Typography>
-
-            {concernItems.length > 0 && (
-              <Table size="small" sx={{ mb: 2 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800, width: 40 }}>SI</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
-                    <TableCell />
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {concernItems.map((item, idx) => {
-                    const shopName = getConcernShopName(item.concernId)
-                    return (
-                    <TableRow key={item.id}>
-                      <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
-                      <TableCell>
-                        <Stack>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.concernName}{typeof item.processTimeMins === 'number' ? ` (${item.processTimeMins} mins)` : ''}</Typography>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        {shopName ? <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
-                      </TableCell>
-                      <TableCell>
-                        {typeof item.processTimeMins === 'number' ? (
-                          <Chip size="small" label={`${item.processTimeMins} mins`} color="info" sx={{ fontWeight: 700 }} />
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">—</Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <IconButton size="small" color="error" onClick={() => removeConcern(item.id)}>
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            )}
-
-            {/* Add concern row */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value)}>
-                  <MenuItem value="">All Shops</MenuItem>
-                  {activeShops.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Autocomplete
-                multiple
-                size="small"
-                options={activeConcerns.filter((c) => !concernShopFilter || concernShopId(c.id) === concernShopFilter)}
-                groupBy={(o) => catById.get(o.categoryId)?.name ?? 'Other'}
-                getOptionLabel={(o) => `${o.name} (${o.processTimeMins ?? '?'} mins)`}
-                value={selConcerns}
-                onChange={(_, val) => setSelConcerns(val)}
-                disableCloseOnSelect
-                sx={{ flex: '1 1 280px' }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Choose Concerns"
-                    placeholder={selConcerns.length === 0 ? 'Select one or more…' : ''}
-                  />
-                )}
-              />
-              <TextField
-                size="small"
-                label="Remark (applies to all selected)"
-                value={concernRemark}
-                onChange={(e) => setConcernRemark(e.target.value)}
-                sx={{ flex: '2 1 260px' }}
-              />
-              <Button
-                variant="contained"
-                onClick={addConcern}
-                disabled={selConcerns.length === 0}
-                sx={{ height: 40, whiteSpace: 'nowrap' }}
-              >
-                Add {selConcerns.length > 0 ? `(${selConcerns.length})` : ''}
-              </Button>
-            </Stack>
-          </Box>
-        </Paper>
-
-        {/* ── Service Requests ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5 }}>
-            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-              <Box>
-                <Typography sx={{ fontWeight: 900 }}>Service Requests</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Select a shop to filter services, then pick services to include in the appointment.
-                </Typography>
-              </Box>
-              {serviceItems.length > 0 && (
-                <Tooltip title="Total labour estimate">
-                  <Chip
-                    label={`Total: ${fmtBDT(totalBDT)}`}
-                    color="primary"
-                    sx={{ fontWeight: 700 }}
-                  />
-                </Tooltip>
-              )}
-            </Stack>
-
-            {serviceItems.length > 0 && (
-              <Table size="small" sx={{ mb: 2 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800, width: 40 }}>SI</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Remarks</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>Time</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>Price (BDT)</TableCell>
-                    <TableCell />
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {serviceItems.map((item, idx) => {
-                    const shopName = getServiceShopName(item.serviceId)
-                    return (
-                    <TableRow key={item.id}>
-                      <TableCell sx={{ color: 'text.secondary' }}>#{idx + 1}</TableCell>
-                      <TableCell>
-                        <Stack>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.serviceDescription} ({item.processTimeMins} mins)</Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                            {item.serviceCode}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        {shopName ? <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">{item.remark || '—'}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography variant="body2">{item.processTimeMins} mins</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography sx={{ fontWeight: 700 }}>{item.price.toLocaleString('en-BD')}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <IconButton size="small" color="error" onClick={() => removeService(item.id)}>
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                    )
-                  })}
-                  <TableRow>
-                    <TableCell colSpan={5} sx={{ fontWeight: 800, textAlign: 'right', border: 'none' }}>
-                      Total Labour Estimate
-                    </TableCell>
-                    <TableCell align="right" sx={{ border: 'none' }}>
-                      <Typography sx={{ fontWeight: 900, color: 'primary.main' }}>
-                        {totalBDT.toLocaleString('en-BD')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell sx={{ border: 'none' }} />
-                  </TableRow>
-                </TableBody>
-              </Table>
-            )}
-
-            {/* Add service row */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value)}>
-                  <MenuItem value="">All Shops</MenuItem>
-                  {activeShops.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Autocomplete
-                multiple
-                size="small"
-                options={activeServices.filter((s) => !serviceShopFilter || s.shopId === serviceShopFilter)}
-                groupBy={(o) => o.category}
-                getOptionLabel={(o) => `${o.code} – ${o.description} (${o.processTimeMins} mins)`}
-                value={selServices}
-                onChange={(_, val) => setSelServices(val)}
-                disableCloseOnSelect
-                sx={{ flex: '2 1 320px' }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Service Requests"
-                    placeholder={selServices.length === 0 ? 'Select one or more…' : ''}
-                  />
-                )}
-                renderOption={(props, o) => (
-                  <li {...props} key={o.id}>
+              renderOption={(props, v) => {
+                const mm = [v.make, v.model].filter(Boolean).join(' ')
+                return (
+                  <li {...props} key={v.id}>
                     <Stack>
-                      <Typography variant="body2">{o.description}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {o.code} · {o.processTimeMins}m · BDT {o.price.toLocaleString('en-BD')}
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {v.registrationNo}{mm ? ` – ${mm}` : ''}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: colors.slate[500] }}>
+                        VIN: {v.vin ?? '—'}
                       </Typography>
                     </Stack>
                   </li>
-                )}
-              />
-              <TextField
-                size="small"
-                label="Remark (applies to all selected)"
-                value={serviceRemark}
-                onChange={(e) => setServiceRemark(e.target.value)}
-                sx={{ flex: '2 1 220px' }}
-              />
-              <Button
-                variant="contained"
-                onClick={addService}
-                disabled={selServices.length === 0}
-                sx={{ height: 40, whiteSpace: 'nowrap' }}
+                )
+              }}
+              isOptionEqualToValue={(opt, val) => opt.id === val.id}
+              noOptionsText={customerVehicles.length === 0 ? 'No vehicles for this customer' : 'No match'}
+            />
+          )}
+          {!selectedCustomer && (
+            <Typography variant="body2" sx={{ color: colors.slate[500], fontSize: '0.82rem' }}>
+              Select a customer first to see their vehicles.
+            </Typography>
+          )}
+
+          {selectedVehicle && (
+            <>
+              <Divider sx={{ my: 2, borderColor: colors.border.subtle }} />
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={3}
+                sx={{ flexWrap: 'wrap' }}
+                useFlexGap
               >
-                Add {selServices.length > 0 ? `(${selServices.length})` : ''}
-              </Button>
-            </Stack>
-          </Box>
-        </Paper>
+                <Stack spacing={0.5} sx={{ flex: '1 1 200px' }}>
+                  <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500], fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Registration Number</Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>{selectedVehicle.registrationNo}</Typography>
+                </Stack>
+                <Stack spacing={0.5} sx={{ flex: '1 1 200px' }}>
+                  <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500], fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</Typography>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>{selectedCustomer?.fullName ?? '—'}</Typography>
+                    {selectedCustomer?.email && (
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>{selectedCustomer.email}</Typography>
+                    )}
+                  </Stack>
+                </Stack>
+                <Stack spacing={0.5} sx={{ flex: '1 1 140px' }}>
+                  <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500], fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Manufacturer</Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>{selectedVehicle.make ?? '—'}</Typography>
+                </Stack>
+                <Stack spacing={0.5} sx={{ flex: '1 1 140px' }}>
+                  <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500], fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Model/Variant</Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>{selectedVehicle.model ?? '—'}</Typography>
+                </Stack>
+              </Stack>
+
+              {/* Gate entry link */}
+              {pendingEntries.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <FormControl size="small" sx={{ minWidth: 240 }}>
+                    <InputLabel>Link gate entry (optional)</InputLabel>
+                    <Select
+                      label="Link gate entry (optional)"
+                      value={gateEntryId}
+                      onChange={(e) => setGateEntryId(e.target.value)}
+                      sx={{ borderRadius: radii.sm, fontSize: '0.85rem' }}
+                    >
+                      <MenuItem value="">— None —</MenuItem>
+                      {pendingEntries.map((p) => (
+                        <MenuItem key={p.id} value={p.id}>
+                          {p.registrationNo} (arrived {new Date(p.arrivedAt).toLocaleTimeString()})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+              )}
+            </>
+          )}
+        </SectionCard>
+
+        {/* ── Concerns ── */}
+        <SectionCard title="Concerns" icon={<Build sx={{ fontSize: '1rem' }} />}>
+          {concernItems.length > 0 && (
+            <Table size="small" sx={{ mb: 2 }}>
+              <TableHead>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell sx={{ width: 40 }}>SI</TableCell>
+                  <TableCell>Concern</TableCell>
+                  <TableCell>Shop</TableCell>
+                  <TableCell>Time</TableCell>
+                  <TableCell>Remarks</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {concernItems.map((item, idx) => {
+                  const shopName = getConcernShopName(item.concernId)
+                  return (
+                  <TableRow key={item.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                    <TableCell sx={{ color: colors.slate[400] }}>#{idx + 1}</TableCell>
+                    <TableCell>
+                      <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: colors.slate[900] }}>{item.concernName}{typeof item.processTimeMins === 'number' ? ` (${item.processTimeMins} mins)` : ''}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      {shopName ? <Chip size="small" label={shopName} sx={{ fontWeight: 700, fontSize: '0.72rem', bgcolor: colors.slate[100], color: colors.slate[700] }} /> : '—'}
+                    </TableCell>
+                    <TableCell>
+                      {typeof item.processTimeMins === 'number' ? (
+                        <Chip size="small" label={`${item.processTimeMins} mins`} sx={{ fontWeight: 700, fontSize: '0.72rem', bgcolor: colors.accent.blue + '18', color: colors.accent.blue }} />
+                      ) : (
+                        <Typography sx={{ fontSize: '0.82rem', color: colors.slate[400] }}>—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>{item.remark || '—'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <IconButton size="small" onClick={() => removeConcern(item.id)} sx={{ color: colors.accent.red }}>
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+
+          {/* Add concern row */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Shop</InputLabel>
+              <Select label="Shop" value={concernShopFilter} onChange={(e) => setConcernShopFilter(e.target.value)} sx={{ borderRadius: radii.sm, fontSize: '0.85rem' }}>
+                <MenuItem value="">All Shops</MenuItem>
+                {activeShops.map((s) => (
+                  <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Autocomplete
+              multiple
+              size="small"
+              options={activeConcerns.filter((c) => !concernShopFilter || concernShopId(c.id) === concernShopFilter)}
+              groupBy={(o) => catById.get(o.categoryId)?.name ?? 'Other'}
+              getOptionLabel={(o) => `${o.name} (${o.processTimeMins ?? '?'} mins)`}
+              value={selConcerns}
+              onChange={(_, val) => setSelConcerns(val)}
+              disableCloseOnSelect
+              sx={{ flex: '1 1 280px' }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Choose Concerns"
+                  placeholder={selConcerns.length === 0 ? 'Select one or more…' : ''}
+                  sx={fieldSx}
+                />
+              )}
+            />
+            <TextField
+              size="small"
+              label="Remark (applies to all selected)"
+              value={concernRemark}
+              onChange={(e) => setConcernRemark(e.target.value)}
+              sx={{ flex: '2 1 260px', ...fieldSx }}
+            />
+            <Button
+              variant="contained"
+              onClick={addConcern}
+              disabled={selConcerns.length === 0}
+              sx={{ height: 40, whiteSpace: 'nowrap', bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+            >
+              Add {selConcerns.length > 0 ? `(${selConcerns.length})` : ''}
+            </Button>
+          </Stack>
+        </SectionCard>
+
+        {/* ── Service Requests ── */}
+        <SectionCard
+          title="Service Requests"
+          icon={<MiscellaneousServices sx={{ fontSize: '1rem' }} />}
+          actions={
+            serviceItems.length > 0 ? (
+              <Tooltip title="Total labour estimate">
+                <Chip
+                  label={`Total: ${fmtBDT(totalBDT)}`}
+                  sx={{ fontWeight: 700, fontSize: '0.78rem', bgcolor: colors.slate[900], color: '#fff' }}
+                />
+              </Tooltip>
+            ) : undefined
+          }
+        >
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem', mb: 2 }}>
+            Select a shop to filter services, then pick services to include in the appointment.
+          </Typography>
+
+          {serviceItems.length > 0 && (
+            <Table size="small" sx={{ mb: 2 }}>
+              <TableHead>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell sx={{ width: 40 }}>SI</TableCell>
+                  <TableCell>Service</TableCell>
+                  <TableCell>Shop</TableCell>
+                  <TableCell>Remarks</TableCell>
+                  <TableCell align="right">Time</TableCell>
+                  <TableCell align="right">Price (BDT)</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {serviceItems.map((item, idx) => {
+                  const shopName = getServiceShopName(item.serviceId)
+                  return (
+                  <TableRow key={item.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                    <TableCell sx={{ color: colors.slate[400] }}>#{idx + 1}</TableCell>
+                    <TableCell>
+                      <Stack>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: colors.slate[900] }}>{item.serviceDescription} ({item.processTimeMins} mins)</Typography>
+                        <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400], fontFamily: 'monospace' }}>
+                          {item.serviceCode}
+                        </Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      {shopName ? <Chip size="small" label={shopName} sx={{ fontWeight: 700, fontSize: '0.72rem', bgcolor: colors.slate[100], color: colors.slate[700] }} /> : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>{item.remark || '—'}</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography sx={{ fontSize: '0.82rem' }}>{item.processTimeMins} mins</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>{item.price.toLocaleString('en-BD')}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <IconButton size="small" onClick={() => removeService(item.id)} sx={{ color: colors.accent.red }}>
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                  )
+                })}
+                <TableRow>
+                  <TableCell colSpan={5} sx={{ fontWeight: 800, textAlign: 'right', border: 'none', fontSize: '0.82rem', color: colors.slate[700] }}>
+                    Total Labour Estimate
+                  </TableCell>
+                  <TableCell align="right" sx={{ border: 'none' }}>
+                    <Typography sx={{ fontWeight: 900, color: colors.slate[900], fontSize: '0.95rem' }}>
+                      {totalBDT.toLocaleString('en-BD')}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ border: 'none' }} />
+                </TableRow>
+              </TableBody>
+            </Table>
+          )}
+
+          {/* Add service row */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Shop</InputLabel>
+              <Select label="Shop" value={serviceShopFilter} onChange={(e) => setServiceShopFilter(e.target.value)} sx={{ borderRadius: radii.sm, fontSize: '0.85rem' }}>
+                <MenuItem value="">All Shops</MenuItem>
+                {activeShops.map((s) => (
+                  <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Autocomplete
+              multiple
+              size="small"
+              options={activeServices.filter((s) => !serviceShopFilter || s.shopId === serviceShopFilter)}
+              groupBy={(o) => o.category}
+              getOptionLabel={(o) => `${o.code} – ${o.description} (${o.processTimeMins} mins)`}
+              value={selServices}
+              onChange={(_, val) => setSelServices(val)}
+              disableCloseOnSelect
+              sx={{ flex: '2 1 320px' }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Service Requests"
+                  placeholder={selServices.length === 0 ? 'Select one or more…' : ''}
+                  sx={fieldSx}
+                />
+              )}
+              renderOption={(props, o) => (
+                <li {...props} key={o.id}>
+                  <Stack>
+                    <Typography variant="body2">{o.description}</Typography>
+                    <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>
+                      {o.code} · {o.processTimeMins}m · BDT {o.price.toLocaleString('en-BD')}
+                    </Typography>
+                  </Stack>
+                </li>
+              )}
+            />
+            <TextField
+              size="small"
+              label="Remark (applies to all selected)"
+              value={serviceRemark}
+              onChange={(e) => setServiceRemark(e.target.value)}
+              sx={{ flex: '2 1 220px', ...fieldSx }}
+            />
+            <Button
+              variant="contained"
+              onClick={addService}
+              disabled={selServices.length === 0}
+              sx={{ height: 40, whiteSpace: 'nowrap', bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+            >
+              Add {selServices.length > 0 ? `(${selServices.length})` : ''}
+            </Button>
+          </Stack>
+        </SectionCard>
 
         {/* ── Appointment Info ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>Appointment Info</Typography>
-            <Stack spacing={2.5}>
-              {/* Date navigator */}
-              <Stack spacing={0.5}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Date
-                </Typography>
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => setSlotDate((d) => addDays(d, -1))}
-                    sx={{ minWidth: 36, px: 1 }}
-                  >
-                    ‹
-                  </Button>
-                  <TextField
-                    size="small"
-                    type="date"
-                    value={slotDate}
-                    onChange={(e) => setSlotDate(e.target.value)}
-                    sx={{ width: 200 }}
-                    slotProps={{ htmlInput: { min: localDateToday() } }}
-                  />
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => setSlotDate((d) => addDays(d, 1))}
-                    sx={{ minWidth: 36, px: 1 }}
-                  >
-                    ›
-                  </Button>
-                  {slotDate && (
-                    <Typography variant="body2" color="text.secondary">
-                      {formatDateDisplay(slotDate)}
-                    </Typography>
-                  )}
-                </Stack>
-              </Stack>
-
-              {/* Slot grid */}
-              <Stack spacing={0.5}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Slot
-                </Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                  {HOURS.map((h) => {
-                    const booked = bookedSlots.has(h)
-                    const selected = slotTime === h
-                    return (
-                      <Button
-                        key={h}
-                        size="small"
-                        variant={selected ? 'contained' : 'outlined'}
-                        disabled={booked && !selected}
-                        onClick={() => setSlotTime(selected ? '' : h)}
-                        sx={{
-                          minWidth: 90,
-                          flexDirection: 'column',
-                          py: 0.75,
-                          opacity: booked && !selected ? 0.5 : 1,
-                        }}
-                      >
-                        <Typography variant="caption" sx={{ fontWeight: 700 }}>{h}</Typography>
-                        {booked && (
-                          <Typography variant="caption" sx={{ fontSize: 9, color: 'warning.main' }}>
-                            Booked
-                          </Typography>
-                        )}
-                      </Button>
-                    )
-                  })}
-                </Stack>
-              </Stack>
-
-              {/* Service Advisor + Notes */}
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField
-                  select
+        <SectionCard title="Appointment Info" icon={<CalendarMonth sx={{ fontSize: '1rem' }} />}>
+          <Stack spacing={2.5}>
+            {/* Date navigator */}
+            <Stack spacing={0.5}>
+              <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], fontWeight: 600 }}>
+                Date
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Button
+                  variant="outlined"
                   size="small"
-                  label="Assign Service Advisor"
-                  value={saUserId}
-                  onChange={(e) => setSaUserId(e.target.value)}
-                  sx={{ flex: '1 1 200px' }}
+                  onClick={() => setSlotDate((d) => addDays(d, -1))}
+                  sx={{ minWidth: 36, px: 1, borderColor: colors.border.strong, color: colors.slate[600], borderRadius: radii.sm }}
                 >
-                  <MenuItem value="">— None —</MenuItem>
-                  {saUsers.map((u) => (
-                    <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                  ))}
-                </TextField>
+                  ‹
+                </Button>
                 <TextField
                   size="small"
-                  label="Additional Note"
-                  multiline
-                  minRows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  sx={{ flex: '2 1 300px' }}
+                  type="date"
+                  value={slotDate}
+                  onChange={(e) => setSlotDate(e.target.value)}
+                  sx={{ width: 200, ...fieldSx }}
+                  slotProps={{ htmlInput: { min: localDateToday() } }}
                 />
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setSlotDate((d) => addDays(d, 1))}
+                  sx={{ minWidth: 36, px: 1, borderColor: colors.border.strong, color: colors.slate[600], borderRadius: radii.sm }}
+                >
+                  ›
+                </Button>
+                {slotDate && (
+                  <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
+                    {formatDateDisplay(slotDate)}
+                  </Typography>
+                )}
               </Stack>
             </Stack>
-          </Box>
-        </Paper>
+
+            {/* Slot grid */}
+            <Stack spacing={0.5}>
+              <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], fontWeight: 600 }}>
+                Slot
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                {HOURS.map((h) => {
+                  const booked = bookedSlots.has(h)
+                  const selected = slotTime === h
+                  return (
+                    <Button
+                      key={h}
+                      size="small"
+                      variant={selected ? 'contained' : 'outlined'}
+                      disabled={booked && !selected}
+                      onClick={() => setSlotTime(selected ? '' : h)}
+                      sx={{
+                        minWidth: 90,
+                        flexDirection: 'column',
+                        py: 0.75,
+                        borderRadius: radii.sm,
+                        fontWeight: 600,
+                        opacity: booked && !selected ? 0.5 : 1,
+                        ...(selected
+                          ? { bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }
+                          : { borderColor: colors.border.strong, color: colors.slate[600] }),
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ fontWeight: 700 }}>{h}</Typography>
+                      {booked && (
+                        <Typography variant="caption" sx={{ fontSize: 9, color: colors.accent.amber }}>
+                          Booked
+                        </Typography>
+                      )}
+                    </Button>
+                  )
+                })}
+              </Stack>
+            </Stack>
+
+            {/* Service Advisor + Notes */}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                select
+                size="small"
+                label="Assign Service Advisor"
+                value={saUserId}
+                onChange={(e) => setSaUserId(e.target.value)}
+                sx={{ flex: '1 1 200px', ...fieldSx }}
+              >
+                <MenuItem value="">— None —</MenuItem>
+                {saUsers.map((u) => (
+                  <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                size="small"
+                label="Additional Note"
+                multiline
+                minRows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                sx={{ flex: '2 1 300px', ...fieldSx }}
+              />
+            </Stack>
+          </Stack>
+        </SectionCard>
 
         {/* ── Actions ── */}
         <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
-          <Button variant="outlined" onClick={() => navigate('/cre/appointments')}>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/cre/appointments')}
+            sx={{ borderColor: colors.border.strong, color: colors.slate[700], borderRadius: '10px', fontWeight: 600, px: 2.5, '&:hover': { borderColor: colors.slate[400] } }}
+          >
             Cancel
           </Button>
-          <Button variant="contained" onClick={() => void submit()} disabled={!selectedVehicle}>
+          <Button
+            variant="contained"
+            onClick={() => void submit()}
+            disabled={!selectedVehicle}
+            sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+          >
             Create Appointment
           </Button>
         </Stack>
       </Stack>
-    </Page>
+    </Box>
   )
 }

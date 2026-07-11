@@ -3,31 +3,30 @@ import {
   Box,
   Button,
   Chip,
-  Collapse,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControl,
+  IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Snackbar,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
-import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
+import { Edit, FilterList, MiscellaneousServices, Search, ToggleOff, ToggleOn } from '@mui/icons-material'
+import { useEffect, useMemo, useState } from 'react'
+import { SectionCard } from '../../components/SectionCard'
+import { DataTable } from '../../components/DataTable'
+import { FormDialog } from '../../components/FormDialog'
+import type { Column } from '../../components/DataTable'
 import type { CWService, CWServiceSeverity, CWServiceStageDefinition, CWShop, CWVehicleSize } from '../../types/cw'
 import { shopsService } from '../../services/admin/shopsService'
 import { servicesService } from '../../services/admin/servicesService'
+import { colors, radii } from '../../theme/tokens'
+
+/* ─────────────────────── Helpers ─────────────────────────── */
 
 function fmt(n: number) {
   return n.toLocaleString('en-BD')
@@ -41,7 +40,17 @@ function newStageId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-export function ServicesPage() {
+const btnSx = {
+  bgcolor: colors.slate[900],
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2.5,
+  '&:hover': { bgcolor: colors.slate[800] },
+} as const
+
+/* ─────────────────────── Component ─────────────────────────── */
+
+  export function ServicesPage() {
   const [shops, setShops] = useState<CWShop[]>([])
   const [services, setServices] = useState<CWService[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,7 +66,7 @@ export function ServicesPage() {
 
   const [addOpen, setAddOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [stageViewId, setStageViewId] = useState<string | null>(null)
+
 
   const [code, setCode] = useState('')
   const [category, setCategory] = useState('')
@@ -141,6 +150,8 @@ export function ServicesPage() {
   }, [services, filterCat, filterShop, filterSize, filterQuery, hasFilter])
 
   const displayRows = hasFilter ? filtered : services
+
+  /* ── CRUD Operations ── */
 
   function clearCreateForm() {
     setCode('')
@@ -283,364 +294,348 @@ export function ServicesPage() {
     setStages((current) => current.filter((s) => s.id !== stageId).map((s, i) => ({ ...s, order: i + 1 })))
   }
 
-  async function persistStages(serviceId: string, nextStages: CWServiceStageDefinition[]) {
-    const svc = services.find((item) => item.id === serviceId)
-    if (!svc) return
-    const updated = await servicesService.update(serviceId, {
-      code: svc.code,
-      category: svc.category,
-      section: svc.section,
-      description: svc.description,
-      vehicleSize: svc.vehicleSize,
-      severity: svc.severity,
-      processTimeMins: svc.processTimeMins,
-      ratePerHr: svc.ratePerHr,
-      price: svc.price,
-      shopId: svc.shopId,
-      stages: nextStages,
-      status: svc.status,
-    })
-    setServices((current) => current.map((item) => (item.id === updated.id ? updated : item)))
-  }
 
-  return (
-    <Page
-      title="Admin / Services"
-      subtitle="Manage service catalogue used in appointments."
-      actions={
-        <Button variant="contained" onClick={() => setAddOpen((v) => !v)} disabled={saving}>
-          {addOpen ? 'Cancel' : '+ Add Service'}
-        </Button>
-      }
-    >
-      <Snackbar
-        open={successOpen}
-        onClose={() => setSuccessOpen(false)}
-        autoHideDuration={2500}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
-          {successMessage}
-        </Alert>
-      </Snackbar>
 
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      ) : null}
+  /* ── Shared form fields ── */
 
-      {loading ? (
-        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Typography color="text.secondary">Loading services from backend...</Typography>
-        </Paper>
-      ) : null}
-
-      <Stack spacing={2}>
-        {addOpen ? (
-          <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'primary.main' }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>New Service</Typography>
-            <Stack spacing={2}>
-              <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-                <TextField label="Code" size="small" value={code} onChange={(e) => setCode(e.target.value)} sx={{ flex: '1 1 120px' }} />
-                <TextField label="Category" size="small" value={category} onChange={(e) => setCategory(e.target.value)} sx={{ flex: '1 1 160px' }} placeholder="e.g. Engine" />
-                <TextField label="Section" size="small" value={section} onChange={(e) => setSection(e.target.value)} sx={{ flex: '1 1 160px' }} placeholder="e.g. Lubrication" />
-                <FormControl size="small" sx={{ flex: '1 1 180px' }}>
-                  <InputLabel>Shop</InputLabel>
-                  <Select label="Shop" value={shopId} onChange={(e) => setShopId(e.target.value)}>
-                    {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Stack>
-              <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-                <TextField label="Description" size="small" value={description} onChange={(e) => setDescription(e.target.value)} sx={{ flex: '2 1 300px' }} />
-                <FormControl size="small" sx={{ flex: '1 1 120px' }}>
-                  <InputLabel>Size</InputLabel>
-                  <Select label="Size" value={vehicleSize} onChange={(e) => setVehicleSize(e.target.value as CWVehicleSize)}>
-                    <MenuItem value="">— Any —</MenuItem>
-                    {VEHICLE_SIZES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                  </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ flex: '1 1 120px' }}>
-                  <InputLabel>Severity</InputLabel>
-                  <Select label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value as CWServiceSeverity)}>
-                    <MenuItem value="">— Any —</MenuItem>
-                    {SEVERITIES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Stack>
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <TextField label="Process Time (mins)" size="small" type="number" value={processTimeMins} onChange={(e) => setProcessTimeMins(e.target.value)} sx={{ flex: '1 1 100px' }} />
-                <TextField label="Rate/hr (BDT)" size="small" type="number" value={ratePerHr} onChange={(e) => setRatePerHr(e.target.value)} sx={{ flex: '1 1 130px' }} placeholder="Optional" />
-                <TextField label="Price / MRP (BDT)" size="small" type="number" value={price} onChange={(e) => setPrice(e.target.value)} sx={{ flex: '1 1 130px' }} />
-                <Button variant="contained" onClick={() => void submitAdd()} sx={{ height: 40 }} disabled={saving}>
-                  Save
-                </Button>
-              </Stack>
-            </Stack>
-
-            <Stack spacing={1.5} sx={{ mt: 2 }}>
-              <Typography sx={{ fontWeight: 800 }}>Stages</Typography>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                <TextField size="small" label="Stage name" value={newStageName} onChange={(e) => setNewStageName(e.target.value)} />
-                <TextField size="small" label="Duration (mins)" type="number" value={newStageDuration} onChange={(e) => setNewStageDuration(e.target.value)} />
-                <Button variant="outlined" onClick={addStageToCreate}>Add stage</Button>
-              </Stack>
-              {stages.length ? (
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                  {stages.map((stage) => (
-                    <Chip key={stage.id} label={`${stage.order}. ${stage.name} (${stage.durationMins}m)`} onDelete={() => removeCreateStage(stage.id)} />
-                  ))}
-                </Stack>
-              ) : (
-                <Typography variant="body2" color="text.secondary">No stages added yet.</Typography>
-              )}
-            </Stack>
-          </Paper>
-        ) : null}
-
+  function renderServiceFormFields(
+    codeVal: string, setCodeVal: (v: string) => void,
+    categoryVal: string, setCategoryVal: (v: string) => void,
+    sectionVal: string, setSectionVal: (v: string) => void,
+    descriptionVal: string, setDescriptionVal: (v: string) => void,
+    vehicleSizeVal: CWVehicleSize | '', setVehicleSizeVal: (v: CWVehicleSize | '') => void,
+    severityVal: CWServiceSeverity | '', setSeverityVal: (v: CWServiceSeverity | '') => void,
+    processTimeVal: string, setProcessTimeVal: (v: string) => void,
+    ratePerHrVal: string, setRatePerHrVal: (v: string) => void,
+    priceVal: string, setPriceVal: (v: string) => void,
+    shopIdVal: string, setShopIdVal: (v: string) => void,
+  ) {
+    return (
+      <>
         <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-          <TextField
-            size="small"
-            label="Search code or description"
-            value={filterQuery}
-            onChange={(e) => setFilterQuery(e.target.value)}
-            sx={{ flex: '2 1 250px' }}
-          />
-          <FormControl size="small" sx={{ flex: '1 1 160px' }}>
-            <InputLabel>Category</InputLabel>
-            <Select label="Category" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
-              <MenuItem value="">All categories</MenuItem>
-              {categories.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ flex: '1 1 140px' }}>
+          <TextField label="Code" size="small" value={codeVal} onChange={(e) => setCodeVal(e.target.value)} sx={{ flex: '1 1 120px' }} />
+          <TextField label="Category" size="small" value={categoryVal} onChange={(e) => setCategoryVal(e.target.value)} sx={{ flex: '1 1 160px' }} placeholder="e.g. Engine" />
+          <TextField label="Section" size="small" value={sectionVal} onChange={(e) => setSectionVal(e.target.value)} sx={{ flex: '1 1 160px' }} placeholder="e.g. Lubrication" />
+          <FormControl size="small" sx={{ flex: '1 1 180px' }}>
             <InputLabel>Shop</InputLabel>
-            <Select label="Shop" value={filterShop} onChange={(e) => setFilterShop(e.target.value)}>
-              <MenuItem value="">All shops</MenuItem>
+            <Select label="Shop" value={shopIdVal} onChange={(e) => setShopIdVal(e.target.value)}>
               {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
             </Select>
           </FormControl>
+        </Stack>
+        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+          <TextField label="Description" size="small" value={descriptionVal} onChange={(e) => setDescriptionVal(e.target.value)} sx={{ flex: '2 1 300px' }} />
           <FormControl size="small" sx={{ flex: '1 1 120px' }}>
             <InputLabel>Size</InputLabel>
-            <Select label="Size" value={filterSize} onChange={(e) => setFilterSize(e.target.value)}>
-              <MenuItem value="">All sizes</MenuItem>
+            <Select label="Size" value={vehicleSizeVal} onChange={(e) => setVehicleSizeVal(e.target.value as CWVehicleSize)}>
+              <MenuItem value="">— Any —</MenuItem>
               {VEHICLE_SIZES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </Select>
           </FormControl>
+          <FormControl size="small" sx={{ flex: '1 1 120px' }}>
+            <InputLabel>Severity</InputLabel>
+            <Select label="Severity" value={severityVal} onChange={(e) => setSeverityVal(e.target.value as CWServiceSeverity)}>
+              <MenuItem value="">— Any —</MenuItem>
+              {SEVERITIES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+            </Select>
+          </FormControl>
+        </Stack>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <TextField label="Process Time (mins)" size="small" type="number" value={processTimeVal} onChange={(e) => setProcessTimeVal(e.target.value)} sx={{ flex: '1 1 100px' }} />
+          <TextField label="Rate/hr (BDT)" size="small" type="number" value={ratePerHrVal} onChange={(e) => setRatePerHrVal(e.target.value)} sx={{ flex: '1 1 130px' }} placeholder="Optional" />
+          <TextField label="Price / MRP (BDT)" size="small" type="number" value={priceVal} onChange={(e) => setPriceVal(e.target.value)} sx={{ flex: '1 1 130px' }} />
+        </Stack>
+      </>
+    )
+  }
+
+  /* ── Stages inline editor ── */
+
+  function renderStagesSection(
+    stageList: CWServiceStageDefinition[],
+    onDelete: (id: string) => void,
+    onAdd: () => void,
+  ) {
+    return (
+      <Stack spacing={1.5} sx={{ mt: 2 }}>
+        <Typography sx={{ fontWeight: 700, color: colors.slate[900], fontSize: '0.9rem' }}>Stages</Typography>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField size="small" label="Stage name" value={newStageName} onChange={(e) => setNewStageName(e.target.value)} />
+          <TextField size="small" label="Duration (mins)" type="number" value={newStageDuration} onChange={(e) => setNewStageDuration(e.target.value)} />
+          <Button variant="outlined" onClick={onAdd} sx={{ borderColor: colors.slate[300], color: colors.slate[700] }}>
+            Add stage
+          </Button>
+        </Stack>
+        {stageList.length ? (
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+            {stageList.map((stage) => (
+              <Chip key={stage.id} label={`${stage.order}. ${stage.name} (${stage.durationMins}m)`} onDelete={() => onDelete(stage.id)} />
+            ))}
+          </Stack>
+        ) : (
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No stages added yet.</Typography>
+        )}
+      </Stack>
+    )
+  }
+
+  function addStageToEdit() {
+    if (!newStageName.trim()) return
+    const dur = parseFloat(newStageDuration)
+    if (isNaN(dur) || dur <= 0) return
+    setEditStages((current) => [
+      ...current,
+      { id: newStageId(), name: newStageName.trim(), order: current.length + 1, durationMins: dur },
+    ])
+    setNewStageName('')
+    setNewStageDuration('')
+  }
+
+  /* ── Table columns ── */
+
+  const columns: Column<CWService>[] = [
+    {
+      key: 'code',
+      header: 'Code',
+      minWidth: 100,
+      render: (s) => (
+        <Typography sx={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.85rem', color: colors.slate[900] }}>
+          {s.code}
+        </Typography>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+      render: (s) => <Chip size="small" label={s.category} variant="outlined" />,
+    },
+    {
+      key: 'section',
+      header: 'Section',
+      render: (s) => <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>{s.section ?? '—'}</Typography>,
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      minWidth: 160,
+      render: (s) => <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700] }}>{s.description}</Typography>,
+    },
+    {
+      key: 'shop',
+      header: 'Shop',
+      render: (s) => <Chip size="small" label={shopById.get(s.shopId)?.name ?? '—'} variant="outlined" />,
+    },
+    {
+      key: 'size',
+      header: 'Size',
+      render: (s) => s.vehicleSize ? <Chip size="small" label={s.vehicleSize} color="info" variant="outlined" /> : <Typography sx={{ color: colors.slate[400] }}>—</Typography>,
+    },
+    {
+      key: 'severity',
+      header: 'Severity',
+      render: (s) => s.severity ? <Chip size="small" label={s.severity} color={s.severity === 'Severe' ? 'error' : s.severity === 'Medium' ? 'warning' : 'default'} variant="outlined" /> : <Typography sx={{ color: colors.slate[400] }}>—</Typography>,
+    },
+    {
+      key: 'time',
+      header: 'Time (m)',
+      align: 'right',
+      render: (s) => <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700] }}>{s.processTimeMins}</Typography>,
+    },
+    {
+      key: 'price',
+      header: 'MRP (BDT)',
+      align: 'right',
+      render: (s) => <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.85rem' }}>{fmt(s.price)}</Typography>,
+    },
+    {
+      key: 'stages',
+      header: 'Stages',
+      render: (s) => s.stages?.length ? <Chip size="small" label={`${s.stages.length} stages`} color="primary" variant="outlined" /> : <Typography sx={{ color: colors.slate[400] }}>—</Typography>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (s) => <Chip size="small" label={s.status} color={s.status === 'Active' ? 'success' : 'default'} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (s) => (
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="Edit">
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); startEdit(s.id) }} disabled={saving}>
+              <Edit fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={s.status === 'Active' ? 'Deactivate' : 'Activate'}>
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); void toggleStatus(s) }} disabled={saving}>
+              {s.status === 'Active' ? <ToggleOff fontSize="small" /> : <ToggleOn fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      ),
+    },
+  ]
+
+  /* ── Custom row rendering to support Collapse ── */
+  /* Since DataTable doesn't support expand/collapse, we keep inline table but style it with tokens */
+
+  return (
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Services
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage service catalogue used in appointments.</Typography>
+          </Box>
+          <Button variant="contained" onClick={() => setAddOpen((v) => !v)} disabled={saving} sx={btnSx}>
+            {addOpen ? 'Cancel' : '+ Add Service'}
+          </Button>
         </Stack>
 
-        <Typography variant="body2" color="text.secondary">
+        <Snackbar
+          open={successOpen}
+          onClose={() => setSuccessOpen(false)}
+          autoHideDuration={2500}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%', borderRadius: '10px' }}>
+            {successMessage}
+          </Alert>
+        </Snackbar>
+
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        {/* ── Inline Add Form ── */}
+        {addOpen ? (
+          <SectionCard title="New Service" icon={<MiscellaneousServices sx={{ fontSize: '1rem' }} />}>
+            <Stack spacing={2}>
+              {renderServiceFormFields(
+                code, setCode,
+                category, setCategory,
+                section, setSection,
+                description, setDescription,
+                vehicleSize, setVehicleSize,
+                severity, setSeverity,
+                processTimeMins, setProcessTimeMins,
+                ratePerHr, setRatePerHr,
+                price, setPrice,
+                shopId, setShopId,
+              )}
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Button variant="contained" onClick={() => void submitAdd()} disabled={saving} sx={btnSx}>
+                  Save
+                </Button>
+              </Box>
+            </Stack>
+
+            {renderStagesSection(
+              stages,
+              (id) => removeCreateStage(id),
+              addStageToCreate,
+            )}
+          </SectionCard>
+        ) : null}
+
+        {/* ── Filter Bar ── */}
+        <SectionCard title="Filters" icon={<FilterList sx={{ fontSize: '1rem' }} />}>
+          <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+            <TextField
+              size="small"
+              placeholder="Search code or description..."
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search sx={{ fontSize: '1.1rem', color: colors.slate[400] }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+              sx={{ flex: '2 1 250px', '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem', bgcolor: colors.bg.page } }}
+            />
+            <FormControl size="small" sx={{ flex: '1 1 160px' }}>
+              <InputLabel>Category</InputLabel>
+              <Select label="Category" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
+                <MenuItem value="">All categories</MenuItem>
+                {categories.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ flex: '1 1 140px' }}>
+              <InputLabel>Shop</InputLabel>
+              <Select label="Shop" value={filterShop} onChange={(e) => setFilterShop(e.target.value)}>
+                <MenuItem value="">All shops</MenuItem>
+                {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ flex: '1 1 120px' }}>
+              <InputLabel>Size</InputLabel>
+              <Select label="Size" value={filterSize} onChange={(e) => setFilterSize(e.target.value)}>
+                <MenuItem value="">All sizes</MenuItem>
+                {VEHICLE_SIZES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              </Select>
+            </FormControl>
+          </Stack>
+        </SectionCard>
+
+        <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
           {hasFilter
             ? `Showing ${displayRows.length} of ${services.length} services`
             : `${services.length} services — use filters above to search`}
         </Typography>
 
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 800 }}>Code</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Section</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Size</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Severity</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Time (m)</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>MRP (BDT)</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Stages</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {displayRows.map((s) => (
-                <Fragment key={s.id}>
-                  <TableRow hover sx={{ cursor: 'pointer' }} onClick={() => setStageViewId(stageViewId === s.id ? null : s.id)}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                        {s.code}
-                      </Typography>
-                    </TableCell>
-                    <TableCell><Chip size="small" label={s.category} variant="outlined" /></TableCell>
-                    <TableCell><Typography variant="body2" color="text.secondary">{s.section ?? '—'}</Typography></TableCell>
-                    <TableCell>{s.description}</TableCell>
-                    <TableCell><Chip size="small" label={shopById.get(s.shopId)?.name ?? '—'} variant="outlined" /></TableCell>
-                    <TableCell>{s.vehicleSize ? <Chip size="small" label={s.vehicleSize} color="info" variant="outlined" /> : '—'}</TableCell>
-                    <TableCell>{s.severity ? <Chip size="small" label={s.severity} color={s.severity === 'Severe' ? 'error' : s.severity === 'Medium' ? 'warning' : 'default'} variant="outlined" /> : '—'}</TableCell>
-                    <TableCell align="right">{s.processTimeMins}</TableCell>
-                    <TableCell align="right"><Typography sx={{ fontWeight: 700 }}>{fmt(s.price)}</Typography></TableCell>
-                    <TableCell>{s.stages?.length ? <Chip size="small" label={`${s.stages.length} stages`} color="primary" variant="outlined" /> : '—'}</TableCell>
-                    <TableCell><Chip size="small" label={s.status} color={s.status === 'Active' ? 'success' : 'default'} /></TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                        <Button size="small" onClick={(e) => { e.stopPropagation(); startEdit(s.id) }} disabled={saving}>Edit</Button>
-                        <Button
-                          size="small"
-                          color={s.status === 'Active' ? 'warning' : 'success'}
-                          onClick={(e) => { e.stopPropagation(); void toggleStatus(s) }}
-                          disabled={saving}
-                        >
-                          {s.status === 'Active' ? 'Deactivate' : 'Activate'}
-                        </Button>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                  {stageViewId === s.id ? (
-                    <TableRow>
-                      <TableCell colSpan={12} sx={{ bgcolor: 'action.hover', py: 0 }}>
-                        <Collapse in={stageViewId === s.id}>
-                          <Box sx={{ p: 2 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
-                              Stages for {s.code} — {s.description}
-                            </Typography>
-                            {s.stages?.length ? (
-                              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mb: 1.5 }}>
-                                {[...s.stages].sort((a, b) => a.order - b.order).map((stage) => (
-                                  <Chip
-                                    key={stage.id}
-                                    label={`${stage.order}. ${stage.name} (${stage.durationMins}m)`}
-                                    onDelete={
-                                      saving
-                                        ? undefined
-                                        : () => {
-                                            const nextStages = (s.stages ?? [])
-                                              .filter((item) => item.id !== stage.id)
-                                              .map((item, i) => ({ ...item, order: i + 1 }))
-                                            void persistStages(s.id, nextStages)
-                                          }
-                                    }
-                                    variant="outlined"
-                                    color="primary"
-                                  />
-                                ))}
-                              </Stack>
-                            ) : (
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                                No stages defined. Add stages to enable per-stage scheduling.
-                              </Typography>
-                            )}
-                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                              <TextField size="small" label="Stage name" value={newStageName} onChange={(e) => setNewStageName(e.target.value)} sx={{ width: 200 }} />
-                              <TextField size="small" label="Duration (mins)" type="number" value={newStageDuration} onChange={(e) => setNewStageDuration(e.target.value)} sx={{ width: 160 }} />
-                              <Button
-                                variant="outlined"
-                                onClick={() => {
-                                  if (!newStageName.trim()) return
-                                  const dur = parseFloat(newStageDuration)
-                                  if (isNaN(dur) || dur <= 0) return
-                                  const currentStages = [...(s.stages ?? [])]
-                                  const nextStage = {
-                                    id: newStageId(),
-                                    name: newStageName.trim(),
-                                    order: currentStages.length + 1,
-                                    durationMins: dur,
-                                  }
-                                  void persistStages(s.id, [...currentStages, nextStage])
-                                  setNewStageName('')
-                                  setNewStageDuration('')
-                                }}
-                                disabled={saving}
-                              >
-                                Add Stage
-                              </Button>
-                            </Stack>
-                          </Box>
-                        </Collapse>
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </Fragment>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+        {/* ── Services Table ── */}
+        <DataTable
+          columns={columns}
+          rows={displayRows}
+          keyExtractor={(s) => s.id}
+          loading={loading}
+          loadingRows={8}
+          emptyIcon={<MiscellaneousServices />}
+          emptyTitle={hasFilter ? 'No matching services' : 'No services yet'}
+          emptyDescription={hasFilter ? 'Try adjusting your filters.' : 'Add your first service to the catalogue.'}
+        />
       </Stack>
 
-      <Dialog open={editId !== null} onClose={() => setEditId(null)} fullWidth maxWidth="lg">
-        <DialogTitle>Edit service</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-              <TextField label="Code" size="small" value={editCode} onChange={(e) => setEditCode(e.target.value)} sx={{ flex: '1 1 120px' }} />
-              <TextField label="Category" size="small" value={editCategory} onChange={(e) => setEditCategory(e.target.value)} sx={{ flex: '1 1 160px' }} />
-              <TextField label="Section" size="small" value={editSection} onChange={(e) => setEditSection(e.target.value)} sx={{ flex: '1 1 160px' }} />
-              <FormControl size="small" sx={{ flex: '1 1 180px' }}>
-                <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={editShopId} onChange={(e) => setEditShopId(e.target.value)}>
-                  {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Stack>
-            <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-              <TextField label="Description" size="small" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} sx={{ flex: '2 1 300px' }} />
-              <FormControl size="small" sx={{ flex: '1 1 120px' }}>
-                <InputLabel>Size</InputLabel>
-                <Select label="Size" value={editVehicleSize} onChange={(e) => setEditVehicleSize(e.target.value as CWVehicleSize)}>
-                  <MenuItem value="">— Any —</MenuItem>
-                  {VEHICLE_SIZES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ flex: '1 1 120px' }}>
-                <InputLabel>Severity</InputLabel>
-                <Select label="Severity" value={editSeverity} onChange={(e) => setEditSeverity(e.target.value as CWServiceSeverity)}>
-                  <MenuItem value="">— Any —</MenuItem>
-                  {SEVERITIES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Stack>
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <TextField label="Process Time (mins)" size="small" type="number" value={editProcessTimeMins} onChange={(e) => setEditProcessTimeMins(e.target.value)} sx={{ flex: '1 1 100px' }} />
-              <TextField label="Rate/hr (BDT)" size="small" type="number" value={editRatePerHr} onChange={(e) => setEditRatePerHr(e.target.value)} sx={{ flex: '1 1 130px' }} />
-              <TextField label="Price / MRP (BDT)" size="small" type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} sx={{ flex: '1 1 130px' }} />
-            </Stack>
-
-            <Stack spacing={1.5} sx={{ mt: 1 }}>
-              <Typography sx={{ fontWeight: 800 }}>Stages</Typography>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                <TextField size="small" label="Stage name" value={newStageName} onChange={(e) => setNewStageName(e.target.value)} />
-                <TextField size="small" label="Duration (mins)" type="number" value={newStageDuration} onChange={(e) => setNewStageDuration(e.target.value)} />
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    if (!newStageName.trim()) return
-                    const dur = parseFloat(newStageDuration)
-                    if (isNaN(dur) || dur <= 0) return
-                    setEditStages((current) => [
-                      ...current,
-                      { id: newStageId(), name: newStageName.trim(), order: current.length + 1, durationMins: dur },
-                    ])
-                    setNewStageName('')
-                    setNewStageDuration('')
-                  }}
-                >
-                  Add stage
-                </Button>
-              </Stack>
-              {editStages.length ? (
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                  {editStages.map((stage) => (
-                    <Chip
-                      key={stage.id}
-                      label={`${stage.order}. ${stage.name} (${stage.durationMins}m)`}
-                      onDelete={() => setEditStages((current) => current.filter((item) => item.id !== stage.id).map((item, i) => ({ ...item, order: i + 1 })))}
-                    />
-                  ))}
-                </Stack>
-              ) : (
-                <Typography variant="body2" color="text.secondary">No stages defined.</Typography>
-              )}
-            </Stack>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setEditId(null)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void submitEdit()} disabled={saving}>
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Page>
+      {/* ── Edit Dialog ── */}
+      <FormDialog
+        open={editId !== null}
+        onClose={() => setEditId(null)}
+        title="Edit service"
+        icon={<Edit />}
+        onSubmit={() => void submitEdit()}
+        submitLabel="Save"
+        submitDisabled={saving}
+        maxWidth="lg"
+      >
+        {renderServiceFormFields(
+          editCode, setEditCode,
+          editCategory, setEditCategory,
+          editSection, setEditSection,
+          editDescription, setEditDescription,
+          editVehicleSize, setEditVehicleSize,
+          editSeverity, setEditSeverity,
+          editProcessTimeMins, setEditProcessTimeMins,
+          editRatePerHr, setEditRatePerHr,
+          editPrice, setEditPrice,
+          editShopId, setEditShopId,
+        )}
+        {renderStagesSection(
+          editStages,
+          (id) => setEditStages((current) => current.filter((item) => item.id !== id).map((item, i) => ({ ...item, order: i + 1 }))),
+          addStageToEdit,
+        )}
+      </FormDialog>
+    </Box>
   )
 }

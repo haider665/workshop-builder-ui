@@ -8,26 +8,28 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  Paper,
+  IconButton,
   Stack,
   TextField,
   Typography,
 } from '@mui/material'
-import { ArrowBack, Pause, PlayArrow, Save } from '@mui/icons-material'
+import { ArrowBack, Assignment, AttachFile, ChatBubbleOutlined, Info, Pause, PlayArrow, Save } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { FieldRenderer } from '../../components/FieldRenderer'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
+import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useSessionStore } from '../../store/sessionStore'
 import { tasksService } from '../../services/tasks/tasksService'
 import type { CWTask, CWTaskField, CWTaskFieldValue, CWTaskStatus } from '../../types/cw'
 
 function statusChip(status: CWTaskStatus) {
-  if (status === 'Assigned') return <Chip size="small" color="info" label="Assigned" />
-  if (status === 'In Progress') return <Chip size="small" color="primary" label="In Progress" />
-  if (status === 'Pending') return <Chip size="small" color="warning" label="Pending" />
-  return <Chip size="small" color="success" label="Completed" />
+  const sx = { fontWeight: 700, fontSize: '0.72rem' }
+  if (status === 'Assigned') return <Chip size="small" color="info" label="Assigned" sx={sx} />
+  if (status === 'In Progress') return <Chip size="small" color="primary" label="In Progress" sx={sx} />
+  if (status === 'Pending') return <Chip size="small" color="warning" label="Pending" sx={sx} />
+  return <Chip size="small" color="success" label="Completed" sx={sx} />
 }
 
 function sortFields(fields: CWTaskField[]) {
@@ -46,6 +48,16 @@ function validateRequired(fields: CWTaskField[], values: Record<string, CWTaskFi
     if (!ok) missing.push(f.label)
   }
   return missing
+}
+
+/** Info row inside SectionCard */
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <Stack direction="row" sx={{ alignItems: 'center', py: 1.25, borderBottom: `1px solid ${colors.border.subtle}` }}>
+      <Typography sx={{ width: 180, flexShrink: 0, fontSize: '0.82rem', color: colors.slate[500], fontWeight: 500 }}>{label}</Typography>
+      <Typography component="div" sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900], flex: 1 }}>{value}</Typography>
+    </Stack>
+  )
 }
 
 export function TaskDetailPage() {
@@ -162,26 +174,35 @@ export function TaskDetailPage() {
 
   if (!taskId) {
     return (
-      <Page title="Task" subtitle="Task execution">
+      <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
         <Alert severity="error">Missing task id.</Alert>
-      </Page>
+      </Box>
     )
   }
 
   if (!task) {
     return (
-      <Page title="Task" subtitle="Task execution">
-        <Paper sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Stack spacing={1.5}>
-            <Typography sx={{ fontWeight: 900 }}>Task not found</Typography>
-            <Box>
-              <Button variant="contained" component={RouterLink} to="/tasks" startIcon={<ArrowBack />}>
-                Back to tasks
-              </Button>
-            </Box>
+      <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+        <Stack spacing={3}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <IconButton onClick={() => navigate('/tasks')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
+            <Typography sx={{ fontWeight: 800, fontSize: '1.5rem', color: colors.slate[900] }}>Task not found</Typography>
           </Stack>
-        </Paper>
-      </Page>
+          <Box>
+            <Button
+              variant="contained"
+              component={RouterLink}
+              to="/tasks"
+              startIcon={<ArrowBack />}
+              sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+            >
+              Back to tasks
+            </Button>
+          </Box>
+        </Stack>
+      </Box>
     )
   }
 
@@ -193,116 +214,124 @@ export function TaskDetailPage() {
   const canCompleteNow = canComplete && missingRequired.length === 0
   const vehiclePrefix = task.registrationNo ? `Vehicle: ${task.registrationNo} · ` : ''
 
+  const actionBtnSx = { fontWeight: 600, borderRadius: '10px', px: 2.5 }
+
   return (
-    <Page
-      title={task.title}
-      subtitle={`${vehiclePrefix}Shop: ${shopName}${bayName ? ` · Bay: ${bayName}` : ''} · Template: ${task.templateName}`}
-      actions={
-        <Stack direction="row" spacing={1}>
-          <Button variant="outlined" startIcon={<ArrowBack />} onClick={() => navigate('/tasks')}>
-            Back
-          </Button>
-          {canStart ? (
-            <Button variant="contained" startIcon={<PlayArrow />} onClick={() => setStatus('In Progress')}>
-              Start
-            </Button>
-          ) : null}
-          {canResume ? (
-            <Button variant="contained" startIcon={<PlayArrow />} onClick={() => setStatus('In Progress')}>
-              Resume
-            </Button>
-          ) : null}
-          {canPending ? (
-            <Button variant="outlined" startIcon={<Pause />} onClick={() => setPendingOpen(true)}>
-              Pending
-            </Button>
-          ) : null}
-          {canComplete ? (
-            <Button
-              variant="contained"
-              color="success"
-              startIcon={<Save />}
-              disabled={!canCompleteNow}
-              onClick={() => setStatus('Completed')}
-            >
-              Complete
-            </Button>
-          ) : null}
-        </Stack>
-      }
-    >
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      {isBlocked ? (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          <Typography sx={{ fontWeight: 800 }}>This task is blocked by dependencies.</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Blocked by: {dependencyBlockers.map((d) => `${d.title} (${d.status})`).join(', ') || '—'}
-          </Typography>
-        </Alert>
-      ) : null}
-      {task.dependencyOverrideReason ? (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Dependency override: {task.dependencyOverrideReason}
-        </Alert>
-      ) : null}
-
-      <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            {statusChip(task.status)}
-            <Typography color="text.secondary">
-              Assigned to {(task.assignedToNames?.length ? task.assignedToNames : [task.assignedToName]).join(', ')}
-            </Typography>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <IconButton onClick={() => navigate('/tasks')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+                {task.title}
+              </Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+                {vehiclePrefix}Shop: {shopName}{bayName ? ` · Bay: ${bayName}` : ''} · Template: {task.templateName}
+              </Typography>
+            </Box>
           </Stack>
-          <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="body2" color="text.secondary">
-            Auto-saved (in-memory) · Updated {new Date(task.updatedAt).toLocaleString()}
-          </Typography>
-        </Stack>
-        {dependencyTasks.length ? (
-          <Stack direction="row" spacing={1} sx={{ mt: 1.25, flexWrap: 'wrap' }} useFlexGap>
-            <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5 }}>
-              Depends on:
-            </Typography>
-            {dependencyTasks.map((d) => (
-              <Chip
-                key={d.id}
-                size="small"
-                variant="outlined"
-                color={d.status === 'Completed' ? 'success' : 'warning'}
-                label={`${d.title} · ${d.status}`}
-              />
-            ))}
+          <Stack direction="row" spacing={1}>
+            {canStart ? (
+              <Button variant="contained" startIcon={<PlayArrow />} onClick={() => setStatus('In Progress')} sx={{ ...actionBtnSx, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
+                Start
+              </Button>
+            ) : null}
+            {canResume ? (
+              <Button variant="contained" startIcon={<PlayArrow />} onClick={() => setStatus('In Progress')} sx={{ ...actionBtnSx, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
+                Resume
+              </Button>
+            ) : null}
+            {canPending ? (
+              <Button variant="outlined" startIcon={<Pause />} onClick={() => setPendingOpen(true)} sx={{ ...actionBtnSx, borderColor: colors.border.strong, color: colors.slate[700] }}>
+                Pending
+              </Button>
+            ) : null}
+            {canComplete ? (
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<Save />}
+                disabled={!canCompleteNow}
+                onClick={() => setStatus('Completed')}
+                sx={actionBtnSx}
+              >
+                Complete
+              </Button>
+            ) : null}
           </Stack>
-        ) : null}
-        {task.plannedStartAt || task.plannedEndAt ? (
-          <Typography sx={{ mt: 1.25 }} color="text.secondary">
-            Planned: {task.plannedStartAt ? new Date(task.plannedStartAt).toLocaleString() : '—'} →{' '}
-            {task.plannedEndAt ? new Date(task.plannedEndAt).toLocaleString() : '—'}
-          </Typography>
-        ) : null}
-        {task.status === 'Pending' && task.pendingReason ? (
-          <Typography sx={{ mt: 1.5 }}>
-            <Typography component="span" sx={{ fontWeight: 800 }}>
-              Pending reason:
-            </Typography>{' '}
-            {task.pendingReason}
-          </Typography>
-        ) : null}
-      </Paper>
+        </Stack>
 
-      <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-        <Stack spacing={2}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
-            Task form
-          </Typography>
+        {error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : null}
+
+        {isBlocked ? (
+          <Alert severity="warning">
+            <Typography sx={{ fontWeight: 800 }}>This task is blocked by dependencies.</Typography>
+            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>
+              Blocked by: {dependencyBlockers.map((d) => `${d.title} (${d.status})`).join(', ') || '—'}
+            </Typography>
+          </Alert>
+        ) : null}
+        {task.dependencyOverrideReason ? (
+          <Alert severity="info">
+            Dependency override: {task.dependencyOverrideReason}
+          </Alert>
+        ) : null}
+
+        {/* ── Status & info ── */}
+        <SectionCard title="Task Info" icon={<Info sx={{ fontSize: '1rem' }} />}>
+          <InfoRow
+            label="Status"
+            value={
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                {statusChip(task.status)}
+              </Stack>
+            }
+          />
+          <InfoRow
+            label="Assigned to"
+            value={(task.assignedToNames?.length ? task.assignedToNames : [task.assignedToName]).join(', ')}
+          />
+          <InfoRow label="Last updated" value={`Auto-saved (in-memory) · ${new Date(task.updatedAt).toLocaleString()}`} />
+          {dependencyTasks.length ? (
+            <InfoRow
+              label="Depends on"
+              value={
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }} useFlexGap>
+                  {dependencyTasks.map((d) => (
+                    <Chip
+                      key={d.id}
+                      size="small"
+                      variant="outlined"
+                      color={d.status === 'Completed' ? 'success' : 'warning'}
+                      label={`${d.title} · ${d.status}`}
+                      sx={{ fontWeight: 700, fontSize: '0.72rem' }}
+                    />
+                  ))}
+                </Stack>
+              }
+            />
+          ) : null}
+          {task.plannedStartAt || task.plannedEndAt ? (
+            <InfoRow
+              label="Planned"
+              value={`${task.plannedStartAt ? new Date(task.plannedStartAt).toLocaleString() : '—'} → ${task.plannedEndAt ? new Date(task.plannedEndAt).toLocaleString() : '—'}`}
+            />
+          ) : null}
+          {task.status === 'Pending' && task.pendingReason ? (
+            <InfoRow label="Pending reason" value={task.pendingReason} />
+          ) : null}
+        </SectionCard>
+
+        {/* ── Task form ── */}
+        <SectionCard title="Task Form" icon={<Assignment sx={{ fontSize: '1rem' }} />}>
           {!orderedFields.length ? (
-            <Typography color="text.secondary">No fields configured for this task.</Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No fields configured for this task.</Typography>
           ) : (
             <Stack spacing={2}>
               {orderedFields.map((f) => (
@@ -317,20 +346,20 @@ export function TaskDetailPage() {
             </Stack>
           )}
           {missingRequired.length ? (
-            <Alert severity="warning">
+            <Alert severity="warning" sx={{ mt: 2 }}>
               Required fields missing: {missingRequired.join(', ')}
             </Alert>
           ) : null}
-        </Stack>
-      </Paper>
+        </SectionCard>
 
-      <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-        <Stack spacing={2}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
-            Attachments
-          </Typography>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-            <Button variant="outlined" component="label">
+        {/* ── Attachments ── */}
+        <SectionCard title="Attachments" icon={<AttachFile sx={{ fontSize: '1rem' }} />}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, mb: 2 }}>
+            <Button
+              variant="outlined"
+              component="label"
+              sx={{ borderColor: colors.border.strong, color: colors.slate[700], fontWeight: 600, borderRadius: '10px' }}
+            >
               Upload
               <input
                 hidden
@@ -343,54 +372,50 @@ export function TaskDetailPage() {
                 }}
               />
             </Button>
-            <Typography variant="body2" color="text.secondary">
+            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
               Files are tracked in-memory (name/type/size only).
             </Typography>
           </Stack>
 
           {!taskAttachments.length ? (
-            <Typography color="text.secondary">No attachments yet.</Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No attachments yet.</Typography>
           ) : (
             <Stack spacing={1}>
               {taskAttachments.map((a) => (
                 <Stack key={a.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <Chip label={a.fileName} variant="outlined" />
-                  <Typography variant="caption" color="text.secondary">
+                  <Chip label={a.fileName} variant="outlined" sx={{ fontWeight: 600, fontSize: '0.8rem' }} />
+                  <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
                     {Math.round(a.sizeBytes / 1024)} KB · {a.mimeType}
                   </Typography>
                 </Stack>
               ))}
             </Stack>
           )}
-        </Stack>
-      </Paper>
+        </SectionCard>
 
-      <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-        <Stack spacing={2}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
-            Comments
-          </Typography>
+        {/* ── Comments ── */}
+        <SectionCard title="Comments" icon={<ChatBubbleOutlined sx={{ fontSize: '1rem' }} />}>
           {!taskComments.length ? (
-            <Typography color="text.secondary">No comments yet.</Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No comments yet.</Typography>
           ) : (
             <Stack spacing={1.25}>
               {taskComments.map((c) => (
-                <Paper key={c.id} variant="outlined" sx={{ p: 1.5 }}>
+                <Box key={c.id} sx={{ p: 1.5, borderRadius: radii.sm, border: `1px solid ${colors.border.subtle}`, bgcolor: colors.bg.subtle }}>
                   <Stack spacing={0.5}>
                     <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <Typography sx={{ fontWeight: 800 }}>{c.authorName}</Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: colors.slate[900] }}>{c.authorName}</Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
                         {new Date(c.createdAt).toLocaleString()}
                       </Typography>
                     </Stack>
-                    <Typography>{c.message}</Typography>
+                    <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700] }}>{c.message}</Typography>
                   </Stack>
-                </Paper>
+                </Box>
               ))}
             </Stack>
           )}
 
-          <Divider />
+          <Divider sx={{ my: 2 }} />
 
           <Stack spacing={1}>
             <TextField
@@ -400,53 +425,59 @@ export function TaskDetailPage() {
               fullWidth
               multiline
               minRows={2}
+              size="small"
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
             />
             <Box>
               <Button
                 variant="contained"
                 onClick={addComment}
                 disabled={!user || !commentDraft.trim()}
+                sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
               >
                 Post
               </Button>
             </Box>
           </Stack>
-        </Stack>
-      </Paper>
+        </SectionCard>
 
-      <Dialog open={pendingOpen} onClose={() => setPendingOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Mark as Pending</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Typography color="text.secondary">
-              Pending requires a reason.
-            </Typography>
-            <TextField
-              label="Reason"
-              value={pendingReason}
-              onChange={(e) => setPendingReason(e.target.value)}
-              fullWidth
-              multiline
-              minRows={3}
-              autoFocus
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setPendingOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setStatus('Pending', pendingReason)
-              setPendingReason('')
-              setPendingOpen(false)
-            }}
-            disabled={!pendingReason.trim()}
-          >
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Page>
+        <Dialog open={pendingOpen} onClose={() => setPendingOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle sx={{ fontWeight: 800, color: colors.slate[900] }}>Mark as Pending</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>
+                Pending requires a reason.
+              </Typography>
+              <TextField
+                label="Reason"
+                value={pendingReason}
+                onChange={(e) => setPendingReason(e.target.value)}
+                fullWidth
+                multiline
+                minRows={3}
+                autoFocus
+                size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setPendingOpen(false)} sx={{ color: colors.slate[600] }}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                setStatus('Pending', pendingReason)
+                setPendingReason('')
+                setPendingOpen(false)
+              }}
+              disabled={!pendingReason.trim()}
+              sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+            >
+              Confirm
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Stack>
+    </Box>
   )
 }

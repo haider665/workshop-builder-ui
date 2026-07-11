@@ -3,30 +3,25 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   MenuItem,
-  Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Edit } from '@mui/icons-material'
+import { Add, Edit, Groups } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
+import { DataTable } from '../../components/DataTable'
+import { FormDialog } from '../../components/FormDialog'
+import type { Column } from '../../components/DataTable'
 import type { CWRole, CWTeam, CWTeamStatus, CWUser } from '../../types/cw'
 import { rolesService } from '../../services/admin/rolesService'
 import { teamsService } from '../../services/admin/teamsService'
 import { usersService } from '../../services/admin/usersService'
+import { colors } from '../../theme/tokens'
+
+/* ─────────────────────── Helpers ─────────────────────────── */
 
 type TeamDraft = {
   name: string
@@ -39,14 +34,29 @@ function emptyDraft(): TeamDraft {
   return { name: '', seUserId: '', technicianUserIds: [], status: 'Active' }
 }
 
-function toDraft(team: CWTeam): TeamDraft {
+function toDraft(team?: CWTeam): TeamDraft {
   return {
-    name: team.name,
-    seUserId: team.seUserId,
-    technicianUserIds: [...team.technicianUserIds],
-    status: team.status,
+    name: team?.name ?? '',
+    seUserId: team?.seUserId ?? '',
+    technicianUserIds: team ? [...team.technicianUserIds] : [],
+    status: team?.status ?? 'Active',
   }
 }
+
+function statusChip(status: CWTeamStatus) {
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+}
+
+const btnSx = {
+  bgcolor: colors.slate[900],
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2.5,
+  '&:hover': { bgcolor: colors.slate[800] },
+} as const
+
+/* ─────────────────────── Component ─────────────────────────── */
 
 export function TeamsPage() {
   const [teams, setTeams] = useState<CWTeam[]>([])
@@ -57,7 +67,9 @@ export function TeamsPage() {
   const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editTeam, setEditTeam] = useState<CWTeam | null>(null)
-  const [draft, setDraft] = useState<TeamDraft>(emptyDraft())
+
+  const [createDraft, setCreateDraft] = useState<TeamDraft>(emptyDraft())
+  const [editDraft, setEditDraft] = useState<TeamDraft>(emptyDraft())
 
   useEffect(() => {
     let active = true
@@ -105,26 +117,28 @@ export function TeamsPage() {
     return map
   }, [users])
 
+  /* ── CRUD Operations ── */
+
   function openCreate() {
-    setDraft(emptyDraft())
+    setCreateDraft(emptyDraft())
     setCreateOpen(true)
   }
 
   function openEdit(team: CWTeam) {
     setEditTeam(team)
-    setDraft(toDraft(team))
+    setEditDraft(toDraft(team))
   }
 
   async function submitCreate() {
-    if (!draft.name.trim() || !draft.seUserId) return
+    if (!createDraft.name.trim() || !createDraft.seUserId) return
     setSaving(true)
     setError(null)
     try {
       const created = await teamsService.create({
-        name: draft.name.trim(),
-        seUserId: draft.seUserId,
-        technicianUserIds: draft.technicianUserIds,
-        status: draft.status,
+        name: createDraft.name.trim(),
+        seUserId: createDraft.seUserId,
+        technicianUserIds: createDraft.technicianUserIds,
+        status: createDraft.status,
       })
       setTeams((current) => [created, ...current.filter((team) => team.id !== created.id)])
       setCreateOpen(false)
@@ -136,15 +150,15 @@ export function TeamsPage() {
   }
 
   async function submitEdit() {
-    if (!editTeam || !draft.name.trim() || !draft.seUserId) return
+    if (!editTeam || !editDraft.name.trim() || !editDraft.seUserId) return
     setSaving(true)
     setError(null)
     try {
       const updated = await teamsService.update(editTeam.id, {
-        name: draft.name.trim(),
-        seUserId: draft.seUserId,
-        technicianUserIds: draft.technicianUserIds,
-        status: draft.status,
+        name: editDraft.name.trim(),
+        seUserId: editDraft.seUserId,
+        technicianUserIds: editDraft.technicianUserIds,
+        status: editDraft.status,
       })
       setTeams((current) => current.map((team) => (team.id === updated.id ? updated : team)))
       setEditTeam(null)
@@ -155,172 +169,201 @@ export function TeamsPage() {
     }
   }
 
-  const isDialogOpen = createOpen || !!editTeam
+  /* ── Table Columns ── */
 
-  function closeDialog() {
-    setCreateOpen(false)
-    setEditTeam(null)
+  const columns: Column<CWTeam>[] = [
+    {
+      key: 'name',
+      header: 'Team Name',
+      minWidth: 180,
+      render: (team) => (
+        <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+          {team.name}
+        </Typography>
+      ),
+    },
+    {
+      key: 'se',
+      header: 'Service Engineer',
+      render: (team) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+          {userNameById.get(team.seUserId) ?? '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'technicians',
+      header: 'Technicians',
+      minWidth: 200,
+      render: (team) => (
+        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+          {team.technicianUserIds.length === 0 ? (
+            <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>None</Typography>
+          ) : (
+            team.technicianUserIds.map((tid) => (
+              <Chip key={tid} size="small" label={userNameById.get(tid) ?? tid} />
+            ))
+          )}
+        </Stack>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (team) => statusChip(team.status),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (team) => (
+        <Tooltip title="Edit">
+          <IconButton size="small" onClick={() => openEdit(team)} disabled={saving}>
+            <Edit fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
+    },
+  ]
+
+  function renderTeamFormFields(
+    draft: TeamDraft,
+    setDraft: React.Dispatch<React.SetStateAction<TeamDraft>>,
+  ) {
+    return (
+      <>
+        <TextField
+          label="Team Name"
+          value={draft.name}
+          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+          required
+          fullWidth
+        />
+        <TextField
+          label="Service Engineer"
+          select
+          value={draft.seUserId}
+          onChange={(e) => setDraft((d) => ({ ...d, seUserId: e.target.value }))}
+          required
+          fullWidth
+        >
+          <MenuItem value="">— Select SE —</MenuItem>
+          {seUsers.map((u) => (
+            <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Technicians"
+          select
+          value={draft.technicianUserIds}
+          onChange={(e) => {
+            const val = e.target.value
+            setDraft((d) => ({
+              ...d,
+              technicianUserIds: typeof val === 'string' ? val.split(',') : (val as string[]),
+            }))
+          }}
+          slotProps={{
+            select: { multiple: true },
+          }}
+          fullWidth
+          helperText="Select multiple technicians for this team"
+        >
+          {techUsers.map((u) => (
+            <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Status"
+          select
+          value={draft.status}
+          onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as CWTeamStatus }))}
+          fullWidth
+        >
+          <MenuItem value="Active">Active</MenuItem>
+          <MenuItem value="Inactive">Inactive</MenuItem>
+        </TextField>
+      </>
+    )
   }
 
+  /* ── Render ── */
+
   return (
-    <Page
-      title="Admin / Teams"
-      subtitle="Manage teams with SE and Technician assignments."
-      actions={
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate} sx={{ fontWeight: 700 }} disabled={saving}>
-          New Team
-        </Button>
-      }
-    >
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      {loading ? (
-        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Typography color="text.secondary">Loading teams from backend...</Typography>
-        </Paper>
-      ) : null}
-
-      <Stack spacing={2}>
-        {teams.length === 0 ? (
-          <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-            <Stack spacing={1.5}>
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>No teams yet</Typography>
-              <Typography color="text.secondary">
-                Create teams to group Service Engineers with Technicians for assignment.
-              </Typography>
-              <Box>
-                <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-                  Create Team
-                </Button>
-              </Box>
-            </Stack>
-          </Paper>
-        ) : (
-          <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Team Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Service Engineer</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Technicians</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {teams.map((team) => (
-                  <TableRow key={team.id} hover>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 700 }}>{team.name}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{userNameById.get(team.seUserId) ?? '—'}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                        {team.technicianUserIds.length === 0 ? (
-                          <Typography variant="body2" color="text.secondary">None</Typography>
-                        ) : (
-                          team.technicianUserIds.map((tid) => (
-                            <Chip key={tid} size="small" label={userNameById.get(tid) ?? tid} />
-                          ))
-                        )}
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        color={team.status === 'Active' ? 'success' : 'default'}
-                        label={team.status}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Edit">
-                        <IconButton onClick={() => openEdit(team)} disabled={saving}>
-                          <Edit fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
-        )}
-      </Stack>
-
-      <Dialog open={isDialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
-        <DialogTitle>{editTeam ? 'Edit Team' : 'Create Team'}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Team Name"
-              value={draft.name}
-              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Service Engineer"
-              select
-              value={draft.seUserId}
-              onChange={(e) => setDraft((d) => ({ ...d, seUserId: e.target.value }))}
-              required
-              fullWidth
-            >
-              <MenuItem value="">— Select SE —</MenuItem>
-              {seUsers.map((u) => (
-                <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Technicians"
-              select
-              value={draft.technicianUserIds}
-              onChange={(e) => {
-                const val = e.target.value
-                setDraft((d) => ({
-                  ...d,
-                  technicianUserIds: typeof val === 'string' ? val.split(',') : (val as string[]),
-                }))
-              }}
-              slotProps={{
-                select: { multiple: true },
-              }}
-              fullWidth
-              helperText="Select multiple technicians for this team"
-            >
-              {techUsers.map((u) => (
-                <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Status"
-              select
-              value={draft.status}
-              onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as CWTeamStatus }))}
-              fullWidth
-            >
-              <MenuItem value="Active">Active</MenuItem>
-              <MenuItem value="Inactive">Inactive</MenuItem>
-            </TextField>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={closeDialog}>Cancel</Button>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Teams
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage teams with SE and Technician assignments.</Typography>
+          </Box>
           <Button
             variant="contained"
-            onClick={() => void (editTeam ? submitEdit() : submitCreate())}
-            disabled={!draft.name.trim() || !draft.seUserId || saving}
+            startIcon={<Add />}
+            onClick={openCreate}
+            disabled={saving}
+            sx={btnSx}
           >
-            {editTeam ? 'Save' : 'Create'}
+            New Team
           </Button>
-        </DialogActions>
-      </Dialog>
-    </Page>
+        </Stack>
+
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        <DataTable
+          columns={columns}
+          rows={teams}
+          keyExtractor={(team) => team.id}
+          loading={loading}
+          emptyIcon={<Groups />}
+          emptyTitle="No teams yet"
+          emptyDescription="Create teams to group Service Engineers with Technicians for assignment."
+          emptyAction={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              disabled={saving}
+              sx={btnSx}
+            >
+              Create Team
+            </Button>
+          }
+        />
+      </Stack>
+
+      {/* ── Create Dialog ── */}
+      <FormDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Create team"
+        icon={<Groups />}
+        onSubmit={() => void submitCreate()}
+        submitLabel="Create"
+        submitDisabled={!createDraft.name.trim() || !createDraft.seUserId || saving}
+      >
+        {renderTeamFormFields(createDraft, setCreateDraft)}
+      </FormDialog>
+
+      {/* ── Edit Dialog ── */}
+      <FormDialog
+        open={!!editTeam}
+        onClose={() => setEditTeam(null)}
+        title="Edit team"
+        icon={<Edit />}
+        onSubmit={() => void submitEdit()}
+        submitLabel="Save"
+        submitDisabled={!editDraft.name.trim() || !editDraft.seUserId || saving}
+      >
+        {renderTeamFormFields(editDraft, setEditDraft)}
+      </FormDialog>
+    </Box>
   )
 }

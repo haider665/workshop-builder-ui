@@ -1,17 +1,34 @@
 import {
   Box,
   Chip,
-  Paper,
   Stack,
   Typography,
 } from '@mui/material'
+import { Dashboard, Store } from '@mui/icons-material'
 import { useMemo } from 'react'
-import { Page } from '../../components/Page'
+import { StatCard } from '../../components/StatCard'
+import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
+import { colors, radii } from '../../theme/tokens'
 
 function fmtTime(iso?: string) {
   if (!iso) return '—'
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+}
+
+function bayChipColor(status: string, occupied: boolean): 'default' | 'warning' | 'success' {
+  if (status === 'Inactive') return 'default'
+  return occupied ? 'warning' : 'success'
+}
+
+function bayBorder(status: string, occupied: boolean): string {
+  if (status === 'Inactive') return colors.slate[300]
+  return occupied ? colors.status.warning : colors.status.success
+}
+
+function bayBg(status: string, occupied: boolean): string {
+  if (status === 'Inactive') return colors.bg.subtle
+  return occupied ? 'rgba(245,158,11,0.04)' : 'rgba(16,185,129,0.04)'
 }
 
 export function JCBayManagementPage() {
@@ -108,94 +125,96 @@ export function JCBayManagementPage() {
   const occupiedCount = activeBays.filter((b) => (bayOccupancy.get(b.id)?.length ?? 0) > 0).length
 
   return (
-    <Page title="Bay Management" subtitle="View all bays and their current occupancy">
-      <Stack spacing={2.5}>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Box>
+          <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+            Bay Management
+          </Typography>
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+            View all bays and their current occupancy
+          </Typography>
+        </Box>
+
         {/* Stats */}
-        <Stack direction="row" spacing={2}>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900 }}>{activeBays.length}</Typography>
-            <Typography variant="body2" color="text.secondary">Total Bays</Typography>
-          </Paper>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900, color: 'warning.main' }}>{occupiedCount}</Typography>
-            <Typography variant="body2" color="text.secondary">Occupied</Typography>
-          </Paper>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900, color: 'success.main' }}>{activeBays.length - occupiedCount}</Typography>
-            <Typography variant="body2" color="text.secondary">Available</Typography>
-          </Paper>
+        <Stack direction="row" sx={{ gap: 2, flexWrap: 'wrap' }}>
+          <StatCard icon={<Dashboard fontSize="small" />} title="Total Bays" value={activeBays.length} gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)" />
+          <StatCard icon={<Dashboard fontSize="small" />} title="Occupied" value={occupiedCount} gradient="linear-gradient(135deg, #F59E0B 0%, #D97706 100%)" />
+          <StatCard icon={<Dashboard fontSize="small" />} title="Available" value={activeBays.length - occupiedCount} gradient="linear-gradient(135deg, #10B981 0%, #059669 100%)" />
         </Stack>
 
         {/* Bays grouped by shop */}
         {Array.from(baysByShop.entries()).map(([shopId, shopBays]) => (
-          <Paper key={shopId} sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-            <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
-              <Typography sx={{ fontWeight: 900 }}>{shopNameById.get(shopId) ?? 'Unknown Shop'}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {shopBays.length} bay{shopBays.length !== 1 ? 's' : ''}
-              </Typography>
-            </Box>
-            <Stack direction="row" sx={{ p: 2, flexWrap: 'wrap', gap: 2 }}>
+          <SectionCard
+            key={shopId}
+            title={shopNameById.get(shopId) ?? 'Unknown Shop'}
+            icon={<Store sx={{ fontSize: '1rem' }} />}
+            actions={
+              <Chip size="small" label={`${shopBays.length} bay${shopBays.length !== 1 ? 's' : ''}`}
+                sx={{ fontWeight: 700, fontSize: '0.72rem', bgcolor: colors.slate[100], color: colors.slate[600] }} />
+            }
+          >
+            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 2 }}>
               {shopBays.map((bay) => {
                 const items = bayOccupancy.get(bay.id) ?? []
                 const isOccupied = items.length > 0
                 return (
-                  <Paper
+                  <Box
                     key={bay.id}
-                    variant="outlined"
                     sx={{
-                      p: 2,
-                      minWidth: 240,
-                      flex: '1 1 240px',
-                      maxWidth: 360,
-                      borderColor: bay.status === 'Inactive' ? 'grey.300' : isOccupied ? 'warning.main' : 'success.main',
-                      borderWidth: 2,
-                      bgcolor: bay.status === 'Inactive' ? 'grey.50' : isOccupied ? 'warning.50' : 'success.50',
+                      p: 2, minWidth: 240, flex: '1 1 240px', maxWidth: 360,
+                      borderRadius: radii.sm,
+                      border: `2px solid ${bayBorder(bay.status, isOccupied)}`,
+                      bgcolor: bayBg(bay.status, isOccupied),
                     }}
                   >
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography sx={{ fontWeight: 800 }}>{bay.name}</Typography>
+                      <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: colors.slate[900] }}>{bay.name}</Typography>
                       <Chip
                         size="small"
                         label={bay.status === 'Inactive' ? 'Inactive' : isOccupied ? 'Occupied' : 'Available'}
-                        color={bay.status === 'Inactive' ? 'default' : isOccupied ? 'warning' : 'success'}
-                        sx={{ fontWeight: 700 }}
+                        color={bayChipColor(bay.status, isOccupied)}
+                        sx={{ fontWeight: 700, fontSize: '0.72rem' }}
                       />
                     </Stack>
 
                     {items.length > 0 ? (
                       <Stack spacing={1}>
                         {items.slice(0, 3).map((item, idx) => (
-                          <Box key={idx} sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{item.vehicleReg}</Typography>
-                            <Typography variant="caption" color="text.secondary">{item.label}</Typography>
+                          <Box key={idx} sx={{
+                            p: 1, bgcolor: colors.bg.card, borderRadius: radii.sm,
+                            border: `1px solid ${colors.border.default}`,
+                          }}>
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: colors.slate[900] }}>{item.vehicleReg}</Typography>
+                            <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>{item.label}</Typography>
                             <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, alignItems: 'center' }}>
                               <Chip size="small" label={item.status}
                                 color={item.status === 'Completed' ? 'success' : item.status === 'In Progress' ? 'primary' : 'default'}
-                                sx={{ fontWeight: 600, fontSize: 10 }} />
-                              <Typography variant="caption" color="text.secondary">
+                                sx={{ fontWeight: 600, fontSize: '0.65rem' }} />
+                              <Typography sx={{ fontSize: '0.68rem', color: colors.slate[500] }}>
                                 {fmtTime(item.startAt)} – {fmtTime(item.endAt)}
                               </Typography>
                             </Stack>
-                            <Typography variant="caption" color="text.secondary">SE: {item.seName}</Typography>
+                            <Typography sx={{ fontSize: '0.68rem', color: colors.slate[500] }}>SE: {item.seName}</Typography>
                           </Box>
                         ))}
                         {items.length > 3 && (
-                          <Typography variant="caption" color="text.secondary">+{items.length - 3} more</Typography>
+                          <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>+{items.length - 3} more</Typography>
                         )}
                       </Stack>
                     ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], fontStyle: 'italic' }}>
                         No active assignments
                       </Typography>
                     )}
-                  </Paper>
+                  </Box>
                 )
               })}
             </Stack>
-          </Paper>
+          </SectionCard>
         ))}
       </Stack>
-    </Page>
+    </Box>
   )
 }

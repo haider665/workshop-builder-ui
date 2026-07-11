@@ -3,27 +3,43 @@ import {
   Box,
   Button,
   Chip,
-  Divider,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Snackbar,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
+import { Add, Category, ListAlt, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
+import { DataTable } from '../../components/DataTable'
+import { FormDialog } from '../../components/FormDialog'
+import type { Column } from '../../components/DataTable'
 import type { CWConcern, CWConcernCategory, CWShop } from '../../types/cw'
 import { shopsService } from '../../services/admin/shopsService'
 import { concernsService } from '../../services/admin/concernsService'
+import { colors } from '../../theme/tokens'
+
+/* ─────────────────────── Helpers ─────────────────────────── */
+
+function statusChip(status: string) {
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+}
+
+const btnSx = {
+  bgcolor: colors.slate[900],
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2.5,
+  '&:hover': { bgcolor: colors.slate[800] },
+} as const
+
+/* ─────────────────────── Component ─────────────────────────── */
 
 export function ConcernsPage() {
   const [shops, setShops] = useState<CWShop[]>([])
@@ -41,6 +57,9 @@ export function ConcernsPage() {
   const [newConcernEstTime, setNewConcernEstTime] = useState('30')
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+
+  const [catDialogOpen, setCatDialogOpen] = useState(false)
+  const [concernDialogOpen, setConcernDialogOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -79,6 +98,26 @@ export function ConcernsPage() {
   const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
   const activeShops = shops.filter((s) => s.status === 'Active')
 
+  /* ── CRUD Operations ── */
+
+  function openCatDialog() {
+    setNewCatName('')
+    setNewCatShopId(activeShops.length ? activeShops[0]!.id : '')
+    setCatDialogOpen(true)
+  }
+
+  function openConcernDialog() {
+    setNewConcernCode('')
+    setNewConcernName('')
+    setNewConcernEstTime('30')
+    setNewConcernCatId(
+      concernCategories.filter((c) => c.status === 'Active').length
+        ? concernCategories.filter((c) => c.status === 'Active')[0]!.id
+        : '',
+    )
+    setConcernDialogOpen(true)
+  }
+
   async function submitCategory() {
     try {
       setSaving(true)
@@ -88,6 +127,7 @@ export function ConcernsPage() {
       setConcernCategories((current) => [cat, ...current.filter((item) => item.id !== cat.id)])
       setNewCatName('')
       setNewCatShopId('')
+      setCatDialogOpen(false)
       setSuccessMessage(`Category created: ${cat.name}`)
       setSuccessOpen(true)
     } catch (e) {
@@ -113,6 +153,7 @@ export function ConcernsPage() {
       setNewConcernCode('')
       setNewConcernName('')
       setNewConcernEstTime('30')
+      setConcernDialogOpen(false)
       setSuccessMessage(`Concern created: ${c.name}`)
       setSuccessOpen(true)
     } catch (e) {
@@ -155,204 +196,326 @@ export function ConcernsPage() {
     }
   }
 
+  /* ── Category Table Columns ── */
+
+  const categoryColumns: Column<CWConcernCategory>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      minWidth: 180,
+      render: (cat) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+            {cat.name}
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 0.25 }}>
+            {cat.id}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'shop',
+      header: 'Shop',
+      render: (cat) => (
+        <Chip size="small" label={shopById.get(cat.shopId)?.name ?? '—'} variant="outlined" />
+      ),
+    },
+    {
+      key: 'items',
+      header: 'Items',
+      render: (cat) => (
+        <Chip
+          size="small"
+          label={concerns.filter((c) => c.categoryId === cat.id).length}
+          variant="outlined"
+        />
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (cat) => statusChip(cat.status),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (cat) => (
+        <Tooltip title={cat.status === 'Active' ? 'Deactivate' : 'Activate'}>
+          <IconButton
+            size="small"
+            onClick={() => void toggleCatStatus(cat.id, cat.status)}
+            disabled={saving}
+          >
+            {cat.status === 'Active' ? (
+              <ToggleOn fontSize="small" />
+            ) : (
+              <ToggleOff fontSize="small" />
+            )}
+          </IconButton>
+        </Tooltip>
+      ),
+    },
+  ]
+
+  /* ── Concern Table Columns ── */
+
+  const concernColumns: Column<CWConcern>[] = [
+    {
+      key: 'code',
+      header: 'Code',
+      render: (c) => (
+        <Typography
+          sx={{ fontWeight: 700, fontFamily: 'monospace', color: colors.slate[900], fontSize: '0.875rem' }}
+        >
+          {c.code || '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+      render: (c) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>
+          {catById.get(c.categoryId)?.name ?? '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'name',
+      header: 'Concern',
+      minWidth: 180,
+      render: (c) => (
+        <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+          {c.name}
+        </Typography>
+      ),
+    },
+    {
+      key: 'processTime',
+      header: 'Process Time',
+      render: (c) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>
+          {typeof c.processTimeMins === 'number' ? `${c.processTimeMins}m` : '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (c) => statusChip(c.status),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (c) => (
+        <Tooltip title={c.status === 'Active' ? 'Deactivate' : 'Activate'}>
+          <IconButton
+            size="small"
+            onClick={() => void toggleConcernStatus(c.id, c.status)}
+            disabled={saving}
+          >
+            {c.status === 'Active' ? (
+              <ToggleOn fontSize="small" />
+            ) : (
+              <ToggleOff fontSize="small" />
+            )}
+          </IconButton>
+        </Tooltip>
+      ),
+    },
+  ]
+
+  /* ── Render ── */
+
   return (
-    <Page title="Admin / Concerns" subtitle="Manage concern categories and items used in appointments.">
-      <Snackbar
-        open={successOpen}
-        onClose={() => setSuccessOpen(false)}
-        autoHideDuration={2500}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
-          {successMessage}
-        </Alert>
-      </Snackbar>
-
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      {loading ? (
-        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Typography color="text.secondary">Loading concerns from backend...</Typography>
-        </Paper>
-      ) : null}
-
-      <Stack spacing={3}>
-        <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-          <Typography sx={{ fontWeight: 900, mb: 2 }}>Add Concern Category</Typography>
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Shop</InputLabel>
-              <Select label="Shop" value={newCatShopId} onChange={(e) => setNewCatShopId(e.target.value)}>
-                {activeShops.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              label="Category name"
-              size="small"
-              value={newCatName}
-              onChange={(e) => setNewCatName(e.target.value)}
-              sx={{ flex: 1 }}
-            />
-            <Button variant="contained" onClick={() => void submitCategory()} sx={{ height: 40 }} disabled={saving}>
-              Add Category
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Concerns
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage concern categories and items used in appointments.</Typography>
+          </Box>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCatDialog}
+              disabled={saving}
+              sx={btnSx}
+            >
+              New Category
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openConcernDialog}
+              disabled={saving}
+              sx={btnSx}
+            >
+              New Concern
             </Button>
           </Stack>
-        </Paper>
+        </Stack>
 
-        <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-          <Typography sx={{ fontWeight: 900, mb: 2 }}>Add Concern Item</Typography>
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-            <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel>Category</InputLabel>
-              <Select label="Category" value={newConcernCatId} onChange={(e) => setNewConcernCatId(e.target.value)}>
-                {concernCategories
-                  .filter((c) => c.status === 'Active')
-                  .map((c) => (
-                    <MenuItem key={c.id} value={c.id}>
-                      {c.name}
-                    </MenuItem>
-                  ))}
-              </Select>
-            </FormControl>
-            <TextField
-              label="Code"
-              size="small"
-              value={newConcernCode}
-              onChange={(e) => setNewConcernCode(e.target.value)}
-              placeholder="e.g. CC-BRK-001"
-              sx={{ width: 160 }}
-            />
-            <TextField
-              label="Concern name"
-              size="small"
-              value={newConcernName}
-              onChange={(e) => setNewConcernName(e.target.value)}
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="Process Time (mins)"
-              size="small"
-              type="number"
-              value={newConcernEstTime}
-              onChange={(e) => setNewConcernEstTime(e.target.value)}
-              sx={{ width: 160 }}
-            />
-            <Button variant="contained" onClick={() => void submitConcern()} sx={{ height: 40 }} disabled={saving}>
-              Add Concern
-            </Button>
-          </Stack>
-        </Paper>
+        <Snackbar
+          open={successOpen}
+          onClose={() => setSuccessOpen(false)}
+          autoHideDuration={2500}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%', borderRadius: '10px' }}>
+            {successMessage}
+          </Alert>
+        </Snackbar>
 
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2 }}>
-            <Typography sx={{ fontWeight: 900 }}>Categories ({concernCategories.length})</Typography>
-          </Box>
-          <Divider />
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 800 }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Items</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {concernCategories.map((cat) => (
-                <TableRow key={cat.id} hover>
-                  <TableCell>{cat.name}</TableCell>
-                  <TableCell>
-                    <Chip size="small" label={shopById.get(cat.shopId)?.name ?? '—'} variant="outlined" />
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={concerns.filter((c) => c.categoryId === cat.id).length}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={cat.status}
-                      color={cat.status === 'Active' ? 'success' : 'default'}
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button size="small" onClick={() => void toggleCatStatus(cat.id, cat.status)} disabled={saving}>
-                      {cat.status === 'Active' ? 'Deactivate' : 'Activate'}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
 
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2 }}>
-            <Typography sx={{ fontWeight: 900 }}>All Concerns ({concerns.length})</Typography>
-          </Box>
-          <Divider />
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 800 }}>Code</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Process Time (mins)</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {concerns.map((c) => (
-                <TableRow key={c.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                      {c.code || '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {catById.get(c.categoryId)?.name ?? '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    {c.name}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {typeof c.processTimeMins === 'number' ? `${c.processTimeMins}m` : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={c.status}
-                      color={c.status === 'Active' ? 'success' : 'default'}
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button size="small" onClick={() => void toggleConcernStatus(c.id, c.status)} disabled={saving}>
-                      {c.status === 'Active' ? 'Deactivate' : 'Activate'}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+        {/* ── Categories Table ── */}
+        <Box>
+          <Typography
+            sx={{ fontWeight: 800, color: colors.slate[900], fontSize: '1rem', mb: 1.5 }}
+          >
+            Categories ({concernCategories.length})
+          </Typography>
+          <DataTable
+            columns={categoryColumns}
+            rows={concernCategories}
+            keyExtractor={(cat) => cat.id}
+            loading={loading}
+            emptyIcon={<Category />}
+            emptyTitle="No categories yet"
+            emptyDescription="Create a concern category to start organizing concerns by shop."
+            emptyAction={
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={openCatDialog}
+                disabled={saving}
+                sx={btnSx}
+              >
+                Create Category
+              </Button>
+            }
+          />
+        </Box>
+
+        {/* ── Concerns Table ── */}
+        <Box>
+          <Typography
+            sx={{ fontWeight: 800, color: colors.slate[900], fontSize: '1rem', mb: 1.5 }}
+          >
+            All Concerns ({concerns.length})
+          </Typography>
+          <DataTable
+            columns={concernColumns}
+            rows={concerns}
+            keyExtractor={(c) => c.id}
+            loading={loading}
+            emptyIcon={<ListAlt />}
+            emptyTitle="No concerns yet"
+            emptyDescription="Add concern items under a category to use in appointments."
+            emptyAction={
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={openConcernDialog}
+                disabled={saving}
+                sx={btnSx}
+              >
+                Create Concern
+              </Button>
+            }
+          />
+        </Box>
       </Stack>
-    </Page>
+
+      {/* ── Create Category Dialog ── */}
+      <FormDialog
+        open={catDialogOpen}
+        onClose={() => setCatDialogOpen(false)}
+        title="Create concern category"
+        icon={<Category />}
+        onSubmit={() => void submitCategory()}
+        submitLabel="Create"
+        submitDisabled={!newCatName.trim() || !newCatShopId || saving}
+      >
+        <FormControl fullWidth>
+          <InputLabel>Shop</InputLabel>
+          <Select label="Shop" value={newCatShopId} onChange={(e) => setNewCatShopId(e.target.value)}>
+            {activeShops.map((s) => (
+              <MenuItem key={s.id} value={s.id}>
+                {s.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <TextField
+          label="Category name"
+          value={newCatName}
+          onChange={(e) => setNewCatName(e.target.value)}
+          required
+          fullWidth
+        />
+      </FormDialog>
+
+      {/* ── Create Concern Dialog ── */}
+      <FormDialog
+        open={concernDialogOpen}
+        onClose={() => setConcernDialogOpen(false)}
+        title="Create concern"
+        icon={<ListAlt />}
+        onSubmit={() => void submitConcern()}
+        submitLabel="Create"
+        submitDisabled={!newConcernCatId || !newConcernName.trim() || saving}
+      >
+        <FormControl fullWidth>
+          <InputLabel>Category</InputLabel>
+          <Select
+            label="Category"
+            value={newConcernCatId}
+            onChange={(e) => setNewConcernCatId(e.target.value)}
+          >
+            {concernCategories
+              .filter((c) => c.status === 'Active')
+              .map((c) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.name}
+                </MenuItem>
+              ))}
+          </Select>
+        </FormControl>
+        <TextField
+          label="Code"
+          value={newConcernCode}
+          onChange={(e) => setNewConcernCode(e.target.value)}
+          placeholder="e.g. CC-BRK-001"
+          fullWidth
+        />
+        <TextField
+          label="Concern name"
+          value={newConcernName}
+          onChange={(e) => setNewConcernName(e.target.value)}
+          required
+          fullWidth
+        />
+        <TextField
+          label="Process Time (mins)"
+          type="number"
+          value={newConcernEstTime}
+          onChange={(e) => setNewConcernEstTime(e.target.value)}
+          fullWidth
+        />
+      </FormDialog>
+    </Box>
   )
 }

@@ -8,30 +8,72 @@ import {
   Button,
   Chip,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Stack,
   TextField,
   Typography,
 } from '@mui/material'
-import { ExpandMore } from '@mui/icons-material'
+import { ArrowBack, ExpandMore, Warning, Build, MedicalServices, DirectionsCar, AddCircleOutlined, LocalShipping } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { useNavigate, useParams } from 'react-router-dom'
+import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
+import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWConcernWorkStatus, CWServiceWorkStatus } from '../../types/cw'
 
 function fmtBDT(n: number) {
   return `BDT ${n.toLocaleString('en-BD')}`
 }
 
+/* ── Reusable info row ────────────────────────────────────── */
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <Stack direction="row" sx={{ alignItems: 'center', py: 1.25, borderBottom: `1px solid ${colors.border.subtle}` }}>
+      <Typography sx={{ width: 180, flexShrink: 0, fontSize: '0.82rem', color: colors.slate[500], fontWeight: 500 }}>{label}</Typography>
+      <Typography component="div" sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900], flex: 1 }}>{value}</Typography>
+    </Stack>
+  )
+}
+
+/* ── Styled item card ─────────────────────────────────────── */
+function ItemCard({ done, children }: { done?: boolean; children: React.ReactNode }) {
+  return (
+    <Box sx={{
+      p: 2.5, bgcolor: colors.bg.page, borderRadius: radii.md,
+      border: `1px solid ${done ? colors.status.success : colors.border.default}`,
+      transition: 'border-color 0.2s',
+    }}>
+      {children}
+    </Box>
+  )
+}
+
+/* ── Status chip with design tokens ───────────────────────── */
+function statusChipColor(status: string): 'success' | 'primary' | 'warning' | 'error' | 'info' | 'default' {
+  if (status === 'Completed') return 'success'
+  if (status === 'In Progress') return 'primary'
+  if (status === 'Paused') return 'warning'
+  if (status === 'Scheduled') return 'info'
+  return 'default'
+}
+
+/* ── Action button using design tokens ────────────────────── */
+const actionBtnSx = {
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2,
+  fontSize: '0.8rem',
+} as const
+
 export function SEAppointmentDetailPage() {
   const { appointmentId } = useParams<{ appointmentId: string }>()
+  const navigate = useNavigate()
 
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
@@ -112,9 +154,9 @@ export function SEAppointmentDetailPage() {
 
   if (!appt) {
     return (
-      <Page title="Appointment Not Found">
+      <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
         <Alert severity="error">Appointment not found.</Alert>
-      </Page>
+      </Box>
     )
   }
 
@@ -189,23 +231,33 @@ export function SEAppointmentDetailPage() {
   }
 
   return (
-    <Page title={`SE — ${vehicle?.registrationNo ?? 'Appointment'}`} subtitle={customer?.fullName ?? ''}>
-      <Stack spacing={2.5}>
-        {/* Header */}
-        <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* ── Header ── */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <IconButton onClick={() => navigate('/se')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
             <Box>
-              <Typography sx={{ fontWeight: 900, fontSize: '1.1rem' }}>
-                {vehicle?.registrationNo} · {vehicle?.make} {vehicle?.model}
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+                {vehicle?.registrationNo ?? 'Appointment'}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Customer: {customer?.fullName} · {customer?.phone}
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+                {customer?.fullName ?? ''} {customer?.phone ? `· ${customer.phone}` : ''}
               </Typography>
             </Box>
-            <Box sx={{ flexGrow: 1 }} />
-            <Chip label={appt.status} color="primary" sx={{ fontWeight: 800 }} />
           </Stack>
-        </Paper>
+          <Chip label={appt.status} color="primary" sx={{ fontWeight: 700, fontSize: '0.78rem', borderRadius: radii.full }} />
+        </Stack>
+
+        {/* ── Vehicle + Customer Summary Card ── */}
+        <SectionCard title="Vehicle Details" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />}>
+          <InfoRow label="Registration" value={vehicle?.registrationNo ?? '—'} />
+          <InfoRow label="Vehicle" value={`${vehicle?.make ?? ''} ${vehicle?.model ?? ''}`} />
+          <InfoRow label="Customer" value={customer?.fullName ?? '—'} />
+          <InfoRow label="Phone" value={customer?.phone ?? '—'} />
+        </SectionCard>
 
         {/* Vehicle + Customer Info */}
         <VehicleInfoBanner appointmentId={appt.id} />
@@ -215,9 +267,24 @@ export function SEAppointmentDetailPage() {
 
         {/* SA Health Check Report (readonly, collapsible) */}
         {appt.inspectionChecks.length > 0 && (
-          <Accordion disableGutters sx={{ border: '1px solid', borderColor: 'info.main', '&:before': { display: 'none' }, boxShadow: 'none' }}>
-            <AccordionSummary expandIcon={<ExpandMore />} sx={{ bgcolor: 'info.main', color: 'white', '& .MuiSvgIcon-root': { color: 'white' } }}>
-              <Typography sx={{ fontWeight: 900 }}>SA Health Check Report</Typography>
+          <Accordion disableGutters sx={{
+            border: `1px solid ${colors.border.default}`,
+            '&:before': { display: 'none' },
+            boxShadow: shadows.card,
+            borderRadius: `${radii.lg} !important`,
+            overflow: 'hidden',
+          }}>
+            <AccordionSummary expandIcon={<ExpandMore />} sx={{
+              bgcolor: colors.slate[900], color: 'white',
+              '& .MuiSvgIcon-root': { color: 'white' },
+              borderRadius: `${radii.lg} ${radii.lg} 0 0`,
+            }}>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                <MedicalServices sx={{ fontSize: '1.1rem' }} />
+                <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', letterSpacing: '0.01em', textTransform: 'uppercase' }}>
+                  SA Health Check Report
+                </Typography>
+              </Stack>
             </AccordionSummary>
             <AccordionDetails sx={{ p: 2.5 }}>
               <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
@@ -246,36 +313,41 @@ export function SEAppointmentDetailPage() {
           }
           if (pausedItems.length === 0) return null
           return (
-            <Alert severity="warning" sx={{ fontWeight: 700, border: '2px solid', borderColor: 'warning.main' }}>
-              <Typography sx={{ fontWeight: 900, mb: 1 }}>⚠ Technician Paused ({pausedItems.length})</Typography>
+            <Alert severity="warning" sx={{
+              fontWeight: 700,
+              border: `2px solid ${colors.status.warning}`,
+              borderRadius: radii.md,
+              '& .MuiAlert-icon': { alignItems: 'center' },
+            }}>
+              <Typography sx={{ fontWeight: 800, mb: 1, fontSize: '0.9rem' }}>⚠ Technician Paused ({pausedItems.length})</Typography>
               {pausedItems.map((p, idx) => (
                 <Box key={idx} sx={{ mb: 0.5 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    {p.techName} — paused "{p.itemName}"
+                    {p.techName} — paused &quot;{p.itemName}&quot;
                   </Typography>
-                  {p.reason && <Typography variant="body2" color="text.secondary">{p.reason}</Typography>}
+                  {p.reason && <Typography variant="body2" sx={{ color: colors.slate[500] }}>{p.reason}</Typography>}
                 </Box>
               ))}
             </Alert>
           )
         })()}
+
         {/* ── Concern Diagnosis ── */}
         {(isDiagnosisPhase || isDiagnosisComplete) && myConcerns.length > 0 && (
-          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'warning.main' }}>
-              Concern Diagnosis ({myConcerns.length})
-            </Typography>
+          <SectionCard title={`Concern Diagnosis (${myConcerns.length})`} icon={<Warning sx={{ fontSize: '1rem' }} />}>
             <Stack spacing={2}>
               {myConcerns.map((c) => {
                 const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
                 const prForm = partRequestForm[c.id] ?? { name: '', qty: '1' }
                 const isConcernDone = c.workStatus === 'Completed'
                 return (
-                <Box key={c.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: isConcernDone ? 'success.main' : 'divider' }}>
-                  <Typography sx={{ fontWeight: 800 }}>{c.concernName}{typeof c.processTimeMins === 'number' ? ` (${c.processTimeMins} mins)` : ''}</Typography>
-                  {c.remark && <Typography variant="body2" color="text.secondary">{c.remark}</Typography>}
-                  {c.bayId && <Typography variant="caption" color="text.secondary">Bay: {bayNameById.get(c.bayId) ?? '—'}</Typography>}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                <ItemCard key={c.id} done={isConcernDone}>
+                  <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: colors.slate[900] }}>
+                    {c.concernName}{typeof c.processTimeMins === 'number' ? ` (${c.processTimeMins} mins)` : ''}
+                  </Typography>
+                  {c.remark && <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], mt: 0.5 }}>{c.remark}</Typography>}
+                  {c.bayId && <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 0.25 }}>Bay: {bayNameById.get(c.bayId) ?? '—'}</Typography>}
+                  <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], display: 'block', mt: 0.25 }}>
                     Status: {c.workStatus ?? 'Pending'} · Technicians: {c.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || 'None'}
                   </Typography>
 
@@ -283,9 +355,9 @@ export function SEAppointmentDetailPage() {
                   {c.technicianAssignments.length > 0 && (
                     <Stack spacing={0.5} sx={{ mt: 1 }}>
                       {c.technicianAssignments.map((ta) => (
-                        <Typography key={ta.id} variant="caption" sx={{ pl: 1 }}>
-                          • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem' }}
-                            color={ta.status === 'Completed' ? 'success' : ta.status === 'In Progress' ? 'primary' : ta.status === 'Paused' ? 'warning' : 'default'} />
+                        <Typography key={ta.id} sx={{ fontSize: '0.75rem', pl: 1, color: colors.slate[600] }}>
+                          • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+                            color={statusChipColor(ta.status)} />
                         </Typography>
                       ))}
                     </Stack>
@@ -293,7 +365,7 @@ export function SEAppointmentDetailPage() {
 
                   {/* Active diagnosis controls — assign techs, remark, done */}
                   {isDiagnosisPhase && !isConcernDone && (
-                    <Stack spacing={1} sx={{ mt: 1 }}>
+                    <Stack spacing={1} sx={{ mt: 1.5 }}>
                       <TextField
                         size="small"
                         label="SE Remark"
@@ -307,6 +379,7 @@ export function SEAppointmentDetailPage() {
                         multiline
                         rows={2}
                         placeholder="Add diagnosis notes, findings..."
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                       />
                       <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                         <TextField
@@ -314,16 +387,18 @@ export function SEAppointmentDetailPage() {
                           value={concernTechForm[c.id] ?? []}
                           onChange={(e) => setConcernTechForm((prev) => ({ ...prev, [c.id]: e.target.value as unknown as string[] }))}
                           slotProps={{ select: { multiple: true } }}
-                          sx={{ minWidth: 200 }}
+                          sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                         >
                           {activeUsers.map((u) => (
                             <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
                           ))}
                         </TextField>
-                        <Button size="small" variant="contained" onClick={() => saveConcernTechnicians(c.id)}>
+                        <Button size="small" variant="contained" onClick={() => saveConcernTechnicians(c.id)}
+                          sx={{ ...actionBtnSx, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
                           Assign
                         </Button>
-                        <Button size="small" variant="outlined" color="success" onClick={() => handleConcernStatus(c.id, 'Completed')}>
+                        <Button size="small" variant="outlined" color="success" onClick={() => handleConcernStatus(c.id, 'Completed')}
+                          sx={actionBtnSx}>
                           Done
                         </Button>
                       </Stack>
@@ -332,8 +407,8 @@ export function SEAppointmentDetailPage() {
 
                   {/* ── After concern completed: Add services + parts ── */}
                   {isDiagnosisPhase && isConcernDone && (
-                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed', borderColor: 'divider' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: 'success.main', mb: 1 }}>
+                    <Box sx={{ mt: 2, pt: 2, borderTop: `1px dashed ${colors.border.default}` }}>
+                      <Typography sx={{ fontWeight: 800, color: colors.status.success, mb: 1, fontSize: '0.85rem' }}>
                         ✓ Concern Completed — Add Services & Parts
                       </Typography>
 
@@ -341,7 +416,8 @@ export function SEAppointmentDetailPage() {
                       <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                         <FormControl size="small" sx={{ minWidth: 140 }}>
                           <InputLabel>Shop</InputLabel>
-                          <Select label="Shop" value={concernServiceShopFilter} onChange={(e) => { setConcernServiceShopFilter(e.target.value as string); setConcernAddServiceId('') }}>
+                          <Select label="Shop" value={concernServiceShopFilter} onChange={(e) => { setConcernServiceShopFilter(e.target.value as string); setConcernAddServiceId('') }}
+                            sx={{ borderRadius: radii.sm }}>
                             <MenuItem value="">— Shop —</MenuItem>
                             {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                           </Select>
@@ -355,11 +431,12 @@ export function SEAppointmentDetailPage() {
                           disabled={!concernServiceShopFilter}
                           sx={{ minWidth: 280, flex: 1 }}
                           renderInput={(params) => (
-                            <TextField {...params} label="Service" placeholder={!concernServiceShopFilter ? 'Select shop first' : 'Type to search…'} />
+                            <TextField {...params} label="Service" placeholder={!concernServiceShopFilter ? 'Select shop first' : 'Type to search…'}
+                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }} />
                           )}
                         />
                         <Button
-                          variant="contained" size="small" sx={{ height: 40 }}
+                          variant="contained" size="small" sx={{ ...actionBtnSx, height: 40, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}
                           disabled={!concernAddServiceId}
                           onClick={() => {
                             const current = c.serviceIds ?? []
@@ -380,6 +457,7 @@ export function SEAppointmentDetailPage() {
                                 key={sid} size="small" color="info"
                                 label={`${shop?.name ?? ''}: ${svc.description} · ${fmtBDT(svc.price)}`}
                                 onDelete={() => updateConcernItemServices(appt.id, c.id, (c.serviceIds ?? []).filter((id) => id !== sid))}
+                                sx={{ fontWeight: 600, fontSize: '0.72rem' }}
                               />
                             ) : null
                           })}
@@ -390,11 +468,11 @@ export function SEAppointmentDetailPage() {
                       {concernParts.length > 0 && (
                         <Stack spacing={0.5} sx={{ mb: 1 }}>
                           {concernParts.map((pr) => (
-                            <Box key={pr.id} sx={{ p: 1, bgcolor: 'white', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                            <Box key={pr.id} sx={{ p: 1.5, bgcolor: colors.bg.card, borderRadius: radii.sm, border: `1px solid ${colors.border.default}` }}>
                               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Box>
-                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{pr.partName}</Typography>
-                                  <Typography variant="caption" color="text.secondary">
+                                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: colors.slate[900] }}>{pr.partName}</Typography>
+                                  <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>
                                     Qty: {pr.quantity ?? 1}{pr.partNumber ? ` · #${pr.partNumber}` : ''}
                                     {typeof pr.price === 'number' ? ` · BDT ${pr.price}` : ''}
                                     {pr.deliveryDate ? ` · ETA: ${pr.deliveryDate}` : ''}
@@ -404,6 +482,7 @@ export function SEAppointmentDetailPage() {
                                   size="small"
                                   label={pr.status}
                                   color={pr.status === 'Fulfilled' ? 'success' : pr.status === 'Labeled' ? 'info' : pr.status === 'Rejected' ? 'error' : 'warning'}
+                                  sx={{ fontWeight: 700, fontSize: '0.72rem' }}
                                 />
                               </Stack>
                             </Box>
@@ -417,18 +496,17 @@ export function SEAppointmentDetailPage() {
                           size="small" label="Part Name"
                           value={prForm.name}
                           onChange={(e) => setPartRequestForm((prev) => ({ ...prev, [c.id]: { ...prForm, name: e.target.value } }))}
-                          sx={{ minWidth: 200 }}
+                          sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                           placeholder="e.g. Brake Pad Set"
                         />
                         <TextField
                           size="small" label="Qty" type="number"
                           value={prForm.qty}
                           onChange={(e) => setPartRequestForm((prev) => ({ ...prev, [c.id]: { ...prForm, qty: e.target.value } }))}
-                          sx={{ width: 70 }}
+                          sx={{ width: 70, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                         />
                         <Button
                           variant="contained"
-                          color="secondary"
                           size="small"
                           onClick={() => {
                             if (!prForm.name.trim()) return
@@ -443,45 +521,48 @@ export function SEAppointmentDetailPage() {
                             setPartRequestForm((prev) => ({ ...prev, [c.id]: { name: '', qty: '1' } }))
                           }}
                           disabled={!prForm.name.trim()}
+                          sx={{ ...actionBtnSx, bgcolor: colors.accent.purple, '&:hover': { bgcolor: '#7c3aed' } }}
                         >
-                          Request Part
+                          <LocalShipping sx={{ fontSize: '0.9rem', mr: 0.5 }} /> Request Part
                         </Button>
                       </Stack>
                     </Box>
                   )}
-                </Box>
-              )})}            </Stack>
+                </ItemCard>
+              )})}
+            </Stack>
 
             {/* Submit Diagnosis Complete */}
             {isDiagnosisPhase && allConcernsDone && (() => {
               const pendingParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.status === 'Requested')
               if (pendingParts.length > 0) {
                 return (
-                  <Alert severity="warning" sx={{ mt: 2 }}>
+                  <Alert severity="warning" sx={{ mt: 2, borderRadius: radii.sm }}>
                     Cannot submit diagnosis: {pendingParts.length} part request(s) still pending admin labeling.
                   </Alert>
                 )
               }
               return (
                 <Button
-                  variant="contained" color="warning" fullWidth size="large"
-                  sx={{ fontWeight: 900, mt: 2.5, py: 1.5 }}
+                  variant="contained" fullWidth size="large"
+                  sx={{
+                    fontWeight: 800, mt: 2.5, py: 1.5, borderRadius: '10px',
+                    bgcolor: colors.status.warning, color: colors.slate[900],
+                    '&:hover': { bgcolor: '#e6920a' },
+                  }}
                   onClick={handleSubmitDiagnosisComplete}
                 >
                   Submit Diagnosis Complete
                 </Button>
               )
             })()}
-          </Paper>
+          </SectionCard>
         )}
 
         {/* ── Add Additional Services (after diagnosis) ── */}
         {isDiagnosisComplete && (
-          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'info.main' }}>
-              Add Additional Services
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <SectionCard title="Add Additional Services" icon={<AddCircleOutlined sx={{ fontSize: '1rem' }} />}>
+            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], mb: 2 }}>
               Based on diagnosis findings, add required services. This will be sent to SA for customer approval.
             </Typography>
 
@@ -489,9 +570,9 @@ export function SEAppointmentDetailPage() {
             {appt.serviceItems.length > 0 && (
               <Stack spacing={1} sx={{ mb: 2 }}>
                 {appt.serviceItems.map((s) => (
-                  <Box key={s.id} sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                      {s.serviceDescription} ({s.processTimeMins} mins) <Typography component="span" variant="caption" color="text.secondary">{s.serviceCode} · {fmtBDT(s.price)}</Typography>
+                  <Box key={s.id} sx={{ p: 1.5, bgcolor: colors.bg.page, borderRadius: radii.sm, border: `1px solid ${colors.border.default}` }}>
+                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: colors.slate[900] }}>
+                      {s.serviceDescription} ({s.processTimeMins} mins) <Typography component="span" sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>{s.serviceCode} · {fmtBDT(s.price)}</Typography>
                     </Typography>
                   </Box>
                 ))}
@@ -501,7 +582,8 @@ export function SEAppointmentDetailPage() {
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <FormControl size="small" sx={{ minWidth: 150 }}>
                 <InputLabel>Shop</InputLabel>
-                <Select label="Shop" value={serviceShopFilter} onChange={(e) => { setServiceShopFilter(e.target.value as string); setAddServiceId('') }}>
+                <Select label="Shop" value={serviceShopFilter} onChange={(e) => { setServiceShopFilter(e.target.value as string); setAddServiceId('') }}
+                  sx={{ borderRadius: radii.sm }}>
                   <MenuItem value="">— Select Shop —</MenuItem>
                   {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                 </Select>
@@ -510,7 +592,7 @@ export function SEAppointmentDetailPage() {
                 select size="small" label="Service"
                 value={addServiceId}
                 onChange={(e) => setAddServiceId(e.target.value)}
-                sx={{ minWidth: 250 }}
+                sx={{ minWidth: 250, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                 disabled={!serviceShopFilter}
                 helperText={!serviceShopFilter ? 'Select shop first' : undefined}
               >
@@ -520,60 +602,63 @@ export function SEAppointmentDetailPage() {
                 ))}
               </TextField>
               <TextField size="small" label="Remark" value={addServiceRemark}
-                onChange={(e) => setAddServiceRemark(e.target.value)} />
-              <Button variant="contained" onClick={handleAddService} disabled={!addServiceId}>
+                onChange={(e) => setAddServiceRemark(e.target.value)}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
+              <Button variant="contained" onClick={handleAddService} disabled={!addServiceId}
+                sx={{ ...actionBtnSx, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
                 Add
               </Button>
             </Stack>
-          </Paper>
+          </SectionCard>
         )}
 
         {/* ── Service Execution ── */}
         {isServicePhase && myServices.length > 0 && (
-          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'success.main' }}>
-              Assigned Services ({myServices.length})
-            </Typography>
+          <SectionCard title={`Assigned Services (${myServices.length})`} icon={<Build sx={{ fontSize: '1rem' }} />}>
             <Stack spacing={2}>
               {myServices.map((s) => {
                 const hasStages = s.stageItems && s.stageItems.length > 0
                 return (
-                <Box key={s.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                <ItemCard key={s.id}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
-                    <Typography sx={{ fontWeight: 800 }}>
-                      {s.serviceDescription} ({s.processTimeMins} mins) <Typography component="span" variant="caption" color="text.secondary">{s.serviceCode}</Typography>
+                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: colors.slate[900] }}>
+                      {s.serviceDescription} ({s.processTimeMins} mins) <Typography component="span" sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>{s.serviceCode}</Typography>
                     </Typography>
-                    {hasStages && <Chip size="small" label={`${s.stageItems!.length} stages`} color="info" variant="outlined" sx={{ fontWeight: 700 }} />}
+                    {hasStages && <Chip size="small" label={`${s.stageItems!.length} stages`} color="info" variant="outlined" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />}
                   </Stack>
-                  <Typography variant="body2">{fmtBDT(s.price)}</Typography>
-                  {s.bayId && <Typography variant="caption" color="text.secondary">Bay: {bayNameById.get(s.bayId) ?? '—'}</Typography>}
+                  <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{fmtBDT(s.price)}</Typography>
+                  {s.bayId && <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>Bay: {bayNameById.get(s.bayId) ?? '—'}</Typography>}
 
                   {/* ── Staged service: per-stage technician assignment ── */}
                   {hasStages ? (
-                    <Stack spacing={1.5} sx={{ mt: 1.5, pl: 1, borderLeft: '3px solid', borderColor: 'info.main' }}>
+                    <Stack spacing={1.5} sx={{ mt: 1.5, pl: 1.5, borderLeft: `3px solid ${colors.accent.blue}` }}>
                       {s.stageItems!.map((stage, idx) => {
                         const prevStage = idx > 0 ? s.stageItems![idx - 1] : null
                         const isBlocked = prevStage && prevStage.workStatus !== 'Completed'
                         const stageKey = `${s.id}_${stage.id}`
                         return (
-                          <Box key={stage.id} sx={{ p: 1.5, bgcolor: isBlocked ? 'action.disabledBackground' : 'white', borderRadius: 1, border: '1px solid', borderColor: 'divider', opacity: isBlocked ? 0.6 : 1 }}>
-                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                          <Box key={stage.id} sx={{
+                            p: 2, bgcolor: isBlocked ? colors.bg.subtle : colors.bg.card,
+                            borderRadius: radii.sm, border: `1px solid ${colors.border.default}`,
+                            opacity: isBlocked ? 0.6 : 1, transition: 'opacity 0.2s',
+                          }}>
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5, flexWrap: 'wrap' }}>
+                              <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: colors.slate[900] }}>
                                 Stage {stage.stageOrder}: {stage.stageName}
                               </Typography>
-                              <Chip size="small" label={`${stage.durationMins}m`} color="default" sx={{ fontWeight: 700 }} />
+                              <Chip size="small" label={`${stage.durationMins}m`} sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: colors.slate[100], color: colors.slate[700] }} />
                               <Chip size="small" label={stage.workStatus}
-                                color={stage.workStatus === 'Completed' ? 'success' : stage.workStatus === 'In Progress' ? 'primary' : stage.workStatus === 'Scheduled' ? 'info' : 'default'} />
-                              {stage.bayId && <Typography variant="caption" color="text.secondary">Bay: {bayNameById.get(stage.bayId) ?? '—'}</Typography>}
+                                color={statusChipColor(stage.workStatus)} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+                              {stage.bayId && <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>Bay: {bayNameById.get(stage.bayId) ?? '—'}</Typography>}
                             </Stack>
 
                             {/* Technician timer statuses */}
                             {stage.technicianAssignments.length > 0 && (
                               <Stack spacing={0.3} sx={{ mt: 0.5 }}>
                                 {stage.technicianAssignments.map((ta) => (
-                                  <Typography key={ta.id} variant="caption" sx={{ pl: 1 }}>
-                                    • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem' }}
-                                      color={ta.status === 'Completed' ? 'success' : ta.status === 'In Progress' ? 'primary' : ta.status === 'Paused' ? 'warning' : 'default'} />
+                                  <Typography key={ta.id} sx={{ fontSize: '0.75rem', pl: 1, color: colors.slate[600] }}>
+                                    • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+                                      color={statusChipColor(ta.status)} />
                                   </Typography>
                                 ))}
                               </Stack>
@@ -587,7 +672,7 @@ export function SEAppointmentDetailPage() {
                                   value={serviceTechForm[stageKey] ?? []}
                                   onChange={(e) => setServiceTechForm((prev) => ({ ...prev, [stageKey]: e.target.value as unknown as string[] }))}
                                   slotProps={{ select: { multiple: true } }}
-                                  sx={{ minWidth: 200 }}
+                                  sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                                 >
                                   {activeUsers.map((u) => (
                                     <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
@@ -603,7 +688,7 @@ export function SEAppointmentDetailPage() {
                                     technicianUserIds: techs,
                                   })
                                   setServiceTechForm((prev) => ({ ...prev, [stageKey]: [] }))
-                                }}>Assign</Button>
+                                }} sx={{ ...actionBtnSx, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>Assign</Button>
                                 <Button size="small" variant="outlined" color="success" onClick={() => {
                                   setStageWorkStatus({
                                     appointmentId: appt!.id,
@@ -612,12 +697,12 @@ export function SEAppointmentDetailPage() {
                                     status: 'Completed',
                                   })
                                   pushTimeline(appt!.id, { actor: 'SE', action: `Stage "${stage.stageName}" completed for ${s.serviceDescription}` })
-                                }}>Done</Button>
+                                }} sx={actionBtnSx}>Done</Button>
                               </Stack>
                             )}
                             {isBlocked && (
-                              <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
-                                ⏳ Waiting for "{prevStage!.stageName}" to complete
+                              <Typography sx={{ fontSize: '0.75rem', color: colors.status.warning, mt: 0.5, display: 'block' }}>
+                                ⏳ Waiting for &quot;{prevStage!.stageName}&quot; to complete
                               </Typography>
                             )}
                           </Box>
@@ -627,7 +712,7 @@ export function SEAppointmentDetailPage() {
                   ) : (
                     /* ── Non-staged service: existing flow ── */
                     <>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], display: 'block', mt: 0.25 }}>
                         Status: {s.workStatus ?? 'Pending'} · Technicians: {s.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || 'None'}
                       </Typography>
 
@@ -635,15 +720,15 @@ export function SEAppointmentDetailPage() {
                       {s.technicianAssignments.length > 0 && (
                         <Stack spacing={0.5} sx={{ mt: 1 }}>
                           {s.technicianAssignments.map((ta) => (
-                            <Typography key={ta.id} variant="caption" sx={{ pl: 1 }}>
-                              • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem' }}
-                                color={ta.status === 'Completed' ? 'success' : ta.status === 'In Progress' ? 'primary' : ta.status === 'Paused' ? 'warning' : 'default'} />
+                            <Typography key={ta.id} sx={{ fontSize: '0.75rem', pl: 1, color: colors.slate[600] }}>
+                              • {userNameById.get(ta.technicianUserId) ?? '—'}: <Chip label={ta.status} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+                                color={statusChipColor(ta.status)} />
                             </Typography>
                           ))}
                         </Stack>
                       )}
 
-                      <Stack spacing={1} sx={{ mt: 1 }}>
+                      <Stack spacing={1} sx={{ mt: 1.5 }}>
                         <TextField
                           size="small"
                           label="SE Remark"
@@ -653,6 +738,7 @@ export function SEAppointmentDetailPage() {
                           multiline
                           rows={2}
                           placeholder="Add service notes..."
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                         />
                         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                           <TextField
@@ -660,23 +746,25 @@ export function SEAppointmentDetailPage() {
                             value={serviceTechForm[s.id] ?? []}
                             onChange={(e) => setServiceTechForm((prev) => ({ ...prev, [s.id]: e.target.value as unknown as string[] }))}
                             slotProps={{ select: { multiple: true } }}
-                            sx={{ minWidth: 200 }}
+                            sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                           >
                             {activeUsers.map((u) => (
                               <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
                             ))}
                           </TextField>
-                          <Button size="small" variant="contained" onClick={() => saveServiceTechnicians(s.id)}>
+                          <Button size="small" variant="contained" onClick={() => saveServiceTechnicians(s.id)}
+                            sx={{ ...actionBtnSx, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
                             Assign
                           </Button>
-                          <Button size="small" variant="outlined" color="success" onClick={() => handleServiceStatus(s.id, 'Completed')}>
+                          <Button size="small" variant="outlined" color="success" onClick={() => handleServiceStatus(s.id, 'Completed')}
+                            sx={actionBtnSx}>
                             Done
                           </Button>
                         </Stack>
                       </Stack>
                     </>
                   )}
-                </Box>
+                </ItemCard>
                 )
               })}
             </Stack>
@@ -689,16 +777,20 @@ export function SEAppointmentDetailPage() {
               return s.workStatus === 'Completed'
             }) && (
               <Button
-                variant="contained" color="success" fullWidth size="large"
-                sx={{ fontWeight: 900, mt: 2.5, py: 1.5 }}
+                variant="contained" fullWidth size="large"
+                sx={{
+                  fontWeight: 800, mt: 2.5, py: 1.5, borderRadius: '10px',
+                  bgcolor: colors.status.success, color: '#fff',
+                  '&:hover': { bgcolor: '#0d9668' },
+                }}
                 onClick={handleSubmitServiceComplete}
               >
                 Submit Service Complete
               </Button>
             )}
-          </Paper>
+          </SectionCard>
         )}
       </Stack>
-    </Page>
+    </Box>
   )
 }

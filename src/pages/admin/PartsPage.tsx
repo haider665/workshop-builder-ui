@@ -2,52 +2,83 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
-  Paper,
+  MenuItem,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Edit, ToggleOff, ToggleOn } from '@mui/icons-material'
+import { Add, Edit, Inventory, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useState } from 'react'
-import { Page } from '../../components/Page'
+import { DataTable } from '../../components/DataTable'
+import { FormDialog } from '../../components/FormDialog'
+import type { Column } from '../../components/DataTable'
 import { useCwStore } from '../../store/cwStore'
 import type { CWPart, CWPartStatus } from '../../types/cw'
+import { colors, pageLayout } from '../../theme/tokens'
+
+/* ─────────────────────── Helpers ─────────────────────────── */
+
+const CATEGORY_PRESETS = [
+  'Engine',
+  'Brakes',
+  'Body',
+  'Electrical',
+  'Cooling',
+  'Transmission',
+  'HVAC',
+  'Paint',
+  'Suspension',
+  'Exhaust',
+] as const
 
 type PartDraft = {
   name: string
   partNumber: string
-  price: string
+  description: string
+  category: string
+  rackLocation: string
+  binNumber: string
+  reorderLevel: string
   status: CWPartStatus
 }
 
 function emptyDraft(): PartDraft {
-  return { name: '', partNumber: '', price: '', status: 'Active' }
+  return {
+    name: '',
+    partNumber: '',
+    description: '',
+    category: '',
+    rackLocation: '',
+    binNumber: '',
+    reorderLevel: '',
+    status: 'Active',
+  }
 }
 
 function toDraft(part: CWPart): PartDraft {
   return {
     name: part.name,
-    partNumber: part.partNumber ?? '',
-    price: typeof part.price === 'number' ? String(part.price) : '',
+    partNumber: part.partNumber,
+    description: part.description ?? '',
+    category: part.category ?? '',
+    rackLocation: part.rackLocation ?? '',
+    binNumber: part.binNumber ?? '',
+    reorderLevel: typeof part.reorderLevel === 'number' ? String(part.reorderLevel) : '',
     status: part.status,
   }
 }
 
-function fmtBDT(n?: number) {
-  if (typeof n !== 'number') return '—'
-  return `BDT ${n.toLocaleString('en-BD')}`
-}
+const btnSx = {
+  bgcolor: colors.slate[900],
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2.5,
+  '&:hover': { bgcolor: colors.slate[800] },
+} as const
+
+/* ─────────────────────── Component ─────────────────────────── */
 
 export function PartsPage() {
   const parts = useCwStore((s) => s.parts)
@@ -69,22 +100,30 @@ export function PartsPage() {
   }
 
   function submitCreate() {
-    if (!draft.name.trim()) return
+    if (!draft.name.trim() || !draft.partNumber.trim()) return
     createPart({
       name: draft.name.trim(),
-      partNumber: draft.partNumber.trim() || undefined,
-      price: draft.price.trim() ? Number(draft.price.trim()) : undefined,
+      partNumber: draft.partNumber.trim(),
+      description: draft.description.trim() || undefined,
+      category: draft.category || undefined,
+      rackLocation: draft.rackLocation.trim() || undefined,
+      binNumber: draft.binNumber.trim() || undefined,
+      reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
       status: draft.status,
     })
     setCreateOpen(false)
   }
 
   function submitEdit() {
-    if (!editPart || !draft.name.trim()) return
+    if (!editPart || !draft.name.trim() || !draft.partNumber.trim()) return
     updatePart(editPart.id, {
       name: draft.name.trim(),
-      partNumber: draft.partNumber.trim() || undefined,
-      price: draft.price.trim() ? Number(draft.price.trim()) : undefined,
+      partNumber: draft.partNumber.trim(),
+      description: draft.description.trim() || undefined,
+      category: draft.category || undefined,
+      rackLocation: draft.rackLocation.trim() || undefined,
+      binNumber: draft.binNumber.trim() || undefined,
+      reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
       status: draft.status,
     })
     setEditPart(null)
@@ -95,7 +134,11 @@ export function PartsPage() {
     updatePart(part.id, {
       name: part.name,
       partNumber: part.partNumber,
-      price: part.price,
+      description: part.description,
+      category: part.category,
+      rackLocation: part.rackLocation,
+      binNumber: part.binNumber,
+      reorderLevel: part.reorderLevel,
       status: next,
     })
   }
@@ -107,122 +150,210 @@ export function PartsPage() {
     setEditPart(null)
   }
 
-  return (
-    <Page
-      title="Admin / Parts"
-      subtitle="Manage inventory parts for service and repair."
-      actions={
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate} sx={{ fontWeight: 700 }}>
-          New Part
-        </Button>
-      }
-    >
-      <Stack spacing={2}>
-        {parts.length === 0 ? (
-          <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-            <Stack spacing={1.5}>
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>No parts yet</Typography>
-              <Typography color="text.secondary">
-                Add parts to the inventory for SE part request workflow.
-              </Typography>
-              <Box>
-                <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-                  Add Part
-                </Button>
-              </Box>
-            </Stack>
-          </Paper>
-        ) : (
-          <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Part Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Part Number</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Price</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {parts.map((part) => (
-                  <TableRow key={part.id} hover>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 700 }}>{part.name}</Typography>
-                    </TableCell>
-                    <TableCell>{part.partNumber ?? '—'}</TableCell>
-                    <TableCell>{fmtBDT(part.price)}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        color={part.status === 'Active' ? 'success' : 'default'}
-                        label={part.status}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                        <Tooltip title="Edit">
-                          <IconButton onClick={() => openEdit(part)}>
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={part.status === 'Active' ? 'Deactivate' : 'Activate'}>
-                          <IconButton onClick={() => toggleStatus(part)}>
-                            {part.status === 'Inactive' ? (
-                              <ToggleOn fontSize="small" />
-                            ) : (
-                              <ToggleOff fontSize="small" />
-                            )}
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
-        )}
-      </Stack>
+  /* ── Table Columns ── */
 
-      {/* Create / Edit Dialog */}
-      <Dialog open={isDialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
-        <DialogTitle>{editPart ? 'Edit Part' : 'Create Part'}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Part Name"
-              value={draft.name}
-              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Part Number (optional)"
-              value={draft.partNumber}
-              onChange={(e) => setDraft((d) => ({ ...d, partNumber: e.target.value }))}
-              fullWidth
-            />
-            <TextField
-              label="Price (BDT, optional)"
-              type="number"
-              value={draft.price}
-              onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
-              fullWidth
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={closeDialog}>Cancel</Button>
+  const columns: Column<CWPart>[] = [
+    {
+      key: 'name',
+      header: 'Part Name',
+      minWidth: 180,
+      render: (part) => (
+        <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+          {part.name}
+        </Typography>
+      ),
+    },
+    {
+      key: 'partNumber',
+      header: 'Part Number',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
+          {part.partNumber}
+        </Typography>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+      render: (part) =>
+        part.category ? (
+          <Chip
+            size="small"
+            label={part.category}
+            sx={{ fontWeight: 600, fontSize: '0.72rem' }}
+          />
+        ) : (
+          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>—</Typography>
+        ),
+    },
+    {
+      key: 'rackLocation',
+      header: 'Rack Location',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', fontFamily: 'monospace', color: colors.slate[600] }}>
+          {part.rackLocation ?? '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'reorderLevel',
+      header: 'Reorder Level',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700], fontWeight: 500 }}>
+          {typeof part.reorderLevel === 'number' ? part.reorderLevel : '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (part) => (
+        <Chip
+          size="small"
+          color={part.status === 'Active' ? 'success' : 'default'}
+          label={part.status}
+          sx={{ fontWeight: 700, fontSize: '0.72rem' }}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (part) => (
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="Edit">
+            <IconButton size="small" onClick={() => openEdit(part)}>
+              <Edit fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={part.status === 'Active' ? 'Deactivate' : 'Activate'}>
+            <IconButton size="small" onClick={() => toggleStatus(part)}>
+              {part.status === 'Inactive' ? (
+                <ToggleOn fontSize="small" />
+              ) : (
+                <ToggleOff fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      ),
+    },
+  ]
+
+  /* ── Render ── */
+
+  return (
+    <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Parts
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage the part catalog for service and repair.</Typography>
+          </Box>
           <Button
             variant="contained"
-            onClick={editPart ? submitEdit : submitCreate}
-            disabled={!draft.name.trim()}
+            startIcon={<Add />}
+            onClick={openCreate}
+            sx={btnSx}
           >
-            {editPart ? 'Save' : 'Create'}
+            New Part
           </Button>
-        </DialogActions>
-      </Dialog>
-    </Page>
+        </Stack>
+
+        {/* Table */}
+        <DataTable
+          columns={columns}
+          rows={parts}
+          keyExtractor={(part) => part.id}
+          emptyIcon={<Inventory />}
+          emptyTitle="No parts yet"
+          emptyDescription="Add parts to the catalog for SE part request workflow."
+          emptyAction={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              sx={btnSx}
+            >
+              Add Part
+            </Button>
+          }
+        />
+
+        {/* ── Create / Edit Dialog ── */}
+        <FormDialog
+          open={isDialogOpen}
+          onClose={closeDialog}
+          title={editPart ? 'Edit Part' : 'Create Part'}
+          icon={editPart ? <Edit /> : <Inventory />}
+          onSubmit={editPart ? submitEdit : submitCreate}
+          submitLabel={editPart ? 'Save' : 'Create'}
+          submitDisabled={!draft.name.trim() || !draft.partNumber.trim()}
+        >
+          <TextField
+            label="Part Name"
+            value={draft.name}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            required
+            fullWidth
+          />
+          <TextField
+            label="Part Number"
+            value={draft.partNumber}
+            onChange={(e) => setDraft((d) => ({ ...d, partNumber: e.target.value }))}
+            required
+            fullWidth
+          />
+          <TextField
+            label="Description"
+            value={draft.description}
+            onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+            multiline
+            minRows={2}
+            fullWidth
+          />
+          <TextField
+            label="Category"
+            value={draft.category}
+            onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
+            select
+            fullWidth
+          >
+            <MenuItem value="">
+              <em>None</em>
+            </MenuItem>
+            {CATEGORY_PRESETS.map((cat) => (
+              <MenuItem key={cat} value={cat}>
+                {cat}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Rack Location"
+            value={draft.rackLocation}
+            onChange={(e) => setDraft((d) => ({ ...d, rackLocation: e.target.value }))}
+            placeholder="e.g. A-3-14"
+            fullWidth
+          />
+          <TextField
+            label="Bin Number"
+            value={draft.binNumber}
+            onChange={(e) => setDraft((d) => ({ ...d, binNumber: e.target.value }))}
+            fullWidth
+          />
+          <TextField
+            label="Reorder Level"
+            type="number"
+            value={draft.reorderLevel}
+            onChange={(e) => setDraft((d) => ({ ...d, reorderLevel: e.target.value }))}
+            fullWidth
+          />
+        </FormDialog>
+      </Stack>
+    </Box>
   )
 }

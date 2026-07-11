@@ -1,6 +1,32 @@
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const apiBaseUrl = configuredApiBaseUrl
 
+let csrfTokenCache: string | null = null
+
+async function getCsrfToken(): Promise<string> {
+  if (csrfTokenCache) return csrfTokenCache
+
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/method/workshop.api.auth.csrf_token`, {
+      credentials: 'include',
+    })
+    if (res.ok) {
+      const data = (await res.json()) as { message?: { csrf_token?: string } }
+      if (data.message?.csrf_token) {
+        csrfTokenCache = data.message.csrf_token
+        return csrfTokenCache
+      }
+    }
+  } catch {
+    // Fall through
+  }
+  return 'none'
+}
+
+function clearCsrfCache() {
+  csrfTokenCache = null
+}
+
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   body?: unknown
@@ -51,9 +77,32 @@ async function ensureOk(response: Response, fallbackMessage: string) {
 
   let message = fallbackMessage
   try {
-    const payload = (await response.json()) as { message?: unknown; exception?: string }
-    if (typeof payload.message === 'string') message = payload.message
-    else if (payload.exception) message = payload.exception
+    const payload = (await response.json()) as {
+      message?: unknown
+      exception?: string
+      _server_messages?: string
+    }
+
+    // Frappe sends user-friendly errors in _server_messages as a JSON-encoded
+    // array of JSON-encoded objects: ["{\"message\":\"...\",\"title\":\"...\"}"]
+    if (payload._server_messages) {
+      try {
+        const serverMsgs = JSON.parse(payload._server_messages) as string[]
+        if (serverMsgs.length > 0) {
+          const parsed = JSON.parse(serverMsgs[0]) as { message?: string; title?: string }
+          const title = parsed.title ? `${parsed.title}: ` : ''
+          if (parsed.message) message = `${title}${parsed.message.trim()}`
+        }
+      } catch {
+        // Malformed _server_messages; fall through to other fields.
+      }
+    } else if (typeof payload.message === 'string') {
+      message = payload.message
+    } else if (payload.exception) {
+      // Strip Python exception class prefix (e.g. "frappe.exceptions.ValidationError: msg" → "msg")
+      const colonIdx = payload.exception.indexOf(':')
+      message = colonIdx > -1 ? payload.exception.slice(colonIdx + 1).trim() : payload.exception
+    }
   } catch {
     // Response was not JSON; keep the fallback message.
   }
@@ -62,10 +111,14 @@ async function ensureOk(response: Response, fallbackMessage: string) {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const method = options.method ?? 'GET'
+  const csrfHeaders: Record<string, string> = method !== 'GET' ? { 'X-Frappe-CSRF-Token': await getCsrfToken() } : {}
+
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    method: options.method ?? 'GET',
+    method,
     credentials: 'include',
     headers: {
+      ...csrfHeaders,
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers ?? {}),
     },
@@ -86,6 +139,7 @@ function buildQuery(params: Record<string, QueryValue>) {
 }
 
 async function uploadFile(input: { file: File; folder?: string; isPrivate?: boolean }): Promise<{ fileUrl: string; fileName: string; name: string }> {
+  const csrfToken = await getCsrfToken()
   const form = new FormData()
   form.set('file', input.file)
   if (input.folder) form.set('folder', input.folder)
@@ -94,6 +148,9 @@ async function uploadFile(input: { file: File; folder?: string; isPrivate?: bool
   const response = await fetch(`${apiBaseUrl}/api/method/upload_file`, {
     method: 'POST',
     credentials: 'include',
+    headers: {
+      'X-Frappe-CSRF-Token': csrfToken,
+    },
     body: form,
   })
 
@@ -107,18 +164,24 @@ async function uploadFile(input: { file: File; folder?: string; isPrivate?: bool
 
 export const workshopApi = {
   async login(username: string, password: string): Promise<AuthSessionDto> {
+    const csrfToken = await getCsrfToken()
     const body = new URLSearchParams()
     body.set('usr', username)
     body.set('pwd', password)
+    body.set('csrf_token', csrfToken)
 
     const response = await fetch(`${apiBaseUrl}/api/method/workshop.api.auth.login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Frappe-CSRF-Token': csrfToken,
       },
       body,
       credentials: 'include',
     })
+
+    // After login, refresh cached CSRF token (Frappe rotates it)
+    clearCsrfCache()
 
     await ensureOk(response, 'Login failed')
     return readMessage<AuthSessionDto>(response)
@@ -136,13 +199,18 @@ export const workshopApi = {
   },
 
   async logout(): Promise<void> {
+    const csrfToken = await getCsrfToken()
     const response = await fetch(`${apiBaseUrl}/api/method/workshop.api.auth.logout`, {
       method: 'POST',
       credentials: 'include',
+      headers: {
+        'X-Frappe-CSRF-Token': csrfToken,
+      },
     })
 
     if (response.status === 401) return
     await ensureOk(response, 'Logout failed')
+    clearCsrfCache()
   },
 
   async uploadFile(file: File, opts: { folder?: string; isPrivate?: boolean } = {}) {

@@ -5,7 +5,7 @@ export const appTheme = createTheme({
     borderRadius: 12,
   },
   typography: {
-    fontFamily: ['Roboto', 'system-ui', 'Segoe UI', 'Arial', 'sans-serif'].join(
+    fontFamily: ['"Plus Jakarta Sans Variable"', 'Roboto', 'system-ui', 'Segoe UI', 'Arial', 'sans-serif'].join(
       ',',
     ),
   },

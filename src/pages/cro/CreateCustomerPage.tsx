@@ -1,11 +1,12 @@
 import {
+  Box,
   Button,
   Divider,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
-  Paper,
   Radio,
   RadioGroup,
   Select,
@@ -15,12 +16,23 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material'
+import {
+  ArrowBack,
+  ContactPhone,
+  DirectionsCar,
+  HomeWork,
+  Link as LinkIcon,
+  Person,
+  Business,
+  CorporateFare,
+} from '@mui/icons-material'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import type { CWCustomerType } from '../../types/cw'
+import { colors, radii } from '../../theme/tokens'
 
 const DIVISIONS = ['Dhaka', 'Chattogram', 'Rajshahi', 'Khulna', 'Sylhet', 'Rangpur', 'Barishal', 'Mymensingh']
 const CITIES = ['Dhaka', 'Chattogram', 'Gazipur', 'Narayanganj', 'Comilla', 'Sylhet', 'Rajshahi', 'Khulna', 'Rangpur']
@@ -125,40 +137,67 @@ export function CreateCustomerPage() {
     }
   }
 
-  const sectionSx = { border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3 }
-  const labelSx = { fontWeight: 900, fontSize: '1.05rem', mb: 2 }
-
   return (
-    <Page title="New Customer" subtitle="Create new customer from here">
-      <Stack spacing={3} sx={{ maxWidth: 860 }}>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 2 }}>
+          <IconButton
+            onClick={() => navigate('/cre/customers')}
+            sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}
+          >
+            <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+          </IconButton>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              New Customer
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Create new customer from here</Typography>
+          </Box>
+        </Stack>
+
         {/* Type toggle */}
         <ToggleButtonGroup
           value={customerType}
           exclusive
           onChange={(_, v) => v && setCustomerType(v as CWCustomerType)}
           size="small"
+          sx={{
+            '& .MuiToggleButton-root': {
+              fontWeight: 700,
+              textTransform: 'none',
+              px: 3,
+              borderRadius: radii.sm,
+              fontSize: '0.85rem',
+              '&.Mui-selected': {
+                bgcolor: colors.slate[900],
+                color: '#fff',
+                '&:hover': { bgcolor: colors.slate[800] },
+              },
+            },
+          }}
         >
-          <ToggleButton value="Individual" sx={{ fontWeight: 700, textTransform: 'none', px: 3 }}>
-            Individual
-          </ToggleButton>
-          <ToggleButton value="Corporate" sx={{ fontWeight: 700, textTransform: 'none', px: 3 }}>
-            Corporate
-          </ToggleButton>
+          <ToggleButton value="Individual">Individual</ToggleButton>
+          <ToggleButton value="Corporate">Corporate</ToggleButton>
         </ToggleButtonGroup>
 
         {error && (
-          <Paper sx={{ p: 2, bgcolor: 'error.50', border: '1px solid', borderColor: 'error.main' }}>
-            <Typography color="error" sx={{ fontWeight: 700 }}>{error}</Typography>
-          </Paper>
+          <Box sx={{
+            p: 2,
+            bgcolor: '#FEF2F2',
+            border: `1px solid ${colors.status.error}`,
+            borderRadius: radii.sm,
+          }}>
+            <Typography sx={{ color: colors.status.error, fontWeight: 700, fontSize: '0.85rem' }}>{error}</Typography>
+          </Box>
         )}
 
         {/* ── Individual Flow ── */}
         {customerType === 'Individual' && (
           <>
             {/* Contact */}
-            <Paper sx={sectionSx}>
-              <Typography sx={labelSx}>Contact</Typography>
-              <Stack spacing={2}>
+            <SectionCard title="Contact" icon={<ContactPhone sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={2} sx={{ py: 1 }}>
                 <TextField
                   label="Full Name"
                   value={fullName}
@@ -189,12 +228,11 @@ export function CreateCustomerPage() {
                   type="email"
                 />
               </Stack>
-            </Paper>
+            </SectionCard>
 
             {/* Address */}
-            <Paper sx={sectionSx}>
-              <Typography sx={labelSx}>Address</Typography>
-              <Stack spacing={2}>
+            <SectionCard title="Address" icon={<HomeWork sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={2} sx={{ py: 1 }}>
                 <FormControl fullWidth>
                   <InputLabel>Division</InputLabel>
                   <Select value={division} label="Division" onChange={(e) => setDivision(e.target.value)}>
@@ -212,12 +250,11 @@ export function CreateCustomerPage() {
                 <TextField label="Postal Code" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} fullWidth />
                 <TextField label="Street Address" value={street} onChange={(e) => setStreet(e.target.value)} fullWidth />
               </Stack>
-            </Paper>
+            </SectionCard>
 
             {/* Occupation */}
-            <Paper sx={sectionSx}>
-              <Typography sx={labelSx}>Occupation</Typography>
-              <Stack spacing={2}>
+            <SectionCard title="Occupation" icon={<Person sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={2} sx={{ py: 1 }}>
                 <FormControl fullWidth>
                   <InputLabel>Occupation Type</InputLabel>
                   <Select value={occupationType} label="Occupation Type" onChange={(e) => setOccupationType(e.target.value)}>
@@ -228,34 +265,34 @@ export function CreateCustomerPage() {
                 <TextField label="Company Name" value={companyName} onChange={(e) => setCompanyName(e.target.value)} fullWidth />
                 <TextField label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} fullWidth />
               </Stack>
-            </Paper>
+            </SectionCard>
 
             {/* Vehicle */}
-            <Paper sx={sectionSx}>
-              <Typography sx={labelSx}>Vehicle</Typography>
-              <FormControl fullWidth>
-                <InputLabel>Vehicle</InputLabel>
-                <Select value={vehicleId} label="Vehicle" onChange={(e) => setVehicleId(e.target.value)}>
-                  <MenuItem value="">— None —</MenuItem>
-                  {vehicles.map((v) => (
-                    <MenuItem key={v.id} value={v.id}>
-                      {v.make} {v.model} · {v.registrationNo}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Paper>
+            <SectionCard title="Vehicle" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />}>
+              <Box sx={{ py: 1 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Vehicle</InputLabel>
+                  <Select value={vehicleId} label="Vehicle" onChange={(e) => setVehicleId(e.target.value)}>
+                    <MenuItem value="">— None —</MenuItem>
+                    {vehicles.map((v) => (
+                      <MenuItem key={v.id} value={v.id}>
+                        {v.make} {v.model} · {v.registrationNo}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+            </SectionCard>
 
             {/* Socials */}
-            <Paper sx={sectionSx}>
-              <Typography sx={labelSx}>Socials</Typography>
-              <Stack spacing={2}>
+            <SectionCard title="Socials" icon={<LinkIcon sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={2} sx={{ py: 1 }}>
                 <TextField label="WhatsApp Link" value={whatsappLink} onChange={(e) => setWhatsappLink(e.target.value)} fullWidth placeholder="https://wa.me/..." />
                 <TextField label="Facebook Link" value={facebookLink} onChange={(e) => setFacebookLink(e.target.value)} fullWidth />
                 <TextField label="LinkedIn Link" value={linkedinLink} onChange={(e) => setLinkedinLink(e.target.value)} fullWidth />
                 <TextField label="Google Link" value={googleLink} onChange={(e) => setGoogleLink(e.target.value)} fullWidth />
               </Stack>
-            </Paper>
+            </SectionCard>
           </>
         )}
 
@@ -263,9 +300,8 @@ export function CreateCustomerPage() {
         {customerType === 'Corporate' && (
           <>
             {/* General Information */}
-            <Paper sx={sectionSx}>
-              <Typography sx={labelSx}>General Information</Typography>
-              <Stack spacing={2}>
+            <SectionCard title="General Information" icon={<Business sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={2} sx={{ py: 1 }}>
                 <TextField label="Name" value={fullName} onChange={(e) => setFullName(e.target.value)} fullWidth required />
                 <TextField label="Note" value={corpNote} onChange={(e) => setCorpNote(e.target.value)} fullWidth placeholder="e.g. VIP" />
                 <TextField label="Social Media" value={corpSocialMedia} onChange={(e) => setCorpSocialMedia(e.target.value)} fullWidth placeholder="WhatsApp" />
@@ -275,12 +311,11 @@ export function CreateCustomerPage() {
                 </Stack>
                 <TextField label="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth type="email" />
               </Stack>
-            </Paper>
+            </SectionCard>
 
             {/* Parent Company */}
-            <Paper sx={sectionSx}>
-              <Typography sx={labelSx}>Parent Company</Typography>
-              <Stack spacing={2}>
+            <SectionCard title="Parent Company" icon={<CorporateFare sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={2} sx={{ py: 1 }}>
                 <RadioGroup
                   row
                   value={parentMode}
@@ -302,7 +337,7 @@ export function CreateCustomerPage() {
 
                 {parentMode === 'new' && (
                   <>
-                    <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>Parent Company Address</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700, mt: 1, color: colors.slate[700] }}>Parent Company Address</Typography>
                     <Stack direction="row" spacing={2}>
                       <FormControl sx={{ flex: 1 }}>
                         <InputLabel>Division</InputLabel>
@@ -337,7 +372,7 @@ export function CreateCustomerPage() {
 
                 <Divider />
 
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>Parent Company Transport Officer</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[700] }}>Parent Company Transport Officer</Typography>
                 <TextField label="Name" value={transportOfficerName} onChange={(e) => setTransportOfficerName(e.target.value)} fullWidth />
                 <Stack direction="row" spacing={2}>
                   <Stack direction="row" spacing={1} sx={{ flex: 1, alignItems: 'center' }}>
@@ -349,7 +384,7 @@ export function CreateCustomerPage() {
 
                 <Divider />
 
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>Transport Manager Information</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[700] }}>Transport Manager Information</Typography>
                 <TextField label="Name" value={transportManagerName} onChange={(e) => setTransportManagerName(e.target.value)} fullWidth />
                 <Stack direction="row" spacing={2}>
                   <Stack direction="row" spacing={1} sx={{ flex: 1, alignItems: 'center' }}>
@@ -359,20 +394,31 @@ export function CreateCustomerPage() {
                   <TextField label="Email" value={transportManagerEmail} onChange={(e) => setTransportManagerEmail(e.target.value)} sx={{ flex: 1 }} />
                 </Stack>
               </Stack>
-            </Paper>
+            </SectionCard>
           </>
         )}
 
         {/* Actions */}
         <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end' }}>
-          <Button variant="outlined" size="large" onClick={() => navigate('/cre/customers')} sx={{ fontWeight: 700 }}>
+          <Button
+            variant="outlined"
+            size="large"
+            onClick={() => navigate('/cre/customers')}
+            sx={{ fontWeight: 700, borderRadius: '10px', borderColor: colors.border.strong, color: colors.slate[700], '&:hover': { borderColor: colors.slate[400] } }}
+          >
             Cancel
           </Button>
-          <Button variant="contained" size="large" onClick={() => void handleSubmit()} sx={{ fontWeight: 900, px: 4 }} disabled={saving}>
+          <Button
+            variant="contained"
+            size="large"
+            onClick={() => void handleSubmit()}
+            disabled={saving}
+            sx={{ fontWeight: 900, px: 4, bgcolor: colors.slate[900], borderRadius: '10px', '&:hover': { bgcolor: colors.slate[800] } }}
+          >
             {saving ? 'Adding…' : 'Add Customer'}
           </Button>
         </Stack>
       </Stack>
-    </Page>
+    </Box>
   )
 }

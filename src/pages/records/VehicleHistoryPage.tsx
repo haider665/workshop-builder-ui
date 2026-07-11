@@ -1,9 +1,7 @@
 import {
   Box,
   Button,
-  Chip,
-  Divider,
-  Paper,
+  InputAdornment,
   Stack,
   Table,
   TableBody,
@@ -13,9 +11,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { DirectionsCar, Search, WorkHistory } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { StatCard } from '../../components/StatCard'
+import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import type { CWJob, CWTask } from '../../types/cw'
 
@@ -56,76 +57,107 @@ export function VehicleHistoryPage() {
   }, [allRegs, query])
 
   return (
-    <Page
-      title="Vehicle History"
-      subtitle="Search registration number and view read-only service history."
-      actions={
-        <Button
-          variant="outlined"
-          disabled={!query.trim()}
-          onClick={() => navigate(`/vehicle-history/${encodeURIComponent(query.trim())}`)}
-        >
-          Open
-        </Button>
-      }
-    >
-      <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-        <Stack spacing={2}>
-          <TextField
-            label="Registration No"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. CWA-1001"
-            fullWidth
-          />
-
-          <Divider />
-
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
           <Box>
-            <Typography sx={{ fontWeight: 900, mb: 1 }}>Known vehicles</Typography>
-            {filteredRegs.length ? (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800 }}>Registration</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Last activity</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>
-                      Action
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredRegs.map((reg) => {
-                    const lastIso = lastActivityIsoForRegistration(reg, tasks, jobs)
-                    return (
-                      <TableRow key={reg} hover>
-                        <TableCell sx={{ fontWeight: 800 }}>{reg}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {lastIso ? new Date(lastIso).toLocaleString() : '—'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button size="small" variant="contained" onClick={() => navigate(`/vehicle-history/${encodeURIComponent(reg)}`)}>
-                            View
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            ) : (
-              <Typography color="text.secondary">No vehicles match.</Typography>
-            )}
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Vehicle History
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Search registration number and view read-only service history.</Typography>
+          </Box>
+          <Button
+            variant="contained"
+            disabled={!query.trim()}
+            onClick={() => navigate(`/vehicle-history/${encodeURIComponent(query.trim())}`)}
+            sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+          >
+            Open
+          </Button>
+        </Stack>
+
+        {/* Stat cards */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <StatCard icon={<DirectionsCar fontSize="small" />} title="TOTAL VEHICLES" value={allRegs.length} gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)" />
+          <StatCard icon={<WorkHistory fontSize="small" />} title="MATCHING" value={filteredRegs.length} gradient="linear-gradient(135deg, #334155 0%, #475569 100%)" />
+        </Stack>
+
+        {/* Search */}
+        <TextField
+          size="small"
+          placeholder="Search registration number, e.g. CWA-1001..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          fullWidth
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search sx={{ fontSize: '1.1rem', color: colors.slate[400] }} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem', bgcolor: colors.bg.page } }}
+        />
+
+        {/* Vehicles table */}
+        <Box sx={tableSectionSx}>
+          <Box sx={tableHeaderSx}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <Box sx={tableHeaderIconSx}><DirectionsCar sx={{ fontSize: '1rem' }} /></Box>
+              <Typography sx={tableHeaderTitleSx}>KNOWN VEHICLES</Typography>
+              <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                {filteredRegs.length}
+              </Box>
+            </Stack>
           </Box>
 
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-            <Chip size="small" label={`Vehicles: ${allRegs.length}`} />
-            <Chip size="small" label="F1 outcomes tracked in Milestone 9" />
-          </Stack>
-        </Stack>
-      </Paper>
-    </Page>
+          {filteredRegs.length ? (
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell>Registration</TableCell>
+                  <TableCell>Last Activity</TableCell>
+                  <TableCell align="right">Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredRegs.map((reg) => {
+                  const lastIso = lastActivityIsoForRegistration(reg, tasks, jobs)
+                  return (
+                    <TableRow key={reg} hover sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>{reg}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
+                          {lastIso ? new Date(lastIso).toLocaleString() : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={() => navigate(`/vehicle-history/${encodeURIComponent(reg)}`)}
+                          sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <Box sx={{ p: 3 }}>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No vehicles match.</Typography>
+            </Box>
+          )}
+        </Box>
+      </Stack>
+    </Box>
   )
 }

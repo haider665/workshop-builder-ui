@@ -9,7 +9,6 @@ import {
   FormControl,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Stack,
   Table,
@@ -22,8 +21,10 @@ import {
 } from '@mui/material'
 import { Call, CallMade, CallReceived } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
+import { StatCard } from '../../components/StatCard'
 import { useCwStore } from '../../store/cwStore'
+import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWCallDirection } from '../../types/cw'
 
 function fmtDuration(secs: number) {
@@ -81,60 +82,80 @@ export function CRECallPage() {
   }
 
   return (
-    <Page title="Call History" subtitle="Log and track all customer calls (CDR)">
-      <Stack spacing={2.5}>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Call History
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Log and track all customer calls (CDR)</Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<Call />}
+            onClick={() => setDialogOpen(true)}
+            sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+          >
+            Log Call
+          </Button>
+        </Stack>
+
         {/* Stats */}
-        <Stack direction="row" spacing={2}>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900 }}>{callRecords.length}</Typography>
-            <Typography variant="body2" color="text.secondary">Total Calls</Typography>
-          </Paper>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900 }}>
-              {callRecords.filter((r) => r.direction === 'outbound').length}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">Outbound</Typography>
-          </Paper>
-          <Paper sx={{ p: 2, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h4" sx={{ fontWeight: 900 }}>
-              {callRecords.filter((r) => r.direction === 'inbound').length}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">Inbound</Typography>
-          </Paper>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <StatCard
+            icon={<Call fontSize="small" />}
+            title="Total Calls"
+            value={callRecords.length}
+            gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
+          />
+          <StatCard
+            icon={<CallMade fontSize="small" />}
+            title="Outbound"
+            value={callRecords.filter((r) => r.direction === 'outbound').length}
+            gradient="linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
+          />
+          <StatCard
+            icon={<CallReceived fontSize="small" />}
+            title="Inbound"
+            value={callRecords.filter((r) => r.direction === 'inbound').length}
+            gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
+          />
         </Stack>
 
         {/* Call Log Table */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box>
-              <Typography sx={{ fontWeight: 900 }}>Call Detail Records</Typography>
-              <Typography variant="body2" color="text.secondary">All logged customer calls</Typography>
-            </Box>
-            <Button variant="contained" startIcon={<Call />} onClick={() => setDialogOpen(true)} sx={{ fontWeight: 700 }}>
-              Log Call
-            </Button>
+        <Box sx={tableSectionSx}>
+          <Box sx={tableHeaderSx}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <Box sx={tableHeaderIconSx}><Call sx={{ fontSize: '1rem' }} /></Box>
+              <Typography sx={tableHeaderTitleSx}>Call Detail Records</Typography>
+              <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                {callRecords.length}
+              </Box>
+            </Stack>
           </Box>
           {callRecords.length > 0 ? (
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 800 }}>Direction</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Duration</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Notes</TableCell>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell>Direction</TableCell>
+                  <TableCell>Customer</TableCell>
+                  <TableCell>Time</TableCell>
+                  <TableCell>Duration</TableCell>
+                  <TableCell>Notes</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {callRecords.map((r) => (
-                  <TableRow key={r.id} hover>
+                  <TableRow key={r.id} hover sx={{ '& .MuiTableCell-body': bodyCellSx }}>
                     <TableCell>
                       <Chip
                         size="small"
                         icon={r.direction === 'outbound' ? <CallMade /> : <CallReceived />}
                         label={r.direction === 'outbound' ? 'Outbound' : 'Inbound'}
                         color={r.direction === 'outbound' ? 'primary' : 'success'}
-                        sx={{ fontWeight: 700 }}
+                        sx={{ fontWeight: 700, fontSize: '0.72rem' }}
                       />
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>{r.customerName}</TableCell>
@@ -146,21 +167,36 @@ export function CRECallPage() {
               </TableBody>
             </Table>
           ) : (
-            <Box sx={{ p: 2.5 }}>
-              <Typography color="text.secondary">No calls logged yet. Click "Log Call" to record a call.</Typography>
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No calls logged yet. Click "Log Call" to record a call.</Typography>
             </Box>
           )}
-        </Paper>
+        </Box>
       </Stack>
 
       {/* Log Call Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 900 }}>Log Call</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: radii.lg,
+              boxShadow: shadows.dialog,
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, fontSize: '1.1rem', color: colors.slate[900], borderBottom: `1px solid ${colors.border.default}`, px: 3, py: 2 }}>
+          Log Call
+        </DialogTitle>
+        <DialogContent sx={{ px: 3, py: 2.5 }}>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Direction</InputLabel>
-              <Select label="Direction" value={direction} onChange={(e) => setDirection(e.target.value as CWCallDirection)}>
+              <Select label="Direction" value={direction} onChange={(e) => setDirection(e.target.value as CWCallDirection)} sx={{ borderRadius: radii.sm, fontSize: '0.85rem' }}>
                 <MenuItem value="outbound">Outbound (CRE → Customer)</MenuItem>
                 <MenuItem value="inbound">Inbound (Customer → CRE)</MenuItem>
               </Select>
@@ -169,6 +205,7 @@ export function CRECallPage() {
             <TextField
               select size="small" label="Customer" fullWidth
               value={customerId} onChange={(e) => { setCustomerId(e.target.value); setAppointmentId('') }}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
             >
               <MenuItem value="">— Select Customer —</MenuItem>
               {customers.slice().sort((a, b) => a.fullName.localeCompare(b.fullName)).map((c) => (
@@ -180,6 +217,7 @@ export function CRECallPage() {
               <TextField
                 select size="small" label="Link to Appointment (optional)" fullWidth
                 value={appointmentId} onChange={(e) => setAppointmentId(e.target.value)}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
               >
                 <MenuItem value="">— None —</MenuItem>
                 {customerAppointments.map((a) => {
@@ -195,23 +233,31 @@ export function CRECallPage() {
 
             <Stack direction="row" spacing={1.5}>
               <TextField size="small" label="Minutes" type="number" value={durationMins}
-                onChange={(e) => setDurationMins(e.target.value)} sx={{ width: 100 }}
+                onChange={(e) => setDurationMins(e.target.value)} sx={{ width: 100, '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }}
                 slotProps={{ htmlInput: { min: 0 } }} />
               <TextField size="small" label="Seconds" type="number" value={durationSecs}
-                onChange={(e) => setDurationSecs(e.target.value)} sx={{ width: 100 }}
+                onChange={(e) => setDurationSecs(e.target.value)} sx={{ width: 100, '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }}
                 slotProps={{ htmlInput: { min: 0, max: 59 } }} />
             </Stack>
 
             <TextField size="small" label="Notes / Summary" multiline rows={3} fullWidth
               value={notes} onChange={(e) => setNotes(e.target.value)}
-              placeholder="Call summary, topics discussed, action items…" />
+              placeholder="Call summary, topics discussed, action items…"
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSubmit} disabled={!customerId}>Log Call</Button>
+        <DialogActions sx={{ px: 3, py: 2, borderTop: `1px solid ${colors.border.default}` }}>
+          <Button onClick={() => setDialogOpen(false)} sx={{ color: colors.slate[600], fontWeight: 600, borderRadius: '10px' }}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={!customerId}
+            sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+          >
+            Log Call
+          </Button>
         </DialogActions>
       </Dialog>
-    </Page>
+    </Box>
   )
 }

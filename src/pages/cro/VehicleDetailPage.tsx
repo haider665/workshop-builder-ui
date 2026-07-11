@@ -2,7 +2,7 @@ import {
   Alert,
   Box,
   Button,
-  Paper,
+  IconButton,
   Snackbar,
   Stack,
   Table,
@@ -12,21 +12,32 @@ import {
   TableRow,
   Typography,
 } from '@mui/material'
+import {
+  ArrowBack,
+  DirectionsCarOutlined,
+  HistoryOutlined,
+  MoreHorizOutlined,
+  Person,
+} from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
+import { colors, radii } from '../../theme/tokens'
+import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+
+/* ── InfoRow — key-value pair row inside SectionCard ────── */
 
 function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <Stack
       direction="row"
-      sx={{ alignItems: 'center', py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}
+      sx={{ alignItems: 'center', py: 1.25, borderBottom: `1px solid ${colors.border.subtle}` }}
     >
-      <Typography variant="body2" color="text.secondary" sx={{ width: 180, flexShrink: 0 }}>
+      <Typography sx={{ width: 180, flexShrink: 0, fontSize: '0.82rem', color: colors.slate[500], fontWeight: 500 }}>
         {label}
       </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 500, flex: 1 }}>
+      <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900], flex: 1 }}>
         {value ?? '—'}
       </Typography>
     </Stack>
@@ -49,16 +60,21 @@ export function VehicleDetailPage() {
 
   if (!vehicle) {
     return (
-      <Page
-        title="Vehicle Information"
-        actions={
-          <Button variant="outlined" onClick={() => navigate('/cre/vehicles')}>Back</Button>
-        }
-      >
-        <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-          <Typography color="text.secondary">No record for this vehicle id.</Typography>
-        </Paper>
-      </Page>
+      <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+        <Stack spacing={3.5}>
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 2 }}>
+            <IconButton onClick={() => navigate('/cre/vehicles')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Vehicle Information
+            </Typography>
+          </Stack>
+          <SectionCard title="NOT FOUND" icon={<DirectionsCarOutlined sx={{ fontSize: '1rem' }} />}>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No record for this vehicle id.</Typography>
+          </SectionCard>
+        </Stack>
+      </Box>
     )
   }
 
@@ -87,77 +103,102 @@ export function VehicleDetailPage() {
   }, [appointments, v, users])
 
   return (
-    <Page
-      title="Vehicle Information"
-      actions={
-        <Stack direction="row" spacing={1}>
-          <Button variant="contained" sx={{ fontWeight: 700 }}>+ Edit Details</Button>
-          <Button variant="outlined" sx={{ fontWeight: 700 }}>Ownership Transfer</Button>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 2 }}>
+            <IconButton onClick={() => navigate('/cre/vehicles')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+                Vehicle Information
+              </Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+                {v.make} {v.model} — {v.registrationNo}
+              </Typography>
+            </Box>
+          </Stack>
+          <Stack direction="row" spacing={1}>
+            <Button variant="contained" sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}>
+              + Edit Details
+            </Button>
+            <Button variant="outlined" sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5, borderColor: colors.border.strong, color: colors.slate[700] }}>
+              Ownership Transfer
+            </Button>
+          </Stack>
         </Stack>
-      }
-    >
-      <Snackbar
-        open={successOpen}
-        onClose={() => setSuccessOpen(false)}
-        autoHideDuration={2500}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
-          Updated successfully
-        </Alert>
-      </Snackbar>
 
-      <Stack spacing={3}>
+        <Snackbar
+          open={successOpen}
+          onClose={() => setSuccessOpen(false)}
+          autoHideDuration={2500}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
+            Updated successfully
+          </Alert>
+        </Snackbar>
+
         {/* General Information + Customer — side by side */}
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3}>
           {/* General Information */}
-          <Paper sx={{ p: 3, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>General Information</Typography>
-            <InfoRow label="Brand" value={v.make} />
-            <InfoRow label="Model" value={v.model} />
-            <InfoRow label="Vehicle Category" value={v.vehicleCategory} />
-            <InfoRow label="Vehicle Size" value={v.vehicleSize} />
-            <InfoRow label="Model Variant" value={v.modelVariant} />
-            <InfoRow label="Country of Origin" value={v.countryOfOrigin} />
-            <InfoRow label="Country of Assembly" value={v.countryOfAssembly} />
-            <InfoRow label="VIN" value={v.vin} />
-            <InfoRow label="Registration Number" value={v.registrationNo} />
-          </Paper>
+          <Box sx={{ flex: 1 }}>
+            <SectionCard title="GENERAL INFORMATION" icon={<DirectionsCarOutlined sx={{ fontSize: '1rem' }} />}>
+              <InfoRow label="Brand" value={v.make} />
+              <InfoRow label="Model" value={v.model} />
+              <InfoRow label="Vehicle Category" value={v.vehicleCategory} />
+              <InfoRow label="Vehicle Size" value={v.vehicleSize} />
+              <InfoRow label="Model Variant" value={v.modelVariant} />
+              <InfoRow label="Country of Origin" value={v.countryOfOrigin} />
+              <InfoRow label="Country of Assembly" value={v.countryOfAssembly} />
+              <InfoRow label="VIN" value={v.vin} />
+              <InfoRow label="Registration Number" value={v.registrationNo} />
+            </SectionCard>
+          </Box>
 
           {/* Customer */}
-          <Paper sx={{ p: 3, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontWeight: 900, mb: 2 }}>Customer</Typography>
-            <InfoRow label="Customer" value={customer?.fullName} />
-            <InfoRow label="Phone Number" value={customer?.phone} />
-            <InfoRow label="Email Address" value={customer?.email} />
-            <InfoRow label="Driver" value={customer?.driverName ? 'Other Driver' : 'Self Driven'} />
-            <InfoRow label="Driver Name" value={customer?.driverName ?? customer?.fullName} />
-            <InfoRow label="Driver Number" value={customer?.driverPhone ?? customer?.phone} />
-            <InfoRow label="User" value={
-              (customer?.type ?? 'Individual') === 'Corporate' ? 'Corporate Use' : 'Personal Use'
-            } />
-          </Paper>
+          <Box sx={{ flex: 1 }}>
+            <SectionCard title="CUSTOMER" icon={<Person sx={{ fontSize: '1rem' }} />}>
+              <InfoRow label="Customer" value={customer?.fullName} />
+              <InfoRow label="Phone Number" value={customer?.phone} />
+              <InfoRow label="Email Address" value={customer?.email} />
+              <InfoRow label="Driver" value={customer?.driverName ? 'Other Driver' : 'Self Driven'} />
+              <InfoRow label="Driver Name" value={customer?.driverName ?? customer?.fullName} />
+              <InfoRow label="Driver Number" value={customer?.driverPhone ?? customer?.phone} />
+              <InfoRow label="User" value={
+                (customer?.type ?? 'Individual') === 'Corporate' ? 'Corporate Use' : 'Personal Use'
+              } />
+            </SectionCard>
+          </Box>
         </Stack>
 
         {/* Service History */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900 }}>Service History</Typography>
+        <Box sx={tableSectionSx}>
+          <Box sx={tableHeaderSx}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <Box sx={tableHeaderIconSx}><HistoryOutlined sx={{ fontSize: '1rem' }} /></Box>
+              <Typography sx={tableHeaderTitleSx}>SERVICE HISTORY</Typography>
+              <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                {serviceHistory.length}
+              </Box>
+            </Stack>
           </Box>
           {serviceHistory.length === 0 ? (
             <Box sx={{ p: 3 }}>
-              <Typography color="text.secondary">No service history.</Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No service history.</Typography>
             </Box>
           ) : (
             <Table size="small">
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Job ID</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Vehicle</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Service Advisor</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Delivery Date</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Last Recorded mileage</TableCell>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell>Job ID</TableCell>
+                  <TableCell>Vehicle</TableCell>
+                  <TableCell>Service Advisor</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Delivery Date</TableCell>
+                  <TableCell>Last Recorded Mileage</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -165,20 +206,20 @@ export function VehicleDetailPage() {
                   <TableRow
                     key={row.id}
                     hover
-                    sx={{ cursor: 'pointer' }}
+                    sx={{ cursor: 'pointer', '& .MuiTableCell-body': bodyCellSx }}
                     onClick={() => navigate(`/cre/appointments/${row.id}`)}
                   >
                     <TableCell>{row.jobId}</TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.vehicle}</Typography>
-                      <Typography variant="caption" color="text.secondary">{row.regNo}</Typography>
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: colors.slate[900] }}>{row.vehicle}</Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>{row.regNo}</Typography>
                     </TableCell>
                     <TableCell>{row.serviceAdvisor}</TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>{row.date}</Typography>
+                      <Typography sx={{ fontSize: '0.85rem', whiteSpace: 'pre-line' }}>{row.date}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>{row.deliveryDate}</Typography>
+                      <Typography sx={{ fontSize: '0.85rem', whiteSpace: 'pre-line' }}>{row.deliveryDate}</Typography>
                     </TableCell>
                     <TableCell>{row.mileage}</TableCell>
                   </TableRow>
@@ -186,19 +227,18 @@ export function VehicleDetailPage() {
               </TableBody>
             </Table>
           )}
-        </Paper>
+        </Box>
 
         {/* Others */}
-        <Paper sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Typography sx={{ fontWeight: 900, mb: 2 }}>Others</Typography>
+        <SectionCard title="OTHERS" icon={<MoreHorizOutlined sx={{ fontSize: '1rem' }} />}>
           <InfoRow label="Exterior Colour" value={v.exteriorColor} />
           <InfoRow label="Exterior Colour Code" value={v.exteriorColorCode} />
           <InfoRow label="Interior Colour" value={v.interiorColor} />
           <InfoRow label="Interior Colour Code" value={v.interiorColorCode} />
           <InfoRow label="Tyre Size" value={v.tyreSize} />
           <InfoRow label="Additional Notes" value={v.additionalNotes} />
-        </Paper>
+        </SectionCard>
       </Stack>
-    </Page>
+    </Box>
   )
 }

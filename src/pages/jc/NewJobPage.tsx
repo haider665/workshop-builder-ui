@@ -4,8 +4,8 @@ import {
   Button,
   Checkbox,
   Divider,
+  IconButton,
   MenuItem,
-  Paper,
   Stack,
   Table,
   TableBody,
@@ -16,10 +16,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Add, ArrowDownward, ArrowUpward, Delete } from '@mui/icons-material'
+import { Add, ArrowBack, ArrowDownward, ArrowUpward, Delete, DirectionsCar, Assignment, ListAlt } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
+import { headerCellSx, bodyCellSx, tableSectionSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import { colors, radii, pageLayout } from '../../theme/tokens'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import type { CWTaskTemplate } from '../../types/cw'
@@ -54,6 +56,15 @@ type DraftJobTask = {
   bayId: string
   dependsOnKeys: string[]
 }
+
+/* ── Shared field sx ────────────────────────────────────── */
+const fieldSx = {
+  '& .MuiOutlinedInput-root': {
+    borderRadius: radii.sm,
+    fontSize: '0.85rem',
+    bgcolor: colors.bg.page,
+  },
+} as const
 
 export function NewJobPage() {
   const navigate = useNavigate()
@@ -341,108 +352,131 @@ export function NewJobPage() {
   }
 
   return (
-    <Page title="Create Job" subtitle="Create a job and generate tasks from templates.">
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      ) : null}
+    <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
+      <Stack spacing={3.5}>
+        {/* ── Header ─────────────────────────────────────────── */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+            <IconButton onClick={() => navigate('/jc/pending-vehicles')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+                Create Job
+              </Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+                Create a job and generate tasks from templates.
+              </Typography>
+            </Box>
+          </Stack>
+        </Stack>
 
-      <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-        <Stack spacing={2}>
-          <Box>
-            <Typography sx={{ fontWeight: 900 }}>Vehicle</Typography>
-            <Typography variant="body2" color="text.secondary">
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: radii.sm }}>{error}</Alert>
+        ) : null}
+
+        {/* ── Vehicle Section ────────────────────────────────── */}
+        <SectionCard title="Vehicle" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />}>
+          <Stack spacing={2} sx={{ py: 1 }}>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem' }}>
               {pendingVehicleId ? 'Pre-filled from pending vehicles.' : appointmentIdParam ? 'Pre-filled from appointment.' : 'Enter registration number.'}
             </Typography>
             {appointmentPrefillSummary ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem' }}>
                 From appointment: {appointmentPrefillSummary}
               </Typography>
             ) : null}
-          </Box>
 
-          <TextField
-            label="Registration No"
-            value={registrationNo}
-            onChange={(e) => setRegistrationNo(e.target.value)}
-            fullWidth
-            disabled={!!pendingVehicleId || !!appointmentIdParam}
-          />
+            <TextField
+              label="Registration No"
+              value={registrationNo}
+              onChange={(e) => setRegistrationNo(e.target.value)}
+              fullWidth
+              size="small"
+              disabled={!!pendingVehicleId || !!appointmentIdParam}
+              sx={fieldSx}
+            />
+          </Stack>
+        </SectionCard>
 
-          <Divider />
-
-          <Box>
-            <Typography sx={{ fontWeight: 900 }}>Build job tasks</Typography>
-            <Typography variant="body2" color="text.secondary">
+        {/* ── Build Job Tasks Section ────────────────────────── */}
+        <SectionCard title="Build Job Tasks" icon={<Assignment sx={{ fontSize: '1rem' }} />}>
+          <Stack spacing={2} sx={{ py: 1 }}>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem' }}>
               Select a shop to see its templates, then add tasks. A job can include tasks from multiple shops.
             </Typography>
-          </Box>
 
-          <TextField
-            select
-            label="Shop"
-            fullWidth
-            value={shopId}
-            onChange={(e) => {
-              setShopId(e.target.value)
-              setTemplateId('')
-            }}
-          >
-            {activeShops.map((s) => (
-              <MenuItem key={s.id} value={s.id}>
-                {s.name}
-              </MenuItem>
-            ))}
-            {activeShops.length ? null : (
-              <MenuItem value="" disabled>
-                No active shops
-              </MenuItem>
-            )}
-          </TextField>
-
-          <TextField
-            select
-            label="Task Template"
-            fullWidth
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-            disabled={!shopId}
-          >
-            {activeTemplatesForShop
-              .filter((t) => t.shopId === shopId)
-              .map((t) => (
-                <MenuItem key={t.id} value={t.id}>
-                  {t.name}
+            <TextField
+              select
+              label="Shop"
+              fullWidth
+              size="small"
+              value={shopId}
+              onChange={(e) => {
+                setShopId(e.target.value)
+                setTemplateId('')
+              }}
+              sx={fieldSx}
+            >
+              {activeShops.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                  {s.name}
                 </MenuItem>
               ))}
-          </TextField>
+              {activeShops.length ? null : (
+                <MenuItem value="" disabled>
+                  No active shops
+                </MenuItem>
+              )}
+            </TextField>
 
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={addTask}
-            disabled={!registrationNo.trim() || !shopId || !templateId}
-          >
-            Add Task
-          </Button>
+            <TextField
+              select
+              label="Task Template"
+              fullWidth
+              size="small"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              disabled={!shopId}
+              sx={fieldSx}
+            >
+              {activeTemplatesForShop
+                .filter((t) => t.shopId === shopId)
+                .map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    {t.name}
+                  </MenuItem>
+                ))}
+            </TextField>
 
-          <Divider />
+            <Box>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={addTask}
+                disabled={!registrationNo.trim() || !shopId || !templateId}
+                sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+              >
+                Add Task
+              </Button>
+            </Box>
+          </Stack>
+        </SectionCard>
 
-          <Box>
-            <Typography sx={{ fontWeight: 900 }}>Task plan</Typography>
-            <Typography variant="body2" color="text.secondary">
+        {/* ── Task Plan Section ──────────────────────────────── */}
+        <SectionCard title="Task Plan" icon={<ListAlt sx={{ fontSize: '1rem' }} />}>
+          <Stack spacing={2} sx={{ py: 1 }}>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem' }}>
               For each task: choose time window, role, available users, and bay.
             </Typography>
-          </Box>
 
-          <Paper variant="outlined" sx={{ p: 2 }}>
-            <Stack spacing={2}>
+            {/* ─── Selected task editor ───────────────────────── */}
+            <Box sx={{ borderRadius: radii.sm, border: `1px solid ${colors.border.default}`, p: 2.5, bgcolor: colors.bg.page }}>
               <Stack spacing={1.5}>
-                <Typography sx={{ fontWeight: 900 }}>Selected task</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: colors.slate[900] }}>Selected task</Typography>
                 {selectedTask ? (
                   <Stack spacing={1.5}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
                       {templateById.get(selectedTask.templateId)?.name ?? '—'}
                     </Typography>
 
@@ -454,7 +488,7 @@ export function NewJobPage() {
                         value={selectedTask.startLocal}
                         onChange={(e) => updateDraftTask(selectedTask.key, { startLocal: e.target.value })}
                         slotProps={{ inputLabel: { shrink: true } }}
-                        sx={{ flex: 1 }}
+                        sx={{ flex: 1, ...fieldSx }}
                       />
                       <TextField
                         size="small"
@@ -463,7 +497,7 @@ export function NewJobPage() {
                         value={selectedTask.endLocal}
                         onChange={(e) => updateDraftTask(selectedTask.key, { endLocal: e.target.value })}
                         slotProps={{ inputLabel: { shrink: true } }}
-                        sx={{ flex: 1 }}
+                        sx={{ flex: 1, ...fieldSx }}
                       />
                     </Stack>
 
@@ -509,6 +543,7 @@ export function NewJobPage() {
                             }}
                             fullWidth
                             disabled={idx <= 0}
+                            sx={fieldSx}
                             slotProps={{
                               select: {
                                 multiple: true,
@@ -546,7 +581,7 @@ export function NewJobPage() {
                                 const ids = Array.isArray(v) ? (v as string[]) : String(v).split(',')
                                 updateDraftTask(selectedTask.key, { roleIds: ids.filter(Boolean) })
                               }}
-                              sx={{ flex: 1 }}
+                              sx={{ flex: 1, ...fieldSx }}
                               slotProps={{
                                 select: {
                                   multiple: true,
@@ -572,7 +607,7 @@ export function NewJobPage() {
                               label="Bay"
                               value={selectedTask.bayId}
                               onChange={(e) => updateDraftTask(selectedTask.key, { bayId: e.target.value })}
-                              sx={{ flex: 1 }}
+                              sx={{ flex: 1, ...fieldSx }}
                             >
                               <MenuItem value="">—</MenuItem>
                               {bayOptions.map((b) => (
@@ -599,6 +634,7 @@ export function NewJobPage() {
                               ? 'Availability filtered by time window (and selected roles if any).'
                               : 'Set start/end to filter availability. Showing candidates (role filtered if set).'
                             }
+                            sx={fieldSx}
                             slotProps={{
                               select: {
                                 multiple: true,
@@ -615,7 +651,7 @@ export function NewJobPage() {
                                 <Checkbox checked={selectedIds.includes(u.id)} />
                                 <Box>
                                   <Typography>{u.fullName}</Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                  <Typography variant="caption" sx={{ display: 'block', color: colors.slate[500] }}>
                                     Roles: {roleNamesForUserId.get(u.id) ?? '—'}
                                     {windowValid && !baseIds.has(u.id) ? ' • Unavailable for selected time' : ''}
                                   </Typography>
@@ -633,160 +669,182 @@ export function NewJobPage() {
                     })()}
                   </Stack>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
                     Select a task row to edit time, dependencies, role, users, and bay.
                   </Typography>
                 )}
               </Stack>
+            </Box>
 
-              <Divider />
+            <Divider />
 
+            {/* ─── Tasks table ────────────────────────────────── */}
+            <Box sx={tableSectionSx}>
+              <Box sx={tableHeaderSx}>
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                  <Box sx={tableHeaderIconSx}><ListAlt sx={{ fontSize: '1rem' }} /></Box>
+                  <Typography sx={tableHeaderTitleSx}>Tasks</Typography>
+                  <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                    {draftTasks.length}
+                  </Box>
+                </Stack>
+              </Box>
               <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table size="small" sx={{ minWidth: 1200 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Task</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Time window</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Depends on</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Role</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Users (available)</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Bay</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }} align="right">
-                    Order
-                  </TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }} align="right">
-                    Remove
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {draftTasks.map((t, idx) => {
-                  const tpl = templateById.get(t.templateId)
-                  const shopName = shopNameById.get(t.shopId) ?? '—'
-                  const timeLabel = t.startLocal && t.endLocal ? `${t.startLocal} → ${t.endLocal}` : '—'
-                  const dependsLabels = (t.dependsOnKeys ?? [])
-                    .map((k) => {
-                      const dep = draftTasks.find((x) => x.key === k)
-                      if (!dep) return null
-                      return templateById.get(dep.templateId)?.name ?? '—'
-                    })
-                    .filter(Boolean) as string[]
-                  const roleLabel = t.roleIds.length
-                    ? t.roleIds
-                        .map((id) => roleNameById.get(id))
-                        .filter(Boolean)
-                        .join(', ')
-                    : '—'
-                  const userLabels = (t.assignedUserIds ?? []).map((id) => userNameById.get(id)).filter(Boolean) as string[]
-                  const bayLabel = t.bayId ? (bayNameById.get(t.bayId) ?? '—') : '—'
-
-                  return (
-                    <TableRow
-                      key={t.key}
-                      hover
-                      selected={t.key === selectedTaskKey}
-                      onClick={() => setSelectedTaskKey(t.key)}
-                      sx={{ cursor: 'pointer' }}
-                    >
-                      <TableCell sx={{ fontWeight: 800 }}>
-                        {tpl?.name ?? '—'}
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          {shopName}
-                        </Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography variant="body2">{timeLabel}</Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography variant="body2">{dependsLabels.length ? dependsLabels.join(', ') : '—'}</Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography variant="body2">{roleLabel}</Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography variant="body2">{userLabels.length ? userLabels.join(', ') : '—'}</Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography variant="body2">{bayLabel}</Typography>
-                      </TableCell>
-
-                      <TableCell align="right">
-                        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              moveTask(t.key, 'up')
-                            }}
-                            disabled={idx === 0}
-                            startIcon={<ArrowUpward />}
-                          >
-                            Up
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              moveTask(t.key, 'down')
-                            }}
-                            disabled={idx === draftTasks.length - 1}
-                            startIcon={<ArrowDownward />}
-                          >
-                            Down
-                          </Button>
-                        </Stack>
-                      </TableCell>
-
-                      <TableCell align="right">
-                        <Button
-                          size="small"
-                          color="error"
-                          variant="outlined"
-                          startIcon={<Delete />}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            removeTask(t.key)
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      </TableCell>
+                  <TableHead>
+                    <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                      <TableCell>Task</TableCell>
+                      <TableCell>Time window</TableCell>
+                      <TableCell>Depends on</TableCell>
+                      <TableCell>Role</TableCell>
+                      <TableCell>Users (available)</TableCell>
+                      <TableCell>Bay</TableCell>
+                      <TableCell align="right">Order</TableCell>
+                      <TableCell align="right">Remove</TableCell>
                     </TableRow>
-                  )
-                })}
-                {draftTasks.length ? null : (
-                  <TableRow>
-                    <TableCell colSpan={8}>
-                      <Typography variant="body2" color="text.secondary">
-                        No tasks added yet.
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
+                  </TableHead>
+                  <TableBody>
+                    {draftTasks.map((t, idx) => {
+                      const tpl = templateById.get(t.templateId)
+                      const shopName = shopNameById.get(t.shopId) ?? '—'
+                      const timeLabel = t.startLocal && t.endLocal ? `${t.startLocal} → ${t.endLocal}` : '—'
+                      const dependsLabels = (t.dependsOnKeys ?? [])
+                        .map((k) => {
+                          const dep = draftTasks.find((x) => x.key === k)
+                          if (!dep) return null
+                          return templateById.get(dep.templateId)?.name ?? '—'
+                        })
+                        .filter(Boolean) as string[]
+                      const roleLabel = t.roleIds.length
+                        ? t.roleIds
+                            .map((id) => roleNameById.get(id))
+                            .filter(Boolean)
+                            .join(', ')
+                        : '—'
+                      const userLabels = (t.assignedUserIds ?? []).map((id) => userNameById.get(id)).filter(Boolean) as string[]
+                      const bayLabel = t.bayId ? (bayNameById.get(t.bayId) ?? '—') : '—'
+
+                      return (
+                        <TableRow
+                          key={t.key}
+                          hover
+                          selected={t.key === selectedTaskKey}
+                          onClick={() => setSelectedTaskKey(t.key)}
+                          sx={{ cursor: 'pointer', '& .MuiTableCell-body': bodyCellSx }}
+                        >
+                          <TableCell>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: colors.slate[900] }}>
+                              {tpl?.name ?? '—'}
+                            </Typography>
+                            <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>
+                              {shopName}
+                            </Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{timeLabel}</Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{dependsLabels.length ? dependsLabels.join(', ') : '—'}</Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{roleLabel}</Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{userLabels.length ? userLabels.join(', ') : '—'}</Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{bayLabel}</Typography>
+                          </TableCell>
+
+                          <TableCell align="right">
+                            <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  moveTask(t.key, 'up')
+                                }}
+                                disabled={idx === 0}
+                                startIcon={<ArrowUpward />}
+                                sx={{ borderRadius: radii.sm, fontSize: '0.75rem', borderColor: colors.border.default, color: colors.slate[700] }}
+                              >
+                                Up
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  moveTask(t.key, 'down')
+                                }}
+                                disabled={idx === draftTasks.length - 1}
+                                startIcon={<ArrowDownward />}
+                                sx={{ borderRadius: radii.sm, fontSize: '0.75rem', borderColor: colors.border.default, color: colors.slate[700] }}
+                              >
+                                Down
+                              </Button>
+                            </Stack>
+                          </TableCell>
+
+                          <TableCell align="right">
+                            <Button
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              startIcon={<Delete />}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeTask(t.key)
+                              }}
+                              sx={{ borderRadius: radii.sm, fontSize: '0.75rem' }}
+                            >
+                              Remove
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                    {draftTasks.length ? null : (
+                      <TableRow>
+                        <TableCell colSpan={8}>
+                          <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
+                            No tasks added yet.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
                 </Table>
               </TableContainer>
-            </Stack>
-          </Paper>
-
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-            <Box sx={{ flexGrow: 1 }} />
-            <Button variant="outlined" onClick={() => navigate('/jc/pending-vehicles')}>
-              Back
-            </Button>
-            <Button variant="contained" onClick={() => void submit()} disabled={!registrationNo.trim() || !draftTasks.length}>
-              Create Job
-            </Button>
+            </Box>
           </Stack>
+        </SectionCard>
+
+        {/* ── Footer Actions ─────────────────────────────────── */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/jc/pending-vehicles')}
+            sx={{ borderRadius: '10px', borderColor: colors.border.default, color: colors.slate[700], fontWeight: 600, px: 2.5 }}
+          >
+            Back
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void submit()}
+            disabled={!registrationNo.trim() || !draftTasks.length}
+            sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
+          >
+            Create Job
+          </Button>
         </Stack>
-      </Paper>
-    </Page>
+      </Stack>
+    </Box>
   )
 }
