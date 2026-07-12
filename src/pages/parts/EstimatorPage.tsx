@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box,
   Button,
@@ -17,7 +17,7 @@ import {
   Send,
 } from '@mui/icons-material'
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
-import { useCwStore } from '../../store/cwStore'
+import { workshopApi } from '../../services/workshopApi'
 import type { CWEstimateLine, CWEstimateLineStatus } from '../../types/cw'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
@@ -57,17 +57,6 @@ function statusFg(status: CWEstimateLineStatus) {
 
 const FILTER_TABS = ['All', 'Requested', 'Identified', 'Priced', 'Submitted'] as const
 type FilterTab = (typeof FILTER_TABS)[number]
-
-/* ─────────────────────── Demo Data ─────────────────────────── */
-
-const DEMO_LINES: CWEstimateLine[] = [
-  { id: 'el-1', appointmentId: 'ap-001', description: 'Front brake pads worn beyond limit', requestedByUserId: 'se-1', quantity: 1, status: 'Requested', inStock: false, advanceRequired: false, createdAt: '2025-07-10T09:00:00Z', updatedAt: '2025-07-10T09:00:00Z' },
-  { id: 'el-2', appointmentId: 'ap-001', description: 'Oil filter needs replacement', requestedByUserId: 'se-1', quantity: 1, partId: 'p-1', partNumber: 'AP-2024-001', partName: 'Oil Filter Premium', status: 'Identified', inStock: true, advanceRequired: false, createdAt: '2025-07-10T09:30:00Z', updatedAt: '2025-07-10T10:00:00Z' },
-  { id: 'el-3', appointmentId: 'ap-002', description: 'Alternator not charging properly', requestedByUserId: 'se-2', quantity: 1, partId: 'p-5', partNumber: 'AP-2024-005', partName: 'Alternator', vendorId: 'v-1', unitPrice: 5500, sellPrice: 7500, sourcingType: 'Genuine', status: 'Priced', inStock: true, advanceRequired: false, createdAt: '2025-07-09T14:00:00Z', updatedAt: '2025-07-10T11:00:00Z' },
-  { id: 'el-4', appointmentId: 'ap-002', description: 'Dashboard cover cracked', requestedByUserId: 'se-2', quantity: 1, partId: 'p-10', partNumber: 'AP-2024-010', partName: 'Dashboard Cover', vendorId: 'v-3', unitPrice: 3800, sellPrice: 5200, sourcingType: 'Aftermarket', status: 'Submitted', submittedAt: '2025-07-10T12:00:00Z', inStock: false, estimatedDeliveryDate: '2025-07-20', advanceRequired: true, createdAt: '2025-07-09T14:30:00Z', updatedAt: '2025-07-10T12:00:00Z' },
-  { id: 'el-5', appointmentId: 'ap-003', description: 'Radiator leaking coolant', requestedByUserId: 'se-1', quantity: 1, partId: 'p-6', partNumber: 'AP-2024-006', partName: 'Radiator Core', vendorId: 'v-2', unitPrice: 8500, sellPrice: 12000, sourcingType: 'OEM', status: 'Approved', approvedAt: '2025-07-10T15:00:00Z', inStock: false, advanceRequired: true, createdAt: '2025-07-08T10:00:00Z', updatedAt: '2025-07-10T15:00:00Z' },
-  { id: 'el-6', appointmentId: 'ap-003', description: 'Spark plugs fouled', requestedByUserId: 'se-1', quantity: 4, partId: 'p-4', partNumber: 'SP-NGK-2847', partName: 'Spark Plug NGK', vendorId: 'v-1', unitPrice: 400, sellPrice: 600, sourcingType: 'Aftermarket', status: 'Declined', declinedAt: '2025-07-10T15:30:00Z', inStock: true, advanceRequired: false, createdAt: '2025-07-08T10:30:00Z', updatedAt: '2025-07-10T15:30:00Z' },
-]
 
 /* ─────────────────────── Requirement Card ─────────────────────────── */
 
@@ -228,7 +217,7 @@ function ActionButton({ status }: { status: CWEstimateLineStatus }) {
 
 /* ─────────────────────── Estimate Summary Panel ─────────────────────────── */
 
-function EstimateSummary({ lines }: { lines: CWEstimateLine[] }) {
+function EstimateSummary({ lines, onSubmitAppointment }: { lines: CWEstimateLine[]; onSubmitAppointment: (appointmentId: string, lineIds: string[]) => void }) {
   const pricedLines = useMemo(() => lines.filter((l) => l.status === 'Priced'), [lines])
 
   const grouped = useMemo(() => {
@@ -312,6 +301,12 @@ function EstimateSummary({ lines }: { lines: CWEstimateLine[] }) {
             variant="contained"
             startIcon={<Send sx={{ fontSize: 16 }} />}
             disabled={pricedLines.length === 0}
+            onClick={() => {
+              const firstAppointmentId = pricedLines[0]?.appointmentId
+              if (firstAppointmentId) {
+                onSubmitAppointment(firstAppointmentId, pricedLines.filter((line) => line.appointmentId === firstAppointmentId).map((line) => line.id))
+              }
+            }}
             sx={{
               bgcolor: colors.slate[900],
               fontWeight: 700,
@@ -332,15 +327,29 @@ function EstimateSummary({ lines }: { lines: CWEstimateLine[] }) {
 /* ─────────────────────── Main Page ─────────────────────────── */
 
 export function EstimatorPage() {
-  const storeLines = useCwStore((s) => s.estimateLines)
+  const [lines, setLines] = useState<CWEstimateLine[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<FilterTab>('All')
 
-  // Merge demo lines with real store lines (demo lines won't duplicate if store is empty)
-  const allLines = useMemo(() => {
-    const storeIds = new Set(storeLines.map((l) => l.id))
-    const deduped = DEMO_LINES.filter((d) => !storeIds.has(d.id))
-    return [...deduped, ...storeLines]
-  }, [storeLines])
+  async function loadLines() {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await workshopApi.listEstimateLines({ pageSize: 100 })
+      setLines(response.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load estimate lines')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadLines()
+  }, [])
+
+  const allLines = lines
 
   const filteredLines = useMemo(() => {
     if (tab === 'All') return allLines
@@ -435,14 +444,28 @@ export function EstimatorPage() {
                 </Typography>
               </Box>
             ) : (
-              filteredLines.map((line) => <RequirementCard key={line.id} line={line} />)
+              loading ? (
+                <Box sx={{ py: 6, textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>Loading requirements…</Typography>
+                </Box>
+              ) : error ? (
+                <Box sx={{ py: 6, textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: '0.875rem', color: colors.status.error }}>{error}</Typography>
+                </Box>
+              ) : (
+                filteredLines.map((line) => <RequirementCard key={line.id} line={line} />)
+              )
             )}
           </Stack>
         </Box>
 
         {/* Right: Estimate Summary (30%) */}
         <Box sx={{ flex: { md: 3 }, minWidth: { md: 280 } }}>
-          <EstimateSummary lines={allLines} />
+          <EstimateSummary lines={allLines} onSubmitAppointment={(appointmentId, lineIds) => {
+            void workshopApi.submitEstimateLines(appointmentId, lineIds).then(loadLines).catch((err: unknown) => {
+              setError(err instanceof Error ? err.message : 'Failed to submit estimate')
+            })
+          }} />
         </Box>
       </Stack>
     </Box>

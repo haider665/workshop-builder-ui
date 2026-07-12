@@ -1711,6 +1711,159 @@ export const workshopApi = {
     )
   },
 
+
+  async listParts(params: { status?: import('../types/cw').CWPartStatus; search?: string; category?: string; brand?: string; fitment?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWPart>> {
+    return request<ApiListResponse<import('../types/cw').CWPart>>(`/api/method/workshop.api.parts.list${buildQuery(params)}`)
+  },
+
+  async getPart(id: string): Promise<import('../types/cw').CWPart> {
+    return request<import('../types/cw').CWPart>(`/api/method/workshop.api.parts.get${buildQuery({ id })}`)
+  },
+
+  async createPart(input: Partial<import('../types/cw').CWPart> & { name: string; partNumber: string }): Promise<import('../types/cw').CWPart> {
+    return request<import('../types/cw').CWPart>('/api/method/workshop.api.parts.create', { method: 'POST', body: { data: input } })
+  },
+
+  async updatePart(id: string, input: Partial<import('../types/cw').CWPart>): Promise<import('../types/cw').CWPart> {
+    return request<import('../types/cw').CWPart>('/api/method/workshop.api.parts.update', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async setPartStatus(id: string, status: import('../types/cw').CWPartStatus): Promise<import('../types/cw').CWPart> {
+    return request<import('../types/cw').CWPart>('/api/method/workshop.api.parts.set_status', { method: 'POST', body: { data: { id, status } } })
+  },
+
+  async getPartStock(partId: string): Promise<{ partId: string; onHand: number; reserved: number; wip: number; atp: number; units: import('../types/cw').CWPartStockUnit[] }> {
+    return request(`/api/method/workshop.api.parts.stock${buildQuery({ partId })}`)
+  },
+
+  async lowStockAlerts(limit = 10): Promise<{ count: number; items: Array<{ id: string; name: string; partNumber: string; reorderLevel: number; stockCount: number; remaining: number; vendorName?: string | null }> }> {
+    return request(`/api/method/workshop.api.parts.low_stock_alerts${buildQuery({ limit })}`)
+  },
+
+  async slowMovers(daysThreshold = 90, limit = 10): Promise<{ items: Array<{ id: string; name: string; partNumber?: string; stockCount: number; daysInStock: number; lastMovementDate: string }> }> {
+    return request(`/api/method/workshop.api.parts.slow_movers${buildQuery({ daysThreshold, limit })}`)
+  },
+
+  async vendorMatrix(partId: string): Promise<{ partId: string; partName: string; vendors: Array<{ vendorId: string; vendorName: string; sourcingType: import('../types/cw').CWPricingSourcingType; unitPrice: number; currency: 'BDT' | 'USD' | 'EUR'; leadTimeDays: number; qualityRating: number; preferred: boolean; moq?: number }> }> {
+    return request(`/api/method/workshop.api.parts.vendor_matrix${buildQuery({ partId })}`)
+  },
+
+  async listVendors(params: { page?: number; pageSize?: number; status?: import('../types/cw').CWVendorStatus; sourcingType?: import('../types/cw').CWVendorSourcingType; search?: string } = {}): Promise<ApiListResponse<import('../types/cw').CWVendor>> {
+    return request<ApiListResponse<import('../types/cw').CWVendor>>(`/api/method/workshop.api.vendors.list${buildQuery(params)}`)
+  },
+
+  async createVendor(input: Partial<import('../types/cw').CWVendor> & { name: string; code: string; sourcingType: import('../types/cw').CWVendorSourcingType }): Promise<import('../types/cw').CWVendor> {
+    return request<import('../types/cw').CWVendor>('/api/method/workshop.api.vendors.create', { method: 'POST', body: { data: input } })
+  },
+
+  async updateVendor(id: string, input: Partial<import('../types/cw').CWVendor>): Promise<import('../types/cw').CWVendor> {
+    return request<import('../types/cw').CWVendor>('/api/method/workshop.api.vendors.update', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async listVendorPartPrices(params: { partId?: string; vendorId?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWVendorPartPrice>> {
+    return request<ApiListResponse<import('../types/cw').CWVendorPartPrice>>(`/api/method/workshop.api.vendor_part_prices.list${buildQuery(params)}`)
+  },
+
+  async upsertVendorPartPrice(input: Omit<import('../types/cw').CWVendorPartPrice, 'id' | 'lastUpdated'>): Promise<import('../types/cw').CWVendorPartPrice> {
+    return request<import('../types/cw').CWVendorPartPrice>('/api/method/workshop.api.vendor_part_prices.upsert', { method: 'POST', body: { data: input } })
+  },
+
+  async listEstimateLines(params: { appointmentId?: string; status?: import('../types/cw').CWEstimateLineStatus; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWEstimateLine>> {
+    return request<ApiListResponse<import('../types/cw').CWEstimateLine>>(`/api/method/workshop.api.estimate_lines.list${buildQuery(params)}`)
+  },
+
+  async identifyEstimateLine(id: string, input: { partId: string }): Promise<import('../types/cw').CWEstimateLine> {
+    return request<import('../types/cw').CWEstimateLine>('/api/method/workshop.api.estimate_lines.identify', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async priceEstimateLine(id: string, input: Partial<import('../types/cw').CWEstimateLine>): Promise<import('../types/cw').CWEstimateLine> {
+    return request<import('../types/cw').CWEstimateLine>('/api/method/workshop.api.estimate_lines.price', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async submitEstimateLines(appointmentId: string, lineIds: string[]): Promise<{ submitted: number; lockedAt: string; lines: Array<{ id: string; status: import('../types/cw').CWEstimateLineStatus; sellPrice?: number }> }> {
+    return request('/api/method/workshop.api.estimate_lines.submit', { method: 'POST', body: { data: { appointmentId, lineIds } } })
+  },
+
+  async listPurchaseOrders(params: { status?: import('../types/cw').CWPurchaseOrderStatus; vendorId?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWPurchaseOrder>> {
+    return request<ApiListResponse<import('../types/cw').CWPurchaseOrder>>(`/api/method/workshop.api.purchase_orders.list${buildQuery(params)}`)
+  },
+
+  async createPurchaseOrder(input: { vendorId: string; currency: 'BDT' | 'USD' | 'EUR'; sourcingType: import('../types/cw').CWVendorSourcingType; expectedArrivalDate: string; advanceRequired?: boolean; lines: Array<{ partId: string; quantity: number; unitPrice: number; discount?: number; estimateLineId?: string }> }): Promise<import('../types/cw').CWPurchaseOrder> {
+    return request<import('../types/cw').CWPurchaseOrder>('/api/method/workshop.api.purchase_orders.create', { method: 'POST', body: { data: input } })
+  },
+
+  async submitPurchaseOrder(id: string): Promise<import('../types/cw').CWPurchaseOrder> {
+    return request<import('../types/cw').CWPurchaseOrder>('/api/method/workshop.api.purchase_orders.submit', { method: 'POST', body: { data: { id } } })
+  },
+
+  async confirmPurchaseOrderAdvance(id: string): Promise<import('../types/cw').CWPurchaseOrder> {
+    return request<import('../types/cw').CWPurchaseOrder>('/api/method/workshop.api.purchase_orders.confirm_advance', { method: 'POST', body: { data: { id } } })
+  },
+
+  async approvePurchaseOrder(id: string): Promise<import('../types/cw').CWPurchaseOrder> {
+    return request<import('../types/cw').CWPurchaseOrder>('/api/method/workshop.api.purchase_orders.approve', { method: 'POST', body: { data: { id } } })
+  },
+
+  async cancelPurchaseOrder(id: string): Promise<import('../types/cw').CWPurchaseOrder> {
+    return request<import('../types/cw').CWPurchaseOrder>('/api/method/workshop.api.purchase_orders.cancel', { method: 'POST', body: { data: { id } } })
+  },
+
+  async createGRN(poId: string, input: { lines: Array<{ poLineId: string; partId: string; receivedQty: number; acceptedQty: number; rejectedQty: number; sellPrice: number; condition: import('../types/cw').CWGRNLineCondition; notes?: string }>; notes?: string; discrepancyNotes?: string }): Promise<import('../types/cw').CWGoodsReceiptNote & { poStatus: import('../types/cw').CWPurchaseOrderStatus; stockBooked: number }> {
+    return request('/api/method/workshop.api.purchase_orders.grn', { method: 'POST', body: { data: { id: poId, ...input } } })
+  },
+
+  async listRequisitions(params: { status?: import('../types/cw').CWRequisitionStatus; appointmentId?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWRequisition>> {
+    return request<ApiListResponse<import('../types/cw').CWRequisition>>(`/api/method/workshop.api.requisitions.list${buildQuery(params)}`)
+  },
+
+  async createRequisition(input: { appointmentId: string; urgencyNote?: string; lines: Array<{ partId: string; quantity: number }> }): Promise<import('../types/cw').CWRequisition> {
+    return request<import('../types/cw').CWRequisition>('/api/method/workshop.api.requisitions.create', { method: 'POST', body: { data: input } })
+  },
+
+  async acknowledgeRequisition(id: string): Promise<import('../types/cw').CWRequisition> {
+    return request<import('../types/cw').CWRequisition>('/api/method/workshop.api.requisitions.acknowledge', { method: 'POST', body: { data: { id } } })
+  },
+
+  async pickRequisition(id: string, lines: Array<{ lineId: string; ready: boolean; reason?: string }>): Promise<import('../types/cw').CWRequisition> {
+    return request<import('../types/cw').CWRequisition>('/api/method/workshop.api.requisitions.pick', { method: 'POST', body: { data: { id, lines } } })
+  },
+
+  async collectRequisition(id: string, input: { signatureUrl?: string; photoUrls?: string[] }): Promise<import('../types/cw').CWRequisition> {
+    return request<import('../types/cw').CWRequisition>('/api/method/workshop.api.requisitions.collect', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async receiveRequisition(id: string, input: { signatureUrl?: string; photoUrls?: string[] }): Promise<import('../types/cw').CWRequisition> {
+    return request<import('../types/cw').CWRequisition>('/api/method/workshop.api.requisitions.receive', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async listStockUnits(params: { partId?: string; status?: import('../types/cw').CWStockUnitStatus; appointmentId?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWPartStockUnit>> {
+    return request<ApiListResponse<import('../types/cw').CWPartStockUnit>>(`/api/method/workshop.api.stock_units.list${buildQuery(params)}`)
+  },
+
+  async reassignStockUnit(id: string, input: { fromAppointmentId?: string; toAppointmentId: string; reason: string }): Promise<{ stockUnitId: string; reassigned: boolean; auditEntry: unknown; blockedAppointment?: string; notifiedSA: boolean }> {
+    return request('/api/method/workshop.api.stock_units.reassign', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async listPartReturns(params: { status?: import('../types/cw').CWReturnStatus; appointmentId?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWPartReturn>> {
+    return request<ApiListResponse<import('../types/cw').CWPartReturn>>(`/api/method/workshop.api.returns.list${buildQuery(params)}`)
+  },
+
+  async createPartReturn(input: { requisitionId: string; requisitionLineId: string; reasonCode: import('../types/cw').CWReturnReasonCode; photoUrl?: string; returnProofUrl?: string; stockUnitId?: string }): Promise<import('../types/cw').CWPartReturn> {
+    return request<import('../types/cw').CWPartReturn>('/api/method/workshop.api.returns.create', { method: 'POST', body: { data: input } })
+  },
+
+  async receivePartReturn(id: string, input: { receiveProofUrl?: string }): Promise<import('../types/cw').CWPartReturn> {
+    return request<import('../types/cw').CWPartReturn>('/api/method/workshop.api.returns.receive', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async dispositionPartReturn(id: string, input: { disposition: import('../types/cw').CWReturnDisposition }): Promise<import('../types/cw').CWPartReturn & { vendorClaim?: import('../types/cw').CWVendorClaim; vendorRatingReduced?: boolean; newRating?: number; appointmentReBlocked?: boolean }> {
+    return request('/api/method/workshop.api.returns.disposition', { method: 'POST', body: { data: { id, ...input } } })
+  },
+
+  async invoiceAppointment(appointmentId: string): Promise<{ appointmentId: string; invoice: { partsConsumed: number; stockTransitions: Array<{ stockUnitId: string; from: string; to: string }>; cogsRecognized: number; advanceNetted: number; requisitionsClosed: string[] } }> {
+    return request('/api/method/workshop.api.appointments.invoice', { method: 'POST', body: { data: { appointmentId } } })
+  },
+
   async sendWhatsapp(input: {
     appointmentId: string
     direction: 'outbound' | 'inbound'

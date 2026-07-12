@@ -19,11 +19,11 @@ import {
   Send,
   ShoppingCart,
 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
-import { useCwStore } from '../../store/cwStore'
+import { workshopApi } from '../../services/workshopApi'
 import type { CWPurchaseOrder, CWPurchaseOrderStatus } from '../../types/cw'
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 
@@ -103,31 +103,39 @@ const btnSx = {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function PurchaseOrdersPage() {
-  const purchaseOrders = useCwStore((s) => s.purchaseOrders)
-  const vendors = useCwStore((s) => s.vendors)
-  const parts = useCwStore((s) => s.parts)
-  const createPurchaseOrder = useCwStore((s) => s.createPurchaseOrder)
-  const submitPurchaseOrder = useCwStore((s) => s.submitPurchaseOrder)
-  const cancelPurchaseOrder = useCwStore((s) => s.cancelPurchaseOrder)
+  const [purchaseOrders, setPurchaseOrders] = useState<CWPurchaseOrder[]>([])
+  const [vendors, setVendors] = useState<import('../../types/cw').CWVendor[]>([])
+  const [parts, setParts] = useState<import('../../types/cw').CWPart[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [draft, setDraft] = useState<PODraft>(emptyDraft())
 
-  /* ── Demo POs ── */
+  async function loadPOData() {
+    setLoading(true)
+    setError(null)
+    try {
+      const [poRes, vendorRes, partRes] = await Promise.all([
+        workshopApi.listPurchaseOrders({ pageSize: 100 }),
+        workshopApi.listVendors({ pageSize: 100 }),
+        workshopApi.listParts({ pageSize: 100 }),
+      ])
+      setPurchaseOrders(poRes.data)
+      setVendors(vendorRes.data)
+      setParts(partRes.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load purchase orders')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const demoPOs = useMemo<CWPurchaseOrder[]>(() => [
-    { id: 'po-1', poNumber: 'PO-0001', vendorId: vendors[0]?.id ?? '', status: 'Issued' as const, currency: 'BDT' as const, sourcingType: 'Local' as const, expectedArrivalDate: '2025-07-20', totalAmount: 45000, advanceRequired: false, blockedAppointmentIds: [], lines: [], createdByUserId: 'u-1', createdAt: '2025-07-10T09:00:00Z', updatedAt: '2025-07-10T09:00:00Z' },
-    { id: 'po-2', poNumber: 'PO-0002', vendorId: vendors[1]?.id ?? '', status: 'Pending Approval' as const, currency: 'USD' as const, sourcingType: 'Foreign' as const, expectedArrivalDate: '2025-08-05', totalAmount: 125000, advanceRequired: true, blockedAppointmentIds: [], lines: [], createdByUserId: 'u-1', createdAt: '2025-07-11T10:00:00Z', updatedAt: '2025-07-11T10:00:00Z' },
-    { id: 'po-3', poNumber: 'PO-0003', vendorId: vendors[2]?.id ?? '', status: 'Draft' as const, currency: 'BDT' as const, sourcingType: 'Foreign' as const, expectedArrivalDate: '2025-07-25', totalAmount: 68000, advanceRequired: true, advanceConfirmedAt: '2025-07-11T11:00:00Z', blockedAppointmentIds: [], lines: [], createdByUserId: 'u-1', createdAt: '2025-07-11T14:00:00Z', updatedAt: '2025-07-11T14:00:00Z' },
-  ], [vendors])
+  useEffect(() => {
+    void loadPOData()
+  }, [])
 
-  /* ── Merge demo + real ── */
-
-  const allPOs = useMemo(() => {
-    const realIds = new Set(purchaseOrders.map((po) => po.id))
-    const demos = demoPOs.filter((d) => !realIds.has(d.id))
-    return [...purchaseOrders, ...demos]
-  }, [purchaseOrders, demoPOs])
+  const allPOs = purchaseOrders
 
   /* ── Stats ── */
 
@@ -176,18 +184,19 @@ export function PurchaseOrdersPage() {
 
   const grandTotal = draft.lines.reduce((sum, l) => sum + lineTotal(l), 0)
 
-  function submitCreate() {
+  async function submitCreate() {
     if (!draft.vendorId || !draft.expectedArrivalDate || draft.lines.length === 0) return
     const validLines = draft.lines.filter((l) => l.partId && l.quantity > 0)
     if (validLines.length === 0) return
 
-    createPurchaseOrder({
+    setError(null)
+    try {
+      await workshopApi.createPurchaseOrder({
       vendorId: draft.vendorId,
       currency: draft.currency,
       sourcingType: draft.sourcingType,
       expectedArrivalDate: draft.expectedArrivalDate,
       advanceRequired: draft.advanceRequired,
-      createdByUserId: 'u-1',
       lines: validLines.map((l) => {
         const part = parts.find((p) => p.id === l.partId)
         return {
@@ -200,7 +209,31 @@ export function PurchaseOrdersPage() {
         }
       }),
     })
-    setCreateOpen(false)
+      setCreateOpen(false)
+      await loadPOData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create purchase order')
+    }
+  }
+
+  async function handleSubmitPO(id: string) {
+    setError(null)
+    try {
+      await workshopApi.submitPurchaseOrder(id)
+      await loadPOData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit purchase order')
+    }
+  }
+
+  async function handleCancelPO(id: string) {
+    setError(null)
+    try {
+      await workshopApi.cancelPurchaseOrder(id)
+      await loadPOData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel purchase order')
+    }
   }
 
   const canSubmitCreate = draft.vendorId && draft.expectedArrivalDate && draft.lines.some((l) => l.partId && l.quantity > 0)
@@ -308,14 +341,14 @@ export function PurchaseOrdersPage() {
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
           {po.status === 'Draft' && (
             <Tooltip title="Submit for Approval">
-              <IconButton size="small" onClick={() => submitPurchaseOrder(po.id)}>
+              <IconButton size="small" onClick={() => { void handleSubmitPO(po.id) }}>
                 <Send fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
           {!['Received', 'Closed', 'Cancelled'].includes(po.status) && (
             <Tooltip title="Cancel PO">
-              <IconButton size="small" onClick={() => cancelPurchaseOrder(po.id)}>
+              <IconButton size="small" onClick={() => { void handleCancelPO(po.id) }}>
                 <Close fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -380,10 +413,13 @@ export function PurchaseOrdersPage() {
           ))}
         </Stack>
 
+        {error ? <Typography sx={{ color: colors.status.error, fontSize: '0.875rem' }}>{error}</Typography> : null}
+
         {/* Table */}
         <DataTable
           columns={columns}
           rows={allPOs}
+          loading={loading}
           keyExtractor={(po) => po.id}
           emptyIcon={<ShoppingCart />}
           emptyTitle="No purchase orders yet"

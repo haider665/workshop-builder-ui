@@ -21,11 +21,11 @@ import {
   ToggleOff,
   ToggleOn,
 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
-import { useCwStore } from '../../store/cwStore'
+import { workshopApi } from '../../services/workshopApi'
 import type { CWVendor, CWVendorSourcingType, CWVendorStatus } from '../../types/cw'
 import { colors, pageLayout } from '../../theme/tokens'
 
@@ -97,15 +97,32 @@ function ratingBg(val: number) {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function VendorManagementPage() {
-  const vendors = useCwStore((s) => s.vendors)
-  const createVendor = useCwStore((s) => s.createVendor)
-  const updateVendor = useCwStore((s) => s.updateVendor)
+  const [vendors, setVendors] = useState<CWVendor[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editVendor, setEditVendor] = useState<CWVendor | null>(null)
   const [draft, setDraft] = useState<VendorDraft>(emptyDraft())
   const [search, setSearch] = useState('')
   const [sourcingFilter, setSourcingFilter] = useState<SourcingFilter>('All')
+
+  async function loadVendors() {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await workshopApi.listVendors({ pageSize: 100 })
+      setVendors(response.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load vendors')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadVendors()
+  }, [])
 
   /* ── Filtered rows ── */
 
@@ -133,9 +150,11 @@ export function VendorManagementPage() {
     setDraft(toDraft(vendor))
   }
 
-  function submitCreate() {
+  async function submitCreate() {
     if (!draft.name.trim() || !draft.code.trim()) return
-    createVendor({
+    setError(null)
+    try {
+      await workshopApi.createVendor({
       name: draft.name.trim(),
       code: draft.code.trim(),
       contactPerson: draft.contactPerson.trim() || undefined,
@@ -145,12 +164,18 @@ export function VendorManagementPage() {
       sourcingType: draft.sourcingType,
       preferred: draft.preferred,
     })
-    setCreateOpen(false)
+      setCreateOpen(false)
+      await loadVendors()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create vendor')
+    }
   }
 
-  function submitEdit() {
+  async function submitEdit() {
     if (!editVendor || !draft.name.trim() || !draft.code.trim()) return
-    updateVendor(editVendor.id, {
+    setError(null)
+    try {
+      await workshopApi.updateVendor(editVendor.id, {
       name: draft.name.trim(),
       code: draft.code.trim(),
       contactPerson: draft.contactPerson.trim() || undefined,
@@ -161,12 +186,18 @@ export function VendorManagementPage() {
       preferred: draft.preferred,
       status: draft.status,
     })
-    setEditVendor(null)
+      setEditVendor(null)
+      await loadVendors()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update vendor')
+    }
   }
 
-  function toggleStatus(vendor: CWVendor) {
+  async function toggleStatus(vendor: CWVendor) {
     const next: CWVendorStatus = vendor.status === 'Active' ? 'Inactive' : 'Active'
-    updateVendor(vendor.id, {
+    setError(null)
+    try {
+      await workshopApi.updateVendor(vendor.id, {
       name: vendor.name,
       code: vendor.code,
       contactPerson: vendor.contactPerson,
@@ -177,10 +208,16 @@ export function VendorManagementPage() {
       preferred: vendor.preferred,
       status: next,
     })
+      await loadVendors()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update vendor status')
+    }
   }
 
-  function togglePreferred(vendor: CWVendor) {
-    updateVendor(vendor.id, {
+  async function togglePreferred(vendor: CWVendor) {
+    setError(null)
+    try {
+      await workshopApi.updateVendor(vendor.id, {
       name: vendor.name,
       code: vendor.code,
       contactPerson: vendor.contactPerson,
@@ -191,6 +228,10 @@ export function VendorManagementPage() {
       preferred: !vendor.preferred,
       status: vendor.status,
     })
+      await loadVendors()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update preferred vendor')
+    }
   }
 
   const isDialogOpen = createOpen || !!editVendor
@@ -399,10 +440,13 @@ export function VendorManagementPage() {
           </Stack>
         </Stack>
 
+        {error ? <Typography sx={{ color: colors.status.error, fontSize: '0.875rem' }}>{error}</Typography> : null}
+
         {/* Table */}
         <DataTable
           columns={columns}
           rows={filteredVendors}
+          loading={loading}
           keyExtractor={(v) => v.id}
           emptyIcon={<Storefront />}
           emptyTitle="No vendors yet"

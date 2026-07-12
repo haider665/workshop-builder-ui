@@ -15,11 +15,11 @@ import {
   Inventory,
   Search,
 } from '@mui/icons-material'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
-import { useCwStore } from '../../store/cwStore'
+import { workshopApi } from '../../services/workshopApi'
 import type { CWPart, CWPartStatus } from '../../types/cw'
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 
@@ -100,32 +100,58 @@ const stockChipProps: Record<StockLevel, { bg: string; color: string }> = {
   'Out of Stock': { bg: '#fee2e2', color: '#991b1b' },
 }
 
-function getDaysInStock(createdAt: string): number {
-  const created = new Date(createdAt).getTime()
-  const now = Date.now()
-  return Math.max(0, Math.floor((now - created) / (1000 * 60 * 60 * 24)))
-}
-
 /* ─────────────────────── Component ──────────────────────────── */
 
 export function InventoryTrackerPage() {
-  const parts = useCwStore((s) => s.parts)
-  const createPart = useCwStore((s) => s.createPart)
-  const getPartStockStatus = useCwStore((s) => s.getPartStockStatus)
-  const getLowStockParts = useCwStore((s) => s.getLowStockParts)
-  const getSlowMovers = useCwStore((s) => s.getSlowMovers)
-  const vendors = useCwStore((s) => s.vendors)
-  const vendorPartPrices = useCwStore((s) => s.vendorPartPrices)
+  const [parts, setParts] = useState<CWPart[]>([])
+  const [lowStockItems, setLowStockItems] = useState<Array<{ id: string; name: string; partNumber: string; reorderLevel: number; stockCount: number; remaining: number; vendorName?: string | null }>>([])
+  const [slowMoverItems, setSlowMoverItems] = useState<Array<{ id: string; name: string; partNumber?: string; stockCount: number; daysInStock: number; lastMovementDate: string }>>([])
+  const [vendorNames, setVendorNames] = useState<Record<string, string | null>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [draft, setDraft] = useState<PartDraft>(emptyDraft())
 
+  async function loadInventory() {
+    setLoading(true)
+    setError(null)
+    try {
+      const [partsRes, lowRes, slowRes] = await Promise.all([
+        workshopApi.listParts({ pageSize: 100 }),
+        workshopApi.lowStockAlerts(10),
+        workshopApi.slowMovers(90, 10),
+      ])
+      setParts(partsRes.data)
+      setLowStockItems(lowRes.items)
+      setSlowMoverItems(slowRes.items)
+      const names: Record<string, string | null> = {}
+      for (const part of partsRes.data.slice(0, 50)) {
+        try {
+          const matrix = await workshopApi.vendorMatrix(part.id)
+          names[part.id] = matrix.vendors[0]?.vendorName ?? null
+        } catch {
+          names[part.id] = null
+        }
+      }
+      setVendorNames(names)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load inventory')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadInventory()
+  }, [])
+
   /* ── Derived data ── */
 
-  const activeParts = parts.filter((p) => p.status === 'Active')
+  const activeParts = useMemo(() => parts.filter((p) => p.status === 'Active'), [parts])
 
-  const filteredParts = activeParts.filter((p) => {
+  const filteredParts = useMemo(() => activeParts.filter((p) => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
     return (
@@ -134,16 +160,18 @@ export function InventoryTrackerPage() {
       (p.category ?? '').toLowerCase().includes(q) ||
       (p.brand ?? '').toLowerCase().includes(q)
     )
-  })
+  }), [activeParts, search])
 
-  const lowStockParts = getLowStockParts()
-  const slowMovers = getSlowMovers()
+  const lowStockParts = lowStockItems
+  const slowMovers = slowMoverItems
+
+  function getPartStockStatus(part: CWPart): StockLevel {
+    return (part.stockStatus ?? (part.stockCount === 0 ? 'Out of Stock' : (part.stockCount ?? 0) <= (part.reorderLevel ?? 0) ? 'Low Stock' : 'In Stock')) as StockLevel
+  }
 
   function getPreferredVendor(partId: string) {
-    const prices = vendorPartPrices.filter((vp) => vp.partId === partId)
-    if (!prices.length) return null
-    const vendorId = prices[0].vendorId
-    return vendors.find((v) => v.id === vendorId) ?? null
+    const name = vendorNames[partId]
+    return name ? { name } : null
   }
 
   /* ── Dialog handlers ── */
@@ -153,9 +181,11 @@ export function InventoryTrackerPage() {
     setCreateOpen(true)
   }
 
-  function submitCreate() {
+  async function submitCreate() {
     if (!draft.name.trim() || !draft.partNumber.trim()) return
-    createPart({
+    setError(null)
+    try {
+      await workshopApi.createPart({
       name: draft.name.trim(),
       partNumber: draft.partNumber.trim(),
       description: draft.description.trim() || undefined,
@@ -168,7 +198,11 @@ export function InventoryTrackerPage() {
       stockCount: draft.stockCount.trim() ? Number(draft.stockCount) : undefined,
       status: draft.status,
     })
-    setCreateOpen(false)
+      setCreateOpen(false)
+      await loadInventory()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create part')
+    }
   }
 
   /* ── Table Columns ── */
@@ -340,10 +374,13 @@ export function InventoryTrackerPage() {
           </Button>
         </Stack>
 
+        {error ? <Typography sx={{ color: colors.status.error, fontSize: '0.875rem' }}>{error}</Typography> : null}
+
         {/* ── Inventory Table ── */}
         <DataTable
           columns={columns}
           rows={filteredParts}
+          loading={loading}
           keyExtractor={(part) => part.id}
           emptyIcon={<Inventory />}
           emptyTitle="No parts found"
@@ -462,7 +499,7 @@ export function InventoryTrackerPage() {
 
             <Stack spacing={1.5}>
               {slowMovers.slice(0, 5).map((part) => {
-                const days = getDaysInStock(part.createdAt)
+                const days = part.daysInStock
                 return (
                   <Box
                     key={part.id}

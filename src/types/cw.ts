@@ -562,6 +562,7 @@ export type CWPart = {
   binNumber?: string
   reorderLevel?: number                  // triggers procurement when stock ≤ this
   stockCount?: number                    // current unit count (denormalized for display)
+  stockStatus?: 'In Stock' | 'Low Stock' | 'Out of Stock'
   status: CWPartStatus
   createdAt: string
   updatedAt: string
@@ -807,9 +808,13 @@ export type CWRequisition = {
   pickedByUserId?: string
   pickedAt?: string
   pickProofUrl?: string
+  pickSignatureUrl?: string
+  pickPhotoUrls?: string[]
   receivedByUserId?: string
   receivedAt?: string
   receiveProofUrl?: string
+  receiveSignatureUrl?: string
+  receivePhotoUrls?: string[]
   createdAt: string
   updatedAt: string
 }

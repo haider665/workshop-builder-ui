@@ -10,11 +10,11 @@ import {
   Typography,
 } from '@mui/material'
 import { Add, Edit, Inventory, ToggleOff, ToggleOn } from '@mui/icons-material'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
-import { useCwStore } from '../../store/cwStore'
+import { workshopApi } from '../../services/workshopApi'
 import type { CWPart, CWPartStatus } from '../../types/cw'
 import { colors, pageLayout } from '../../theme/tokens'
 
@@ -38,9 +38,12 @@ type PartDraft = {
   partNumber: string
   description: string
   category: string
+  brand: string
+  modelVariant: string
   rackLocation: string
   binNumber: string
   reorderLevel: string
+  stockCount: string
   status: CWPartStatus
 }
 
@@ -50,9 +53,12 @@ function emptyDraft(): PartDraft {
     partNumber: '',
     description: '',
     category: '',
+    brand: '',
+    modelVariant: '',
     rackLocation: '',
     binNumber: '',
     reorderLevel: '',
+    stockCount: '',
     status: 'Active',
   }
 }
@@ -63,9 +69,12 @@ function toDraft(part: CWPart): PartDraft {
     partNumber: part.partNumber,
     description: part.description ?? '',
     category: part.category ?? '',
+    brand: part.brand ?? '',
+    modelVariant: part.modelVariant ?? '',
     rackLocation: part.rackLocation ?? '',
     binNumber: part.binNumber ?? '',
     reorderLevel: typeof part.reorderLevel === 'number' ? String(part.reorderLevel) : '',
+    stockCount: typeof part.stockCount === 'number' ? String(part.stockCount) : '',
     status: part.status,
   }
 }
@@ -81,13 +90,30 @@ const btnSx = {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function PartsPage() {
-  const parts = useCwStore((s) => s.parts)
-  const createPart = useCwStore((s) => s.createPart)
-  const updatePart = useCwStore((s) => s.updatePart)
+  const [parts, setParts] = useState<CWPart[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editPart, setEditPart] = useState<CWPart | null>(null)
   const [draft, setDraft] = useState<PartDraft>(emptyDraft())
+
+  async function loadParts() {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await workshopApi.listParts({ pageSize: 100 })
+      setParts(response.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load parts')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadParts()
+  }, [])
 
   function openCreate() {
     setDraft(emptyDraft())
@@ -99,48 +125,63 @@ export function PartsPage() {
     setDraft(toDraft(part))
   }
 
-  function submitCreate() {
+  async function submitCreate() {
     if (!draft.name.trim() || !draft.partNumber.trim()) return
-    createPart({
+    setError(null)
+    try {
+      await workshopApi.createPart({
       name: draft.name.trim(),
       partNumber: draft.partNumber.trim(),
       description: draft.description.trim() || undefined,
       category: draft.category || undefined,
+      brand: draft.brand.trim() || undefined,
+      modelVariant: draft.modelVariant.trim() || undefined,
       rackLocation: draft.rackLocation.trim() || undefined,
       binNumber: draft.binNumber.trim() || undefined,
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
+      stockCount: draft.stockCount.trim() ? Number(draft.stockCount.trim()) : 0,
       status: draft.status,
     })
-    setCreateOpen(false)
+      setCreateOpen(false)
+      await loadParts()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create part')
+    }
   }
 
-  function submitEdit() {
+  async function submitEdit() {
     if (!editPart || !draft.name.trim() || !draft.partNumber.trim()) return
-    updatePart(editPart.id, {
+    setError(null)
+    try {
+      await workshopApi.updatePart(editPart.id, {
       name: draft.name.trim(),
       partNumber: draft.partNumber.trim(),
       description: draft.description.trim() || undefined,
       category: draft.category || undefined,
+      brand: draft.brand.trim() || undefined,
+      modelVariant: draft.modelVariant.trim() || undefined,
       rackLocation: draft.rackLocation.trim() || undefined,
       binNumber: draft.binNumber.trim() || undefined,
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
+      stockCount: draft.stockCount.trim() ? Number(draft.stockCount.trim()) : 0,
       status: draft.status,
     })
-    setEditPart(null)
+      setEditPart(null)
+      await loadParts()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update part')
+    }
   }
 
-  function toggleStatus(part: CWPart) {
+  async function toggleStatus(part: CWPart) {
     const next: CWPartStatus = part.status === 'Active' ? 'Inactive' : 'Active'
-    updatePart(part.id, {
-      name: part.name,
-      partNumber: part.partNumber,
-      description: part.description,
-      category: part.category,
-      rackLocation: part.rackLocation,
-      binNumber: part.binNumber,
-      reorderLevel: part.reorderLevel,
-      status: next,
-    })
+    setError(null)
+    try {
+      await workshopApi.setPartStatus(part.id, next)
+      await loadParts()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update part status')
+    }
   }
 
   const isDialogOpen = createOpen || !!editPart
@@ -185,6 +226,42 @@ export function PartsPage() {
         ) : (
           <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>—</Typography>
         ),
+    },
+    {
+      key: 'brand',
+      header: 'Brand',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
+          {part.brand ?? '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'modelVariant',
+      header: 'Model Variant',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
+          {part.modelVariant ?? '—'}
+        </Typography>
+      ),
+    },
+    {
+      key: 'stockCount',
+      header: 'Stock',
+      render: (part) => {
+        const count = part.stockCount ?? 0
+        const reorderLevel = part.reorderLevel ?? 0
+        const stockStatus = count === 0 ? 'Out of Stock' : count <= reorderLevel ? 'Low Stock' : 'In Stock'
+        const color: 'success' | 'warning' | 'error' = stockStatus === 'In Stock' ? 'success' : stockStatus === 'Low Stock' ? 'warning' : 'error'
+        return (
+          <Stack spacing={0.5}>
+            <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700], fontWeight: 700 }}>
+              {count} units
+            </Typography>
+            <Chip size="small" color={color} label={stockStatus} sx={{ fontWeight: 700, fontSize: '0.68rem', width: 'fit-content' }} />
+          </Stack>
+        )
+      },
     },
     {
       key: 'rackLocation',
@@ -264,10 +341,13 @@ export function PartsPage() {
           </Button>
         </Stack>
 
+        {error ? <Typography sx={{ color: colors.status.error, fontSize: '0.875rem' }}>{error}</Typography> : null}
+
         {/* Table */}
         <DataTable
           columns={columns}
           rows={parts}
+          loading={loading}
           keyExtractor={(part) => part.id}
           emptyIcon={<Inventory />}
           emptyTitle="No parts yet"
@@ -332,6 +412,28 @@ export function PartsPage() {
               </MenuItem>
             ))}
           </TextField>
+          <TextField
+            label="Brand"
+            value={draft.brand}
+            onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))}
+            placeholder="e.g. Bosch, Brembo, Denso"
+            fullWidth
+          />
+          <TextField
+            label="Model Variant"
+            value={draft.modelVariant}
+            onChange={(e) => setDraft((d) => ({ ...d, modelVariant: e.target.value }))}
+            placeholder="e.g. Sedan XLE, SUV Sport"
+            fullWidth
+          />
+          <TextField
+            label="Stock Count"
+            type="number"
+            value={draft.stockCount}
+            onChange={(e) => setDraft((d) => ({ ...d, stockCount: e.target.value }))}
+            helperText="Current stock quantity. Defaults to 0."
+            fullWidth
+          />
           <TextField
             label="Rack Location"
             value={draft.rackLocation}
