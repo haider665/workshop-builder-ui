@@ -26,6 +26,8 @@ import {
 } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { colors, pageLayout, radii, shadows } from '../../theme/tokens'
+import { useCwStore } from '../../store/cwStore'
+
 
 /* ─────────────────────── Helpers ─────────────────────────────── */
 
@@ -99,9 +101,17 @@ const badgeSx = {
   display: 'inline-block',
 } as const
 
-const chipColors: Record<'Picked' | 'Pending', { bg: string; color: string }> = {
+const chipColors: Record<string, { bg: string; color: string }> = {
+  Created: { bg: '#F1F5F9', color: '#475569' },
+  'Sent to Store': { bg: '#FEF3C7', color: '#92400E' },
+  'Request Received': { bg: '#FEF3C7', color: '#92400E' },
+  'Part Ready': { bg: '#DBEAFE', color: '#1E40AF' },
+  'Partially Ready': { bg: '#FEF9C3', color: '#854D0E' },
   Picked: { bg: '#DBEAFE', color: '#1E40AF' },
-  Pending: { bg: '#FEF3C7', color: '#92400E' },
+  Received: { bg: '#DCFCE7', color: '#166534' },
+  Closed: { bg: '#F1F5F9', color: '#475569' },
+  'Return Raised': { bg: '#FEE2E2', color: '#991B1B' },
+  Cancelled: { bg: '#F1F5F9', color: '#64748B' },
 }
 
 /* ─────────────────────── Component ──────────────────────────── */
@@ -109,104 +119,87 @@ const chipColors: Record<'Picked' | 'Pending', { bg: string; color: string }> = 
 export function CounterDeskPage() {
   const [search, setSearch] = useState('')
 
-  /* ── Demo data ── */
+  /* ── Store data ── */
 
-  const demoRequisitions = useMemo(
-    () => [
-      {
-        id: 'pr-847',
-        reqNumber: 'PR-847',
-        appointmentNumber: 'AP-001',
-        requestedOn: '2025-07-19T15:45:00Z',
-        requestedBy: 'Tanvir Islam',
-        phone: '01712345678',
-        vehicle: 'Turbo X Edition',
-        vin: 'VIN-12345678910',
-        status: 'Picked' as const,
-      },
-      {
-        id: 'pr-563',
-        reqNumber: 'PR-563',
-        appointmentNumber: 'AP-002',
-        requestedOn: '2025-11-23T11:20:00Z',
-        requestedBy: 'Nusrat Jahan',
-        phone: '01812345678',
-        vehicle: 'Turbo X Edition',
-        vin: 'VIN-12345678910',
-        status: 'Pending' as const,
-      },
-      {
-        id: 'pr-129',
-        reqNumber: 'PR-129',
-        appointmentNumber: 'AP-003',
-        requestedOn: '2025-03-14T08:15:00Z',
-        requestedBy: 'Rafiq Ahmed',
-        phone: '01912345678',
-        vehicle: 'Turbo X Edition',
-        vin: 'VIN-12345678910',
-        status: 'Picked' as const,
-      },
-      {
-        id: 'pr-754',
-        reqNumber: 'PR-754',
-        appointmentNumber: 'AP-004',
-        requestedOn: '2025-12-17T16:10:00Z',
-        requestedBy: 'Tania Rahman',
-        phone: '01612345678',
-        vehicle: 'Turbo X Edition',
-        vin: 'VIN-12345678910',
-        status: 'Pending' as const,
-      },
-      {
-        id: 'pr-390',
-        reqNumber: 'PR-390',
-        appointmentNumber: 'AP-005',
-        requestedOn: '2025-09-08T18:30:00Z',
-        requestedBy: 'Mahmudul Hasan',
-        phone: '01512345678',
-        vehicle: 'Turbo X Edition',
-        vin: 'VIN-12345678910',
-        status: 'Picked' as const,
-      },
-    ],
-    [],
-  )
+  const requisitions = useCwStore((s) => s.requisitions)
+  const appointments = useCwStore((s) => s.appointments)
+  const customers = useCwStore((s) => s.customers)
+  const vehicles = useCwStore((s) => s.vehicles)
+  const users = useCwStore((s) => s.users)
 
-  const demoPickerCards = useMemo(
-    () =>
-      Array.from({ length: 4 }, (_, i) => ({
-        id: `pick-${i}`,
-        reqNumber: 'REQ-001',
-        partName: 'Brake Pad Set',
-        requestedBy: 'John Kamau',
-        picker: 'Kibriya',
-        date: '12th June, 2025',
-        time: '10:11 AM',
-      })),
-    [],
-  )
+  /* ── Enriched requisitions ── */
 
-  const demoReceiverCards = useMemo(
-    () =>
-      Array.from({ length: 4 }, (_, i) => ({
-        id: `recv-${i}`,
-        reqNumber: 'REQ-001',
-        partName: 'Brake Pad Set',
-        requestedBy: 'John Kamau',
-        technician: 'Kibriya',
-        date: '12th June, 2025',
-        time: '10:11 AM',
-      })),
-    [],
-  )
+  const enrichedReqs = useMemo(() => {
+    return requisitions.map((req) => {
+      const appt = appointments.find((a) => a.id === req.appointmentId)
+      const customer = appt ? customers.find((c) => c.id === appt.customerId) : undefined
+      const vehicle = appt ? vehicles.find((v) => v.id === appt.vehicleId) : undefined
+      const user = users.find((u) => u.id === req.requestedByUserId)
+      return {
+        id: req.id,
+        reqNumber: req.requisitionNumber,
+        appointmentNumber: appt?.id ?? req.appointmentId,
+        requestedOn: req.createdAt,
+        requestedBy: user?.fullName ?? customer?.fullName ?? req.requestedByUserId,
+        phone: customer?.phone ?? '—',
+        vehicle: vehicle ? `${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim() || vehicle.registrationNo : '—',
+        vin: vehicle?.vin ?? '—',
+        status: req.status,
+      }
+    })
+  }, [requisitions, appointments, customers, vehicles, users])
+
+  /* ── Picker cards (requisitions in Picked status) ── */
+
+  const pickerCards = useMemo(() => {
+    return requisitions
+      .filter((r) => r.status === 'Picked')
+      .map((r) => {
+        const user = users.find((u) => u.id === r.pickedByUserId)
+        const requester = users.find((u) => u.id === r.requestedByUserId)
+        const firstLine = r.lines[0]
+        return {
+          id: r.id,
+          reqNumber: r.requisitionNumber,
+          partName: firstLine?.partName ?? '—',
+          requestedBy: requester?.fullName ?? r.requestedByUserId,
+          picker: user?.fullName ?? '—',
+          date: formatDate(r.pickedAt ?? r.updatedAt),
+          time: formatTime(r.pickedAt ?? r.updatedAt),
+        }
+      })
+  }, [requisitions, users])
+
+  /* ── Receiver cards (requisitions in Received status) ── */
+
+  const receiverCards = useMemo(() => {
+    return requisitions
+      .filter((r) => r.status === 'Received')
+      .map((r) => {
+        const user = users.find((u) => u.id === r.receivedByUserId)
+        const requester = users.find((u) => u.id === r.requestedByUserId)
+        const firstLine = r.lines[0]
+        return {
+          id: r.id,
+          reqNumber: r.requisitionNumber,
+          partName: firstLine?.partName ?? '—',
+          requestedBy: requester?.fullName ?? r.requestedByUserId,
+          technician: user?.fullName ?? '—',
+          date: formatDate(r.receivedAt ?? r.updatedAt),
+          time: formatTime(r.receivedAt ?? r.updatedAt),
+        }
+      })
+  }, [requisitions, users])
 
   /* ── Derived ── */
 
-  const pendingCount = demoRequisitions.filter((r) => r.status === 'Pending').length
-  const pickedCount = demoRequisitions.filter((r) => r.status === 'Picked').length
-  const deliveredCount = 0
+  const pendingCount = requisitions.filter(
+    (r) => !['Picked', 'Received', 'Closed', 'Cancelled'].includes(r.status),
+  ).length
+  const pickedCount = requisitions.filter((r) => r.status === 'Picked').length
+  const deliveredCount = requisitions.filter((r) => r.status === 'Received').length
 
-  const filteredReqs = demoRequisitions.filter((r) => {
+  const filteredReqs = enrichedReqs.filter((r) => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
     return (
@@ -301,59 +294,65 @@ export function CounterDeskPage() {
             Picker
           </Typography>
           <Box sx={scrollContainerSx}>
-            {demoPickerCards.map((card) => (
-              <Box key={card.id} sx={workCardSx}>
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
-                  <Inventory2 sx={{ fontSize: 18, color: colors.slate[500] }} />
-                  <Box>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: colors.slate[900] }}>
-                      {card.reqNumber}
+            {pickerCards.length === 0 ? (
+              <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400], py: 4, width: '100%', textAlign: 'center' }}>
+                No items to pick
+              </Typography>
+            ) : (
+              pickerCards.map((card) => (
+                <Box key={card.id} sx={workCardSx}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
+                    <Inventory2 sx={{ fontSize: 18, color: colors.slate[500] }} />
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: colors.slate[900] }}>
+                        {card.reqNumber}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                        {card.partName}
+                      </Typography>
+                    </Box>
+                  </Stack>
+
+                  <Stack spacing={0.5} sx={{ mb: 1.5 }}>
+                    <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                      Requested By:{' '}
+                      <Box component="span" sx={{ fontWeight: 600, color: colors.slate[700] }}>
+                        {card.requestedBy}
+                      </Box>
                     </Typography>
                     <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                      {card.partName}
+                      Picker:{' '}
+                      <Box component="span" sx={{ fontWeight: 600, color: colors.slate[700] }}>
+                        {card.picker}
+                      </Box>
                     </Typography>
-                  </Box>
-                </Stack>
+                  </Stack>
 
-                <Stack spacing={0.5} sx={{ mb: 1.5 }}>
-                  <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                    Requested By:{' '}
-                    <Box component="span" sx={{ fontWeight: 600, color: colors.slate[700] }}>
-                      {card.requestedBy}
-                    </Box>
-                  </Typography>
-                  <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                    Picker:{' '}
-                    <Box component="span" sx={{ fontWeight: 600, color: colors.slate[700] }}>
-                      {card.picker}
-                    </Box>
-                  </Typography>
-                </Stack>
-
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <Box sx={badgeSx}>{card.date}</Box>
-                  <Box sx={badgeSx}>{card.time}</Box>
-                  <Box sx={{ flex: 1 }} />
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      borderColor: colors.border.default,
-                      color: colors.slate[700],
-                      borderRadius: '6px',
-                      px: 1.5,
-                      py: 0.25,
-                      textTransform: 'none',
-                      '&:hover': { borderColor: colors.border.strong, bgcolor: colors.bg.subtle },
-                    }}
-                  >
-                    Review
-                  </Button>
-                </Stack>
-              </Box>
-            ))}
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <Box sx={badgeSx}>{card.date}</Box>
+                    <Box sx={badgeSx}>{card.time}</Box>
+                    <Box sx={{ flex: 1 }} />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        borderColor: colors.border.default,
+                        color: colors.slate[700],
+                        borderRadius: '6px',
+                        px: 1.5,
+                        py: 0.25,
+                        textTransform: 'none',
+                        '&:hover': { borderColor: colors.border.strong, bgcolor: colors.bg.subtle },
+                      }}
+                    >
+                      Review
+                    </Button>
+                  </Stack>
+                </Box>
+              ))
+            )}
           </Box>
         </Box>
 
@@ -363,59 +362,65 @@ export function CounterDeskPage() {
             Receiver
           </Typography>
           <Box sx={scrollContainerSx}>
-            {demoReceiverCards.map((card) => (
-              <Box key={card.id} sx={workCardSx}>
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
-                  <Inventory2 sx={{ fontSize: 18, color: colors.slate[500] }} />
-                  <Box>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: colors.slate[900] }}>
-                      {card.reqNumber}
+            {receiverCards.length === 0 ? (
+              <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400], py: 4, width: '100%', textAlign: 'center' }}>
+                No items to receive
+              </Typography>
+            ) : (
+              receiverCards.map((card) => (
+                <Box key={card.id} sx={workCardSx}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
+                    <Inventory2 sx={{ fontSize: 18, color: colors.slate[500] }} />
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: colors.slate[900] }}>
+                        {card.reqNumber}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                        {card.partName}
+                      </Typography>
+                    </Box>
+                  </Stack>
+
+                  <Stack spacing={0.5} sx={{ mb: 1.5 }}>
+                    <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                      Requested By:{' '}
+                      <Box component="span" sx={{ fontWeight: 600, color: colors.slate[700] }}>
+                        {card.requestedBy}
+                      </Box>
                     </Typography>
                     <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                      {card.partName}
+                      Technician:{' '}
+                      <Box component="span" sx={{ fontWeight: 600, color: colors.slate[700] }}>
+                        {card.technician}
+                      </Box>
                     </Typography>
-                  </Box>
-                </Stack>
+                  </Stack>
 
-                <Stack spacing={0.5} sx={{ mb: 1.5 }}>
-                  <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                    Requested By:{' '}
-                    <Box component="span" sx={{ fontWeight: 600, color: colors.slate[700] }}>
-                      {card.requestedBy}
-                    </Box>
-                  </Typography>
-                  <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                    Technician:{' '}
-                    <Box component="span" sx={{ fontWeight: 600, color: colors.slate[700] }}>
-                      {card.technician}
-                    </Box>
-                  </Typography>
-                </Stack>
-
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <Box sx={badgeSx}>{card.date}</Box>
-                  <Box sx={badgeSx}>{card.time}</Box>
-                  <Box sx={{ flex: 1 }} />
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      borderColor: colors.border.default,
-                      color: colors.slate[700],
-                      borderRadius: '6px',
-                      px: 1.5,
-                      py: 0.25,
-                      textTransform: 'none',
-                      '&:hover': { borderColor: colors.border.strong, bgcolor: colors.bg.subtle },
-                    }}
-                  >
-                    Review
-                  </Button>
-                </Stack>
-              </Box>
-            ))}
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <Box sx={badgeSx}>{card.date}</Box>
+                    <Box sx={badgeSx}>{card.time}</Box>
+                    <Box sx={{ flex: 1 }} />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        borderColor: colors.border.default,
+                        color: colors.slate[700],
+                        borderRadius: '6px',
+                        px: 1.5,
+                        py: 0.25,
+                        textTransform: 'none',
+                        '&:hover': { borderColor: colors.border.strong, bgcolor: colors.bg.subtle },
+                      }}
+                    >
+                      Review
+                    </Button>
+                  </Stack>
+                </Box>
+              ))
+            )}
           </Box>
         </Box>
 
@@ -434,7 +439,7 @@ export function CounterDeskPage() {
               </Typography>
             </Box>
             <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
-              Showing {filteredReqs.length} of {demoRequisitions.length} Results
+              Showing {filteredReqs.length} of {enrichedReqs.length} Results
             </Typography>
           </Stack>
 
@@ -518,120 +523,130 @@ export function CounterDeskPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredReqs.map((req) => {
-                  const chip = chipColors[req.status]
-                  return (
-                    <TableRow
-                      key={req.id}
-                      sx={{ '&:hover': { bgcolor: colors.bg.cardHover } }}
-                    >
-                      {/* Requisition Number */}
-                      <TableCell
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: '0.875rem',
-                          color: colors.slate[900],
-                          borderBottom: `1px solid ${colors.border.subtle}`,
-                        }}
+                {filteredReqs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} sx={{ textAlign: 'center', py: 6, borderBottom: 'none' }}>
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>
+                        No requisitions found
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredReqs.map((req) => {
+                    const chip = chipColors[req.status] ?? { bg: '#F1F5F9', color: '#475569' }
+                    return (
+                      <TableRow
+                        key={req.id}
+                        sx={{ '&:hover': { bgcolor: colors.bg.cardHover } }}
                       >
-                        {req.reqNumber}
-                      </TableCell>
-
-                      {/* Repair Order Number */}
-                      <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
-                        <Typography
+                        {/* Requisition Number */}
+                        <TableCell
                           sx={{
-                            fontSize: '0.875rem',
                             fontWeight: 600,
-                            color: colors.accent.blue,
-                            cursor: 'pointer',
-                            '&:hover': { textDecoration: 'underline' },
+                            fontSize: '0.875rem',
+                            color: colors.slate[900],
+                            borderBottom: `1px solid ${colors.border.subtle}`,
                           }}
                         >
-                          {req.appointmentNumber}
-                        </Typography>
-                      </TableCell>
+                          {req.reqNumber}
+                        </TableCell>
 
-                      {/* Requested On */}
-                      <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}`, whiteSpace: 'nowrap' }}>
-                        <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: colors.slate[900] }}>
-                          {formatTime(req.requestedOn)}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                          {formatDate(req.requestedOn)}
-                        </Typography>
-                      </TableCell>
-
-                      {/* Requested By */}
-                      <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
-                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                          <Box
+                        {/* Repair Order Number */}
+                        <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
+                          <Typography
                             sx={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: '50%',
-                              bgcolor: colors.accent.indigo,
-                              color: '#fff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              flexShrink: 0,
+                              fontSize: '0.875rem',
+                              fontWeight: 600,
+                              color: colors.accent.blue,
+                              cursor: 'pointer',
+                              '&:hover': { textDecoration: 'underline' },
                             }}
                           >
-                            {initials(req.requestedBy)}
-                          </Box>
-                          <Box>
-                            <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: colors.slate[900] }}>
-                              {req.requestedBy}
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                              {req.phone}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </TableCell>
+                            {req.appointmentNumber}
+                          </Typography>
+                        </TableCell>
 
-                      {/* Vehicle */}
-                      <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
-                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                          <DirectionsCar sx={{ fontSize: 18, color: colors.slate[400] }} />
-                          <Box>
-                            <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: colors.slate[900] }}>
-                              {req.vehicle}
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                              {req.vin}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </TableCell>
+                        {/* Requested On */}
+                        <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}`, whiteSpace: 'nowrap' }}>
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: colors.slate[900] }}>
+                            {formatTime(req.requestedOn)}
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                            {formatDate(req.requestedOn)}
+                          </Typography>
+                        </TableCell>
 
-                      {/* Status */}
-                      <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
-                        <Chip
-                          size="small"
-                          label={req.status}
-                          sx={{
-                            fontWeight: 600,
-                            fontSize: '0.75rem',
-                            bgcolor: chip.bg,
-                            color: chip.color,
-                            border: 'none',
-                          }}
-                        />
-                      </TableCell>
+                        {/* Requested By */}
+                        <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                            <Box
+                              sx={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: '50%',
+                                bgcolor: colors.accent.indigo,
+                                color: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {initials(req.requestedBy)}
+                            </Box>
+                            <Box>
+                              <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: colors.slate[900] }}>
+                                {req.requestedBy}
+                              </Typography>
+                              <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                                {req.phone}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </TableCell>
 
-                      {/* Actions */}
-                      <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
-                        <IconButton size="small">
-                          <MoreVert sx={{ fontSize: 18, color: colors.slate[500] }} />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
+                        {/* Vehicle */}
+                        <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                            <DirectionsCar sx={{ fontSize: 18, color: colors.slate[400] }} />
+                            <Box>
+                              <Typography sx={{ fontWeight: 600, fontSize: '0.875rem', color: colors.slate[900] }}>
+                                {req.vehicle}
+                              </Typography>
+                              <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                                {req.vin}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </TableCell>
+
+                        {/* Status */}
+                        <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
+                          <Chip
+                            size="small"
+                            label={req.status}
+                            sx={{
+                              fontWeight: 600,
+                              fontSize: '0.75rem',
+                              bgcolor: chip.bg,
+                              color: chip.color,
+                              border: 'none',
+                            }}
+                          />
+                        </TableCell>
+
+                        {/* Actions */}
+                        <TableCell sx={{ borderBottom: `1px solid ${colors.border.subtle}` }}>
+                          <IconButton size="small">
+                            <MoreVert sx={{ fontSize: 18, color: colors.slate[500] }} />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
               </TableBody>
             </Table>
           </TableContainer>

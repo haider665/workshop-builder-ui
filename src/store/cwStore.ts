@@ -1593,60 +1593,15 @@ function seedDemoData() {
   ]
 
   // ── Parts seed ──
-  const parts: CWPart[] = [
-    { id: newId(), name: 'Oil Filter Premium', partNumber: 'AP-2024-001', category: 'Engine Parts', brand: 'Bosch', modelVariant: 'Sedan XLE', rackLocation: 'A-1-01', reorderLevel: 20, stockCount: 245, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Brake Pad Set', partNumber: 'AP-2024-002', category: 'Brake System', brand: 'Brembo', modelVariant: 'SUV Sport', rackLocation: 'B-2-03', reorderLevel: 15, stockCount: 180, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Clutch Assembly', partNumber: 'AP-2024-003', category: 'Transmission', brand: 'Aisin', modelVariant: 'Coupe GT', rackLocation: 'E-1-01', reorderLevel: 8, stockCount: 45, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Shock Absorber', partNumber: 'AP-2024-004', category: 'Suspension', brand: 'Monroe', modelVariant: 'Sedan XLE', rackLocation: 'B-3-01', reorderLevel: 10, stockCount: 320, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Alternator', partNumber: 'AP-2024-005', category: 'Electrical', brand: 'Denso', modelVariant: 'Hatchback LX', rackLocation: 'D-1-01', reorderLevel: 5, stockCount: 62, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Radiator Core', partNumber: 'AP-2024-006', category: 'Cooling', brand: 'Mishimoto', modelVariant: 'Truck 4×4', rackLocation: 'C-3-01', reorderLevel: 4, stockCount: 38, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Catalytic Converter', partNumber: 'AP-2024-007', category: 'Exhaust', brand: 'Magnaflow', modelVariant: 'Sedan XLE', rackLocation: 'A-2-01', reorderLevel: 3, stockCount: 156, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Fuel Pump', partNumber: 'AP-2024-008', category: 'Fuel System', brand: 'Walbro', modelVariant: 'SUV Sport', rackLocation: 'A-2-02', reorderLevel: 6, stockCount: 74, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'LED Headlight', partNumber: 'AP-2024-009', category: 'Lighting', brand: 'Philips', modelVariant: 'Sedan XLE', rackLocation: 'D-2-01', reorderLevel: 8, stockCount: 290, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Dashboard Cover', partNumber: 'AP-2024-010', category: 'Interior', brand: 'Covercraft', modelVariant: 'Coupe GT', rackLocation: 'F-1-01', reorderLevel: 5, stockCount: 52, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Front Bumper', partNumber: 'AP-2024-011', category: 'Body Parts', brand: 'OEM Direct', modelVariant: 'Hatchback LX', rackLocation: 'F-1-02', reorderLevel: 3, stockCount: 28, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Air Filter', partNumber: 'AP-2024-012', category: 'Filters', brand: 'K&N', modelVariant: 'Sedan XLE', rackLocation: 'A-1-02', reorderLevel: 25, stockCount: 410, status: 'Active', createdAt: ts, updatedAt: ts },
-    // Low stock items
-    { id: newId(), name: 'Engine Oil 5W-30', partNumber: 'EO-5W30-4L', category: 'Engine Parts', brand: 'Shell Lubricants', modelVariant: 'Sedan XLE', rackLocation: 'A-1-03', reorderLevel: 20, stockCount: 3, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Brake Pad Set (Front)', partNumber: 'BP-F-2847', category: 'Brake System', brand: 'Bosch Auto Parts', modelVariant: 'SUV Sport', rackLocation: 'B-2-04', reorderLevel: 15, stockCount: 0, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Air Filter Element', partNumber: 'AF-2847-G', category: 'Filters', brand: 'Mann Filters', modelVariant: 'Sedan XLE', rackLocation: 'A-1-04', reorderLevel: 25, stockCount: 2, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Spark Plug NGK', partNumber: 'SP-NGK-2847', category: 'Engine Parts', brand: 'NGK Distributors', modelVariant: 'Hatchback LX', rackLocation: 'A-1-05', reorderLevel: 30, stockCount: 8, status: 'Active', createdAt: ts, updatedAt: ts },
-    // Slow movers
-    { id: newId(), name: 'Transmission Mount', partNumber: 'TM-001', category: 'Transmission', brand: 'Aisin', modelVariant: 'Coupe GT', rackLocation: 'E-1-02', reorderLevel: 2, stockCount: 2, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Camshaft Sensor', partNumber: 'CS-001', category: 'Engine Parts', brand: 'Denso', modelVariant: 'Sedan XLE', rackLocation: 'A-3-01', reorderLevel: 3, stockCount: 3, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Fuel Pump Module', partNumber: 'FPM-001', category: 'Fuel System', brand: 'Walbro', modelVariant: 'SUV Sport', rackLocation: 'A-3-02', reorderLevel: 1, stockCount: 1, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Radiator Assembly', partNumber: 'RA-001', category: 'Cooling', brand: 'Mishimoto', modelVariant: 'Truck 4×4', rackLocation: 'C-3-02', reorderLevel: 2, stockCount: 4, status: 'Active', createdAt: ts, updatedAt: ts },
-  ]
+  const parts: CWPart[] = []
 
   // ── Vendors seed ──
-  const vendors: CWVendor[] = [
-    { id: newId(), name: 'AutoParts BD Ltd', code: 'APB-001', contactPerson: 'Karim Ahmed', phone: '+880-1711-000001', sourcingType: 'Local', qualityRating: 92, returnsHistory: 3, preferred: true, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Toyota Genuine Parts', code: 'TGP-001', contactPerson: 'Tanaka Yuki', phone: '+81-3-0000-0001', sourcingType: 'Foreign', qualityRating: 98, returnsHistory: 0, preferred: true, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Global Auto Imports', code: 'GAI-001', contactPerson: 'Rahman Ali', phone: '+880-1711-000002', sourcingType: 'Foreign', qualityRating: 78, returnsHistory: 7, preferred: false, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'BD Paint Supplies', code: 'BPS-001', contactPerson: 'Hasan Mahmud', phone: '+880-1711-000003', sourcingType: 'Local', qualityRating: 85, returnsHistory: 2, preferred: true, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'ProBrake International', code: 'PBI-001', contactPerson: 'Chen Wei', phone: '+86-10-0000-0001', sourcingType: 'Foreign', qualityRating: 88, returnsHistory: 4, preferred: false, status: 'Active', createdAt: ts, updatedAt: ts },
-  ]
+  const vendors: CWVendor[] = []
 
-  const vendorPartPrices: CWVendorPartPrice[] = [
-    { id: newId(), vendorId: vendors[0]!.id, partId: parts[0]!.id, unitPrice: 280, currency: 'BDT', leadTimeDays: 1, sourcingType: 'Aftermarket', lastUpdated: ts },
-    { id: newId(), vendorId: vendors[1]!.id, partId: parts[0]!.id, unitPrice: 450, currency: 'BDT', leadTimeDays: 14, sourcingType: 'OEM', lastUpdated: ts },
-    { id: newId(), vendorId: vendors[0]!.id, partId: parts[1]!.id, unitPrice: 2000, currency: 'BDT', leadTimeDays: 2, sourcingType: 'Aftermarket', lastUpdated: ts },
-    { id: newId(), vendorId: vendors[4]!.id, partId: parts[1]!.id, unitPrice: 3200, currency: 'BDT', leadTimeDays: 10, sourcingType: 'OEM', lastUpdated: ts },
-    { id: newId(), vendorId: vendors[3]!.id, partId: parts[18]!.id, unitPrice: 350, currency: 'BDT', leadTimeDays: 1, sourcingType: 'Aftermarket', lastUpdated: ts },
-    { id: newId(), vendorId: vendors[3]!.id, partId: parts[19]!.id, unitPrice: 550, currency: 'BDT', leadTimeDays: 1, sourcingType: 'Aftermarket', lastUpdated: ts },
-  ]
+  const vendorPartPrices: CWVendorPartPrice[] = []
 
   // ── Notifications seed ──
-  const notifications: CWNotification[] = [
-    { id: newId(), title: 'Low Stock Alert', message: 'Engine Oil 5W-30 has only 3 units left. Reorder level is 20.', category: 'parts_request', targetRoles: ['Parts', 'Admin'], actionUrl: '/parts/inventory', read: false, createdAt: ts },
-    { id: newId(), title: 'PO Pending Approval', message: 'PO-0002 from Toyota Genuine Parts requires management approval. Amount: $125,000.', category: 'purchase_order', targetRoles: ['Admin'], actionUrl: '/parts/purchase-orders', read: false, createdAt: ts },
-    { id: newId(), title: 'New Parts Requirement', message: 'SE raised part requirement for Appointment AP-001: Front brake pads worn beyond limit.', category: 'estimate', targetRoles: ['Parts'], actionUrl: '/parts/estimator', read: false, createdAt: ts },
-    { id: newId(), title: 'Estimate Approved', message: 'SA approved Alternator estimate for Appointment AP-002. Requisition auto-created.', category: 'estimate', targetRoles: ['Parts'], actionUrl: '/parts/counter-desk', read: true, createdAt: ts },
-    { id: newId(), title: 'Foreign Advance Required', message: 'PO-0003 requires customer advance confirmation before processing. Awaiting Accounts.', category: 'advance', targetRoles: ['Admin'], actionUrl: '/parts/purchase-orders', read: false, createdAt: ts },
-    { id: newId(), title: 'GRN Completed', message: 'GRN-0001 received for PO-0001. All items accepted in good condition.', category: 'grn', targetRoles: ['Parts'], actionUrl: '/parts/purchase-orders', read: true, createdAt: ts },
-    { id: newId(), title: 'Parts Ready for Pickup', message: 'Requisition PR-001 picked and ready for collection at Counter Desk.', category: 'requisition', targetRoles: ['Service Engineer', 'Technician'], actionUrl: '/parts/counter-desk', read: false, createdAt: ts },
-    { id: newId(), title: 'Part Return Initiated', message: 'Technician returned Spark Plug NGK (defective). Awaiting store inspection.', category: 'return', targetRoles: ['Parts'], actionUrl: '/parts/inventory', read: false, createdAt: ts },
-  ]
+  const notifications: CWNotification[] = []
 
   return {
     shops,
