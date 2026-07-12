@@ -1,24 +1,24 @@
 import {
   Alert,
+  Box,
   Button,
   Chip,
-  Paper,
   Snackbar,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
 } from '@mui/material'
+import { Inventory2 } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
+import { DataTable } from '../../components/DataTable'
+import type { Column } from '../../components/DataTable'
 import { useCwStore } from '../../store/cwStore'
-import type { CWPartRequestStatus } from '../../types/cw'
+import type { CWPartRequest, CWPartRequestStatus } from '../../types/cw'
+import { colors, pageLayout } from '../../theme/tokens'
+
+/* ─────────────────────── Constants ─────────────────────────── */
 
 const STATUS_FILTERS: (CWPartRequestStatus | 'All')[] = ['All', 'Requested', 'Labeled', 'Fulfilled', 'Rejected']
 const STATUS_COLORS: Record<CWPartRequestStatus, 'warning' | 'info' | 'success' | 'error'> = {
@@ -27,6 +27,16 @@ const STATUS_COLORS: Record<CWPartRequestStatus, 'warning' | 'info' | 'success' 
   Fulfilled: 'success',
   Rejected: 'error',
 }
+
+const btnSx = {
+  bgcolor: colors.slate[900],
+  fontWeight: 600,
+  borderRadius: '10px',
+  px: 2.5,
+  '&:hover': { bgcolor: colors.slate[800] },
+} as const
+
+/* ─────────────────────── Component ─────────────────────────── */
 
 export function PartRequestsPage() {
   const partRequests = useCwStore((s) => s.partRequests)
@@ -48,6 +58,8 @@ export function PartRequestsPage() {
     const list = statusFilter === 'All' ? partRequests : partRequests.filter((pr) => pr.status === statusFilter)
     return list.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [partRequests, statusFilter])
+
+  /* ── Helpers ── */
 
   function getApptInfo(appointmentId: string, concernItemId?: string) {
     const appt = appointments.find((a) => a.id === appointmentId)
@@ -98,131 +110,257 @@ export function PartRequestsPage() {
     setSuccessOpen(true)
   }
 
-  return (
-    <Page title="Part Requests" subtitle="Label and manage part requests from Service Engineers">
-      <Snackbar open={successOpen} onClose={() => setSuccessOpen(false)} autoHideDuration={2500} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled">{successMsg}</Alert>
-      </Snackbar>
+  /* ── Table Columns ── */
 
-      <Stack spacing={2.5}>
+  const columns: Column<CWPartRequest>[] = [
+    {
+      key: 'partName',
+      header: 'Part Name',
+      minWidth: 160,
+      render: (pr) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+            {pr.partName}
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 0.25 }}>
+            by {pr.requestedBy}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'concern',
+      header: 'Concern',
+      render: (pr) => {
+        const info = getApptInfo(pr.appointmentId, pr.concernItemId)
+        return (
+          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>
+            {info.concern}
+          </Typography>
+        )
+      },
+    },
+    {
+      key: 'vehicle',
+      header: 'Vehicle',
+      render: (pr) => {
+        const info = getApptInfo(pr.appointmentId, pr.concernItemId)
+        return (
+          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>
+            {info.vehicle}
+          </Typography>
+        )
+      },
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      render: (pr) => {
+        const info = getApptInfo(pr.appointmentId, pr.concernItemId)
+        return (
+          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>
+            {info.customer}
+          </Typography>
+        )
+      },
+    },
+    {
+      key: 'quantity',
+      header: 'Qty',
+      render: (pr) => {
+        const isEditing = editingId === pr.id
+        if (isEditing) {
+          return (
+            <TextField size="small" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} sx={{ width: 70 }} />
+          )
+        }
+        return <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>{pr.quantity ?? 1}</Typography>
+      },
+    },
+    {
+      key: 'partNumber',
+      header: 'Part #',
+      render: (pr) => {
+        const isEditing = editingId === pr.id
+        if (isEditing) {
+          return (
+            <TextField size="small" value={partNumber} onChange={(e) => setPartNumber(e.target.value)} placeholder="Part #" sx={{ width: 120 }} />
+          )
+        }
+        return <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>{pr.partNumber || '—'}</Typography>
+      },
+    },
+    {
+      key: 'price',
+      header: 'Price',
+      render: (pr) => {
+        const isEditing = editingId === pr.id
+        if (isEditing) {
+          return (
+            <TextField size="small" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" sx={{ width: 100 }} />
+          )
+        }
+        return (
+          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>
+            {typeof pr.price === 'number' ? `BDT ${pr.price}` : '—'}
+          </Typography>
+        )
+      },
+    },
+    {
+      key: 'deliveryDate',
+      header: 'Delivery Date',
+      render: (pr) => {
+        const isEditing = editingId === pr.id
+        if (isEditing) {
+          return (
+            <TextField
+              size="small"
+              type="date"
+              value={deliveryDate}
+              onChange={(e) => setDeliveryDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ width: 140 }}
+            />
+          )
+        }
+        return <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>{pr.deliveryDate || '—'}</Typography>
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (pr) => (
+        <Chip size="small" label={pr.status} color={STATUS_COLORS[pr.status]} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Action',
+      align: 'right',
+      render: (pr) => {
+        const isEditing = editingId === pr.id
+        if (pr.status === 'Requested' && !isEditing) {
+          return (
+            <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => startEdit(pr.id)}
+                sx={btnSx}
+              >
+                Label
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                color="error"
+                onClick={() => rejectRequest(pr.id)}
+                sx={{ fontWeight: 700, borderRadius: '10px' }}
+              >
+                Reject
+              </Button>
+            </Stack>
+          )
+        }
+        if (isEditing) {
+          return (
+            <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+              <Button
+                size="small"
+                variant="contained"
+                color="success"
+                onClick={submitLabel}
+                sx={{ fontWeight: 700, borderRadius: '10px' }}
+              >
+                Save
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setEditingId(null)}
+                sx={{ fontWeight: 700, borderRadius: '10px' }}
+              >
+                Cancel
+              </Button>
+            </Stack>
+          )
+        }
+        return null
+      },
+    },
+  ]
+
+  /* ── Render ── */
+
+  return (
+    <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Part Requests
+            </Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Label and manage part requests from Service Engineers</Typography>
+          </Box>
+        </Stack>
+
+        <Snackbar open={successOpen} onClose={() => setSuccessOpen(false)} autoHideDuration={2500} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled">{successMsg}</Alert>
+        </Snackbar>
+
+        {/* ── Status Filter ── */}
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
           <ToggleButtonGroup
             value={statusFilter}
             exclusive
             onChange={(_, v) => v && setStatusFilter(v)}
             size="small"
+            sx={{
+              '& .MuiToggleButton-root': {
+                fontWeight: 700,
+                textTransform: 'none',
+                px: 2,
+                borderColor: colors.border.default,
+                color: colors.slate[600],
+                '&.Mui-selected': {
+                  bgcolor: colors.slate[900],
+                  color: '#fff',
+                  '&:hover': { bgcolor: colors.slate[800] },
+                },
+              },
+            }}
           >
             {STATUS_FILTERS.map((s) => (
-              <ToggleButton key={s} value={s} sx={{ fontWeight: 700, textTransform: 'none', px: 2 }}>
+              <ToggleButton key={s} value={s}>
                 {s}
                 <Chip
                   size="small"
                   label={s === 'All' ? partRequests.length : partRequests.filter((pr) => pr.status === s).length}
-                  sx={{ ml: 0.5, height: 20, fontSize: '0.7rem' }}
+                  sx={{
+                    ml: 0.5,
+                    height: 20,
+                    fontSize: '0.7rem',
+                    bgcolor: statusFilter === s ? 'rgba(255,255,255,0.2)' : colors.slate[100],
+                    color: statusFilter === s ? '#fff' : colors.slate[600],
+                  }}
                 />
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
         </Stack>
 
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'auto' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell sx={{ fontWeight: 800 }}>Part Name</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Concern</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Vehicle</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Customer</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Qty</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Part #</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Price</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Delivery Date</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={10}>
-                    <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
-                      No part requests found.
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-              {filtered.map((pr) => {
-                const info = getApptInfo(pr.appointmentId, pr.concernItemId)
-                const isEditing = editingId === pr.id
-                return (
-                  <TableRow key={pr.id}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{pr.partName}</Typography>
-                      <Typography variant="caption" color="text.secondary">by {pr.requestedBy}</Typography>
-                    </TableCell>
-                    <TableCell><Typography variant="body2" color="text.secondary">{info.concern}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{info.vehicle}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{info.customer}</Typography></TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <TextField size="small" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} sx={{ width: 70 }} />
-                      ) : (
-                        <Typography variant="body2">{pr.quantity ?? 1}</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <TextField size="small" value={partNumber} onChange={(e) => setPartNumber(e.target.value)} placeholder="Part #" sx={{ width: 120 }} />
-                      ) : (
-                        <Typography variant="body2">{pr.partNumber || '—'}</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <TextField size="small" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" sx={{ width: 100 }} />
-                      ) : (
-                        <Typography variant="body2">{typeof pr.price === 'number' ? `BDT ${pr.price}` : '—'}</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <TextField size="small" type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 140 }} />
-                      ) : (
-                        <Typography variant="body2">{pr.deliveryDate || '—'}</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip size="small" label={pr.status} color={STATUS_COLORS[pr.status]} sx={{ fontWeight: 700 }} />
-                    </TableCell>
-                    <TableCell>
-                      {pr.status === 'Requested' && !isEditing && (
-                        <Stack direction="row" spacing={0.5}>
-                          <Button size="small" variant="contained" onClick={() => startEdit(pr.id)} sx={{ fontWeight: 700 }}>
-                            Label
-                          </Button>
-                          <Button size="small" variant="outlined" color="error" onClick={() => rejectRequest(pr.id)} sx={{ fontWeight: 700 }}>
-                            Reject
-                          </Button>
-                        </Stack>
-                      )}
-                      {isEditing && (
-                        <Stack direction="row" spacing={0.5}>
-                          <Button size="small" variant="contained" color="success" onClick={submitLabel} sx={{ fontWeight: 700 }}>
-                            Save
-                          </Button>
-                          <Button size="small" variant="outlined" onClick={() => setEditingId(null)} sx={{ fontWeight: 700 }}>
-                            Cancel
-                          </Button>
-                        </Stack>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </Paper>
+        {/* ── Table ── */}
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          keyExtractor={(pr) => pr.id}
+          emptyIcon={<Inventory2 />}
+          emptyTitle="No part requests found"
+          emptyDescription="Part requests from Service Engineers will appear here."
+        />
       </Stack>
-    </Page>
+    </Box>
   )
 }

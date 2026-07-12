@@ -1,37 +1,33 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
   IconButton,
   MenuItem,
-  Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Edit, ToggleOff, ToggleOn } from '@mui/icons-material'
+import { Add, Edit, FilterList, Garage, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import { Page } from '../../components/Page'
-import { useCwStore } from '../../store/cwStore'
-import type { CWBay, CWBayStatus } from '../../types/cw'
+import { DataTable } from '../../components/DataTable'
+import { FormDialog } from '../../components/FormDialog'
+import { SectionCard } from '../../components/SectionCard'
+import type { Column } from '../../components/DataTable'
+import type { CWBay, CWBayStatus, CWShop } from '../../types/cw'
 import { baysService } from '../../services/admin/baysService'
+import { shopsService } from '../../services/admin/shopsService'
+import { colors, radii, shadows } from '../../theme/tokens'
+
+/* ─────────────────────── Helpers ─────────────────────────── */
 
 function statusChip(status: CWBayStatus) {
-  if (status === 'Available') return <Chip size="small" color="success" label="Available" />
-  if (status === 'Occupied') return <Chip size="small" color="warning" label="Occupied" />
-  return <Chip size="small" color="default" label="Inactive" />
+  if (status === 'Available') return <Chip size="small" color="success" label="Available" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  if (status === 'Occupied') return <Chip size="small" color="warning" label="Occupied" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
 
 type BayDraft = {
@@ -46,48 +42,85 @@ function toDraft(bay?: CWBay): BayDraft {
   }
 }
 
-export function BaysPage() {
-  const shops = useCwStore((s) => s.shops)
-  const bays = useCwStore((s) => s.bays)
+/* ─────────────────────── Component ─────────────────────────── */
 
+export function BaysPage() {
+  const [shops, setShops] = useState<CWShop[]>([])
+  const [bays, setBays] = useState<CWBay[]>([])
   const [shopId, setShopId] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [loadingBays, setLoadingBays] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editBay, setEditBay] = useState<CWBay | null>(null)
   const [createDraft, setCreateDraft] = useState<BayDraft>(toDraft())
   const [editDraft, setEditDraft] = useState<BayDraft>(toDraft())
 
   useEffect(() => {
-    if (shopId) return
-    if (shops.length) setShopId(shops[0]!.id)
-  }, [shopId, shops])
+    let active = true
+    async function loadShops() {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await shopsService.list()
+        if (!active) return
+        setShops(data)
+        if (!shopId && data.length) setShopId(data[0]!.id)
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Failed to load shops')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void loadShops()
+    return () => {
+      active = false
+    }
+    // We intentionally only load shops once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    if (!shopId) return
+
+    async function loadBays() {
+      setLoadingBays(true)
+      setError(null)
+      try {
+        const data = await baysService.list({ shopId })
+        if (active) setBays(data)
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Failed to load bays')
+      } finally {
+        if (active) setLoadingBays(false)
+      }
+    }
+
+    void loadBays()
+    return () => {
+      active = false
+    }
+  }, [shopId])
 
   const selectedShop = shops.find((s) => s.id === shopId) ?? null
 
   const baysForShop = useMemo(() => {
-    const list = bays.filter((b) => b.shopId === shopId)
-    return list.sort((a, b) => {
+    return [...bays].sort((a, b) => {
       if (a.status !== b.status) return a.status === 'Available' ? -1 : 1
       return a.name.localeCompare(b.name)
     })
-  }, [bays, shopId])
+  }, [bays])
 
   const hasShops = shops.length > 0
-  const hasBays = baysForShop.length > 0
+
+  /* ── CRUD Operations ── */
 
   function openCreate() {
     setCreateDraft({ name: '', status: 'Available' })
     setCreateOpen(true)
-  }
-
-  function submitCreate() {
-    if (!selectedShop) return
-    if (!createDraft.name.trim()) return
-    baysService.create({
-      shopId: selectedShop.id,
-      name: createDraft.name,
-      status: createDraft.status,
-    })
-    setCreateOpen(false)
   }
 
   function openEdit(bay: CWBay) {
@@ -95,203 +128,305 @@ export function BaysPage() {
     setEditDraft(toDraft(bay))
   }
 
-  function submitEdit() {
+  async function submitCreate() {
+    if (!selectedShop) return
+    if (!createDraft.name.trim()) return
+    setSaving(true)
+    setError(null)
+    try {
+      const created = await baysService.create({
+        shopId: selectedShop.id,
+        name: createDraft.name,
+        status: createDraft.status,
+      })
+      setBays((current) => [created, ...current.filter((bay) => bay.id !== created.id)])
+      setCreateOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create bay')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function submitEdit() {
     if (!editBay) return
     if (!editDraft.name.trim()) return
-    baysService.update(editBay.id, {
-      name: editDraft.name,
-      status: editDraft.status,
-    })
-    setEditBay(null)
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await baysService.update(editBay.id, {
+        name: editDraft.name,
+        status: editDraft.status,
+      })
+      setBays((current) => current.map((bay) => (bay.id === updated.id ? updated : bay)))
+      setEditBay(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update bay')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function toggleStatus(bay: CWBay) {
+  async function toggleStatus(bay: CWBay) {
     const next: CWBayStatus = bay.status === 'Inactive' ? 'Available' : 'Inactive'
-    baysService.setStatus(bay.id, next)
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await baysService.setStatus(bay.id, next)
+      setBays((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update bay status')
+    } finally {
+      setSaving(false)
+    }
   }
+
+  /* ── Table Columns ── */
+
+  const columns: Column<CWBay>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      minWidth: 180,
+      render: (bay) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+            {bay.name}
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 0.25 }}>
+            {bay.id}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (bay) => statusChip(bay.status),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (bay) => (
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="Edit">
+            <span>
+              <IconButton size="small" onClick={() => openEdit(bay)} disabled={saving}>
+                <Edit fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title={bay.status === 'Inactive' ? 'Activate' : 'Deactivate'}>
+            <span>
+              <IconButton size="small" onClick={() => void toggleStatus(bay)} disabled={saving}>
+                {bay.status === 'Inactive' ? (
+                  <ToggleOn fontSize="small" />
+                ) : (
+                  <ToggleOff fontSize="small" />
+                )}
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
+      ),
+    },
+  ]
+
+  /* ── Render ── */
 
   return (
-    <Page
-      title="Admin / Bays"
-      subtitle="Create, edit, and deactivate bays within a shop (in-memory MVP)."
-      actions={
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate} disabled={!selectedShop}>
-          New Bay
-        </Button>
-      }
-    >
-      {!hasShops ? (
-        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Stack spacing={1.5}>
-            <Typography variant="h6" sx={{ fontWeight: 800 }}>
-              Create a shop first
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Bays
             </Typography>
-            <Typography color="text.secondary">
-              Bays belong to a shop. Go to Shops and create at least one shop.
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+              Create, edit, and manage bays within a shop.
             </Typography>
-            <Box>
-              <Button variant="contained" component={RouterLink} to="/admin/shops">
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={openCreate}
+            disabled={!selectedShop || saving}
+            sx={{
+              bgcolor: colors.slate[900],
+              fontWeight: 600,
+              borderRadius: '10px',
+              px: 2.5,
+              '&:hover': { bgcolor: colors.slate[800] },
+            }}
+          >
+            New Bay
+          </Button>
+        </Stack>
+
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        {loading ? null : !hasShops ? (
+          <Box
+            sx={{
+              p: 4,
+              borderRadius: radii.lg,
+              border: `1px solid ${colors.border.default}`,
+              background: colors.bg.card,
+              boxShadow: shadows.card,
+              textAlign: 'center',
+            }}
+          >
+            <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: colors.slate[900] }}>
+                Create a shop first
+              </Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+                Bays belong to a shop. Go to Shops and create at least one shop.
+              </Typography>
+              <Button
+                variant="contained"
+                component={RouterLink}
+                to="/admin/shops"
+                sx={{
+                  bgcolor: colors.slate[900],
+                  fontWeight: 600,
+                  borderRadius: '10px',
+                  mt: 1,
+                  '&:hover': { bgcolor: colors.slate[800] },
+                }}
+              >
                 Go to Shops
               </Button>
-            </Box>
-          </Stack>
-        </Paper>
-      ) : (
-        <Stack spacing={2}>
-          <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
-              <TextField
-                label="Shop"
-                select
-                value={shopId}
-                onChange={(e) => setShopId(e.target.value)}
-                sx={{ minWidth: 260 }}
-              >
-                {shops.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Box sx={{ flexGrow: 1 }} />
-              <Typography variant="body2" color="text.secondary">
-                Occupied status will be derived from assignments later.
-              </Typography>
             </Stack>
-          </Paper>
-
-          {!hasBays ? (
-            <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                  No bays yet
-                </Typography>
-                <Typography color="text.secondary">
-                  Create your first bay for {selectedShop?.name ?? 'this shop'}.
-                </Typography>
-                <Box>
-                  <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-                    Create Bay
-                  </Button>
-                </Box>
-              </Stack>
-            </Paper>
-          ) : (
-            <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>
-                      Actions
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {baysForShop.map((bay) => (
-                    <TableRow key={bay.id} hover>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 700 }}>{bay.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {bay.id}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{statusChip(bay.status)}</TableCell>
-                      <TableCell align="right">
-                        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                          <Tooltip title="Edit">
-                            <IconButton onClick={() => openEdit(bay)}>
-                              <Edit fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title={bay.status === 'Inactive' ? 'Activate' : 'Deactivate'}>
-                            <IconButton onClick={() => toggleStatus(bay)}>
-                              {bay.status === 'Inactive' ? (
-                                <ToggleOn fontSize="small" />
-                              ) : (
-                                <ToggleOff fontSize="small" />
-                              )}
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
+          </Box>
+        ) : (
+          <Stack spacing={2}>
+            {/* Shop filter */}
+            <SectionCard title="Filter" icon={<FilterList sx={{ fontSize: '1rem' }} />}>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                sx={{ alignItems: { sm: 'center' } }}
+              >
+                <TextField
+                  label="Shop"
+                  select
+                  value={shopId}
+                  onChange={(e) => setShopId(e.target.value)}
+                  sx={{ minWidth: 260 }}
+                >
+                  {shops.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>
+                      {s.name}
+                    </MenuItem>
                   ))}
-                </TableBody>
-              </Table>
-            </Paper>
-          )}
-        </Stack>
-      )}
+                </TextField>
+                <Box sx={{ flexGrow: 1 }} />
+                <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
+                  Occupancy is derived from backend scheduling records.
+                </Typography>
+              </Stack>
+            </SectionCard>
 
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Create bay</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField label="Shop" value={selectedShop?.name ?? ''} disabled fullWidth />
-            <TextField
-              label="Bay name"
-              value={createDraft.name}
-              onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
-              required
-              fullWidth
+            <DataTable
+              columns={columns}
+              rows={baysForShop}
+              keyExtractor={(bay) => bay.id}
+              loading={loadingBays}
+              emptyIcon={<Garage />}
+              emptyTitle="No bays yet"
+              emptyDescription={`Create your first bay for ${selectedShop?.name ?? 'this shop'}.`}
+              emptyAction={
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={openCreate}
+                  disabled={!selectedShop}
+                  sx={{
+                    bgcolor: colors.slate[900],
+                    fontWeight: 600,
+                    borderRadius: '10px',
+                    '&:hover': { bgcolor: colors.slate[800] },
+                  }}
+                >
+                  Create Bay
+                </Button>
+              }
             />
-            <TextField
-              label="Status"
-              select
-              value={createDraft.status}
-              onChange={(e) => setCreateDraft((d) => ({ ...d, status: e.target.value as CWBayStatus }))}
-              fullWidth
-            >
-              <MenuItem value="Available">Available</MenuItem>
-              <MenuItem value="Inactive">Inactive</MenuItem>
-            </TextField>
-            <Divider />
-            <Typography variant="body2" color="text.secondary">
-              MVP note: data is stored in-memory only. Refresh clears all bays.
-            </Typography>
           </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={submitCreate} disabled={!createDraft.name.trim() || !selectedShop}>
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
+        )}
 
-      <Dialog open={!!editBay} onClose={() => setEditBay(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Edit bay</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField label="Shop" value={selectedShop?.name ?? ''} disabled fullWidth />
-            <TextField
-              label="Bay name"
-              value={editDraft.name}
-              onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Status"
-              select
-              value={editDraft.status}
-              onChange={(e) => setEditDraft((d) => ({ ...d, status: e.target.value as CWBayStatus }))}
-              fullWidth
-            >
-              <MenuItem value="Available">Available</MenuItem>
-              <MenuItem value="Inactive">Inactive</MenuItem>
-            </TextField>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setEditBay(null)}>Cancel</Button>
-          <Button variant="contained" onClick={submitEdit} disabled={!editDraft.name.trim()}>
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Page>
+        {/* ── Create Dialog ── */}
+        <FormDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          title="Create bay"
+          icon={<Garage />}
+          onSubmit={() => void submitCreate()}
+          submitLabel="Create"
+          submitDisabled={!createDraft.name.trim() || !selectedShop || saving}
+        >
+          <TextField label="Shop" value={selectedShop?.name ?? ''} disabled fullWidth />
+          <TextField
+            label="Bay name"
+            value={createDraft.name}
+            onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
+            required
+            fullWidth
+          />
+          <TextField
+            label="Status"
+            select
+            value={createDraft.status}
+            onChange={(e) =>
+              setCreateDraft((d) => ({ ...d, status: e.target.value as CWBayStatus }))
+            }
+            fullWidth
+          >
+            <MenuItem value="Available">Available</MenuItem>
+            <MenuItem value="Inactive">Inactive</MenuItem>
+          </TextField>
+        </FormDialog>
+
+        {/* ── Edit Dialog ── */}
+        <FormDialog
+          open={!!editBay}
+          onClose={() => setEditBay(null)}
+          title="Edit bay"
+          icon={<Edit />}
+          onSubmit={() => void submitEdit()}
+          submitLabel="Save"
+          submitDisabled={!editDraft.name.trim() || saving}
+        >
+          <TextField
+            label="Bay name"
+            value={editDraft.name}
+            onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+            required
+            fullWidth
+            autoFocus
+          />
+          <TextField
+            label="Status"
+            select
+            value={editDraft.status}
+            onChange={(e) =>
+              setEditDraft((d) => ({ ...d, status: e.target.value as CWBayStatus }))
+            }
+            fullWidth
+          >
+            <MenuItem value="Available">Available</MenuItem>
+            <MenuItem value="Occupied">Occupied</MenuItem>
+            <MenuItem value="Inactive">Inactive</MenuItem>
+          </TextField>
+        </FormDialog>
+      </Stack>
+    </Box>
   )
 }

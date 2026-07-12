@@ -1,5 +1,6 @@
-import { Box, Container, Typography } from '@mui/material'
+import { Box, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
+import { colors } from '../theme/tokens'
 
 export function Page(props: {
   title: string
@@ -9,7 +10,12 @@ export function Page(props: {
   fullWidth?: boolean
 }) {
   return (
-    <Container maxWidth={props.fullWidth ? false : 'lg'} sx={{ py: 3, px: props.fullWidth ? { xs: 2, sm: 3 } : undefined }}>
+    <Box
+      sx={{
+        py: { xs: 3, md: 4 },
+        px: { xs: 2, sm: 3, md: 4 },
+      }}
+    >
       <Box
         sx={{
           display: 'flex',
@@ -21,11 +27,27 @@ export function Page(props: {
         }}
       >
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{
+              fontWeight: 800,
+              color: colors.slate[900],
+              letterSpacing: '-0.02em',
+              fontSize: { xs: '1.5rem', md: '1.75rem' },
+            }}
+          >
             {props.title}
           </Typography>
           {props.subtitle ? (
-            <Typography variant="body1" color="text.secondary">
+            <Typography
+              sx={{
+                color: colors.slate[500],
+                fontSize: '0.875rem',
+                mt: 0.5,
+                fontWeight: 400,
+              }}
+            >
               {props.subtitle}
             </Typography>
           ) : null}
@@ -33,6 +55,6 @@ export function Page(props: {
         {props.actions ? <Box>{props.actions}</Box> : null}
       </Box>
       {props.children}
-    </Container>
+    </Box>
   )
 }

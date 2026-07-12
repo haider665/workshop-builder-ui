@@ -34,19 +34,18 @@ function roleFromBackend(session: AuthSessionDto): Role[] {
   const capabilities = new Set(session.capabilities ?? [])
 
   if (
-    hasAnyRole(roleIds, ['Administrator', 'System Manager', 'Workshop Admin', 'CW Admin']) ||
+    hasAnyRole(roleIds, ['Administrator', 'System Manager', 'Workshop Admin', 'Admin', 'CW Admin']) ||
     capabilities.has('admin.read')
   ) {
     roles.add('Admin')
   }
   if (hasAnyRole(roleIds, ['Guard', 'CW Guard'])) roles.add('Guard')
   if (hasAnyRole(roleIds, ['Job Creation', 'CW Job Creation'])) roles.add('Job Creation')
-  if (hasAnyRole(roleIds, ['CRE', 'CRO', 'CW CRE', 'CW CRO'])) roles.add('CRE')
+  if (hasAnyRole(roleIds, ['CRE', 'CW CRE'])) roles.add('CRE')
   if (hasAnyRole(roleIds, ['Technician', 'CW Technician'])) roles.add('Technician')
   if (hasAnyRole(roleIds, ['Service Advisor', 'SA', 'CW Service Advisor'])) roles.add('Service Advisor')
   if (hasAnyRole(roleIds, ['Service Engineer', 'SE', 'CW Service Engineer'])) roles.add('Service Engineer')
   if (hasAnyRole(roleIds, ['QC', 'Quality Controller', 'CW QC'])) roles.add('QC')
-  if (!roles.size && roleIds.length) roles.add('Custom Role')
 
   return [...roles]
 }

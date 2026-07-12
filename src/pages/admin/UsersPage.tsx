@@ -1,34 +1,32 @@
 import {
   Alert,
+  Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControl,
-  InputLabel,
   IconButton,
+  InputAdornment,
+  InputLabel,
   MenuItem,
   OutlinedInput,
-  Paper,
   Select,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Block, Edit, ToggleOff, ToggleOn } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
-import { Page } from '../../components/Page'
-import { useCwStore } from '../../store/cwStore'
-import type { CWUser, CWUserStatus } from '../../types/cw'
+import { Add, Block, Edit, PersonAdd, ToggleOff, ToggleOn, Visibility, VisibilityOff } from '@mui/icons-material'
+import { useEffect, useMemo, useState } from 'react'
+import { DataTable } from '../../components/DataTable'
+import { FormDialog } from '../../components/FormDialog'
+import type { Column } from '../../components/DataTable'
+import type { CWRole, CWShop, CWUser, CWUserStatus } from '../../types/cw'
 import { usersService } from '../../services/admin/usersService'
+import { shopsService } from '../../services/admin/shopsService'
+import { rolesService } from '../../services/admin/rolesService'
+import { colors } from '../../theme/tokens'
+
+/* ─────────────────────── Helpers ─────────────────────────── */
 
 type UserDraft = {
   fullName: string
@@ -53,21 +51,53 @@ function toDraft(user?: CWUser): UserDraft {
 }
 
 function statusChip(status: CWUserStatus) {
-  if (status === 'Active') return <Chip size="small" color="success" label="Active" />
-  if (status === 'Suspended') return <Chip size="small" color="warning" label="Suspended" />
-  return <Chip size="small" color="default" label="Inactive" />
+  if (status === 'Active') return <Chip size="small" color="success" label="Active" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  if (status === 'Suspended') return <Chip size="small" color="warning" label="Suspended" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+  return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
 
-export function UsersPage() {
-  const shops = useCwStore((s) => s.shops)
-  const roles = useCwStore((s) => s.roles)
-  const users = useCwStore((s) => s.users)
+/* ─────────────────────── Component ─────────────────────────── */
 
+export function UsersPage() {
+  const [shops, setShops] = useState<CWShop[]>([])
+  const [roles, setRoles] = useState<CWRole[]>([])
+  const [users, setUsers] = useState<CWUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editUser, setEditUser] = useState<CWUser | null>(null)
   const [createDraft, setCreateDraft] = useState<UserDraft>(toDraft())
   const [editDraft, setEditDraft] = useState<UserDraft>(toDraft())
-  const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    async function loadData() {
+      setLoading(true)
+      setError(null)
+      try {
+        const [shopData, roleData, userData] = await Promise.all([
+          shopsService.list(),
+          rolesService.list(false),
+          usersService.list(),
+        ])
+        if (!active) return
+        setShops(shopData)
+        setRoles(roleData)
+        setUsers(userData)
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Failed to load users')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void loadData()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const roleNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -88,8 +118,14 @@ export function UsersPage() {
     })
   }, [users])
 
-  const hasShops = shops.length > 0
   const activeRoles = roles.filter((r) => r.status === 'Active')
+
+  function preferredRoleLabel(roleIds: string[]) {
+    const roleId = roleIds[0]
+    return roleId ? roleNameById.get(roleId) ?? 'Unknown' : '—'
+  }
+
+  /* ── CRUD Operations ── */
 
   function openCreate() {
     setError(null)
@@ -105,10 +141,17 @@ export function UsersPage() {
     setCreateOpen(true)
   }
 
-  function submitCreate() {
+  function openEdit(user: CWUser) {
+    setError(null)
+    setEditUser(user)
+    setEditDraft(toDraft(user))
+  }
+
+  async function submitCreate() {
+    setSaving(true)
+    setError(null)
     try {
-      setError(null)
-      usersService.create({
+      const created = await usersService.create({
         fullName: createDraft.fullName,
         email: createDraft.email,
         mobile: createDraft.mobile,
@@ -117,23 +160,21 @@ export function UsersPage() {
         status: createDraft.status,
         password: createDraft.password || undefined,
       })
+      setUsers((current) => [created, ...current.filter((user) => user.id !== created.id)])
       setCreateOpen(false)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create user')
+    } finally {
+      setSaving(false)
     }
   }
 
-  function openEdit(user: CWUser) {
-    setError(null)
-    setEditUser(user)
-    setEditDraft(toDraft(user))
-  }
-
-  function submitEdit() {
+  async function submitEdit() {
     if (!editUser) return
+    setSaving(true)
+    setError(null)
     try {
-      setError(null)
-      usersService.update(editUser.id, {
+      const updated = await usersService.update(editUser.id, {
         fullName: editDraft.fullName,
         email: editDraft.email,
         mobile: editDraft.mobile,
@@ -142,363 +183,360 @@ export function UsersPage() {
         status: editDraft.status,
         password: editDraft.password || undefined,
       })
+      setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)))
       setEditUser(null)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update user')
+    } finally {
+      setSaving(false)
     }
   }
 
-  function setStatus(user: CWUser, status: CWUserStatus) {
+  async function setStatus(user: CWUser, status: CWUserStatus) {
+    setSaving(true)
+    setError(null)
     try {
-      setError(null)
-      usersService.setStatus(user.id, status)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const updated = await usersService.setStatus(user.id, status)
+      setUsers((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update user status')
+    } finally {
+      setSaving(false)
     }
   }
+
+  /* ── Table Columns ── */
+
+  const columns: Column<CWUser>[] = [
+    {
+      key: 'user',
+      header: 'User',
+      minWidth: 200,
+      render: (u) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+            {u.fullName}
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500], mt: 0.25 }}>
+            {u.email} • {u.mobile}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'roles',
+      header: 'Roles',
+      render: (u) => (
+        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
+          {preferredRoleLabel(u.roleIds) !== '—' ? (
+            <Chip size="small" label={preferredRoleLabel(u.roleIds)} />
+          ) : (
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>—</Typography>
+          )}
+        </Stack>
+      ),
+    },
+    {
+      key: 'shops',
+      header: 'Shops',
+      render: (u) => (
+        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
+          {u.shopIds.length ? (
+            u.shopIds.map((id) => (
+              <Chip key={id} size="small" label={shopNameById.get(id) ?? 'Unknown'} />
+            ))
+          ) : (
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>—</Typography>
+          )}
+        </Stack>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (u) => statusChip(u.status),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (u) => (
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="Edit">
+            <span>
+              <IconButton size="small" onClick={() => openEdit(u)} disabled={saving}>
+                <Edit fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+
+          <Tooltip title={u.status === 'Active' ? 'Deactivate' : 'Activate'}>
+            <span>
+              <IconButton
+                size="small"
+                onClick={() => void setStatus(u, u.status === 'Active' ? 'Inactive' : 'Active')}
+                disabled={saving}
+              >
+                {u.status === 'Active' ? (
+                  <ToggleOn fontSize="small" />
+                ) : (
+                  <ToggleOff fontSize="small" />
+                )}
+              </IconButton>
+            </span>
+          </Tooltip>
+
+          <Tooltip
+            title={u.status === 'Suspended' ? 'Unsuspend (set Active)' : 'Suspend'}
+          >
+            <span>
+              <IconButton
+                size="small"
+                onClick={() => void setStatus(u, u.status === 'Suspended' ? 'Active' : 'Suspended')}
+                disabled={saving}
+              >
+                <Block fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
+      ),
+    },
+  ]
+
+  function renderUserFormFields(
+    draft: UserDraft,
+    setDraft: React.Dispatch<React.SetStateAction<UserDraft>>,
+    mode: 'create' | 'edit',
+  ) {
+    return (
+      <>
+        <TextField
+          label="Full name"
+          value={draft.fullName}
+          onChange={(e) => setDraft((d) => ({ ...d, fullName: e.target.value }))}
+          required
+          fullWidth
+          autoFocus
+        />
+        <TextField
+          label="Email"
+          value={draft.email}
+          onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
+          required
+          fullWidth
+          autoComplete="off"
+        />
+        <TextField
+          label="Mobile"
+          value={draft.mobile}
+          onChange={(e) => setDraft((d) => ({ ...d, mobile: e.target.value }))}
+          required
+          fullWidth
+        />
+
+        <FormControl fullWidth>
+          <InputLabel id={`${mode}-roles-label`}>Preferred role</InputLabel>
+          <Select
+            labelId={`${mode}-roles-label`}
+            value={draft.roleIds[0] ?? ''}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, roleIds: [e.target.value as string] }))
+            }
+            input={<OutlinedInput label="Preferred role" />}
+            renderValue={(selected) => roleNameById.get(selected as string) ?? 'Unknown'}
+          >
+            {activeRoles.map((r) => (
+              <MenuItem key={r.id} value={r.id}>
+                {r.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl fullWidth>
+          <InputLabel id={`${mode}-shops-label`}>Shops</InputLabel>
+          <Select
+            labelId={`${mode}-shops-label`}
+            multiple
+            value={draft.shopIds}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, shopIds: e.target.value as string[] }))
+            }
+            input={<OutlinedInput label="Shops" />}
+            renderValue={(selected) =>
+              (selected as string[])
+                .map((id) => shopNameById.get(id) ?? 'Unknown')
+                .join(', ')
+            }
+          >
+            {shops.map((s) => (
+              <MenuItem key={s.id} value={s.id}>
+                {s.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <TextField
+          label="Status"
+          select
+          value={draft.status}
+          onChange={(e) =>
+            setDraft((d) => ({ ...d, status: e.target.value as CWUserStatus }))
+          }
+          fullWidth
+        >
+          <MenuItem value="Active">Active</MenuItem>
+          <MenuItem value="Inactive">Inactive</MenuItem>
+          <MenuItem value="Suspended">Suspended</MenuItem>
+        </TextField>
+
+        <TextField
+          label="Password"
+          type={showPassword ? 'text' : 'password'}
+          value={draft.password}
+          onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
+          fullWidth
+          autoComplete="new-password"
+          helperText={
+            mode === 'create'
+              ? 'Optional. Sent to the backend as the initial Frappe password.'
+              : 'Optional. Leave blank to keep the existing password.'
+          }
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => setShowPassword((v) => !v)}
+                    edge="end"
+                    size="small"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
+      </>
+    )
+  }
+
+  /* ── Render ── */
 
   return (
-    <Page
-      title="Admin / Users"
-      subtitle="Create users, assign roles and shops (in-memory MVP)."
-      actions={
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate} disabled={!hasShops}>
-          New User
-        </Button>
-      }
-    >
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      {!hasShops ? (
-        <Paper sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Stack spacing={1.5}>
-            <Typography variant="h6" sx={{ fontWeight: 800 }}>
-              Create a shop first
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+              Admin / Users
             </Typography>
-            <Typography color="text.secondary">
-              Users must be assigned to at least one shop.
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
+              Create users, assign roles and shops from the backend.
             </Typography>
-          </Stack>
-        </Paper>
-      ) : (
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 800 }}>User</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Roles</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Shops</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>
-                  Actions
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedUsers.map((u) => (
-                <TableRow key={u.id} hover>
-                  <TableCell>
-                    <Typography sx={{ fontWeight: 700 }}>{u.fullName}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {u.email} • {u.mobile}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
-                      {u.roleIds.length ? (
-                        u.roleIds.map((id) => (
-                          <Chip key={id} size="small" label={roleNameById.get(id) ?? 'Unknown'} />
-                        ))
-                      ) : (
-                        <Typography color="text.secondary">—</Typography>
-                      )}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
-                      {u.shopIds.length ? (
-                        u.shopIds.map((id) => (
-                          <Chip key={id} size="small" label={shopNameById.get(id) ?? 'Unknown'} />
-                        ))
-                      ) : (
-                        <Typography color="text.secondary">—</Typography>
-                      )}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>{statusChip(u.status)}</TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                      <Tooltip title="Edit">
-                        <IconButton onClick={() => openEdit(u)}>
-                          <Edit fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-
-                      <Tooltip title={u.status === 'Active' ? 'Deactivate' : 'Activate'}>
-                        <IconButton
-                          onClick={() => setStatus(u, u.status === 'Active' ? 'Inactive' : 'Active')}
-                        >
-                          {u.status === 'Active' ? (
-                            <ToggleOn fontSize="small" />
-                          ) : (
-                            <ToggleOff fontSize="small" />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-
-                      <Tooltip
-                        title={u.status === 'Suspended' ? 'Unsuspend (set Active)' : 'Suspend'}
-                      >
-                        <IconButton
-                          onClick={() =>
-                            setStatus(u, u.status === 'Suspended' ? 'Active' : 'Suspended')
-                          }
-                        >
-                          <Block fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
-      )}
-
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Create user</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Full name"
-              value={createDraft.fullName}
-              onChange={(e) => setCreateDraft((d) => ({ ...d, fullName: e.target.value }))}
-              required
-              fullWidth
-              autoFocus
-            />
-            <TextField
-              label="Email"
-              value={createDraft.email}
-              onChange={(e) => setCreateDraft((d) => ({ ...d, email: e.target.value }))}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Mobile"
-              value={createDraft.mobile}
-              onChange={(e) => setCreateDraft((d) => ({ ...d, mobile: e.target.value }))}
-              required
-              fullWidth
-            />
-
-            <FormControl fullWidth>
-              <InputLabel id="create-roles-label">Roles</InputLabel>
-              <Select
-                labelId="create-roles-label"
-                multiple
-                value={createDraft.roleIds}
-                onChange={(e) =>
-                  setCreateDraft((d) => ({ ...d, roleIds: e.target.value as string[] }))
-                }
-                input={<OutlinedInput label="Roles" />}
-                renderValue={(selected) =>
-                  (selected as string[])
-                    .map((id) => roleNameById.get(id) ?? 'Unknown')
-                    .join(', ')
-                }
-              >
-                {activeRoles.map((r) => (
-                  <MenuItem key={r.id} value={r.id}>
-                    {r.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl fullWidth>
-              <InputLabel id="create-shops-label">Shops</InputLabel>
-              <Select
-                labelId="create-shops-label"
-                multiple
-                value={createDraft.shopIds}
-                onChange={(e) =>
-                  setCreateDraft((d) => ({ ...d, shopIds: e.target.value as string[] }))
-                }
-                input={<OutlinedInput label="Shops" />}
-                renderValue={(selected) =>
-                  (selected as string[])
-                    .map((id) => shopNameById.get(id) ?? 'Unknown')
-                    .join(', ')
-                }
-              >
-                {shops.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              label="Status"
-              select
-              value={createDraft.status}
-              onChange={(e) => setCreateDraft((d) => ({ ...d, status: e.target.value as CWUserStatus }))}
-              fullWidth
-            >
-              <MenuItem value="Active">Active</MenuItem>
-              <MenuItem value="Inactive">Inactive</MenuItem>
-              <MenuItem value="Suspended">Suspended</MenuItem>
-            </TextField>
-
-            <TextField
-              label="Password"
-              type="password"
-              value={createDraft.password}
-              onChange={(e) => setCreateDraft((d) => ({ ...d, password: e.target.value }))}
-              fullWidth
-              helperText="MVP note: login is demo-only; this password is not used for auth."
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+          </Box>
           <Button
             variant="contained"
-            onClick={submitCreate}
-            disabled={
-              !createDraft.fullName.trim() ||
-              !createDraft.email.trim() ||
-              !createDraft.mobile.trim() ||
-              !createDraft.roleIds.length ||
-              !createDraft.shopIds.length
-            }
+            startIcon={<Add />}
+            onClick={openCreate}
+            disabled={!activeRoles.length || saving}
+            sx={{
+              bgcolor: colors.slate[900],
+              fontWeight: 600,
+              borderRadius: '10px',
+              px: 2.5,
+              '&:hover': { bgcolor: colors.slate[800] },
+            }}
           >
-            Create
+            New User
           </Button>
-        </DialogActions>
-      </Dialog>
+        </Stack>
 
-      <Dialog open={!!editUser} onClose={() => setEditUser(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Edit user</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Full name"
-              value={editDraft.fullName}
-              onChange={(e) => setEditDraft((d) => ({ ...d, fullName: e.target.value }))}
-              required
-              fullWidth
-              autoFocus
-            />
-            <TextField
-              label="Email"
-              value={editDraft.email}
-              onChange={(e) => setEditDraft((d) => ({ ...d, email: e.target.value }))}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Mobile"
-              value={editDraft.mobile}
-              onChange={(e) => setEditDraft((d) => ({ ...d, mobile: e.target.value }))}
-              required
-              fullWidth
-            />
+        {error ? (
+          <Alert severity="error" sx={{ borderRadius: '10px' }}>
+            {error}
+          </Alert>
+        ) : null}
 
-            <FormControl fullWidth>
-              <InputLabel id="edit-roles-label">Roles</InputLabel>
-              <Select
-                labelId="edit-roles-label"
-                multiple
-                value={editDraft.roleIds}
-                onChange={(e) =>
-                  setEditDraft((d) => ({ ...d, roleIds: e.target.value as string[] }))
-                }
-                input={<OutlinedInput label="Roles" />}
-                renderValue={(selected) =>
-                  (selected as string[])
-                    .map((id) => roleNameById.get(id) ?? 'Unknown')
-                    .join(', ')
-                }
-              >
-                {activeRoles.map((r) => (
-                  <MenuItem key={r.id} value={r.id}>
-                    {r.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl fullWidth>
-              <InputLabel id="edit-shops-label">Shops</InputLabel>
-              <Select
-                labelId="edit-shops-label"
-                multiple
-                value={editDraft.shopIds}
-                onChange={(e) =>
-                  setEditDraft((d) => ({ ...d, shopIds: e.target.value as string[] }))
-                }
-                input={<OutlinedInput label="Shops" />}
-                renderValue={(selected) =>
-                  (selected as string[])
-                    .map((id) => shopNameById.get(id) ?? 'Unknown')
-                    .join(', ')
-                }
-              >
-                {shops.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              label="Status"
-              select
-              value={editDraft.status}
-              onChange={(e) => setEditDraft((d) => ({ ...d, status: e.target.value as CWUserStatus }))}
-              fullWidth
+        <DataTable
+          columns={columns}
+          rows={sortedUsers}
+          keyExtractor={(u) => u.id}
+          loading={loading}
+          emptyIcon={<PersonAdd />}
+          emptyTitle="No users yet"
+          emptyDescription="Create your first user to begin assigning roles and shops."
+          emptyAction={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              disabled={!activeRoles.length || saving}
+              sx={{
+                bgcolor: colors.slate[900],
+                fontWeight: 600,
+                borderRadius: '10px',
+                '&:hover': { bgcolor: colors.slate[800] },
+              }}
             >
-              <MenuItem value="Active">Active</MenuItem>
-              <MenuItem value="Inactive">Inactive</MenuItem>
-              <MenuItem value="Suspended">Suspended</MenuItem>
-            </TextField>
+              Create User
+            </Button>
+          }
+        />
 
-            <TextField
-              label="Password"
-              type="password"
-              value={editDraft.password}
-              onChange={(e) => setEditDraft((d) => ({ ...d, password: e.target.value }))}
-              fullWidth
-              helperText="Optional. MVP note: login is demo-only."
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setEditUser(null)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={submitEdit}
-            disabled={
-              !editDraft.fullName.trim() ||
-              !editDraft.email.trim() ||
-              !editDraft.mobile.trim() ||
-              !editDraft.roleIds.length ||
-              !editDraft.shopIds.length
-            }
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Page>
+        {/* ── Create Dialog ── */}
+        <FormDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          title="Create user"
+          icon={<PersonAdd />}
+          onSubmit={() => void submitCreate()}
+          submitLabel="Create"
+          submitDisabled={
+            !createDraft.fullName.trim() ||
+            !createDraft.email.trim() ||
+            !createDraft.mobile.trim() ||
+            !createDraft.roleIds.length ||
+            saving
+          }
+        >
+          {error && createOpen ? (
+            <Alert severity="error" sx={{ borderRadius: '10px' }}>
+              {error}
+            </Alert>
+          ) : null}
+          {renderUserFormFields(createDraft, setCreateDraft, 'create')}
+        </FormDialog>
+
+        {/* ── Edit Dialog ── */}
+        <FormDialog
+          open={!!editUser}
+          onClose={() => setEditUser(null)}
+          title="Edit user"
+          icon={<Edit />}
+          onSubmit={() => void submitEdit()}
+          submitLabel="Save"
+          submitDisabled={
+            !editDraft.fullName.trim() ||
+            !editDraft.email.trim() ||
+            !editDraft.mobile.trim() ||
+            !editDraft.roleIds.length ||
+            saving
+          }
+        >
+          {error && editUser ? (
+            <Alert severity="error" sx={{ borderRadius: '10px' }}>
+              {error}
+            </Alert>
+          ) : null}
+          {renderUserFormFields(editDraft, setEditDraft, 'edit')}
+        </FormDialog>
+      </Stack>
+    </Box>
   )
 }

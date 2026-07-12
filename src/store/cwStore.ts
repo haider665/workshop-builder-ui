@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { workshopApi } from '../services/workshopApi'
 import type {
   CWF1Config,
   CWAppointment,
@@ -52,6 +53,8 @@ import type {
   CWTeam,
   CWTeamStatus,
   CWTimelineEvent,
+  CWTechnicianAssignment,
+  CWQCItemStatus,
   CWUser,
   CWUserStatus,
   CWVehicle,
@@ -59,10 +62,32 @@ import type {
   CWVehicleSize,
   CWVehicleStatus,
   CWWhatsappLog,
+  CWPartStockUnit,
+  CWVendor,
+  CWVendorPartPrice,
+  CWEstimateLine,
+  CWPurchaseOrder,
+  CWPOLine,
+  CWGoodsReceiptNote,
+  CWGRNLine,
+  CWRequisition,
+  CWRequisitionLine,
+  CWPartReturn,
+  CWVendorClaim,
+  CWNotification,
+  CWNotificationCategory,
+  CWInvoice,
+  CWInvoiceLine,
 } from '../types/cw'
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function syncBackend(promise: Promise<unknown>, label: string) {
+  void promise.catch((error) => {
+    console.error(`Failed to sync ${label}`, error)
+  })
 }
 
 function newId() {
@@ -381,14 +406,34 @@ export type UpdateTeamInput = {
 
 export type CreatePartInput = {
   name: string
-  partNumber?: string
-  price?: number
+  partNumber: string
+  description?: string
+  category?: string
+  brand?: string
+  modelVariant?: string
+  vehicleFitment?: string[]
+  alternatePartNumbers?: string[]
+  mediaUrls?: string[]
+  rackLocation?: string
+  binNumber?: string
+  reorderLevel?: number
+  stockCount?: number
   status?: 'Active' | 'Inactive'
 }
 export type UpdatePartInput = {
   name: string
-  partNumber?: string
-  price?: number
+  partNumber: string
+  description?: string
+  category?: string
+  brand?: string
+  modelVariant?: string
+  vehicleFitment?: string[]
+  alternatePartNumbers?: string[]
+  mediaUrls?: string[]
+  rackLocation?: string
+  binNumber?: string
+  reorderLevel?: number
+  stockCount?: number
   status: 'Active' | 'Inactive'
 }
 
@@ -406,6 +451,152 @@ export type LabelPartRequestInput = {
   deliveryDate?: string
   labeledBy: string
   status?: CWPartRequestStatus
+}
+export type CreateVendorInput = {
+  name: string
+  code: string
+  contactPerson?: string
+  phone?: string
+  email?: string
+  address?: string
+  sourcingType: 'Local' | 'Foreign'
+  preferred?: boolean
+}
+export type UpdateVendorInput = CreateVendorInput & {
+  status: 'Active' | 'Inactive'
+}
+export type UpsertVendorPartPriceInput = {
+  vendorId: string
+  partId: string
+  unitPrice: number
+  currency: 'BDT' | 'USD' | 'EUR'
+  leadTimeDays: number
+  sourcingType: 'OEM' | 'Genuine' | 'Aftermarket'
+  moq?: number
+}
+
+// Estimation inputs
+export type CreateEstimateLineInput = {
+  appointmentId: string
+  concernItemId?: string
+  description: string
+  mediaUrls?: string[]
+  requestedByUserId: string
+  quantity?: number
+}
+
+export type IdentifyEstimateLineInput = {
+  partId: string
+  partNumber: string
+  partName: string
+}
+
+export type PriceEstimateLineInput = {
+  vendorId: string
+  unitPrice: number
+  sellPrice: number
+  quantity: number
+  sourcingType: 'OEM' | 'Genuine' | 'Aftermarket'
+  currency?: 'BDT' | 'USD' | 'EUR'
+  inStock: boolean
+  estimatedDeliveryDate?: string
+  advanceRequired?: boolean
+  options?: Array<{
+    vendorId: string
+    vendorName: string
+    sourcingType: 'OEM' | 'Genuine' | 'Aftermarket'
+    unitPrice: number
+    sellPrice: number
+  }>
+}
+
+// Purchase Order inputs
+export type CreatePurchaseOrderInput = {
+  vendorId: string
+  currency: 'BDT' | 'USD' | 'EUR'
+  sourcingType: 'Local' | 'Foreign'
+  expectedArrivalDate: string
+  advanceRequired: boolean
+  lines: Array<{
+    partId: string
+    partNumber: string
+    partName: string
+    quantity: number
+    unitPrice: number
+    discount?: number
+    estimateLineId?: string
+  }>
+  createdByUserId: string
+}
+
+export type CreateGRNInput = {
+  poId: string
+  receivedByUserId: string
+  lines: Array<{
+    poLineId: string
+    partId: string
+    receivedQty: number
+    acceptedQty: number
+    rejectedQty: number
+    sellPrice: number
+    condition: 'Good' | 'Damaged' | 'Wrong Item'
+    notes?: string
+  }>
+  notes?: string
+  discrepancyNotes?: string
+}
+
+// Requisition inputs
+export type CreateRequisitionInput = {
+  appointmentId: string
+  requestedByUserId: string
+  lines: Array<{
+    partId: string
+    partNumber: string
+    partName: string
+    quantity: number
+    estimateLineId?: string
+  }>
+}
+
+// Return inputs
+export type CreatePartReturnInput = {
+  requisitionId: string
+  requisitionLineId: string
+  partId: string
+  stockUnitId: string
+  appointmentId: string
+  reasonCode: 'Defective' | 'Wrong Part' | 'Not Used' | 'Excess'
+  raisedByUserId: string
+  photoUrl?: string
+}
+
+// Notification input
+export type CreateNotificationInput = {
+  title: string
+  message: string
+  category: CWNotificationCategory
+  targetRoles: string[]
+  targetUserId?: string
+  actionUrl?: string
+  referenceId?: string
+}
+
+// Invoice inputs
+export type CreateInvoiceInput = {
+  appointmentId: string
+  lines: Array<{
+    partId: string
+    partNumber: string
+    partName: string
+    quantity: number
+    unitPrice: number
+    sellPrice: number
+    requisitionLineId?: string
+  }>
+  taxRate: number
+  advanceApplied?: number
+  createdByUserId: string
 }
 
 // ─── Appointment workflow ──────────────────────────────────────────────────────
@@ -718,17 +909,84 @@ type CWState = {
   createTeam: (input: CreateTeamInput) => CWTeam
   updateTeam: (id: string, input: UpdateTeamInput) => void
 
-  // Parts admin
+  // Parts Division (Phase 2)
   parts: CWPart[]
   partRequests: CWPartRequest[]
+  partStockUnits: CWPartStockUnit[]
+  vendors: CWVendor[]
+  vendorPartPrices: CWVendorPartPrice[]
+  estimateLines: CWEstimateLine[]
+  purchaseOrders: CWPurchaseOrder[]
+  goodsReceiptNotes: CWGoodsReceiptNote[]
+  requisitions: CWRequisition[]
+  partReturns: CWPartReturn[]
+  vendorClaims: CWVendorClaim[]
+
+  // Part catalog actions
   createPart: (input: CreatePartInput) => CWPart
   updatePart: (id: string, input: UpdatePartInput) => void
+
+  // Part request actions (legacy)
   createPartRequest: (input: CreatePartRequestInput) => CWPartRequest
   labelPartRequest: (id: string, input: LabelPartRequestInput) => void
   setPartRequestStatus: (id: string, status: CWPartRequestStatus) => void
 
+  // Vendor actions
+  createVendor: (input: CreateVendorInput) => CWVendor
+  updateVendor: (id: string, input: UpdateVendorInput) => void
+  upsertVendorPartPrice: (input: UpsertVendorPartPriceInput) => void
+
+  // Estimation actions
+  createEstimateLine: (input: CreateEstimateLineInput) => CWEstimateLine
+  identifyEstimateLine: (id: string, input: IdentifyEstimateLineInput) => void
+  priceEstimateLine: (id: string, input: PriceEstimateLineInput) => void
+  submitEstimateLines: (appointmentId: string) => void
+  approveEstimateLine: (id: string) => void
+  declineEstimateLine: (id: string) => void
+  getEstimateLinesForAppointment: (appointmentId: string) => CWEstimateLine[]
+
+  // Purchase Order actions
+  createPurchaseOrder: (input: CreatePurchaseOrderInput) => CWPurchaseOrder
+  submitPurchaseOrder: (id: string) => void
+  approvePurchaseOrder: (id: string, approvedByUserId: string) => void
+  rejectPurchaseOrder: (id: string, reason: string) => void
+  confirmAdvance: (id: string, confirmedByUserId: string) => void
+  cancelPurchaseOrder: (id: string) => void
+  createGRN: (input: CreateGRNInput) => CWGoodsReceiptNote
+
+  // Requisition actions
+  createRequisition: (input: CreateRequisitionInput) => CWRequisition
+  acknowledgeRequisition: (id: string) => void
+  pickRequisitionLine: (reqId: string, lineId: string, pickedByUserId: string) => void
+  collectRequisition: (id: string, proofUrl: string) => void
+  receiveRequisition: (id: string, proofUrl: string) => void
+
+  // Return actions
+  createPartReturn: (input: CreatePartReturnInput) => CWPartReturn
+  receiveReturn: (id: string, receivedByUserId: string) => void
+  disposeReturn: (id: string, disposition: 'Restockable' | 'Defective-RTV', disposedByUserId: string) => void
+
+  // Notification actions
+  notifications: CWNotification[]
+  createNotification: (input: CreateNotificationInput) => CWNotification
+  markNotificationRead: (id: string) => void
+  markAllNotificationsRead: () => void
+  getUnreadCount: () => number
+
+  // Invoice actions
+  invoices: CWInvoice[]
+  createInvoice: (input: CreateInvoiceInput) => CWInvoice
+  issueInvoice: (id: string) => void
+  markInvoicePaid: (id: string) => void
+
+  // Inventory helpers
+  getPartStockStatus: (part: CWPart) => 'In Stock' | 'Low Stock' | 'Out of Stock'
+  getLowStockParts: () => CWPart[]
+  getSlowMovers: () => CWPart[]
+
   // Bay availability check
   checkBayAvailability: (bayId: string, startTime: string, endTime: string, excludeAppointmentId?: string) => boolean
+  hydrateFromBackend: () => Promise<void>
 
   // Call records (CRE CDR)
   callRecords: CWCallRecord[]
@@ -1336,21 +1594,58 @@ function seedDemoData() {
 
   // ── Parts seed ──
   const parts: CWPart[] = [
-    { id: newId(), name: 'Oil Filter', partNumber: 'OF-001', price: 350, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Brake Pad Set (Front)', partNumber: 'BP-F01', price: 2500, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Brake Pad Set (Rear)', partNumber: 'BP-R01', price: 2200, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Spark Plug (Iridium)', partNumber: 'SP-IR01', price: 800, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Air Filter', partNumber: 'AF-001', price: 450, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Cabin/AC Filter', partNumber: 'CF-001', price: 550, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Drive Belt (Serpentine)', partNumber: 'DB-S01', price: 1200, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Timing Belt Kit', partNumber: 'TB-K01', price: 5500, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Water Pump', partNumber: 'WP-001', price: 3800, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Thermostat', partNumber: 'TH-001', price: 900, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Radiator', partNumber: 'RD-001', price: 8500, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Alternator', partNumber: 'AL-001', price: 7500, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Starter Motor', partNumber: 'SM-001', price: 6000, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Brake Disc (Front, pair)', partNumber: 'BD-F01', price: 4500, status: 'Active', createdAt: ts, updatedAt: ts },
-    { id: newId(), name: 'Clutch Kit (Disc+Cover+Bearing)', partNumber: 'CK-001', price: 12000, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Oil Filter Premium', partNumber: 'AP-2024-001', category: 'Engine Parts', brand: 'Bosch', modelVariant: 'Sedan XLE', rackLocation: 'A-1-01', reorderLevel: 20, stockCount: 245, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Brake Pad Set', partNumber: 'AP-2024-002', category: 'Brake System', brand: 'Brembo', modelVariant: 'SUV Sport', rackLocation: 'B-2-03', reorderLevel: 15, stockCount: 180, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Clutch Assembly', partNumber: 'AP-2024-003', category: 'Transmission', brand: 'Aisin', modelVariant: 'Coupe GT', rackLocation: 'E-1-01', reorderLevel: 8, stockCount: 45, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Shock Absorber', partNumber: 'AP-2024-004', category: 'Suspension', brand: 'Monroe', modelVariant: 'Sedan XLE', rackLocation: 'B-3-01', reorderLevel: 10, stockCount: 320, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Alternator', partNumber: 'AP-2024-005', category: 'Electrical', brand: 'Denso', modelVariant: 'Hatchback LX', rackLocation: 'D-1-01', reorderLevel: 5, stockCount: 62, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Radiator Core', partNumber: 'AP-2024-006', category: 'Cooling', brand: 'Mishimoto', modelVariant: 'Truck 4×4', rackLocation: 'C-3-01', reorderLevel: 4, stockCount: 38, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Catalytic Converter', partNumber: 'AP-2024-007', category: 'Exhaust', brand: 'Magnaflow', modelVariant: 'Sedan XLE', rackLocation: 'A-2-01', reorderLevel: 3, stockCount: 156, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Fuel Pump', partNumber: 'AP-2024-008', category: 'Fuel System', brand: 'Walbro', modelVariant: 'SUV Sport', rackLocation: 'A-2-02', reorderLevel: 6, stockCount: 74, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'LED Headlight', partNumber: 'AP-2024-009', category: 'Lighting', brand: 'Philips', modelVariant: 'Sedan XLE', rackLocation: 'D-2-01', reorderLevel: 8, stockCount: 290, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Dashboard Cover', partNumber: 'AP-2024-010', category: 'Interior', brand: 'Covercraft', modelVariant: 'Coupe GT', rackLocation: 'F-1-01', reorderLevel: 5, stockCount: 52, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Front Bumper', partNumber: 'AP-2024-011', category: 'Body Parts', brand: 'OEM Direct', modelVariant: 'Hatchback LX', rackLocation: 'F-1-02', reorderLevel: 3, stockCount: 28, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Air Filter', partNumber: 'AP-2024-012', category: 'Filters', brand: 'K&N', modelVariant: 'Sedan XLE', rackLocation: 'A-1-02', reorderLevel: 25, stockCount: 410, status: 'Active', createdAt: ts, updatedAt: ts },
+    // Low stock items
+    { id: newId(), name: 'Engine Oil 5W-30', partNumber: 'EO-5W30-4L', category: 'Engine Parts', brand: 'Shell Lubricants', modelVariant: 'Sedan XLE', rackLocation: 'A-1-03', reorderLevel: 20, stockCount: 3, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Brake Pad Set (Front)', partNumber: 'BP-F-2847', category: 'Brake System', brand: 'Bosch Auto Parts', modelVariant: 'SUV Sport', rackLocation: 'B-2-04', reorderLevel: 15, stockCount: 0, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Air Filter Element', partNumber: 'AF-2847-G', category: 'Filters', brand: 'Mann Filters', modelVariant: 'Sedan XLE', rackLocation: 'A-1-04', reorderLevel: 25, stockCount: 2, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Spark Plug NGK', partNumber: 'SP-NGK-2847', category: 'Engine Parts', brand: 'NGK Distributors', modelVariant: 'Hatchback LX', rackLocation: 'A-1-05', reorderLevel: 30, stockCount: 8, status: 'Active', createdAt: ts, updatedAt: ts },
+    // Slow movers
+    { id: newId(), name: 'Transmission Mount', partNumber: 'TM-001', category: 'Transmission', brand: 'Aisin', modelVariant: 'Coupe GT', rackLocation: 'E-1-02', reorderLevel: 2, stockCount: 2, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Camshaft Sensor', partNumber: 'CS-001', category: 'Engine Parts', brand: 'Denso', modelVariant: 'Sedan XLE', rackLocation: 'A-3-01', reorderLevel: 3, stockCount: 3, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Fuel Pump Module', partNumber: 'FPM-001', category: 'Fuel System', brand: 'Walbro', modelVariant: 'SUV Sport', rackLocation: 'A-3-02', reorderLevel: 1, stockCount: 1, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Radiator Assembly', partNumber: 'RA-001', category: 'Cooling', brand: 'Mishimoto', modelVariant: 'Truck 4×4', rackLocation: 'C-3-02', reorderLevel: 2, stockCount: 4, status: 'Active', createdAt: ts, updatedAt: ts },
+  ]
+
+  // ── Vendors seed ──
+  const vendors: CWVendor[] = [
+    { id: newId(), name: 'AutoParts BD Ltd', code: 'APB-001', contactPerson: 'Karim Ahmed', phone: '+880-1711-000001', sourcingType: 'Local', qualityRating: 92, returnsHistory: 3, preferred: true, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Toyota Genuine Parts', code: 'TGP-001', contactPerson: 'Tanaka Yuki', phone: '+81-3-0000-0001', sourcingType: 'Foreign', qualityRating: 98, returnsHistory: 0, preferred: true, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'Global Auto Imports', code: 'GAI-001', contactPerson: 'Rahman Ali', phone: '+880-1711-000002', sourcingType: 'Foreign', qualityRating: 78, returnsHistory: 7, preferred: false, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'BD Paint Supplies', code: 'BPS-001', contactPerson: 'Hasan Mahmud', phone: '+880-1711-000003', sourcingType: 'Local', qualityRating: 85, returnsHistory: 2, preferred: true, status: 'Active', createdAt: ts, updatedAt: ts },
+    { id: newId(), name: 'ProBrake International', code: 'PBI-001', contactPerson: 'Chen Wei', phone: '+86-10-0000-0001', sourcingType: 'Foreign', qualityRating: 88, returnsHistory: 4, preferred: false, status: 'Active', createdAt: ts, updatedAt: ts },
+  ]
+
+  const vendorPartPrices: CWVendorPartPrice[] = [
+    { id: newId(), vendorId: vendors[0]!.id, partId: parts[0]!.id, unitPrice: 280, currency: 'BDT', leadTimeDays: 1, sourcingType: 'Aftermarket', lastUpdated: ts },
+    { id: newId(), vendorId: vendors[1]!.id, partId: parts[0]!.id, unitPrice: 450, currency: 'BDT', leadTimeDays: 14, sourcingType: 'OEM', lastUpdated: ts },
+    { id: newId(), vendorId: vendors[0]!.id, partId: parts[1]!.id, unitPrice: 2000, currency: 'BDT', leadTimeDays: 2, sourcingType: 'Aftermarket', lastUpdated: ts },
+    { id: newId(), vendorId: vendors[4]!.id, partId: parts[1]!.id, unitPrice: 3200, currency: 'BDT', leadTimeDays: 10, sourcingType: 'OEM', lastUpdated: ts },
+    { id: newId(), vendorId: vendors[3]!.id, partId: parts[18]!.id, unitPrice: 350, currency: 'BDT', leadTimeDays: 1, sourcingType: 'Aftermarket', lastUpdated: ts },
+    { id: newId(), vendorId: vendors[3]!.id, partId: parts[19]!.id, unitPrice: 550, currency: 'BDT', leadTimeDays: 1, sourcingType: 'Aftermarket', lastUpdated: ts },
+  ]
+
+  // ── Notifications seed ──
+  const notifications: CWNotification[] = [
+    { id: newId(), title: 'Low Stock Alert', message: 'Engine Oil 5W-30 has only 3 units left. Reorder level is 20.', category: 'parts_request', targetRoles: ['Parts', 'Admin'], actionUrl: '/parts/inventory', read: false, createdAt: ts },
+    { id: newId(), title: 'PO Pending Approval', message: 'PO-0002 from Toyota Genuine Parts requires management approval. Amount: $125,000.', category: 'purchase_order', targetRoles: ['Admin'], actionUrl: '/parts/purchase-orders', read: false, createdAt: ts },
+    { id: newId(), title: 'New Parts Requirement', message: 'SE raised part requirement for Appointment AP-001: Front brake pads worn beyond limit.', category: 'estimate', targetRoles: ['Parts'], actionUrl: '/parts/estimator', read: false, createdAt: ts },
+    { id: newId(), title: 'Estimate Approved', message: 'SA approved Alternator estimate for Appointment AP-002. Requisition auto-created.', category: 'estimate', targetRoles: ['Parts'], actionUrl: '/parts/counter-desk', read: true, createdAt: ts },
+    { id: newId(), title: 'Foreign Advance Required', message: 'PO-0003 requires customer advance confirmation before processing. Awaiting Accounts.', category: 'advance', targetRoles: ['Admin'], actionUrl: '/parts/purchase-orders', read: false, createdAt: ts },
+    { id: newId(), title: 'GRN Completed', message: 'GRN-0001 received for PO-0001. All items accepted in good condition.', category: 'grn', targetRoles: ['Parts'], actionUrl: '/parts/purchase-orders', read: true, createdAt: ts },
+    { id: newId(), title: 'Parts Ready for Pickup', message: 'Requisition PR-001 picked and ready for collection at Counter Desk.', category: 'requisition', targetRoles: ['Service Engineer', 'Technician'], actionUrl: '/parts/counter-desk', read: false, createdAt: ts },
+    { id: newId(), title: 'Part Return Initiated', message: 'Technician returned Spark Plug NGK (defective). Awaiting store inspection.', category: 'return', targetRoles: ['Parts'], actionUrl: '/parts/inventory', read: false, createdAt: ts },
   ]
 
   return {
@@ -1366,6 +1661,9 @@ function seedDemoData() {
     taskFieldValues,
     teams,
     parts,
+    vendors,
+    vendorPartPrices,
+    notifications,
   }
 }
 
@@ -1376,6 +1674,8 @@ const DEMO_SEED = seedDemoData()
 import { buildConcernsSeed, buildServicesSeed } from './seedBuilder'
 
 function seedConcernsData(autoShopId: string, _paintShopId: string, _bodyShopId: string): { concernCategories: CWConcernCategory[]; concerns: CWConcern[] } {
+  void _paintShopId
+  void _bodyShopId
   return buildConcernsSeed(autoShopId)
 }
 
@@ -1435,8 +1735,97 @@ export const useCwStore = create<CWState>((set, get) => ({
   teams: DEMO_SEED.teams,
   parts: DEMO_SEED.parts,
   partRequests: [],
+  partStockUnits: [],
+  vendors: DEMO_SEED.vendors,
+  vendorPartPrices: DEMO_SEED.vendorPartPrices,
+  estimateLines: [],
+  purchaseOrders: [],
+  goodsReceiptNotes: [],
+  requisitions: [],
+  partReturns: [],
+  vendorClaims: [],
   callRecords: [],
   reminders: [],
+  notifications: DEMO_SEED.notifications,
+  invoices: [],
+
+  hydrateFromBackend: async () => {
+    const fetchAll = async <T,>(
+      loader: (page: number, pageSize: number) => Promise<{ data: T[]; meta: { total: number } }>,
+    ) => {
+      const pageSize = 100
+      const first = await loader(1, pageSize)
+      const total = first.meta.total ?? first.data.length
+      if (first.data.length >= total) return first.data
+      const pages = [first.data]
+      let page = 2
+      while ((page - 1) * pageSize < total) {
+        const next = await loader(page, pageSize)
+        pages.push(next.data)
+        if (!next.data.length) break
+        page += 1
+      }
+      return pages.flat()
+    }
+
+    const [
+      shops,
+      bays,
+      roles,
+      users,
+      customers,
+      vehicles,
+      appointments,
+      concernCategories,
+      concerns,
+      services,
+      teams,
+      taskTemplates,
+      pendingVehicles,
+      jobs,
+      tasks,
+      callRecords,
+      reminders,
+    ] = await Promise.all([
+      workshopApi.listShops(),
+      fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize })),
+      workshopApi.listRoles(false),
+      fetchAll((page, pageSize) => workshopApi.listUsers({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listCustomers({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listVehicles({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listAppointments({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listConcernCategories({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listConcerns({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listServices({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTeams({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTaskTemplates({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listPendingVehicles({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listJobs({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listTasks({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listCallRecords({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listReminders({ page, pageSize })),
+    ])
+
+    set({
+      shops: shops.data,
+      bays,
+      roles: roles.data,
+      users,
+      customers,
+      vehicles,
+      appointments,
+      concernCategories,
+      concerns,
+      services,
+      teams,
+      taskTemplates,
+      pendingVehicles,
+      jobs,
+      tasks,
+      callRecords,
+      reminders,
+    })
+  },
 
   createShop: (input) => {
     const ts = nowIso()
@@ -1468,6 +1857,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : s,
       ),
     })
+    syncBackend(workshopApi.updateShop(shopId, input), 'update shop')
   },
 
   setShopStatus: (shopId, status) => {
@@ -1611,6 +2001,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ users: [user, ...get().users] })
+    syncBackend(workshopApi.createUser(input), 'create user')
     return user
   },
 
@@ -1632,6 +2023,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : u,
       ),
     })
+    syncBackend(workshopApi.updateUser(userId, input), 'update user')
   },
 
   setUserStatus: (userId, status) => {
@@ -1646,6 +2038,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : u,
       ),
     })
+    syncBackend(workshopApi.setUserStatus(userId, status), 'user status')
   },
 
   createCustomer: (input) => {
@@ -1684,6 +2077,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ customers: [customer, ...customers] })
+    syncBackend(workshopApi.createCustomer(input), 'create customer')
     return customer
   },
 
@@ -1713,6 +2107,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : c,
       ),
     })
+    syncBackend(workshopApi.updateCustomer(customerId, input), 'update customer')
   },
 
   createVehicle: (input) => {
@@ -1761,6 +2156,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ vehicles: [vehicle, ...vehicles] })
+    syncBackend(workshopApi.createVehicle(input), 'create vehicle')
     return vehicle
   },
 
@@ -1825,6 +2221,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : v,
       ),
     })
+    syncBackend(workshopApi.updateVehicle(vehicleId, input), 'update vehicle')
   },
 
   createAppointment: (input) => {
@@ -2032,6 +2429,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ appointments: [appt, ...get().appointments] })
+    syncBackend(workshopApi.createAppointment(input), 'create appointment')
     return appt
   },
 
@@ -2066,6 +2464,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.updateAppointment(appointmentId, input), 'update appointment')
   },
 
   setAppointmentStatus: (appointmentId, status) => {
@@ -2080,6 +2479,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.transitionAppointment(appointmentId, status), 'appointment status')
   },
 
   setAppointmentGateEntry: (appointmentId, gateEntryId) => {
@@ -2094,6 +2494,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.updateAppointment(appointmentId, { gateEntryId }), 'appointment gate entry')
   },
 
   addAppointmentConcern: (input) => {
@@ -2114,6 +2515,13 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.addAppointmentConcern(input.appointmentId, {
+        concernId: input.concernId,
+        remark: input.remark,
+      }),
+      'appointment concern add',
+    )
     return item
   },
 
@@ -2125,6 +2533,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.removeAppointmentConcern(appointmentId, itemId), 'appointment concern remove')
   },
 
   updateAppointmentConcernRemark: (appointmentId, itemId, remark) => {
@@ -2141,6 +2550,10 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.updateAppointmentConcern(appointmentId, itemId, { remark: remark.trim() }),
+      'appointment concern remark',
+    )
   },
 
   updateConcernItemServices: (appointmentId, itemId, serviceIds) => {
@@ -2205,6 +2618,10 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(
+      workshopApi.updateAppointmentConcern(appointmentId, itemId, { serviceIds }),
+      'appointment concern services',
+    )
   },
 
   updateConcernDiagnosisRemark: (appointmentId, itemId, remark) => {
@@ -2221,6 +2638,10 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.updateAppointmentConcern(appointmentId, itemId, { remark }),
+      'appointment diagnosis remark',
+    )
   },
 
   addAppointmentService: (input) => {
@@ -2270,6 +2691,14 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.addAppointmentService(input.appointmentId, {
+        serviceId: input.serviceId,
+        remark: input.remark,
+        addedBySA: input.addedBySA,
+      }),
+      'appointment service add',
+    )
     return item
   },
 
@@ -2281,6 +2710,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.removeAppointmentService(appointmentId, itemId), 'appointment service remove')
   },
 
   updateAppointmentService: (appointmentId, itemId, input) => {
@@ -2299,6 +2729,14 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.updateAppointmentService(appointmentId, itemId, {
+        remark: input.remark,
+        price: input.price,
+        addedBySA: input.addedBySA,
+      }),
+      'appointment service update',
+    )
   },
 
   addWhatsappLog: (input) => {
@@ -2316,6 +2754,14 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.sendWhatsapp({
+        appointmentId: input.appointmentId,
+        direction: input.direction,
+        message: input.message,
+      }),
+      'whatsapp log',
+    )
     return log
   },
 
@@ -2333,6 +2779,10 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(
+      workshopApi.setCustomerApproval(input.appointmentId, { status: input.status, note: input.note }),
+      'customer approval',
+    )
   },
 
   // ─── New flow: JC assigns SE to concerns/services, SE assigns technicians ────
@@ -2360,6 +2810,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignConcernDiagnosis(input), 'assign concern diagnosis')
   },
 
   assignConcernTechnicians: (input) => {
@@ -2384,6 +2835,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignConcernTechnicians(input), 'assign concern technicians')
   },
 
   setConcernWorkStatus: (input) => {
@@ -2402,6 +2854,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.setConcernWorkStatus(input), 'concern work status')
   },
 
   assignServiceSE: (input) => {
@@ -2427,6 +2880,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignServiceSE(input), 'assign service SE')
   },
 
   assignServiceTechnicians: (input) => {
@@ -2451,6 +2905,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignServiceTechnicians(input), 'assign service technicians')
   },
 
   // ─── Stage-level scheduling (JC assigns per stage) ─────────────────────────
@@ -2495,6 +2950,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignStageSchedule(input), 'stage schedule')
   },
 
   setStageWorkStatus: (input: {
@@ -2533,6 +2989,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.setStageWorkStatus(input), 'stage work status')
   },
 
   assignStageTechnicians: (input: {
@@ -2569,6 +3026,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignStageTechnicians(input), 'assign stage technicians')
   },
 
   submitInspection: (input) => {
@@ -2588,6 +3046,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.submitAppointmentInspection(input), 'submit inspection')
   },
 
   pushTimeline: (appointmentId, event) => {
@@ -2614,8 +3073,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: { id: string }[]) =>
-          ta.map((t: any) =>
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) =>
             t.id === input.techAssignmentId
               ? { ...t, status: 'In Progress' as const, startedAt: t.startedAt ?? now }
               : t,
@@ -2636,6 +3095,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.startTechnicianTimer(input), 'start technician timer')
   },
 
   pauseTechnicianTimer: (input) => {
@@ -2643,8 +3103,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) =>
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) =>
             t.id === input.techAssignmentId
               ? { ...t, status: 'Paused' as const, pausedAt: now }
               : t,
@@ -2665,6 +3125,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.pauseTechnicianTimer(input), 'pause technician timer')
   },
 
   resumeTechnicianTimer: (input) => {
@@ -2672,8 +3133,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) => {
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) => {
             if (t.id !== input.techAssignmentId) return t
             const pausedMs = t.pausedAt ? Date.now() - new Date(t.pausedAt).getTime() : 0
             return { ...t, status: 'In Progress' as const, pausedAt: undefined, totalPausedMs: (t.totalPausedMs || 0) + pausedMs }
@@ -2694,6 +3155,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.resumeTechnicianTimer(input), 'resume technician timer')
   },
 
   completeTechnicianTimer: (input) => {
@@ -2701,8 +3163,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     set({
       appointments: get().appointments.map((a) => {
         if (a.id !== input.appointmentId) return a
-        const mapTech = (ta: any[]) =>
-          ta.map((t: any) => {
+        const mapTech = (ta: CWTechnicianAssignment[]) =>
+          ta.map((t) => {
             if (t.id !== input.techAssignmentId) return t
             // If paused, accumulate final pause duration
             const pausedMs = t.pausedAt ? Date.now() - new Date(t.pausedAt).getTime() : 0
@@ -2717,9 +3179,9 @@ export const useCwStore = create<CWState>((set, get) => ({
           })
 
         // Auto-mark item as Completed if all technicians are done
-        const markItemComplete = (item: any) => {
+        const markItemComplete = <T extends { technicianAssignments: CWTechnicianAssignment[]; workStatus?: CWConcernWorkStatus | CWServiceWorkStatus | CWStageWorkStatus }>(item: T) => {
           const updated = mapTech(item.technicianAssignments)
-          const allDone = updated.every((t: any) => t.status === 'Completed')
+          const allDone = updated.every((t) => t.status === 'Completed')
           return { ...item, technicianAssignments: updated, workStatus: allDone ? 'Completed' as const : item.workStatus }
         }
 
@@ -2742,6 +3204,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(workshopApi.completeTechnicianTimer(input), 'complete technician timer')
   },
 
   // ─── V4: Phase completion actions ─────────────────────────────────────────
@@ -2762,6 +3225,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.submitInspectionComplete({ appointmentId: input.appointmentId, actorName: input.actorName }), 'diagnosis complete')
   },
 
   submitServiceComplete: (input) => {
@@ -2780,6 +3244,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.submitServiceComplete({ appointmentId: input.appointmentId, actorName: input.actorName }), 'service complete')
   },
 
   // ─── QC actions ──────────────────────────────────────────────────────────────
@@ -2804,6 +3269,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignQc(input.appointmentId, input.qcUserId), 'assign qc')
   },
 
   qcApprove: (input) => {
@@ -2813,7 +3279,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         // QC only verifies services, not concerns
         const serviceItems = a.serviceItems.map((s) => {
           const v = input.items.find((i) => i.itemId === s.id && i.itemType === 'service')
-          return v ? { ...s, qcStatus: v.status as any, qcNote: v.note } : s
+          return v ? { ...s, qcStatus: v.status as CWQCItemStatus, qcNote: v.note } : s
         })
         return {
           ...a,
@@ -2827,6 +3293,12 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(
+      workshopApi.qcApprove(input.appointmentId, {
+        items: input.items as Array<{ itemId: string; itemType: string; status: string; note?: string }>,
+      }),
+      'qc approve',
+    )
   },
 
   qcReject: (input) => {
@@ -2840,7 +3312,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           if (!v) return s
           return {
             ...s,
-            qcStatus: v.status as any,
+            qcStatus: v.status as CWQCItemStatus,
             qcNote: v.note,
             ...(v.status === 'Failed' ? { workStatus: 'Pending' as const, technicianAssignments: [] } : {}),
           }
@@ -2864,6 +3336,13 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+    syncBackend(
+      workshopApi.qcReject(input.appointmentId, {
+        rejectionNote: input.rejectionNote,
+        items: input.items as Array<{ itemId: string; itemType: string; status: string; note?: string }>,
+      }),
+      'qc reject',
+    )
   },
 
   assignSA: (appointmentId, saUserId) => {
@@ -2888,6 +3367,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.assignAppointmentSa(appointmentId, saUserId), 'assign sa')
   },
 
   confirmPayment: (input) => {
@@ -2909,6 +3389,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.confirmPayment(input.appointmentId, { actorName: input.actorName }), 'confirm payment')
   },
 
   releaseVehicle: (input) => {
@@ -2929,6 +3410,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    syncBackend(workshopApi.releaseVehicle(input.appointmentId), 'release vehicle')
   },
 
   updateServiceItemAssignment: (input) => {
@@ -2952,6 +3434,16 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
+    if (input.workStatus !== undefined) {
+      syncBackend(
+        workshopApi.setServiceWorkStatus({
+          appointmentId: input.appointmentId,
+          serviceItemId: input.serviceItemId,
+          status: input.workStatus,
+        }),
+        'service work status',
+      )
+    }
   },
 
   // ─── Concern Admin ──────────────────────────────────────────────────────────
@@ -2963,6 +3455,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     const ts = nowIso()
     const cat: CWConcernCategory = { id: newId(), name, shopId: input.shopId, status: 'Active', createdAt: ts, updatedAt: ts }
     set({ concernCategories: [cat, ...get().concernCategories] })
+    syncBackend(workshopApi.createConcernCategory(input), 'create concern category')
     return cat
   },
 
@@ -2974,6 +3467,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         c.id === id ? { ...c, name, shopId: input.shopId, status: input.status, updatedAt: nowIso() } : c,
       ),
     })
+    syncBackend(workshopApi.updateConcernCategory(id, input), 'update concern category')
   },
 
   createConcern: (input) => {
@@ -2993,6 +3487,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ concerns: [concern, ...get().concerns] })
+    syncBackend(workshopApi.createConcern(input), 'create concern')
     return concern
   },
 
@@ -3004,6 +3499,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         c.id === id ? { ...c, name, code: input.code !== undefined ? input.code : c.code, status: input.status, updatedAt: nowIso() } : c,
       ),
     })
+    syncBackend(workshopApi.updateConcern(id, input), 'update concern')
   },
 
   // ─── Service Admin ──────────────────────────────────────────────────────────
@@ -3028,6 +3524,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ services: [svc, ...get().services] })
+    syncBackend(workshopApi.createService(input), 'create service')
     return svc
   },
 
@@ -3054,6 +3551,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : s,
       ),
     })
+    syncBackend(workshopApi.updateService(id, input), 'update service')
   },
 
   setServiceStatus: (id, status) => {
@@ -3062,6 +3560,7 @@ export const useCwStore = create<CWState>((set, get) => ({
         s.id === id ? { ...s, status, updatedAt: nowIso() } : s,
       ),
     })
+    syncBackend(workshopApi.setServiceStatus(id, status), 'service status')
   },
 
   createTaskTemplate: (input) => {
@@ -3082,6 +3581,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     }
 
     set({ taskTemplates: [template, ...get().taskTemplates] })
+    syncBackend(workshopApi.createTaskTemplate(input), 'create task template')
     return template
   },
 
@@ -3104,6 +3604,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.updateTaskTemplate(templateId, input), 'update task template')
   },
 
   setTaskTemplateStatus: (templateId, status) => {
@@ -3118,6 +3619,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.setTaskTemplateStatus(templateId, status), 'task template status')
   },
 
   addTaskField: (templateId, input) => {
@@ -3361,6 +3863,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.overrideTaskDependency(taskId, normalized), 'task dependency override')
   },
 
   setTaskSourceConcern: (taskId, concernId) => {
@@ -3371,6 +3874,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : t,
       ),
     })
+    syncBackend(workshopApi.setTaskSourceConcern(taskId, concernId ?? null), 'task source concern')
   },
 
   setTaskFieldValue: (taskId, fieldId, value) => {
@@ -3467,6 +3971,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ pendingVehicles: [pending, ...get().pendingVehicles] })
+    syncBackend(workshopApi.guardEntry({ registrationNo, appointmentId: input.appointmentId }), 'pending vehicle entry')
     return pending
   },
 
@@ -3482,6 +3987,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : p,
       ),
     })
+    syncBackend(workshopApi.setPendingVehicleStatus(pendingVehicleId, status), 'pending vehicle status')
   },
 
   resolvePendingVehicle: (pendingVehicleId, input) => {
@@ -3521,6 +4027,13 @@ export const useCwStore = create<CWState>((set, get) => ({
           : p,
       ),
     })
+    syncBackend(
+      workshopApi.resolvePendingVehicle(pendingVehicleId, {
+        customerId: input.customerId,
+        vehicleId: input.vehicleId,
+      }),
+      'resolve pending vehicle',
+    )
   },
 
   createJob: (input) => {
@@ -3600,6 +4113,13 @@ export const useCwStore = create<CWState>((set, get) => ({
           )
         : get().appointments,
     })
+    syncBackend(
+      workshopApi.createJob({
+        registrationNo,
+        appointmentId,
+      }),
+      'create job',
+    )
 
     return job
   },
@@ -3683,6 +4203,15 @@ export const useCwStore = create<CWState>((set, get) => ({
           )
         : get().appointments,
     })
+    syncBackend(
+      workshopApi.createJobWithTasks({
+        registrationNo,
+        pendingVehicleId: input.pendingVehicleId,
+        appointmentId,
+        tasks: input.tasks,
+      }),
+      'create job with tasks',
+    )
 
     return job
   },
@@ -3697,8 +4226,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : j,
-      ),
+        ),
     })
+    syncBackend(workshopApi.transitionJob(jobId, status), 'job status')
   },
 
   setJobTestDrive: (jobId, input) => {
@@ -3725,8 +4255,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : j,
-      ),
+        ),
     })
+    syncBackend(workshopApi.initiateTestDrive(jobId, input), 'job test drive')
   },
 
   moveJobTask: (jobId, taskId, direction) => {
@@ -3753,8 +4284,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : j,
-      ),
+        ),
     })
+    syncBackend(workshopApi.moveJobTask(jobId, taskId, direction), 'move job task')
   },
 
   // ── Team actions ──────────────────────────────────────────────────────────────
@@ -3771,6 +4303,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ teams: [team, ...get().teams] })
+    syncBackend(workshopApi.createTeam(input), 'create team')
     return team
   },
 
@@ -3787,8 +4320,9 @@ export const useCwStore = create<CWState>((set, get) => ({
               updatedAt: nowIso(),
             }
           : t,
-      ),
+        ),
     })
+    syncBackend(workshopApi.updateTeam(id, input), 'update team')
   },
 
   // ── Part actions ─────────────────────────────────────────────────────────────
@@ -3798,8 +4332,18 @@ export const useCwStore = create<CWState>((set, get) => ({
     const part: CWPart = {
       id: newId(),
       name: input.name.trim(),
-      partNumber: input.partNumber?.trim(),
-      price: input.price,
+      partNumber: input.partNumber.trim(),
+      description: input.description,
+      category: input.category,
+      brand: input.brand,
+      modelVariant: input.modelVariant,
+      vehicleFitment: input.vehicleFitment,
+      alternatePartNumbers: input.alternatePartNumbers,
+      mediaUrls: input.mediaUrls,
+      rackLocation: input.rackLocation,
+      binNumber: input.binNumber,
+      reorderLevel: input.reorderLevel,
+      stockCount: input.stockCount ?? 0,
       status: input.status ?? 'Active',
       createdAt: ts,
       updatedAt: ts,
@@ -3815,8 +4359,18 @@ export const useCwStore = create<CWState>((set, get) => ({
           ? {
               ...p,
               name: input.name.trim(),
-              partNumber: input.partNumber?.trim(),
-              price: input.price,
+              partNumber: input.partNumber.trim(),
+              description: input.description,
+              category: input.category,
+              brand: input.brand,
+              modelVariant: input.modelVariant,
+              vehicleFitment: input.vehicleFitment,
+              alternatePartNumbers: input.alternatePartNumbers,
+              mediaUrls: input.mediaUrls,
+              rackLocation: input.rackLocation,
+              binNumber: input.binNumber,
+              reorderLevel: input.reorderLevel,
+              stockCount: input.stockCount,
               status: input.status,
               updatedAt: nowIso(),
             }
@@ -3873,6 +4427,481 @@ export const useCwStore = create<CWState>((set, get) => ({
     })
   },
 
+  // ── Vendor actions ──────────────────────────────────────────────────────────
+
+  createVendor: (input) => {
+    const ts = nowIso()
+    const vendor: CWVendor = {
+      id: newId(),
+      name: input.name.trim(),
+      code: input.code.trim(),
+      contactPerson: input.contactPerson,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      sourcingType: input.sourcingType,
+      qualityRating: 100,
+      returnsHistory: 0,
+      preferred: input.preferred ?? false,
+      status: 'Active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ vendors: [vendor, ...get().vendors] })
+    return vendor
+  },
+
+  updateVendor: (id, input) => {
+    set({
+      vendors: get().vendors.map((v) =>
+        v.id === id
+          ? {
+              ...v,
+              name: input.name.trim(),
+              code: input.code.trim(),
+              contactPerson: input.contactPerson,
+              phone: input.phone,
+              email: input.email,
+              address: input.address,
+              sourcingType: input.sourcingType,
+              preferred: input.preferred ?? v.preferred,
+              status: input.status,
+              updatedAt: nowIso(),
+            }
+          : v,
+      ),
+    })
+  },
+
+  upsertVendorPartPrice: (input) => {
+    const existing = get().vendorPartPrices.find(
+      (vp) => vp.vendorId === input.vendorId && vp.partId === input.partId && vp.sourcingType === input.sourcingType
+    )
+    if (existing) {
+      set({
+        vendorPartPrices: get().vendorPartPrices.map((vp) =>
+          vp.id === existing.id
+            ? { ...vp, unitPrice: input.unitPrice, currency: input.currency, leadTimeDays: input.leadTimeDays, moq: input.moq, lastUpdated: nowIso() }
+            : vp,
+        ),
+      })
+    } else {
+      const vp: CWVendorPartPrice = {
+        id: newId(),
+        ...input,
+        lastUpdated: nowIso(),
+      }
+      set({ vendorPartPrices: [...get().vendorPartPrices, vp] })
+    }
+  },
+
+  // ── Estimation actions ────────────────────────────────────────────────────
+
+  createEstimateLine: (input) => {
+    const ts = nowIso()
+    const line: CWEstimateLine = {
+      id: newId(),
+      appointmentId: input.appointmentId,
+      concernItemId: input.concernItemId,
+      description: input.description,
+      mediaUrls: input.mediaUrls,
+      requestedByUserId: input.requestedByUserId,
+      quantity: input.quantity ?? 1,
+      inStock: false,
+      advanceRequired: false,
+      status: 'Requested',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ estimateLines: [line, ...get().estimateLines] })
+    return line
+  },
+
+  identifyEstimateLine: (id, input) => {
+    set({
+      estimateLines: get().estimateLines.map((l) =>
+        l.id === id && l.status === 'Requested'
+          ? {
+              ...l,
+              partId: input.partId,
+              partNumber: input.partNumber,
+              partName: input.partName,
+              status: 'Identified' as const,
+              updatedAt: nowIso(),
+            }
+          : l,
+      ),
+    })
+  },
+
+  priceEstimateLine: (id, input) => {
+    set({
+      estimateLines: get().estimateLines.map((l) =>
+        l.id === id && (l.status === 'Identified' || l.status === 'Requested')
+          ? {
+              ...l,
+              vendorId: input.vendorId,
+              unitPrice: input.unitPrice,
+              sellPrice: input.sellPrice,
+              quantity: input.quantity,
+              sourcingType: input.sourcingType,
+              currency: input.currency ?? 'BDT',
+              inStock: input.inStock,
+              estimatedDeliveryDate: input.estimatedDeliveryDate,
+              advanceRequired: input.advanceRequired ?? false,
+              options: input.options,
+              status: 'Priced' as const,
+              updatedAt: nowIso(),
+            }
+          : l,
+      ),
+    })
+  },
+
+  // PRICE LOCK: after submission, no edits allowed
+  submitEstimateLines: (appointmentId) => {
+    const ts = nowIso()
+    set({
+      estimateLines: get().estimateLines.map((l) =>
+        l.appointmentId === appointmentId && l.status === 'Priced'
+          ? { ...l, status: 'Submitted' as const, submittedAt: ts, updatedAt: ts }
+          : l,
+      ),
+    })
+  },
+
+  approveEstimateLine: (id) => {
+    const ts = nowIso()
+    set({
+      estimateLines: get().estimateLines.map((l) =>
+        l.id === id && l.status === 'Submitted'
+          ? { ...l, status: 'Approved' as const, approvedAt: ts, updatedAt: ts }
+          : l,
+      ),
+    })
+  },
+
+  declineEstimateLine: (id) => {
+    const ts = nowIso()
+    set({
+      estimateLines: get().estimateLines.map((l) =>
+        l.id === id && l.status === 'Submitted'
+          ? { ...l, status: 'Declined' as const, declinedAt: ts, updatedAt: ts }
+          : l,
+      ),
+    })
+  },
+
+  getEstimateLinesForAppointment: (appointmentId) => {
+    return get().estimateLines.filter((l) => l.appointmentId === appointmentId)
+  },
+
+  // ── Purchase Order actions ──────────────────────────────────────────────
+
+  createPurchaseOrder: (input) => {
+    const ts = nowIso()
+    const lines: CWPOLine[] = input.lines.map((l) => ({
+      id: newId(),
+      partId: l.partId,
+      partNumber: l.partNumber,
+      partName: l.partName,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      discount: l.discount,
+      lineTotal: l.quantity * l.unitPrice * (1 - (l.discount ?? 0) / 100),
+      receivedQty: 0,
+      estimateLineId: l.estimateLineId,
+    }))
+    const totalAmount = lines.reduce((sum, l) => sum + l.lineTotal, 0)
+    const poCount = get().purchaseOrders.length
+    const po: CWPurchaseOrder = {
+      id: newId(),
+      poNumber: `PO-${String(poCount + 1).padStart(4, '0')}`,
+      vendorId: input.vendorId,
+      status: input.advanceRequired && input.sourcingType === 'Foreign' ? 'Awaiting Advance' : 'Draft',
+      currency: input.currency,
+      sourcingType: input.sourcingType,
+      expectedArrivalDate: input.expectedArrivalDate,
+      totalAmount,
+      advanceRequired: input.advanceRequired,
+      blockedAppointmentIds: [],
+      lines,
+      createdByUserId: input.createdByUserId,
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ purchaseOrders: [po, ...get().purchaseOrders] })
+    return po
+  },
+
+  submitPurchaseOrder: (id) => {
+    const ts = nowIso()
+    set({
+      purchaseOrders: get().purchaseOrders.map((po) =>
+        po.id === id && po.status === 'Draft'
+          ? { ...po, status: 'Pending Approval' as const, submittedAt: ts, updatedAt: ts }
+          : po,
+      ),
+    })
+  },
+
+  approvePurchaseOrder: (id, approvedByUserId) => {
+    const ts = nowIso()
+    set({
+      purchaseOrders: get().purchaseOrders.map((po) =>
+        po.id === id && po.status === 'Pending Approval'
+          ? { ...po, status: 'Issued' as const, approvedAt: ts, approvedByUserId, updatedAt: ts }
+          : po,
+      ),
+    })
+  },
+
+  rejectPurchaseOrder: (id, reason) => {
+    const ts = nowIso()
+    set({
+      purchaseOrders: get().purchaseOrders.map((po) =>
+        po.id === id && po.status === 'Pending Approval'
+          ? { ...po, status: 'Rejected' as const, rejectedAt: ts, rejectionReason: reason, updatedAt: ts }
+          : po,
+      ),
+    })
+  },
+
+  // FOREIGN ADVANCE GATE: no PO progression without advance confirmation
+  confirmAdvance: (id, confirmedByUserId) => {
+    const ts = nowIso()
+    set({
+      purchaseOrders: get().purchaseOrders.map((po) =>
+        po.id === id && po.status === 'Awaiting Advance'
+          ? { ...po, status: 'Draft' as const, advanceConfirmedAt: ts, advanceConfirmedByUserId: confirmedByUserId, updatedAt: ts }
+          : po,
+      ),
+    })
+  },
+
+  cancelPurchaseOrder: (id) => {
+    set({
+      purchaseOrders: get().purchaseOrders.map((po) =>
+        po.id === id && !['Received', 'Closed', 'Cancelled'].includes(po.status)
+          ? { ...po, status: 'Cancelled' as const, updatedAt: nowIso() }
+          : po,
+      ),
+    })
+  },
+
+  createGRN: (input) => {
+    const ts = nowIso()
+    const grnCount = get().goodsReceiptNotes.length
+    const grnLines: CWGRNLine[] = input.lines.map((l) => ({
+      id: newId(),
+      poLineId: l.poLineId,
+      partId: l.partId,
+      receivedQty: l.receivedQty,
+      acceptedQty: l.acceptedQty,
+      rejectedQty: l.rejectedQty,
+      sellPrice: l.sellPrice,
+      condition: l.condition,
+      notes: l.notes,
+    }))
+    const grn: CWGoodsReceiptNote = {
+      id: newId(),
+      grnNumber: `GRN-${String(grnCount + 1).padStart(4, '0')}`,
+      poId: input.poId,
+      receivedByUserId: input.receivedByUserId,
+      receivedAt: ts,
+      lines: grnLines,
+      notes: input.notes,
+      discrepancyNotes: input.discrepancyNotes,
+    }
+    set({ goodsReceiptNotes: [grn, ...get().goodsReceiptNotes] })
+    // Update PO line received quantities and PO status
+    const po = get().purchaseOrders.find((p) => p.id === input.poId)
+    if (po) {
+      const updatedLines = po.lines.map((pl) => {
+        const grnLine = grnLines.find((gl) => gl.poLineId === pl.id)
+        return grnLine ? { ...pl, receivedQty: pl.receivedQty + grnLine.acceptedQty } : pl
+      })
+      const allReceived = updatedLines.every((l) => l.receivedQty >= l.quantity)
+      const anyReceived = updatedLines.some((l) => l.receivedQty > 0)
+      set({
+        purchaseOrders: get().purchaseOrders.map((p) =>
+          p.id === input.poId
+            ? {
+                ...p,
+                lines: updatedLines,
+                status: allReceived ? ('Received' as const) : anyReceived ? ('Partially Received' as const) : p.status,
+                updatedAt: ts,
+              }
+            : p,
+        ),
+      })
+    }
+    return grn
+  },
+
+  // ── Requisition actions ──────────────────────────────────────────────
+
+  // Auto-approved: no second approval needed after customer estimate approval
+  createRequisition: (input) => {
+    const ts = nowIso()
+    const reqCount = get().requisitions.length
+    const lines: CWRequisitionLine[] = input.lines.map((l) => ({
+      id: newId(),
+      partId: l.partId,
+      partNumber: l.partNumber,
+      partName: l.partName,
+      quantity: l.quantity,
+      stockUnitIds: [],
+      estimateLineId: l.estimateLineId,
+      status: 'Pending',
+    }))
+    const req: CWRequisition = {
+      id: newId(),
+      requisitionNumber: `PR-${String(reqCount + 1).padStart(3, '0')}`,
+      appointmentId: input.appointmentId,
+      requestedByUserId: input.requestedByUserId,
+      status: 'Created',
+      lines,
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ requisitions: [req, ...get().requisitions] })
+    return req
+  },
+
+  acknowledgeRequisition: (id) => {
+    set({
+      requisitions: get().requisitions.map((r) =>
+        r.id === id && r.status === 'Created'
+          ? { ...r, status: 'Request Received' as const, updatedAt: nowIso() }
+          : r,
+      ),
+    })
+  },
+
+  pickRequisitionLine: (reqId, lineId, pickedByUserId) => {
+    const ts = nowIso()
+    set({
+      requisitions: get().requisitions.map((r) => {
+        if (r.id !== reqId) return r
+        const updatedLines = r.lines.map((l) =>
+          l.id === lineId && l.status === 'Pending'
+            ? { ...l, pickedQty: l.quantity, pickedByUserId, pickedAt: ts, status: 'Picked' as const }
+            : l,
+        )
+        const allPicked = updatedLines.every((l) => l.status === 'Picked')
+        return {
+          ...r,
+          lines: updatedLines,
+          status: allPicked ? ('Picked' as const) : r.status,
+          updatedAt: ts,
+        }
+      }),
+    })
+  },
+
+  collectRequisition: (id, proofUrl) => {
+    const ts = nowIso()
+    set({
+      requisitions: get().requisitions.map((r) =>
+        r.id === id && r.status === 'Picked'
+          ? {
+              ...r,
+              status: 'Picked' as const,
+              pickProofUrl: proofUrl,
+              pickedAt: ts,
+              updatedAt: ts,
+            }
+          : r,
+      ),
+    })
+  },
+
+  receiveRequisition: (id, proofUrl) => {
+    const ts = nowIso()
+    set({
+      requisitions: get().requisitions.map((r) =>
+        r.id === id && r.status === 'Picked'
+          ? {
+              ...r,
+              status: 'Received' as const,
+              receiveProofUrl: proofUrl,
+              receivedAt: ts,
+              updatedAt: ts,
+            }
+          : r,
+      ),
+    })
+  },
+
+  // ── Return actions ────────────────────────────────────────────────────
+
+  createPartReturn: (input) => {
+    const ts = nowIso()
+    const ret: CWPartReturn = {
+      id: newId(),
+      requisitionId: input.requisitionId,
+      requisitionLineId: input.requisitionLineId,
+      partId: input.partId,
+      stockUnitId: input.stockUnitId,
+      appointmentId: input.appointmentId,
+      reasonCode: input.reasonCode,
+      photoUrl: input.photoUrl,
+      raisedByUserId: input.raisedByUserId,
+      raisedAt: ts,
+      status: 'Raised',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ partReturns: [ret, ...get().partReturns] })
+    return ret
+  },
+
+  receiveReturn: (id, receivedByUserId) => {
+    const ts = nowIso()
+    set({
+      partReturns: get().partReturns.map((r) =>
+        r.id === id && r.status === 'Raised'
+          ? { ...r, status: 'Received at Store' as const, receivedByUserId, receivedAt: ts, updatedAt: ts }
+          : r,
+      ),
+    })
+  },
+
+  disposeReturn: (id, disposition, disposedByUserId) => {
+    const ts = nowIso()
+    set({
+      partReturns: get().partReturns.map((r) =>
+        r.id === id && r.status === 'Received at Store'
+          ? { ...r, status: 'Dispositioned' as const, disposition, dispositionedByUserId: disposedByUserId, dispositionedAt: ts, updatedAt: ts }
+          : r,
+      ),
+    })
+  },
+
+  // ── Inventory helpers ──────────────────────────────────────────────────────
+
+  getPartStockStatus: (part) => {
+    if ((part.stockCount ?? 0) === 0) return 'Out of Stock'
+    if ((part.stockCount ?? 0) <= (part.reorderLevel ?? 0)) return 'Low Stock'
+    return 'In Stock'
+  },
+
+  getLowStockParts: () => {
+    return get().parts.filter((p) => {
+      const count = p.stockCount ?? 0
+      return p.status === 'Active' && count <= (p.reorderLevel ?? 0)
+    })
+  },
+
+  getSlowMovers: () => {
+    // For demo: return parts with stockCount > 0 but low count (simulating slow movement)
+    return get().parts.filter((p) => {
+      const count = p.stockCount ?? 0
+      return p.status === 'Active' && count > 0 && count <= 5
+    })
+  },
+
   // ── Bay availability check ────────────────────────────────────────────────────
 
   checkBayAvailability: (bayId, startTime, endTime, excludeAppointmentId) => {
@@ -3918,6 +4947,7 @@ export const useCwStore = create<CWState>((set, get) => ({
   addCallRecord: (input) => {
     const rec: CWCallRecord = { ...input, id: newId() }
     set({ callRecords: [rec, ...get().callRecords] })
+    syncBackend(workshopApi.createCallRecord(input), 'call record')
     return rec
   },
 
@@ -3925,6 +4955,7 @@ export const useCwStore = create<CWState>((set, get) => ({
   createReminder: (input) => {
     const rem: CWReminder = { ...input, id: newId(), createdAt: nowIso() }
     set({ reminders: [rem, ...get().reminders] })
+    syncBackend(workshopApi.createReminder(input), 'reminder')
     return rem
   },
 
@@ -3934,12 +4965,113 @@ export const useCwStore = create<CWState>((set, get) => ({
         r.id === id ? { ...r, status: 'Sent' as const, sentAt: nowIso() } : r,
       ),
     })
+    syncBackend(workshopApi.markReminderSent(id), 'reminder sent')
   },
 
   cancelReminder: (id) => {
     set({
       reminders: get().reminders.map((r) =>
         r.id === id ? { ...r, status: 'Cancelled' as const } : r,
+      ),
+    })
+    syncBackend(workshopApi.cancelReminder(id), 'reminder cancel')
+  },
+
+  // ── Notifications ──
+  markNotificationRead: (id) => {
+    set({
+      notifications: get().notifications.map((n) =>
+        n.id === id ? { ...n, read: true } : n,
+      ),
+    })
+    syncBackend(workshopApi.markNotificationRead(id), 'notification read')
+  },
+
+  markAllNotificationsRead: () => {
+    set({
+      notifications: get().notifications.map((n) => ({ ...n, read: true })),
+    })
+  },
+
+  getUnreadCount: () => {
+    return get().notifications.filter((n) => !n.read).length
+  },
+
+  // ── Notification create ──
+  createNotification: (input) => {
+    const notif: CWNotification = {
+      id: newId(),
+      title: input.title,
+      message: input.message,
+      category: input.category,
+      targetRoles: input.targetRoles,
+      targetUserId: input.targetUserId,
+      actionUrl: input.actionUrl,
+      referenceId: input.referenceId,
+      read: false,
+      createdAt: nowIso(),
+    }
+    set({ notifications: [notif, ...get().notifications] })
+    return notif
+  },
+
+  // ── Invoice actions ──
+  createInvoice: (input) => {
+    const ts = nowIso()
+    const invCount = get().invoices.length
+    const lines: CWInvoiceLine[] = input.lines.map((l) => ({
+      id: newId(),
+      partId: l.partId,
+      partNumber: l.partNumber,
+      partName: l.partName,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      sellPrice: l.sellPrice,
+      lineTotal: l.quantity * l.sellPrice,
+      requisitionLineId: l.requisitionLineId,
+    }))
+    const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0)
+    const tax = subtotal * (input.taxRate / 100)
+    const total = subtotal + tax
+    const advanceApplied = input.advanceApplied ?? 0
+    const inv: CWInvoice = {
+      id: newId(),
+      invoiceNumber: `INV-${String(invCount + 1).padStart(4, '0')}`,
+      appointmentId: input.appointmentId,
+      status: 'Draft',
+      lines,
+      subtotal,
+      tax,
+      taxRate: input.taxRate,
+      total,
+      advanceApplied,
+      netPayable: total - advanceApplied,
+      createdByUserId: input.createdByUserId,
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set({ invoices: [inv, ...get().invoices] })
+    return inv
+  },
+
+  issueInvoice: (id) => {
+    const ts = nowIso()
+    set({
+      invoices: get().invoices.map((inv) =>
+        inv.id === id && inv.status === 'Draft'
+          ? { ...inv, status: 'Issued' as const, issuedAt: ts, updatedAt: ts }
+          : inv,
+      ),
+    })
+  },
+
+  markInvoicePaid: (id) => {
+    const ts = nowIso()
+    set({
+      invoices: get().invoices.map((inv) =>
+        inv.id === id && inv.status === 'Issued'
+          ? { ...inv, status: 'Paid' as const, paidAt: ts, updatedAt: ts }
+          : inv,
       ),
     })
   },

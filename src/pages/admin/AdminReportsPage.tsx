@@ -1,7 +1,6 @@
 import {
   Box,
   Chip,
-  Paper,
   Stack,
   Table,
   TableBody,
@@ -11,30 +10,23 @@ import {
   Typography,
 } from '@mui/material'
 import {
+  Assessment,
   Assignment,
   Build,
   DirectionsCar,
   Groups,
   People,
+  Store,
   TrendingUp,
 } from '@mui/icons-material'
 import { useMemo } from 'react'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
+import { StatCard } from '../../components/StatCard'
+import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { useCwStore } from '../../store/cwStore'
+import { colors } from '../../theme/tokens'
 
-function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string | number; color?: string }) {
-  return (
-    <Paper sx={{ p: 2.5, flex: '1 1 180px', border: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2 }}>
-      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: color ?? 'primary.main', color: 'white', display: 'flex' }}>
-        {icon}
-      </Box>
-      <Box>
-        <Typography variant="h5" sx={{ fontWeight: 900 }}>{value}</Typography>
-        <Typography variant="body2" color="text.secondary">{label}</Typography>
-      </Box>
-    </Paper>
-  )
-}
+/* ─────────────────── Main Component ─────────────────────── */
 
 export function AdminReportsPage() {
   const appointments = useCwStore((s) => s.appointments)
@@ -151,154 +143,156 @@ export function AdminReportsPage() {
   }, [appointments, teams, users])
 
   return (
-    <Page title="Reports" subtitle="Workshop analytics and operational overview">
-      <Stack spacing={3}>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Box>
+          <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+            Reports
+          </Typography>
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Workshop analytics and operational overview</Typography>
+        </Box>
+
         {/* ── KPI Cards ── */}
         <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 2 }}>
           <StatCard icon={<Assignment />} label="Total Appointments" value={appointments.length} />
-          <StatCard icon={<TrendingUp />} label="Active" value={activeAppts.length} color="#ff9800" />
-          <StatCard icon={<Build />} label="Completed" value={completedAppts.length} color="#4caf50" />
-          <StatCard icon={<DirectionsCar />} label="Vehicles" value={vehicles.length} color="#2196f3" />
-          <StatCard icon={<People />} label="Customers" value={customers.length} color="#9c27b0" />
-          <StatCard icon={<Groups />} label="Teams" value={teams.length} color="#00bcd4" />
+          <StatCard icon={<TrendingUp />} label="Active" value={activeAppts.length} color="#f59e0b" />
+          <StatCard icon={<Build />} label="Completed" value={completedAppts.length} color="#10b981" />
+          <StatCard icon={<DirectionsCar />} label="Vehicles" value={vehicles.length} color="#3b82f6" />
+          <StatCard icon={<People />} label="Customers" value={customers.length} color="#8b5cf6" />
+          <StatCard icon={<Groups />} label="Teams" value={teams.length} color="#06b6d4" />
         </Stack>
 
         {/* ── Revenue ── */}
-        <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
-          <Stack direction="row" spacing={4} sx={{ alignItems: 'center' }}>
+        <SectionCard title="Revenue & Metrics" icon={<TrendingUp sx={{ fontSize: '1rem' }} />}>
+          <Stack direction="row" spacing={4} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <Box>
-              <Typography variant="body2" color="text.secondary">Total Revenue (Completed)</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 900, color: 'success.main' }}>
+              <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>Total Revenue (Completed)</Typography>
+              <Typography sx={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981' }}>
                 BDT {totalRevenue.toLocaleString('en-BD')}
               </Typography>
             </Box>
             <Box>
-              <Typography variant="body2" color="text.secondary">Avg. Service Duration</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 900 }}>
+              <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>Avg. Service Duration</Typography>
+              <Typography sx={{ fontSize: '1.75rem', fontWeight: 800, color: colors.slate[900] }}>
                 {avgServiceTime}h
               </Typography>
             </Box>
             <Box>
-              <Typography variant="body2" color="text.secondary">Total Services Available</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 900 }}>
+              <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>Total Services Available</Typography>
+              <Typography sx={{ fontSize: '1.75rem', fontWeight: 800, color: colors.slate[900] }}>
                 {services.length}
               </Typography>
             </Box>
           </Stack>
-        </Paper>
+        </SectionCard>
 
         {/* ── Status Breakdown + Shop Utilization ── */}
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5}>
           {/* Status Breakdown */}
-          <Paper sx={{ p: 2.5, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Appointment Status Breakdown</Typography>
-            <Stack spacing={1}>
-              {statusBreakdown.map(([status, count]) => (
-                <Stack key={status} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Chip size="small" label={status} sx={{ fontWeight: 600 }} />
-                  <Typography sx={{ fontWeight: 800 }}>{count}</Typography>
-                </Stack>
-              ))}
-              {statusBreakdown.length === 0 && (
-                <Typography variant="body2" color="text.secondary">No appointments yet.</Typography>
-              )}
-            </Stack>
-          </Paper>
+          <Box sx={{ flex: 1 }}>
+            <SectionCard title="Status Breakdown" icon={<Assessment sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={1}>
+                {statusBreakdown.map(([status, count]) => (
+                  <Stack key={status} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Chip size="small" label={status} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+                    <Typography sx={{ fontWeight: 700, color: colors.slate[900] }}>{count}</Typography>
+                  </Stack>
+                ))}
+                {statusBreakdown.length === 0 && (
+                  <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>No appointments yet.</Typography>
+                )}
+              </Stack>
+            </SectionCard>
+          </Box>
 
           {/* Shop Utilization */}
-          <Paper sx={{ p: 2.5, flex: 1, border: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Shop & Bay Utilization</Typography>
-            <Stack spacing={1.5}>
-              {shopUtilization.map((s) => {
-                const pct = s.total > 0 ? Math.round((s.occupied / s.total) * 100) : 0
-                return (
-                  <Box key={s.name}>
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {s.occupied}/{s.total} bays ({pct}%)
-                      </Typography>
-                    </Stack>
-                    <Box sx={{ height: 8, bgcolor: 'grey.200', borderRadius: 4, overflow: 'hidden' }}>
-                      <Box sx={{ height: '100%', width: `${pct}%`, bgcolor: pct > 80 ? 'error.main' : pct > 50 ? 'warning.main' : 'success.main', borderRadius: 4, transition: 'width 0.5s' }} />
+          <Box sx={{ flex: 1 }}>
+            <SectionCard title="Shop & Bay Utilization" icon={<Store sx={{ fontSize: '1rem' }} />}>
+              <Stack spacing={1.5}>
+                {shopUtilization.map((s) => {
+                  const pct = s.total > 0 ? Math.round((s.occupied / s.total) * 100) : 0
+                  return (
+                    <Box key={s.name}>
+                      <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[900] }}>{s.name}</Typography>
+                        <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
+                          {s.occupied}/{s.total} bays ({pct}%)
+                        </Typography>
+                      </Stack>
+                      <Box sx={{ height: 8, bgcolor: colors.slate[100], borderRadius: 4, overflow: 'hidden' }}>
+                        <Box sx={{ height: '100%', width: `${pct}%`, bgcolor: pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981', borderRadius: 4, transition: 'width 0.5s' }} />
+                      </Box>
                     </Box>
-                  </Box>
-                )
-              })}
-            </Stack>
-          </Paper>
+                  )
+                })}
+              </Stack>
+            </SectionCard>
+          </Box>
         </Stack>
 
         {/* ── Top Services ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900 }}>Top 10 Services</Typography>
-            <Typography variant="body2" color="text.secondary">Most frequently booked services</Typography>
-          </Box>
+        <SectionCard title="Top 10 Services" icon={<Build sx={{ fontSize: '1rem' }} />}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Bookings</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Revenue (BDT)</TableCell>
+              <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                <TableCell>#</TableCell>
+                <TableCell>Service</TableCell>
+                <TableCell align="right">Bookings</TableCell>
+                <TableCell align="right">Revenue (BDT)</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {topServices.map((s, i) => (
-                <TableRow key={i} hover>
-                  <TableCell sx={{ color: 'text.secondary' }}>#{i + 1}</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>{s.desc}</TableCell>
-                  <TableCell align="right">{s.count}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>{s.revenue.toLocaleString('en-BD')}</TableCell>
+                <TableRow key={i} hover sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                  <TableCell sx={{ color: colors.slate[400] }}>#{i + 1}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: colors.slate[900] }}>{s.desc}</TableCell>
+                  <TableCell align="right" sx={{ color: colors.slate[700] }}>{s.count}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600, color: colors.slate[900] }}>{s.revenue.toLocaleString('en-BD')}</TableCell>
                 </TableRow>
               ))}
               {topServices.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4}>
-                    <Typography variant="body2" color="text.secondary">No service data yet.</Typography>
+                    <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>No service data yet.</Typography>
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
-        </Paper>
+        </SectionCard>
 
         {/* ── Team Workload ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-          <Box sx={{ p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900 }}>Team Workload</Typography>
-            <Typography variant="body2" color="text.secondary">Active and completed tasks per SE</Typography>
-          </Box>
+        <SectionCard title="Team Workload" icon={<Groups sx={{ fontSize: '1rem' }} />}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell sx={{ fontWeight: 800 }}>Service Engineer</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Active Tasks</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Completed</TableCell>
+              <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                <TableCell>Service Engineer</TableCell>
+                <TableCell align="right">Active Tasks</TableCell>
+                <TableCell align="right">Completed</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {teamWorkload.map((t, i) => (
-                <TableRow key={i} hover>
-                  <TableCell sx={{ fontWeight: 700 }}>{t.se}</TableCell>
+                <TableRow key={i} hover sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                  <TableCell sx={{ fontWeight: 600, color: colors.slate[900] }}>{t.se}</TableCell>
                   <TableCell align="right">
-                    <Chip size="small" label={t.active} color={t.active > 3 ? 'error' : t.active > 1 ? 'warning' : 'success'} sx={{ fontWeight: 700 }} />
+                    <Chip size="small" label={t.active} color={t.active > 3 ? 'error' : t.active > 1 ? 'warning' : 'success'} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                   </TableCell>
-                  <TableCell align="right">{t.completed}</TableCell>
+                  <TableCell align="right" sx={{ color: colors.slate[700] }}>{t.completed}</TableCell>
                 </TableRow>
               ))}
               {teamWorkload.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={3}>
-                    <Typography variant="body2" color="text.secondary">No workload data.</Typography>
+                    <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>No workload data.</Typography>
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
-        </Paper>
+        </SectionCard>
       </Stack>
-    </Page>
+    </Box>
   )
 }

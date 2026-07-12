@@ -7,8 +7,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   MenuItem,
-  Paper,
   Stack,
   Table,
   TableBody,
@@ -18,13 +18,26 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Send } from '@mui/icons-material'
+import {
+  ArrowBack,
+  Build,
+  Chat,
+  DirectionsCar,
+  Payment,
+  Person,
+  ReportProblem,
+  Send,
+  Verified,
+} from '@mui/icons-material'
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { useNavigate, useParams } from 'react-router-dom'
+import { SectionCard } from '../../components/SectionCard'
+import { StatCard } from '../../components/StatCard'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { useCwStore } from '../../store/cwStore'
+import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import { colors, radii, shadows } from '../../theme/tokens'
 
 function fmtBDT(n: number) {
   return `BDT ${n.toLocaleString('en-BD')}`
@@ -69,8 +82,35 @@ function statusColor(status: string): 'default' | 'info' | 'warning' | 'success'
   return map[status] ?? 'default'
 }
 
+/** InfoRow — reusable key-value display inside SectionCard */
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <Stack direction="row" sx={{ alignItems: 'center', py: 1.25, borderBottom: `1px solid ${colors.border.subtle}` }}>
+      <Typography sx={{ width: 180, flexShrink: 0, fontSize: '0.82rem', color: colors.slate[500], fontWeight: 500 }}>{label}</Typography>
+      <Typography component="div" sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900], flex: 1 }}>{value}</Typography>
+    </Stack>
+  )
+}
+
+/** Action card — styled wrapper for workflow action sections */
+function ActionCard({ borderColor, children }: { borderColor: string; children: React.ReactNode }) {
+  return (
+    <Box sx={{
+      borderRadius: radii.lg,
+      border: `2px solid ${borderColor}`,
+      background: colors.bg.card,
+      boxShadow: shadows.card,
+      overflow: 'hidden',
+      p: 2.5,
+    }}>
+      {children}
+    </Box>
+  )
+}
+
 export function AppointmentDetailPage() {
   const { appointmentId } = useParams<{ appointmentId: string }>()
+  const navigate = useNavigate()
 
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
@@ -136,9 +176,9 @@ export function AppointmentDetailPage() {
 
   if (!appt) {
     return (
-      <Page title="Appointment Not Found">
+      <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
         <Alert severity="error">Appointment not found.</Alert>
-      </Page>
+      </Box>
     )
   }
 
@@ -176,7 +216,10 @@ export function AppointmentDetailPage() {
   const [selectedSAUserId, setSelectedSAUserId] = useState('')
 
   // SA user list
-  const saRoleId = useMemo(() => roles.find((r) => r.name === 'SA')?.id, [roles])
+  const saRoleId = useMemo(
+    () => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id,
+    [roles],
+  )
   const activeSAUsers = useMemo(
     () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
     [users, saRoleId],
@@ -274,89 +317,103 @@ export function AppointmentDetailPage() {
   }
 
   return (
-    <Page title="Appointment" subtitle={`#${appt.id.slice(0, 8)}`}>
-      <Stack spacing={2.5}>
+    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Stack spacing={3.5}>
+        {/* ── Page Header ── */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <IconButton onClick={() => navigate('/cro/appointments')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
+            <Box>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+                  Appointment
+                </Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: { xs: '1rem', md: '1.2rem' }, color: colors.slate[400], fontFamily: 'monospace' }}>
+                  #{appt.id.slice(0, 8)}
+                </Typography>
+              </Stack>
+              <Chip label={appt.status} color={statusColor(appt.status)} size="small" sx={{ fontWeight: 700, fontSize: '0.72rem', mt: 0.5 }} />
+            </Box>
+          </Stack>
+        </Stack>
+
         {/* ── Workflow Timeline ── */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
         {/* ── Vehicle & Customer Info (collapsible) ── */}
         <VehicleInfoBanner appointmentId={appt.id} />
 
-        {/* ── Summary ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" color="text.secondary">Vehicle</Typography>
-              <Typography sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                {vehicle?.registrationNo ?? '—'}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {[vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || '—'}
-              </Typography>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" color="text.secondary">Customer</Typography>
-              <Typography sx={{ fontWeight: 700 }}>{customer?.fullName ?? '—'}</Typography>
-              <Typography variant="caption" color="text.secondary">{customer?.phone ?? ''}</Typography>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" color="text.secondary">Status</Typography>
-              <Chip label={appt.status} size="small" color={statusColor(appt.status)} sx={{ fontWeight: 700, mt: 0.5 }} />
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" color="text.secondary">Total</Typography>
-              <Typography sx={{ fontWeight: 700 }}>{fmtBDT(totalBDT)}</Typography>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" color="text.secondary">Created</Typography>
-              <Typography variant="body2">{fmtDate(appt.createdAt)}</Typography>
-            </Box>
-          </Stack>
-          {appt.slotDate && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Slot: {fmtDate(appt.slotDate)} {appt.slotTime ?? ''}
-            </Typography>
-          )}
-          {appt.concerns && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Notes: {appt.concerns}
-            </Typography>
-          )}
-        </Paper>
+        {/* ── Summary Stat Cards ── */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <StatCard
+            icon={<DirectionsCar fontSize="small" />}
+            title="VEHICLE"
+            value={vehicle?.registrationNo ?? '—'}
+            gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
+            details={[{ label: 'Make / Model', value: [vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || '—' }]}
+          />
+          <StatCard
+            icon={<Person fontSize="small" />}
+            title="CUSTOMER"
+            value={customer?.fullName ?? '—'}
+            gradient="linear-gradient(135deg, #1E293B 0%, #334155 100%)"
+            details={[{ label: 'Phone', value: customer?.phone ?? '—' }]}
+          />
+          <StatCard
+            icon={<Payment fontSize="small" />}
+            title="TOTAL"
+            value={fmtBDT(totalBDT)}
+            gradient="linear-gradient(135deg, #065F46 0%, #059669 100%)"
+            details={[
+              { label: 'Created', value: fmtDate(appt.createdAt) },
+              ...(appt.slotDate ? [{ label: 'Slot', value: `${fmtDate(appt.slotDate)} ${appt.slotTime ?? ''}` }] : []),
+            ]}
+          />
+        </Stack>
+
+        {/* ── Notes (if any) ── */}
+        {appt.concerns && (
+          <SectionCard title="Notes" icon={<ReportProblem sx={{ fontSize: '1rem' }} />}>
+            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700] }}>{appt.concerns}</Typography>
+          </SectionCard>
+        )}
 
         {/* ── Service Advisor Assignment ── */}
         {!appt.assignedSAUserId ? (
-          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+          <ActionCard borderColor={colors.status.warning}>
+            <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.warning, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
               No Service Advisor Assigned
             </Typography>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <TextField select size="small" label="Assign Service Advisor" value={selectedSAUserId}
-                onChange={(e) => setSelectedSAUserId(e.target.value)} sx={{ minWidth: 280 }}>
+                onChange={(e) => setSelectedSAUserId(e.target.value)} sx={{ minWidth: 280, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}>
                 <MenuItem value="">— Select SA —</MenuItem>
                 {activeSAUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
               </TextField>
-              <Button variant="contained" color="warning" disabled={!selectedSAUserId}
-                onClick={() => { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') }}>
+              <Button variant="contained" disabled={!selectedSAUserId}
+                onClick={() => { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') }}
+                sx={{ bgcolor: colors.status.warning, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#d97706' } }}>
                 Assign SA
               </Button>
             </Stack>
-          </Paper>
+          </ActionCard>
         ) : (
-          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Service Advisor: <strong>{assignedSA?.fullName ?? appt.assignedSAUserId}</strong>
-            </Typography>
-          </Paper>
+          <SectionCard title="Service Advisor" icon={<Person sx={{ fontSize: '1rem' }} />}>
+            <InfoRow label="Assigned SA" value={<strong>{assignedSA?.fullName ?? appt.assignedSAUserId}</strong>} />
+          </SectionCard>
         )}
 
         {/* ── Concerns ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>
-            Concerns ({appt.concernItems.length})
-          </Typography>
+        <SectionCard title="Concerns" icon={<ReportProblem sx={{ fontSize: '1rem' }} />}
+          actions={
+            <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+              {appt.concernItems.length}
+            </Box>
+          }>
           {appt.concernItems.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">No concerns listed.</Typography>
+            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No concerns listed.</Typography>
           ) : (
             <Stack spacing={2}>
               {appt.concernItems.map((c) => {
@@ -364,38 +421,41 @@ export function AppointmentDetailPage() {
                 const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
                 const shopName = getConcernShopName(c.concernId)
                 return (
-                  <Box key={c.id} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: c.workStatus === 'Completed' ? 'success.main' : 'divider' }}>
+                  <Box key={c.id} sx={{
+                    p: 2, bgcolor: colors.bg.page, borderRadius: radii.md,
+                    border: `1px solid ${c.workStatus === 'Completed' ? colors.status.success : colors.border.default}`,
+                  }}>
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                      <Typography sx={{ fontWeight: 800 }}>
+                      <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: colors.slate[900] }}>
                         {c.concernName}
                         {typeof c.processTimeMins === 'number' && (
-                          <Typography component="span" variant="caption" sx={{ ml: 1, px: 1, py: 0.25, bgcolor: 'info.main', color: 'white', borderRadius: 1, fontWeight: 700 }}>
+                          <Typography component="span" sx={{ ml: 1, px: 1, py: 0.25, bgcolor: colors.status.info, color: 'white', borderRadius: radii.sm, fontWeight: 700, fontSize: '0.7rem' }}>
                             {c.processTimeMins}m
                           </Typography>
                         )}
                       </Typography>
                       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        {shopName && <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} />}
-                        {c.assignedSEUserId && <Chip size="small" label={userNameById.get(c.assignedSEUserId) ?? '—'} variant="outlined" />}
-                        {c.bayId && <Chip size="small" label={bayNameById.get(c.bayId) ?? '—'} variant="outlined" />}
+                        {shopName && <Chip size="small" label={shopName} color="secondary" variant="outlined" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />}
+                        {c.assignedSEUserId && <Chip size="small" label={userNameById.get(c.assignedSEUserId) ?? '—'} variant="outlined" sx={{ fontSize: '0.72rem' }} />}
+                        {c.bayId && <Chip size="small" label={bayNameById.get(c.bayId) ?? '—'} variant="outlined" sx={{ fontSize: '0.72rem' }} />}
                         {c.workStatus ? (
-                          <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700 }} />
+                          <Chip label={c.workStatus} size="small" color={c.workStatus === 'Completed' ? 'success' : c.workStatus === 'In Progress' ? 'primary' : 'warning'} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                         ) : null}
                       </Stack>
                     </Stack>
-                    {c.remark && <Typography variant="body2" color="text.secondary">{c.remark}</Typography>}
+                    {c.remark && <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>{c.remark}</Typography>}
                     {c.diagnosisRemark && (
-                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      <Typography sx={{ mt: 0.5, fontSize: '0.82rem', color: colors.slate[700] }}>
                         <strong>SE Diagnosis:</strong> {c.diagnosisRemark}
                       </Typography>
                     )}
                     {c.plannedStartAt && (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
                         {fmtDateTime(c.plannedStartAt)} → {fmtDateTime(c.plannedEndAt)}
                       </Typography>
                     )}
                     {c.technicianAssignments.length > 0 && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      <Typography sx={{ display: 'block', mt: 0.5, fontSize: '0.75rem', color: colors.slate[400] }}>
                         Technicians: {c.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ')}
                       </Typography>
                     )}
@@ -403,10 +463,10 @@ export function AppointmentDetailPage() {
                     {/* Services linked to this concern */}
                     {concernServices.length > 0 && (
                       <Box sx={{ mt: 1 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.main' }}>Services:</Typography>
+                        <Typography sx={{ fontWeight: 700, color: colors.status.info, fontSize: '0.75rem' }}>Services:</Typography>
                         <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
                           {concernServices.map((svc) => svc && (
-                            <Chip key={svc.id} size="small" label={`${svc.code} · ${svc.description} · ${fmtBDT(svc.price)}`} color="info" variant="outlined" />
+                            <Chip key={svc.id} size="small" label={`${svc.code} · ${svc.description} · ${fmtBDT(svc.price)}`} color="info" variant="outlined" sx={{ fontSize: '0.72rem' }} />
                           ))}
                         </Stack>
                       </Box>
@@ -415,19 +475,22 @@ export function AppointmentDetailPage() {
                     {/* Parts for this concern */}
                     {concernParts.length > 0 && (
                       <Box sx={{ mt: 1 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'secondary.main' }}>Parts:</Typography>
+                        <Typography sx={{ fontWeight: 700, color: colors.accent.purple, fontSize: '0.75rem' }}>Parts:</Typography>
                         <Stack spacing={0.5} sx={{ mt: 0.5 }}>
                           {concernParts.map((pr) => (
-                            <Stack key={pr.id} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', px: 1, py: 0.5, bgcolor: 'white', borderRadius: 0.5, border: '1px solid', borderColor: 'divider' }}>
+                            <Stack key={pr.id} direction="row" sx={{
+                              justifyContent: 'space-between', alignItems: 'center', px: 1.5, py: 0.75,
+                              bgcolor: colors.bg.card, borderRadius: radii.sm, border: `1px solid ${colors.border.default}`,
+                            }}>
                               <Box>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{pr.partName}</Typography>
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: colors.slate[900] }}>{pr.partName}</Typography>
+                                <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>
                                   Qty: {pr.quantity ?? 1}{pr.partNumber ? ` · #${pr.partNumber}` : ''}
                                   {typeof pr.price === 'number' ? ` · ${fmtBDT(pr.price)}` : ''}
                                   {pr.deliveryDate ? ` · ETA: ${pr.deliveryDate}` : ''}
                                 </Typography>
                               </Box>
-                              <Chip size="small" label={pr.status}
+                              <Chip size="small" label={pr.status} sx={{ fontWeight: 700, fontSize: '0.72rem' }}
                                 color={pr.status === 'Fulfilled' ? 'success' : pr.status === 'Labeled' ? 'info' : pr.status === 'Rejected' ? 'error' : 'warning'}
                               />
                             </Stack>
@@ -440,45 +503,53 @@ export function AppointmentDetailPage() {
               })}
             </Stack>
           )}
-        </Paper>
+        </SectionCard>
 
         {/* ── Services ── */}
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-          <Typography sx={{ fontWeight: 900, mb: 1.5 }}>
-            Services ({appt.serviceItems.length})
-          </Typography>
+        <Box sx={tableSectionSx}>
+          <Box sx={tableHeaderSx}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <Box sx={tableHeaderIconSx}><Build sx={{ fontSize: '1rem' }} /></Box>
+              <Typography sx={tableHeaderTitleSx}>Services</Typography>
+              <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                {appt.serviceItems.length}
+              </Box>
+            </Stack>
+          </Box>
           {appt.serviceItems.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">No services listed.</Typography>
+            <Box sx={{ px: 3, py: 2 }}>
+              <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No services listed.</Typography>
+            </Box>
           ) : (
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 800 }}>Service</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Shop</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Price</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>SA</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Bay</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Technicians</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell>Service</TableCell>
+                  <TableCell>Shop</TableCell>
+                  <TableCell>Price</TableCell>
+                  <TableCell>SA</TableCell>
+                  <TableCell>Bay</TableCell>
+                  <TableCell>Technicians</TableCell>
+                  <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {appt.serviceItems.map((s) => {
                   const svcShopName = getServiceShopName(s.serviceId)
                   return (
-                  <TableRow key={s.id}>
+                  <TableRow key={s.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.serviceDescription}</Typography>
-                      <Typography variant="caption" color="text.secondary">{s.serviceCode}</Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: colors.slate[900] }}>{s.serviceDescription}</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>{s.serviceCode}</Typography>
                     </TableCell>
                     <TableCell>
-                      {svcShopName ? <Chip size="small" label={svcShopName} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} /> : '—'}
+                      {svcShopName ? <Chip size="small" label={svcShopName} color="secondary" variant="outlined" sx={{ fontWeight: 700, fontSize: '0.72rem' }} /> : '—'}
                     </TableCell>
-                    <TableCell><Typography variant="body2">{fmtBDT(s.price)}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{s.bayId ? (bayNameById.get(s.bayId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell><Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{fmtBDT(s.price)}</Typography></TableCell>
+                    <TableCell><Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
+                    <TableCell><Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{s.bayId ? (bayNameById.get(s.bayId) ?? '—') : '—'}</Typography></TableCell>
                     <TableCell>
-                      <Typography variant="body2">
+                      <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>
                         {s.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || '—'}
                       </Typography>
                     </TableCell>
@@ -488,7 +559,7 @@ export function AppointmentDetailPage() {
                           label={s.workStatus}
                           size="small"
                           color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'}
-                          sx={{ fontWeight: 700 }}
+                          sx={{ fontWeight: 700, fontSize: '0.72rem' }}
                         />
                       ) : '—'}
                     </TableCell>
@@ -498,144 +569,165 @@ export function AppointmentDetailPage() {
               </TableBody>
             </Table>
           )}
-        </Paper>
+        </Box>
 
         {/* ── WhatsApp: Concern Approval (1st round) ── */}
         {canSendConcernWA && (
-          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1, color: 'info.main' }}>
+          <ActionCard borderColor={colors.status.info}>
+            <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.info, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
               Send WhatsApp for Customer Approval
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], mb: 1.5 }}>
               Review complete. Send concerns and services to customer for approval.
             </Typography>
-            <Button variant="contained" color="success" startIcon={<Send />}
-              onClick={() => openWhatsApp('concern-approval')}>
+            <Button variant="contained" startIcon={<Send />}
+              onClick={() => openWhatsApp('concern-approval')}
+              sx={{ bgcolor: colors.status.success, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#059669' } }}>
               Compose WhatsApp
             </Button>
-          </Paper>
+          </ActionCard>
         )}
 
         {/* ── WhatsApp: Service Approval (2nd round, after diagnosis) ── */}
         {canSendServiceWA && (
-          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+          <ActionCard borderColor={colors.status.warning}>
+            <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.warning, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
               Diagnosis Complete — Send Service Approval
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], mb: 1.5 }}>
               SE completed diagnosis and may have added services. Send updated list to customer.
             </Typography>
-            <Button variant="contained" color="success" startIcon={<Send />}
-              onClick={() => openWhatsApp('service-approval')}>
+            <Button variant="contained" startIcon={<Send />}
+              onClick={() => openWhatsApp('service-approval')}
+              sx={{ bgcolor: colors.status.success, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#059669' } }}>
               Compose WhatsApp (Services)
             </Button>
-          </Paper>
+          </ActionCard>
         )}
 
         {/* ── Customer Approval (both rounds) ── */}
         {canApprove && (
-          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5, color: 'success.main' }}>
+          <ActionCard borderColor={colors.status.success}>
+            <Typography sx={{ fontWeight: 800, mb: 1.5, color: colors.status.success, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
               {isCustomerNotified ? 'Record Customer Approval (Concerns)' : 'Record Customer Approval (Services)'}
             </Typography>
             <TextField label="Customer Note (optional)" value={approvalNote}
-              onChange={(e) => setApprovalNote(e.target.value)} fullWidth multiline minRows={2} sx={{ mb: 1.5 }} />
+              onChange={(e) => setApprovalNote(e.target.value)} fullWidth multiline minRows={2}
+              sx={{ mb: 1.5, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
             <Stack direction="row" spacing={1.5}>
-              <Button variant="contained" color="success" onClick={() => handleApproval('Approved')}>Approve</Button>
-              <Button variant="outlined" color="error" onClick={() => handleApproval('Rejected')}>Reject</Button>
+              <Button variant="contained" onClick={() => handleApproval('Approved')}
+                sx={{ bgcolor: colors.status.success, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#059669' } }}>
+                Approve
+              </Button>
+              <Button variant="outlined" color="error" onClick={() => handleApproval('Rejected')}
+                sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5 }}>
+                Reject
+              </Button>
             </Stack>
-          </Paper>
+          </ActionCard>
         )}
 
         {/* ── Assign QC ── */}
         {canAssignQC && (
-          <Paper sx={{ border: '2px solid', borderColor: 'info.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1, color: 'info.main' }}>
+          <ActionCard borderColor={colors.status.info}>
+            <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.info, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
               Services Complete — Assign QC
             </Typography>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <TextField select size="small" label="QC Inspector" value={selectedQCUserId}
-                onChange={(e) => setSelectedQCUserId(e.target.value)} sx={{ minWidth: 250 }}>
+                onChange={(e) => setSelectedQCUserId(e.target.value)}
+                sx={{ minWidth: 250, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}>
                 <MenuItem value="">— Select QC —</MenuItem>
                 {activeQCUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
               </TextField>
-              <Button variant="contained" color="info" disabled={!selectedQCUserId}
-                onClick={() => { assignQC({ appointmentId: appt.id, qcUserId: selectedQCUserId }); setSelectedQCUserId('') }}>
+              <Button variant="contained" disabled={!selectedQCUserId}
+                onClick={() => { assignQC({ appointmentId: appt.id, qcUserId: selectedQCUserId }); setSelectedQCUserId('') }}
+                sx={{ bgcolor: colors.status.info, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#2563eb' } }}>
                 Assign QC
               </Button>
             </Stack>
-          </Paper>
+          </ActionCard>
         )}
 
         {/* ── WhatsApp: Payment ── */}
         {canSendPaymentWA && (
-          <Paper sx={{ border: '2px solid', borderColor: 'warning.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1, color: 'warning.main' }}>
+          <ActionCard borderColor={colors.status.warning}>
+            <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.warning, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
               QC Approved — Send Payment Request
             </Typography>
-            <Button variant="contained" color="success" startIcon={<Send />}
-              onClick={() => openWhatsApp('payment')}>
+            <Button variant="contained" startIcon={<Send />}
+              onClick={() => openWhatsApp('payment')}
+              sx={{ bgcolor: colors.status.success, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#059669' } }}>
               Compose WhatsApp (Payment)
             </Button>
-          </Paper>
+          </ActionCard>
         )}
 
         {/* ── Confirm Payment ── */}
         {canConfirmPayment && (
-          <Paper sx={{ border: '2px solid', borderColor: 'success.main', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1, color: 'success.main' }}>
+          <ActionCard borderColor={colors.status.success}>
+            <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.success, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
               Confirm Payment Received
             </Typography>
-            <Button variant="contained" color="success" size="large"
+            <Button variant="contained" size="large"
               onClick={() => confirmPayment({ appointmentId: appt.id, actorName: 'CRE' })}
-              sx={{ fontWeight: 900 }}>
+              sx={{ bgcolor: colors.status.success, fontWeight: 800, borderRadius: '10px', px: 3, '&:hover': { bgcolor: '#059669' } }}>
               Payment Received — Issue Gate Pass
             </Button>
-          </Paper>
+          </ActionCard>
         )}
 
         {/* ── WhatsApp Log ── */}
         {appt.whatsappLogs.length > 0 && (
-          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1.5 }}>WhatsApp Communication</Typography>
+          <Box sx={tableSectionSx}>
+            <Box sx={tableHeaderSx}>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                <Box sx={tableHeaderIconSx}><Chat sx={{ fontSize: '1rem' }} /></Box>
+                <Typography sx={tableHeaderTitleSx}>WhatsApp Communication</Typography>
+                <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                  {appt.whatsappLogs.length}
+                </Box>
+              </Stack>
+            </Box>
             <Table size="small">
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Time</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Direction</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Author</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Message</TableCell>
+                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                  <TableCell>Time</TableCell>
+                  <TableCell>Direction</TableCell>
+                  <TableCell>Author</TableCell>
+                  <TableCell>Message</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {appt.whatsappLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell><Typography variant="caption">{fmtDateTime(log.sentAt)}</Typography></TableCell>
+                  <TableRow key={log.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                    <TableCell><Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>{fmtDateTime(log.sentAt)}</Typography></TableCell>
                     <TableCell>
-                      <Chip label={log.direction} size="small" color={log.direction === 'outbound' ? 'success' : 'default'} />
+                      <Chip label={log.direction} size="small" color={log.direction === 'outbound' ? 'success' : 'default'} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                     </TableCell>
-                    <TableCell><Typography variant="caption">{log.authorName}</Typography></TableCell>
-                    <TableCell><Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{log.message}</Typography></TableCell>
+                    <TableCell><Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>{log.authorName}</Typography></TableCell>
+                    <TableCell><Typography sx={{ fontSize: '0.82rem', whiteSpace: 'pre-wrap', color: colors.slate[700] }}>{log.message}</Typography></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </Paper>
+          </Box>
         )}
 
         {/* ── Customer Approval Status ── */}
         {appt.customerApprovalStatus !== 'Pending' && (
-          <Paper sx={{ border: '1px solid', borderColor: 'divider', p: 2.5 }}>
-            <Typography sx={{ fontWeight: 900, mb: 1 }}>Customer Approval</Typography>
-            <Chip
-              label={appt.customerApprovalStatus}
-              color={appt.customerApprovalStatus === 'Approved' ? 'success' : 'error'}
-              sx={{ fontWeight: 700 }}
-            />
-            {appt.customerApprovalNote && (
-              <Typography variant="body2" sx={{ mt: 1 }}>Note: {appt.customerApprovalNote}</Typography>
-            )}
-          </Paper>
+          <SectionCard title="Customer Approval" icon={<Verified sx={{ fontSize: '1rem' }} />}>
+            <Stack spacing={1.5} sx={{ py: 0.5 }}>
+              <Chip
+                label={appt.customerApprovalStatus}
+                color={appt.customerApprovalStatus === 'Approved' ? 'success' : 'error'}
+                sx={{ fontWeight: 700, fontSize: '0.72rem', alignSelf: 'flex-start' }}
+              />
+              {appt.customerApprovalNote && (
+                <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700] }}>Note: {appt.customerApprovalNote}</Typography>
+              )}
+            </Stack>
+          </SectionCard>
         )}
       </Stack>
 
@@ -653,6 +745,6 @@ export function AppointmentDetailPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Page>
+    </Box>
   )
 }

@@ -2,18 +2,26 @@ import {
   Alert,
   Box,
   Button,
+  IconButton,
   MenuItem,
-  Paper,
   Snackbar,
   Stack,
   Switch,
   TextField,
   Typography,
 } from '@mui/material'
+import {
+  ArrowBack,
+  DirectionsCar,
+  Person,
+  Palette,
+} from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Page } from '../../components/Page'
+import { SectionCard } from '../../components/SectionCard'
+import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
+import { colors, radii, pageLayout } from '../../theme/tokens'
 import type { CWVehicleCategory, CWVehicleSize } from '../../types/cw'
 
 const CATEGORIES: CWVehicleCategory[] = ['SUV', 'Sedan', 'Hatchback', 'Pickup', 'Van', 'Truck', 'Bus', 'Other']
@@ -25,18 +33,22 @@ const REG_CITIES = ['Dhaka', 'Chittagong', 'Rajshahi', 'Khulna', 'Sylhet', 'Rang
 const REG_REGIONS = ['Metro', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L', 'M']
 const REG_CLASSES = ['Ga', 'Gha', 'Cha', 'Ja', 'Ka', 'Kha', 'Da', 'Tha', 'Ta', 'Pa', 'Ba', 'Ma', 'Ra', 'La', 'Sha', 'Sa', 'Ha']
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <Typography sx={{ fontWeight: 900, fontSize: '1.05rem', mb: 2 }}>{children}</Typography>
-}
+const fieldSx = {
+  '& .MuiOutlinedInput-root': {
+    borderRadius: radii.sm,
+    fontSize: '0.85rem',
+    bgcolor: colors.bg.page,
+  },
+} as const
 
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Stack
       direction={{ xs: 'column', sm: 'row' }}
-      sx={{ alignItems: { sm: 'center' }, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}
+      sx={{ alignItems: { sm: 'center' }, py: 1.25, borderBottom: `1px solid ${colors.border.subtle}` }}
       spacing={2}
     >
-      <Typography variant="body2" color="text.secondary" sx={{ width: { sm: 200 }, flexShrink: 0, fontWeight: 500 }}>
+      <Typography sx={{ width: { sm: 200 }, flexShrink: 0, fontSize: '0.82rem', color: colors.slate[500], fontWeight: 500 }}>
         {label}
       </Typography>
       <Box sx={{ flex: 1 }}>{children}</Box>
@@ -47,10 +59,10 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
 export function CreateVehiclePage() {
   const navigate = useNavigate()
   const customers = useCwStore((s) => s.customers)
-  const createVehicle = useCwStore((s) => s.createVehicle)
 
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   // General Information
   const [make, setMake] = useState('')
@@ -88,15 +100,16 @@ export function CreateVehiclePage() {
     [customers],
   )
 
-  function submit() {
+  async function submit() {
     try {
       setError(null)
+      setSaving(true)
       if (!customerId) throw new Error('Select a customer')
       const registrationNo = [regCity, regRegion, regClass, regSeries, regNumber].filter(Boolean).join('-')
       if (!registrationNo) throw new Error('Registration number is required')
       if (!vehicleSize) throw new Error('Vehicle size is required')
 
-      const created = createVehicle({
+      const created = await workshopApi.createVehicle({
         customerId,
         registrationNo,
         make: make.trim() || undefined,
@@ -119,96 +132,111 @@ export function CreateVehiclePage() {
       setTimeout(() => navigate(`/cre/vehicles/${created.id}`), 800)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
     }
   }
 
   return (
-    <Page title="New Vehicle" subtitle="Create Add New Model from here">
-      <Snackbar
-        open={successOpen}
-        onClose={() => setSuccessOpen(false)}
-        autoHideDuration={2500}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
-          Vehicle created successfully
-        </Alert>
-      </Snackbar>
+    <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
+      <Stack spacing={3.5}>
+        {/* Header */}
+        <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <IconButton onClick={() => navigate('/cre/vehicles')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+              <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
+            </IconButton>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
+                New Vehicle
+              </Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Create Add New Model from here</Typography>
+            </Box>
+          </Stack>
+        </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        <Snackbar
+          open={successOpen}
+          onClose={() => setSuccessOpen(false)}
+          autoHideDuration={2500}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
+            Vehicle created successfully
+          </Alert>
+        </Snackbar>
 
-      <Stack spacing={3}>
+        {error && <Alert severity="error" sx={{ mb: 2, borderRadius: radii.sm }}>{error}</Alert>}
+
         {/* General Information */}
-        <Paper sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <SectionTitle>General Information</SectionTitle>
+        <SectionCard title="General Information" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />}>
           <FormRow label="Brand">
-            <TextField size="small" fullWidth value={make} onChange={(e) => setMake(e.target.value)} placeholder="e.g. BMW, Toyota" />
+            <TextField size="small" fullWidth value={make} onChange={(e) => setMake(e.target.value)} placeholder="e.g. BMW, Toyota" sx={fieldSx} />
           </FormRow>
           <FormRow label="Model">
-            <TextField size="small" fullWidth value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. X5, Corolla" />
+            <TextField size="small" fullWidth value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. X5, Corolla" sx={fieldSx} />
           </FormRow>
           <FormRow label="Vehicle Category">
-            <TextField size="small" select fullWidth value={vehicleCategory} onChange={(e) => setVehicleCategory(e.target.value as CWVehicleCategory)}>
+            <TextField size="small" select fullWidth value={vehicleCategory} onChange={(e) => setVehicleCategory(e.target.value as CWVehicleCategory)} sx={fieldSx}>
               <MenuItem value="">— Select —</MenuItem>
               {CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
             </TextField>
           </FormRow>
           <FormRow label="Vehicle Size *">
-            <TextField size="small" select fullWidth value={vehicleSize} onChange={(e) => setVehicleSize(e.target.value as CWVehicleSize)} required error={!vehicleSize}>
+            <TextField size="small" select fullWidth value={vehicleSize} onChange={(e) => setVehicleSize(e.target.value as CWVehicleSize)} required error={!vehicleSize} sx={fieldSx}>
               <MenuItem value="">— Select —</MenuItem>
               {SIZES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
           </FormRow>
           <FormRow label="Model Variant">
-            <TextField size="small" fullWidth value={modelVariant} onChange={(e) => setModelVariant(e.target.value)} placeholder="e.g. M50i, XLE" />
+            <TextField size="small" fullWidth value={modelVariant} onChange={(e) => setModelVariant(e.target.value)} placeholder="e.g. M50i, XLE" sx={fieldSx} />
           </FormRow>
           <FormRow label="Country of Origin">
-            <TextField size="small" select fullWidth value={countryOfOrigin} onChange={(e) => setCountryOfOrigin(e.target.value)}>
+            <TextField size="small" select fullWidth value={countryOfOrigin} onChange={(e) => setCountryOfOrigin(e.target.value)} sx={fieldSx}>
               <MenuItem value="">— Select —</MenuItem>
               {COUNTRIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
             </TextField>
           </FormRow>
           <FormRow label="Country of Assembly">
-            <TextField size="small" select fullWidth value={countryOfAssembly} onChange={(e) => setCountryOfAssembly(e.target.value)}>
+            <TextField size="small" select fullWidth value={countryOfAssembly} onChange={(e) => setCountryOfAssembly(e.target.value)} sx={fieldSx}>
               <MenuItem value="">— Select —</MenuItem>
               {COUNTRIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
             </TextField>
           </FormRow>
           <FormRow label="VIN">
-            <TextField size="small" fullWidth value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Vehicle Identification Number" />
+            <TextField size="small" fullWidth value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Vehicle Identification Number" sx={fieldSx} />
           </FormRow>
           <FormRow label="Registration Number">
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-              <TextField size="small" select value={regCity} onChange={(e) => setRegCity(e.target.value)} sx={{ minWidth: 120 }} label="City">
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField size="small" select value={regCity} onChange={(e) => setRegCity(e.target.value)} sx={{ minWidth: 120, ...fieldSx }} label="City">
                 <MenuItem value="">City</MenuItem>
                 {REG_CITIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
               </TextField>
-              <Typography variant="body2" color="text.secondary">–</Typography>
-              <TextField size="small" select value={regRegion} onChange={(e) => setRegRegion(e.target.value)} sx={{ minWidth: 90 }} label="Region">
+              <Typography sx={{ fontSize: '0.85rem', color: colors.slate[400] }}>–</Typography>
+              <TextField size="small" select value={regRegion} onChange={(e) => setRegRegion(e.target.value)} sx={{ minWidth: 90, ...fieldSx }} label="Region">
                 <MenuItem value="">Region</MenuItem>
                 {REG_REGIONS.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
               </TextField>
-              <Typography variant="body2" color="text.secondary">–</Typography>
-              <TextField size="small" select value={regClass} onChange={(e) => setRegClass(e.target.value)} sx={{ minWidth: 80 }} label="Class">
+              <Typography sx={{ fontSize: '0.85rem', color: colors.slate[400] }}>–</Typography>
+              <TextField size="small" select value={regClass} onChange={(e) => setRegClass(e.target.value)} sx={{ minWidth: 80, ...fieldSx }} label="Class">
                 <MenuItem value="">Class</MenuItem>
                 {REG_CLASSES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
               </TextField>
-              <Typography variant="body2" color="text.secondary">–</Typography>
-              <TextField size="small" value={regSeries} onChange={(e) => setRegSeries(e.target.value)} sx={{ width: 70 }} label="Series" placeholder="31" />
-              <Typography variant="body2" color="text.secondary">–</Typography>
-              <TextField size="small" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} sx={{ width: 90 }} label="Number" placeholder="9999" />
+              <Typography sx={{ fontSize: '0.85rem', color: colors.slate[400] }}>–</Typography>
+              <TextField size="small" value={regSeries} onChange={(e) => setRegSeries(e.target.value)} sx={{ width: 70, ...fieldSx }} label="Series" placeholder="31" />
+              <Typography sx={{ fontSize: '0.85rem', color: colors.slate[400] }}>–</Typography>
+              <TextField size="small" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} sx={{ width: 90, ...fieldSx }} label="Number" placeholder="9999" />
             </Stack>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+            <Typography sx={{ mt: 0.5, display: 'block', fontSize: '0.75rem', color: colors.slate[400] }}>
               Preview: {[regCity, regRegion, regClass, regSeries, regNumber].filter(Boolean).join('-') || '—'}
             </Typography>
           </FormRow>
-        </Paper>
+        </SectionCard>
 
         {/* Customer */}
-        <Paper sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <SectionTitle>Customer</SectionTitle>
+        <SectionCard title="Customer" icon={<Person sx={{ fontSize: '1rem' }} />}>
           <FormRow label="Customer">
-            <TextField size="small" select fullWidth value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
+            <TextField size="small" select fullWidth value={customerId} onChange={(e) => setCustomerId(e.target.value)} required sx={fieldSx}>
               <MenuItem value="">— Select Customer —</MenuItem>
               {sortedCustomers.map((c) => (
                 <MenuItem key={c.id} value={c.id}>{c.fullName} · {c.phone}</MenuItem>
@@ -218,7 +246,7 @@ export function CreateVehiclePage() {
           <FormRow label="Driver">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Switch checked={isSelfDriven} onChange={(e) => setIsSelfDriven(e.target.checked)} size="small" />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900] }}>
                 {isSelfDriven ? 'Self Driven' : 'Other Driver'}
               </Typography>
             </Box>
@@ -226,65 +254,81 @@ export function CreateVehiclePage() {
           {!isSelfDriven && (
             <>
               <FormRow label="Driver Name">
-                <TextField size="small" fullWidth value={driverName} onChange={(e) => setDriverName(e.target.value)} />
+                <TextField size="small" fullWidth value={driverName} onChange={(e) => setDriverName(e.target.value)} sx={fieldSx} />
               </FormRow>
               <FormRow label="Driver Number">
-                <TextField size="small" fullWidth value={driverNumber} onChange={(e) => setDriverNumber(e.target.value)} />
+                <TextField size="small" fullWidth value={driverNumber} onChange={(e) => setDriverNumber(e.target.value)} sx={fieldSx} />
               </FormRow>
             </>
           )}
           <FormRow label="User">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Switch checked={isPersonalUse} onChange={(e) => setIsPersonalUse(e.target.checked)} size="small" />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900] }}>
                 {isPersonalUse ? 'Personal Use' : 'Corporate Use'}
               </Typography>
             </Box>
           </FormRow>
-        </Paper>
+        </SectionCard>
 
         {/* Others */}
-        <Paper sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <SectionTitle>Others</SectionTitle>
+        <SectionCard title="Additional Details" icon={<Palette sx={{ fontSize: '1rem' }} />}>
           <FormRow label="Exterior Colour">
-            <TextField size="small" select fullWidth value={exteriorColor} onChange={(e) => setExteriorColor(e.target.value)}>
+            <TextField size="small" select fullWidth value={exteriorColor} onChange={(e) => setExteriorColor(e.target.value)} sx={fieldSx}>
               <MenuItem value="">— Select —</MenuItem>
               {COLORS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
             </TextField>
           </FormRow>
           <FormRow label="Exterior Colour Code">
-            <TextField size="small" fullWidth value={exteriorColorCode} onChange={(e) => setExteriorColorCode(e.target.value)} placeholder="e.g. 070" />
+            <TextField size="small" fullWidth value={exteriorColorCode} onChange={(e) => setExteriorColorCode(e.target.value)} placeholder="e.g. 070" sx={fieldSx} />
           </FormRow>
           <FormRow label="Interior Colour">
-            <TextField size="small" select fullWidth value={interiorColor} onChange={(e) => setInteriorColor(e.target.value)}>
+            <TextField size="small" select fullWidth value={interiorColor} onChange={(e) => setInteriorColor(e.target.value)} sx={fieldSx}>
               <MenuItem value="">— Select —</MenuItem>
               {COLORS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
             </TextField>
           </FormRow>
           <FormRow label="Interior Colour Code">
-            <TextField size="small" fullWidth value={interiorColorCode} onChange={(e) => setInteriorColorCode(e.target.value)} placeholder="e.g. 011" />
+            <TextField size="small" fullWidth value={interiorColorCode} onChange={(e) => setInteriorColorCode(e.target.value)} placeholder="e.g. 011" sx={fieldSx} />
           </FormRow>
           <FormRow label="Tyre Size">
-            <TextField size="small" select fullWidth value={tyreSize} onChange={(e) => setTyreSize(e.target.value)}>
+            <TextField size="small" select fullWidth value={tyreSize} onChange={(e) => setTyreSize(e.target.value)} sx={fieldSx}>
               <MenuItem value="">— Select —</MenuItem>
               {TYRE_SIZES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
             </TextField>
           </FormRow>
           <FormRow label="Additional Notes">
-            <TextField size="small" fullWidth multiline rows={3} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} placeholder="Regular maintenance notes..." />
+            <TextField size="small" fullWidth multiline rows={3} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} placeholder="Regular maintenance notes..." sx={fieldSx} />
           </FormRow>
-        </Paper>
+        </SectionCard>
 
         {/* Actions */}
         <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end' }}>
-          <Button variant="text" size="large" onClick={() => navigate('/cre/vehicles')} sx={{ fontWeight: 700 }}>
+          <Button
+            variant="text"
+            size="large"
+            onClick={() => navigate('/cre/vehicles')}
+            sx={{ fontWeight: 700, color: colors.slate[600], borderRadius: '10px' }}
+          >
             Cancel
           </Button>
-          <Button variant="contained" size="large" onClick={submit} sx={{ fontWeight: 700, px: 4 }}>
-            Add Vehicle
+          <Button
+            variant="contained"
+            size="large"
+            onClick={() => void submit()}
+            disabled={saving}
+            sx={{
+              fontWeight: 700,
+              px: 4,
+              bgcolor: colors.slate[900],
+              borderRadius: '10px',
+              '&:hover': { bgcolor: colors.slate[800] },
+            }}
+          >
+            {saving ? 'Adding…' : 'Add Vehicle'}
           </Button>
         </Stack>
       </Stack>
-    </Page>
+    </Box>
   )
 }
