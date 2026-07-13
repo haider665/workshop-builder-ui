@@ -63,6 +63,7 @@ import type {
   CWVehicleStatus,
   CWWhatsappLog,
   CWPartStockUnit,
+  CWStockUnitStatus,
   CWVendor,
   CWVendorPartPrice,
   CWEstimateLine,
@@ -957,6 +958,13 @@ type CWState = {
   confirmAdvance: (id: string, confirmedByUserId: string) => void
   cancelPurchaseOrder: (id: string) => void
   createGRN: (input: CreateGRNInput) => CWGoodsReceiptNote
+
+  // Stock Unit actions
+  addStockUnits: (units: CWPartStockUnit[]) => void
+  getStockUnitsForPart: (partId: string) => CWPartStockUnit[]
+  getFIFOSellPrice: (partId: string) => number | undefined
+  getAvailableStock: (partId: string) => number
+  deductStock: (partId: string, qty: number) => Array<{ stockUnitId: string; quantityTaken: number; costPrice: number; sellPrice: number }>
 
   // Requisition actions
   createRequisition: (input: CreateRequisitionInput) => CWRequisition
@@ -4683,7 +4691,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     if (po) {
       const updatedLines = po.lines.map((pl) => {
         const grnLine = grnLines.find((gl) => gl.poLineId === pl.id)
-        return grnLine ? { ...pl, receivedQty: pl.receivedQty + grnLine.acceptedQty } : pl
+        // receivedQty = total physically received (accepted + rejected)
+        return grnLine ? { ...pl, receivedQty: pl.receivedQty + grnLine.receivedQty } : pl
       })
       const allReceived = updatedLines.every((l) => l.receivedQty >= l.quantity)
       const anyReceived = updatedLines.some((l) => l.receivedQty > 0)
@@ -4700,7 +4709,127 @@ export const useCwStore = create<CWState>((set, get) => ({
         ),
       })
     }
+
+    // Auto-create stock units from accepted GRN lines
+    const newStockUnits: CWPartStockUnit[] = []
+    for (const grnLine of grnLines) {
+      if (grnLine.acceptedQty > 0) {
+        const poLine = po?.lines.find(l => l.id === grnLine.poLineId)
+        const vendor = po ? get().vendors.find(v => v.id === po.vendorId) : undefined
+        const part = get().parts.find(p => p.id === grnLine.partId)
+        newStockUnits.push({
+          id: newId(),
+          partId: grnLine.partId,
+          quantity: grnLine.acceptedQty,
+          initialQuantity: grnLine.acceptedQty,
+          status: 'Available' as const,
+          costPrice: poLine?.unitPrice ?? 0,
+          sellPrice: grnLine.sellPrice,
+          poId: input.poId,
+          poNumber: po?.poNumber,
+          grnId: grn.id,
+          grnNumber: grn.grnNumber,
+          vendorId: po?.vendorId,
+          vendorName: vendor?.name,
+          rackLocation: part?.rackLocation,
+          createdAt: ts,
+          updatedAt: ts,
+        })
+      }
+    }
+    if (newStockUnits.length > 0) {
+      // Add new stock units
+      set({ partStockUnits: [...get().partStockUnits, ...newStockUnits] })
+      // Update Part.stockCount for each affected part
+      const partUpdates = new Map<string, number>()
+      for (const su of newStockUnits) {
+        partUpdates.set(su.partId, (partUpdates.get(su.partId) || 0) + su.quantity)
+      }
+      set({
+        parts: get().parts.map(p => {
+          const addQty = partUpdates.get(p.id)
+          if (!addQty) return p
+          return { ...p, stockCount: (p.stockCount ?? 0) + addQty, updatedAt: ts }
+        }),
+      })
+    }
+
     return grn
+  },
+
+  // ── Stock Unit FIFO actions ──────────────────────────────────────────
+
+  addStockUnits: (units) => {
+    if (units.length === 0) return
+    set({ partStockUnits: [...get().partStockUnits, ...units] })
+  },
+
+  getStockUnitsForPart: (partId) => {
+    return get().partStockUnits
+      .filter(u => u.partId === partId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  },
+
+  getFIFOSellPrice: (partId) => {
+    const units = get().partStockUnits
+      .filter(u => u.partId === partId && u.status === 'Available' && u.quantity > 0)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    return units.length > 0 ? units[0].sellPrice : undefined
+  },
+
+  getAvailableStock: (partId) => {
+    return get().partStockUnits
+      .filter(u => u.partId === partId && u.status === 'Available')
+      .reduce((sum, u) => sum + u.quantity, 0)
+  },
+
+  deductStock: (partId, qty) => {
+    const ts = nowIso()
+    const units = get().partStockUnits
+      .filter(u => u.partId === partId && u.status === 'Available' && u.quantity > 0)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+    let remaining = qty
+    const deductions: Array<{ stockUnitId: string; quantityTaken: number; costPrice: number; sellPrice: number }> = []
+    const updatedIds = new Map<string, { quantity: number; status: CWStockUnitStatus }>()
+
+    for (const unit of units) {
+      if (remaining <= 0) break
+      const take = Math.min(unit.quantity, remaining)
+      const newQty = unit.quantity - take
+      updatedIds.set(unit.id, {
+        quantity: newQty,
+        status: newQty === 0 ? 'Consumed' : 'Available',
+      })
+      deductions.push({
+        stockUnitId: unit.id,
+        quantityTaken: take,
+        costPrice: unit.costPrice,
+        sellPrice: unit.sellPrice,
+      })
+      remaining -= take
+    }
+
+    // Update stock units
+    set({
+      partStockUnits: get().partStockUnits.map(u => {
+        const update = updatedIds.get(u.id)
+        if (!update) return u
+        return { ...u, quantity: update.quantity, status: update.status, updatedAt: ts }
+      }),
+    })
+
+    // Update Part.stockCount
+    const totalAvailable = get().partStockUnits
+      .filter(u => u.partId === partId && u.status === 'Available')
+      .reduce((sum, u) => sum + u.quantity, 0)
+    set({
+      parts: get().parts.map(p =>
+        p.id === partId ? { ...p, stockCount: totalAvailable, updatedAt: ts } : p
+      ),
+    })
+
+    return deductions
   },
 
   // ── Requisition actions ──────────────────────────────────────────────
@@ -4763,6 +4892,12 @@ export const useCwStore = create<CWState>((set, get) => ({
         }
       }),
     })
+
+    // FIFO stock deduction
+    const reqLine = get().requisitions.find(r => r.id === reqId)?.lines.find(l => l.id === lineId)
+    if (reqLine) {
+      get().deductStock(reqLine.partId, reqLine.quantity)
+    }
   },
 
   collectRequisition: (id, proofUrl) => {

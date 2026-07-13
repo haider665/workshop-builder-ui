@@ -3,20 +3,30 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
   IconButton,
   MenuItem,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Edit, Inventory, ToggleOff, ToggleOn } from '@mui/icons-material'
+import { Add, Close, Edit, History, Inventory, ToggleOff, ToggleOn, Visibility } from '@mui/icons-material'
 import { useEffect, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
 import { workshopApi } from '../../services/workshopApi'
-import type { CWPart, CWPartStatus } from '../../types/cw'
+import type { CWPart, CWPartStatus, CWPartStockUnit } from '../../types/cw'
 import { colors, pageLayout } from '../../theme/tokens'
 import { useSessionStore } from '../../store/sessionStore'
 import { useCwStore } from '../../store/cwStore'
@@ -107,11 +117,23 @@ const btnSx = {
 export function PartsPage() {
   const sessionUser = useSessionStore((s) => s.user)
   const vehicles = useCwStore((s) => s.vehicles)
+  const getStockUnitsForPart = useCwStore((s) => s.getStockUnitsForPart)
   const modelOptions = [...new Set(vehicles.map((v) => v.modelVariant || v.model).filter(Boolean)), 'Universal']
 
   const [parts, setParts] = useState<CWPart[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  /* Stock lots dialog */
+  const [lotsDialogOpen, setLotsDialogOpen] = useState(false)
+  const [lotsPart, setLotsPart] = useState<CWPart | null>(null)
+  const [lots, setLots] = useState<CWPartStockUnit[]>([])
+
+  function openLotsDialog(part: CWPart) {
+    setLotsPart(part)
+    setLots(getStockUnitsForPart(part.id))
+    setLotsDialogOpen(true)
+  }
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editPart, setEditPart] = useState<CWPart | null>(null)
@@ -184,6 +206,7 @@ export function PartsPage() {
       rackLocation: draft.rackLocation.trim() || undefined,
       binNumber: draft.binNumber.trim() || undefined,
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
+      defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice.trim()) : undefined,
       stockCount: draft.stockCount.trim() ? Number(draft.stockCount.trim()) : 0,
       status: draft.status,
     })
@@ -218,6 +241,8 @@ export function PartsPage() {
     {
       key: 'name',
       header: 'Part Name',
+      sortable: true,
+      sortValue: (part) => part.name.toLowerCase(),
       minWidth: 180,
       render: (part) => (
         <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
@@ -228,6 +253,8 @@ export function PartsPage() {
     {
       key: 'partNumber',
       header: 'Part Number',
+      sortable: true,
+      sortValue: (part) => part.partNumber,
       render: (part) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
           {part.partNumber}
@@ -237,6 +264,8 @@ export function PartsPage() {
     {
       key: 'category',
       header: 'Category',
+      sortable: true,
+      sortValue: (part) => part.category ?? '',
       render: (part) =>
         part.category ? (
           <Chip
@@ -251,6 +280,8 @@ export function PartsPage() {
     {
       key: 'brand',
       header: 'Brand',
+      sortable: true,
+      sortValue: (part) => part.brand ?? '',
       render: (part) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
           {part.brand ?? '—'}
@@ -269,6 +300,8 @@ export function PartsPage() {
     {
       key: 'stockCount',
       header: 'Stock',
+      sortable: true,
+      sortValue: (part) => part.stockCount ?? 0,
       render: (part) => {
         const count = part.stockCount ?? 0
         const reorderLevel = part.reorderLevel ?? 0
@@ -287,6 +320,8 @@ export function PartsPage() {
     {
       key: 'defaultSellPrice',
       header: 'Sell Price',
+      sortable: true,
+      sortValue: (part) => part.defaultSellPrice ?? 0,
       render: (part) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700], fontWeight: 600 }}>
           {part.defaultSellPrice != null ? `৳${part.defaultSellPrice.toLocaleString()}` : '—'}
@@ -314,6 +349,8 @@ export function PartsPage() {
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
+      sortValue: (part) => part.status,
       render: (part) => (
         <Chip
           size="small"
@@ -329,6 +366,11 @@ export function PartsPage() {
       align: 'right',
       render: (part) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="View Stock Lots">
+            <IconButton size="small" onClick={() => openLotsDialog(part)} sx={{ color: colors.slate[600] }}>
+              <Visibility fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Edit">
             <IconButton size="small" onClick={() => openEdit(part)}>
               <Edit fontSize="small" />
@@ -497,6 +539,164 @@ export function PartsPage() {
             fullWidth
           />
         </FormDialog>
+
+        {/* ── Stock Lots Dialog ── */}
+        <Dialog open={lotsDialogOpen} onClose={() => setLotsDialogOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle sx={{ fontWeight: 700, fontSize: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <Inventory sx={{ color: '#1d4ed8' }} />
+              <span>Stock Lots — {lotsPart?.name}</span>
+            </Stack>
+            <IconButton size="small" onClick={() => setLotsDialogOpen(false)}>
+              <Close fontSize="small" />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent>
+            {lots.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography sx={{ color: colors.slate[400], fontSize: '0.9rem' }}>
+                  No stock lots for this part. Stock units are created when goods are received via GRN.
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Stack direction="row" spacing={3} sx={{ mb: 2, p: 1.5, bgcolor: '#f8fafc', borderRadius: '8px' }}>
+                  <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>
+                    <strong>Total Available:</strong> {lots.filter(l => l.status === 'Available').reduce((s, l) => s + l.quantity, 0)} units
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>
+                    <strong>Total Lots:</strong> {lots.length}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>
+                    <strong>FIFO Sell Price:</strong> {(() => {
+                      const avail = lots.filter(l => l.status === 'Available' && l.quantity > 0)
+                      return avail.length > 0 ? `৳${avail[0].sellPrice.toLocaleString()}` : '—'
+                    })()}
+                  </Typography>
+                </Stack>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: colors.slate[50] }}>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>PO #</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>GRN #</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Vendor</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Cost</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Sell</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Location</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Status</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Received</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {lots.map((lot) => (
+                        <TableRow key={lot.id} sx={{ '&:hover': { bgcolor: '#f8fafc' } }}>
+                          <TableCell sx={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>{lot.poNumber || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>{lot.grnNumber || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>{lot.vendorName || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem', fontWeight: 700 }} align="right">
+                            {lot.quantity} / {lot.initialQuantity}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }} align="right">৳{lot.costPrice.toLocaleString()}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600 }} align="right">৳{lot.sellPrice.toLocaleString()}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>{lot.rackLocation || '—'}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={lot.status}
+                              sx={{
+                                fontWeight: 600,
+                                fontSize: '0.68rem',
+                                bgcolor: lot.status === 'Available' ? '#ecfdf5' : lot.status === 'Consumed' ? '#f1f5f9' : '#fffbeb',
+                                color: lot.status === 'Available' ? '#047857' : lot.status === 'Consumed' ? '#64748b' : '#b45309',
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                            {new Date(lot.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            )}
+
+            {/* ── Restock History ── */}
+            {lots.length > 0 && (() => {
+              // Group stock units by GRN number for receipt-level view
+              const grnMap = new Map<string, CWPartStockUnit[]>()
+              lots.forEach((lot) => {
+                const key = lot.grnNumber || `ungrouped-${lot.id}`
+                const arr = grnMap.get(key) ?? []
+                arr.push(lot)
+                grnMap.set(key, arr)
+              })
+              const grnEntries = [...grnMap.entries()].sort((a, b) => {
+                const dateA = Math.min(...a[1].map(l => new Date(l.createdAt).getTime()))
+                const dateB = Math.min(...b[1].map(l => new Date(l.createdAt).getTime()))
+                return dateB - dateA // newest first
+              })
+              return (
+                <>
+                  <Divider sx={{ my: 3 }} />
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
+                    <History sx={{ color: '#7c3aed', fontSize: '1.3rem' }} />
+                    <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[800] }}>
+                      Restock History
+                    </Typography>
+                    <Chip size="small" label={`${grnEntries.length} receipts`} sx={{ fontWeight: 600, fontSize: '0.68rem', bgcolor: '#f5f3ff', color: '#7c3aed' }} />
+                  </Stack>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#f5f3ff' }}>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>GRN #</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>PO #</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Vendor</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Received</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Sell Price</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Date</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {grnEntries.map(([grnNum, units]) => {
+                          const totalInitial = units.reduce((s, u) => s + u.initialQuantity, 0)
+                          const first = units[0]
+                          const dateStr = new Date(first.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                          return (
+                            <TableRow key={grnNum} sx={{ '&:hover': { bgcolor: '#faf5ff' } }}>
+                              <TableCell sx={{ fontSize: '0.8rem', fontFamily: 'monospace', fontWeight: 600 }}>
+                                {first.grnNumber || '—'}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                                {first.poNumber || '—'}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: '0.8rem' }}>
+                                {first.vendorName || '—'}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: '0.8rem', fontWeight: 700 }} align="right">
+                                {totalInitial}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600 }} align="right">
+                                ৳{first.sellPrice.toLocaleString()}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                                {dateStr}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
+              )
+            })()}
+          </DialogContent>
+        </Dialog>
       </Stack>
     </Box>
   )

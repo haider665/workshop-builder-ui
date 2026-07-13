@@ -586,13 +586,20 @@ export type CWStockUnitStatus =
 export type CWPartStockUnit = {
   id: string
   partId: string
+  quantity: number
+  initialQuantity: number
   status: CWStockUnitStatus
   reservedForAppointmentId?: string
   reservedForVehicleId?: string
   costPrice: number
   sellPrice: number
   poId?: string
+  poNumber?: string
   grnId?: string
+  grnNumber?: string
+  vendorId?: string
+  vendorName?: string
+  rackLocation?: string
   createdAt: string
   updatedAt: string
 }

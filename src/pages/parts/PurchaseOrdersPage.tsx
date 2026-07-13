@@ -103,6 +103,7 @@ type GRNLineDraft = {
   partName: string
   orderedQty: number
   alreadyReceived: number
+  purchasePrice: number
   receivedQty: number
   acceptedQty: number
   rejectedQty: number
@@ -139,9 +140,10 @@ export function PurchaseOrdersPage() {
   const sessionUser = useSessionStore((s) => s.user)
   const isAdmin = sessionUser?.roles?.some(r => r.toLowerCase().includes('admin')) ?? false
 
-  /* ── Store actions for approve/reject ── */
+  /* ── Store actions for approve/reject/GRN ── */
   const approvePurchaseOrder = useCwStore((s) => s.approvePurchaseOrder)
   const rejectPurchaseOrder = useCwStore((s) => s.rejectPurchaseOrder)
+  const addStockUnits = useCwStore((s) => s.addStockUnits)
   const users = useCwStore((s) => s.users)
 
   const getUserName = (id?: string) => users.find(u => u.id === id)?.fullName || '—'
@@ -309,6 +311,7 @@ export function PurchaseOrdersPage() {
         partName: line.partName || line.partNumber,
         orderedQty: line.quantity,
         alreadyReceived: line.receivedQty ?? 0,
+        purchasePrice: line.unitPrice ?? 0,
         receivedQty: line.quantity - (line.receivedQty ?? 0),
         acceptedQty: line.quantity - (line.receivedQty ?? 0),
         rejectedQty: 0,
@@ -354,6 +357,35 @@ export function PurchaseOrdersPage() {
         notes: grnNotes || undefined,
         discrepancyNotes: grnDiscrepancy || undefined,
       })
+      // Create stock units locally for lot tracking
+      const po = purchaseOrders.find((p) => p.id === grnPoId)
+      const vendor = vendors.find((v) => v.id === po?.vendorId)
+      const ts = new Date().toISOString()
+      const newUnits: import('../../types/cw').CWPartStockUnit[] = []
+      for (const line of grnLines) {
+        if (line.acceptedQty > 0) {
+          const part = parts.find((p) => p.id === line.partId)
+          newUnits.push({
+            id: `su_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            partId: line.partId,
+            quantity: line.acceptedQty,
+            initialQuantity: line.acceptedQty,
+            status: 'Available',
+            costPrice: line.purchasePrice,
+            sellPrice: line.sellPrice,
+            poId: grnPoId,
+            poNumber: po?.poNumber,
+            grnId: `grn_${Date.now()}`,
+            grnNumber: `GRN-${String(Date.now()).slice(-6)}`,
+            vendorId: po?.vendorId,
+            vendorName: vendor?.name,
+            rackLocation: part?.rackLocation,
+            createdAt: ts,
+            updatedAt: ts,
+          })
+        }
+      }
+      addStockUnits(newUnits)
       setGrnDialogOpen(false)
       setGrnPoId(null)
       await loadPOData()
@@ -380,6 +412,8 @@ export function PurchaseOrdersPage() {
     {
       key: 'poNumber',
       header: 'PO Number',
+      sortable: true,
+      sortValue: (po) => po.poNumber,
       minWidth: 120,
       render: (po) => (
         <Typography sx={{ fontSize: '0.875rem', fontFamily: 'monospace', fontWeight: 700, color: colors.slate[900] }}>
@@ -390,6 +424,8 @@ export function PurchaseOrdersPage() {
     {
       key: 'vendor',
       header: 'Vendor',
+      sortable: true,
+      sortValue: (po) => vendorMap.get(po.vendorId) ?? '',
       minWidth: 140,
       render: (po) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
@@ -398,8 +434,29 @@ export function PurchaseOrdersPage() {
       ),
     },
     {
+      key: 'items',
+      header: 'Items & Unit Price',
+      minWidth: 200,
+      render: (po) => (
+        <Stack spacing={0.25}>
+          {po.lines.map((line) => (
+            <Stack key={line.id} direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
+              <Typography sx={{ fontSize: '0.78rem', color: colors.slate[700] }}>
+                {line.partName || line.partNumber} ×{line.quantity}
+              </Typography>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: colors.slate[900], whiteSpace: 'nowrap' }}>
+                {fmtCurrency(line.unitPrice, po.currency)}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
+      ),
+    },
+    {
       key: 'status',
       header: 'Status',
+      sortable: true,
+      sortValue: (po) => po.status,
       render: (po) => {
         const chip = STATUS_CHIP[po.status]
         return (
@@ -444,7 +501,9 @@ export function PurchaseOrdersPage() {
     {
       key: 'totalAmount',
       header: 'Total Amount',
-      align: 'right',
+      sortable: true,
+      sortValue: (po) => po.totalAmount,
+      align: 'right' as const,
       render: (po) => (
         <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[900] }}>
           {fmtCurrency(po.totalAmount, po.currency)}
@@ -454,6 +513,8 @@ export function PurchaseOrdersPage() {
     {
       key: 'expectedArrival',
       header: 'Expected Arrival',
+      sortable: true,
+      sortValue: (po) => po.expectedArrivalDate,
       render: (po) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
           {fmtDate(po.expectedArrivalDate)}
@@ -463,6 +524,8 @@ export function PurchaseOrdersPage() {
     {
       key: 'createdAt',
       header: 'Created',
+      sortable: true,
+      sortValue: (po) => po.createdAt,
       render: (po) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>
           {fmtDate(po.createdAt)}
@@ -562,7 +625,7 @@ export function PurchaseOrdersPage() {
               </Button>
             </Stack>
           )}
-          {['Issued', 'Partially Received', 'In Transit'].includes(po.status) && (
+          {['Issued', 'Partially Received', 'In Transit'].includes(po.status) && po.lines.some(l => l.receivedQty < l.quantity) && (
             <Button
               size="small"
               variant="outlined"
@@ -902,7 +965,7 @@ export function PurchaseOrdersPage() {
                         {line.partName}
                       </Typography>
                       <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                        Ordered: {line.orderedQty} | Already Received: {line.alreadyReceived}
+                        Ordered: {line.orderedQty} | Already Received: {line.alreadyReceived} | Purchase Price: ৳{line.purchasePrice.toLocaleString()}
                       </Typography>
                     </Stack>
 
@@ -935,6 +998,13 @@ export function PurchaseOrdersPage() {
                     </Stack>
 
                     <Stack direction="row" spacing={1.5}>
+                      <TextField
+                        label="Purchase Price (৳)"
+                        size="small"
+                        value={line.purchasePrice}
+                        sx={{ flex: 1 }}
+                        slotProps={{ input: { readOnly: true } }}
+                      />
                       <TextField
                         label="Sell Price (৳)"
                         type="number"

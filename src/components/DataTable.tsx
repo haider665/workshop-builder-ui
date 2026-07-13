@@ -5,11 +5,14 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
+  TableSortLabel,
   Typography,
   Skeleton,
   Stack,
 } from '@mui/material'
+import { useState, useMemo, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { colors, shadows, radii, motion } from '../theme/tokens'
 
@@ -26,6 +29,10 @@ export type Column<T> = {
   align?: 'left' | 'center' | 'right'
   /** Min width */
   minWidth?: number
+  /** Whether this column is sortable */
+  sortable?: boolean
+  /** Custom sort value extractor — preferred over render-based fallback */
+  sortValue?: (row: T) => string | number | Date
 }
 
 type DataTableProps<T> = {
@@ -38,6 +45,10 @@ type DataTableProps<T> = {
   emptyTitle?: string
   emptyDescription?: string
   emptyAction?: ReactNode
+  /** Rows per page (default 10) */
+  pageSize?: number
+  /** Page-size dropdown options (default [5, 10, 25, 50]) */
+  pageSizeOptions?: number[]
 }
 
 /* ─────────────────────── Component ─────────────────────── */
@@ -52,7 +63,69 @@ export function DataTable<T>({
   emptyTitle = 'No data yet',
   emptyDescription,
   emptyAction,
+  pageSize: initialPageSize = 10,
+  pageSizeOptions = [5, 10, 25, 50],
 }: DataTableProps<T>) {
+  /* ── Sort state ── */
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  /* ── Pagination state ── */
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(initialPageSize)
+
+  /* Reset page when rows change */
+  useEffect(() => {
+    setPage(0)
+  }, [rows])
+
+  /* Reset page when sort changes */
+  useEffect(() => {
+    setPage(0)
+  }, [sortKey, sortDir])
+
+  /* ── Handle sort toggle ── */
+  const handleSort = (colKey: string) => {
+    if (sortKey !== colKey) {
+      setSortKey(colKey)
+      setSortDir('asc')
+    } else if (sortDir === 'asc') {
+      setSortDir('desc')
+    } else {
+      // desc → clear
+      setSortKey(null)
+      setSortDir('asc')
+    }
+  }
+
+  /* ── Sorted + paginated rows ── */
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    const col = columns.find((c) => c.key === sortKey)
+    if (!col) return rows
+
+    return [...rows].sort((a, b) => {
+      const aVal = col.sortValue
+        ? col.sortValue(a)
+        : String(col.render(a, 0))
+      const bVal = col.sortValue
+        ? col.sortValue(b)
+        : String(col.render(b, 0))
+
+      let cmp = 0
+      if (aVal < bVal) cmp = -1
+      else if (aVal > bVal) cmp = 1
+
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [rows, sortKey, sortDir, columns])
+
+  const paginatedRows = useMemo(
+    () => sortedRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage),
+    [sortedRows, page, rowsPerPage],
+  )
+
   const isEmpty = !loading && rows.length === 0
 
   return (
@@ -89,9 +162,31 @@ export function DataTable<T>({
                 <TableCell
                   key={col.key}
                   align={col.align ?? 'left'}
-                  sx={{ minWidth: col.minWidth }}
+                  sx={{
+                    minWidth: col.minWidth,
+                    ...(col.sortable && { cursor: 'pointer' }),
+                  }}
+                  sortDirection={
+                    sortKey === col.key ? sortDir : false
+                  }
                 >
-                  {col.header}
+                  {col.sortable ? (
+                    <TableSortLabel
+                      active={sortKey === col.key}
+                      direction={sortKey === col.key ? sortDir : 'asc'}
+                      onClick={() => handleSort(col.key)}
+                      sx={{
+                        color: 'inherit !important',
+                        '& .MuiTableSortLabel-icon': {
+                          color: `${colors.slate[400]} !important`,
+                        },
+                      }}
+                    >
+                      {col.header}
+                    </TableSortLabel>
+                  ) : (
+                    col.header
+                  )}
                 </TableCell>
               ))}
             </TableRow>
@@ -119,7 +214,7 @@ export function DataTable<T>({
                     ))}
                   </TableRow>
                 ))
-              : rows.map((row, index) => (
+              : paginatedRows.map((row, index) => (
                   <TableRow
                     key={keyExtractor(row)}
                     sx={{
@@ -142,7 +237,7 @@ export function DataTable<T>({
                   >
                     {columns.map((col) => (
                       <TableCell key={col.key} align={col.align ?? 'left'}>
-                        {col.render(row, index)}
+                        {col.render(row, page * rowsPerPage + index)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -150,6 +245,30 @@ export function DataTable<T>({
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* ── Pagination ── */}
+      {!isEmpty && !loading && (
+        <TablePagination
+          component="div"
+          count={rows.length}
+          page={page}
+          onPageChange={(_e, newPage) => setPage(newPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10))
+            setPage(0)
+          }}
+          rowsPerPageOptions={pageSizeOptions}
+          sx={{
+            borderTop: `1px solid ${colors.border.subtle}`,
+            color: colors.slate[600],
+            '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows':
+              {
+                fontSize: '0.8125rem',
+              },
+          }}
+        />
+      )}
 
       {/* ── Empty State ── */}
       {isEmpty ? (
