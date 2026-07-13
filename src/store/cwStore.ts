@@ -98,6 +98,109 @@ function newId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+/** Default vehicle health-check items — shared across all paths that set SA Inspection */
+export function buildDefaultInspectionChecks(): CWInspectionCheck[] {
+  return [
+    // System Component
+    { id: newId(), category: 'System Component', section: 'Brake System', label: 'Brake system (including lines, hoses, and parking brake)', checked: false },
+    { id: newId(), category: 'System Component', section: 'Exhaust System', label: 'Exhaust system and heat shield (leaks, damage)', checked: false },
+    { id: newId(), category: 'System Component', section: 'Lights/Windshield', label: 'Lights and windshield condition', checked: false },
+    { id: newId(), category: 'System Component', section: 'Steering', label: 'Steering linkage and suspension', checked: false },
+    { id: newId(), category: 'System Component', section: 'Engine', label: 'Engine oil level and leaks', checked: false },
+    { id: newId(), category: 'System Component', section: 'Cooling', label: 'Coolant level and hoses', checked: false },
+    { id: newId(), category: 'System Component', section: 'Battery', label: 'Battery terminals and charge', checked: false },
+    // Scheduled Maintenance
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Engine oil change', checked: false },
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Transmission fluid check', checked: false },
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Brake fluid level', checked: false },
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Power steering fluid', checked: false },
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Filters', label: 'Air filter inspection', checked: false },
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Filters', label: 'Cabin air filter', checked: false },
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Filters', label: 'Fuel filter', checked: false },
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Belts', label: 'Drive belt inspection', checked: false },
+    { id: newId(), category: 'Scheduled Maintenance', section: 'Belts', label: 'Timing belt/chain condition', checked: false },
+    // Tyre/Brake Wire
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Tyres', label: 'Front left tyre tread & pressure', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Tyres', label: 'Front right tyre tread & pressure', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Tyres', label: 'Rear left tyre tread & pressure', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Tyres', label: 'Rear right tyre tread & pressure', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Tyres', label: 'Spare tyre condition', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Brakes', label: 'Front brake pads', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Brakes', label: 'Rear brake pads', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Brakes', label: 'Brake discs/rotors', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Wires', label: 'Spark plug wires', checked: false },
+    { id: newId(), category: 'Tyre/Brake Wire', section: 'Wires', label: 'Ignition coil & wiring', checked: false },
+    // Underbody
+    { id: newId(), category: 'Underbody', section: 'Underbody', label: 'Oil pan condition', checked: false },
+    { id: newId(), category: 'Underbody', section: 'Underbody', label: 'Transmission pan', checked: false },
+    { id: newId(), category: 'Underbody', section: 'Underbody', label: 'CV joints and boots', checked: false },
+    { id: newId(), category: 'Underbody', section: 'Underbody', label: 'Exhaust pipe and muffler', checked: false },
+    { id: newId(), category: 'Underbody', section: 'Underbody', label: 'Suspension components', checked: false },
+    { id: newId(), category: 'Underbody', section: 'Underbody', label: 'Frame and subframe condition', checked: false },
+    // Front View
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Headlights (low/high beam)', checked: false },
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Fog lights', checked: false },
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Turn signals (front)', checked: false },
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Front bumper condition', checked: false },
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Grille condition', checked: false },
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Windshield (chips/cracks)', checked: false },
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Wiper blades', checked: false },
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Washer fluid level', checked: false },
+    { id: newId(), category: 'Front View', section: 'Front', label: 'Hood alignment', checked: false },
+    // Right View
+    { id: newId(), category: 'Right View', section: 'Right Side', label: 'Right fender condition', checked: false },
+    { id: newId(), category: 'Right View', section: 'Right Side', label: 'Right doors (open/close)', checked: false },
+    { id: newId(), category: 'Right View', section: 'Right Side', label: 'Right mirror condition', checked: false },
+    { id: newId(), category: 'Right View', section: 'Right Side', label: 'Right side trim/moulding', checked: false },
+    { id: newId(), category: 'Right View', section: 'Right Side', label: 'Right window operation', checked: false },
+    // Left View
+    { id: newId(), category: 'Left View', section: 'Left Side', label: 'Left fender condition', checked: false },
+    { id: newId(), category: 'Left View', section: 'Left Side', label: 'Left doors (open/close)', checked: false },
+    { id: newId(), category: 'Left View', section: 'Left Side', label: 'Left mirror condition', checked: false },
+    { id: newId(), category: 'Left View', section: 'Left Side', label: 'Left side trim/moulding', checked: false },
+    { id: newId(), category: 'Left View', section: 'Left Side', label: 'Left window operation', checked: false },
+    // Rear View
+    { id: newId(), category: 'Rear View', section: 'Rear', label: 'Tail lights', checked: false },
+    { id: newId(), category: 'Rear View', section: 'Rear', label: 'Brake lights', checked: false },
+    { id: newId(), category: 'Rear View', section: 'Rear', label: 'Reverse lights', checked: false },
+    { id: newId(), category: 'Rear View', section: 'Rear', label: 'Rear bumper condition', checked: false },
+    { id: newId(), category: 'Rear View', section: 'Rear', label: 'Trunk/boot operation', checked: false },
+    { id: newId(), category: 'Rear View', section: 'Rear', label: 'Rear windshield condition', checked: false },
+    { id: newId(), category: 'Rear View', section: 'Rear', label: 'Rear wiper', checked: false },
+    { id: newId(), category: 'Rear View', section: 'Rear', label: 'Exhaust tip condition', checked: false },
+    // Interior View
+    { id: newId(), category: 'Interior View', section: 'Dashboard', label: 'Dashboard lights and gauges', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Dashboard', label: 'Air conditioning', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Dashboard', label: 'Heater operation', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Seats', label: 'Driver seat adjustment', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Seats', label: 'Seat belts all positions', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Horn operation', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Interior lights', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Rear View Mirror', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Illuminated Sun Visor', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Strap & Buckle Holder', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Sunroof Mechanism', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Stereo System', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Air Freshener', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Console Box', checked: false },
+    { id: newId(), category: 'Interior View', section: 'Interior', label: 'Bonnet Operation', checked: false },
+    // MIL Status
+    { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'ABS (Anti-lock Braking System)', checked: false },
+    { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Airbag', checked: false },
+    { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Warning Triangle', checked: false },
+    { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Check Engine', checked: false },
+    { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Battery Warning', checked: false },
+    { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Oil Pressure Warning', checked: false },
+    // Photos
+    { id: newId(), category: 'Photos', section: 'Mileage & Fuel', label: 'Current Mileage', checked: false },
+    { id: newId(), category: 'Photos', section: 'Mileage & Fuel', label: 'Current Fuel Level', checked: false },
+    { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Front side photo', checked: false },
+    { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Rear side photo', checked: false },
+    { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Right side photo', checked: false },
+    { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Left side photo', checked: false },
+  ]
+}
+
 export type CreateShopInput = {
   name: string
   type: CWShopType
@@ -934,7 +1037,8 @@ type CWState = {
   // Part request actions (legacy)
   createPartRequest: (input: CreatePartRequestInput) => CWPartRequest
   labelPartRequest: (id: string, input: LabelPartRequestInput) => void
-  setPartRequestStatus: (id: string, status: CWPartRequestStatus) => void
+  setPartRequestStatus: (id: string, status: CWPartRequestStatus) => Promise<void>
+  refreshPartRequests: () => Promise<void>
 
   // Vendor actions
   createVendor: (input: CreateVendorInput) => CWVendor
@@ -1753,6 +1857,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       tasks,
       callRecords,
       reminders,
+      partRequests,
     ] = await Promise.all([
       workshopApi.listShops(),
       fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize })),
@@ -1771,6 +1876,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       fetchAll((page, pageSize) => workshopApi.listTasks({ page, pageSize })),
       fetchAll((page, pageSize) => workshopApi.listCallRecords({ page, pageSize })),
       fetchAll((page, pageSize) => workshopApi.listReminders({ page, pageSize })),
+      fetchAll((page, pageSize) => workshopApi.listPartRequests({ page, pageSize })),
     ])
 
     set({
@@ -1791,6 +1897,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       tasks,
       callRecords,
       reminders,
+      partRequests,
     })
   },
 
@@ -2208,117 +2315,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     const allServices = get().services
     const ts = nowIso()
 
-    const defaultChecks: CWInspectionCheck[] = [
-      // System Component
-      { id: newId(), category: 'System Component', section: 'Brake System', label: 'Brake system (including lines, hoses, and parking brake)', checked: false },
-      { id: newId(), category: 'System Component', section: 'Exhaust System', label: 'Exhaust system and heat shield (leaks, damage)', checked: false },
-      { id: newId(), category: 'System Component', section: 'Lights/Windshield', label: 'Lights and windshield condition', checked: false },
-      { id: newId(), category: 'System Component', section: 'Steering', label: 'Steering linkage and suspension', checked: false },
-      { id: newId(), category: 'System Component', section: 'Engine', label: 'Engine oil level and leaks', checked: false },
-      { id: newId(), category: 'System Component', section: 'Cooling', label: 'Coolant level and hoses', checked: false },
-      { id: newId(), category: 'System Component', section: 'Battery', label: 'Battery terminals and charge', checked: false },
-      // Scheduled Maintenance
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Engine oil change', checked: false },
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Transmission fluid check', checked: false },
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Brake fluid level', checked: false },
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Fluids', label: 'Power steering fluid', checked: false },
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Filters', label: 'Air filter inspection', checked: false },
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Filters', label: 'Cabin/AC filter', checked: false },
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Belts', label: 'Drive belt / serpentine belt', checked: false },
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Belts', label: 'Timing belt inspection', checked: false },
-      { id: newId(), category: 'Scheduled Maintenance', section: 'Spark', label: 'Spark plug condition', checked: false },
-      // Tire/Brake Wire
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Front', label: 'Tire Tread Depth', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Front', label: 'Tire Wear Pattern/Damage', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Front', label: 'Tire Pressure Set to Factory-Recommended PSI', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Front', label: 'Brake Lining', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Front', label: 'Tire Tread Depth', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Front', label: 'Tire Wear Pattern/Damage', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Front', label: 'Tire Pressure Set to Factory-Recommended PSI', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Front', label: 'Brake Lining', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Rear', label: 'Tire Tread Depth', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Rear', label: 'Tire Wear Pattern/Damage', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Left Rear', label: 'Brake Lining', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Rear', label: 'Tire Tread Depth', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Rear', label: 'Tire Wear Pattern/Damage', checked: false },
-      { id: newId(), category: 'Tire/Brake Wire', section: 'Right Rear', label: 'Brake Lining', checked: false },
-      // Underbody
-      { id: newId(), category: 'Underbody', section: 'Frame', label: 'Frame and cross members (rust, cracks)', checked: false },
-      { id: newId(), category: 'Underbody', section: 'Frame', label: 'Floor pan condition', checked: false },
-      { id: newId(), category: 'Underbody', section: 'Suspension', label: 'Shock absorbers / struts', checked: false },
-      { id: newId(), category: 'Underbody', section: 'Suspension', label: 'Control arms and bushings', checked: false },
-      { id: newId(), category: 'Underbody', section: 'Exhaust', label: 'Exhaust pipe and muffler', checked: false },
-      { id: newId(), category: 'Underbody', section: 'Exhaust', label: 'Catalytic converter', checked: false },
-      { id: newId(), category: 'Underbody', section: 'Drivetrain', label: 'Drive shaft and CV joints', checked: false },
-      { id: newId(), category: 'Underbody', section: 'Drivetrain', label: 'Transmission pan (leaks)', checked: false },
-      { id: newId(), category: 'Underbody', section: 'Protection', label: 'Underbody coating / rust protection', checked: false },
-      // Front View
-      { id: newId(), category: 'Front View', section: 'Bumper', label: 'Front bumper condition', checked: false },
-      { id: newId(), category: 'Front View', section: 'Bumper', label: 'Front grille condition', checked: false },
-      { id: newId(), category: 'Front View', section: 'Lights', label: 'Headlight left', checked: false },
-      { id: newId(), category: 'Front View', section: 'Lights', label: 'Headlight right', checked: false },
-      { id: newId(), category: 'Front View', section: 'Lights', label: 'Fog lights', checked: false },
-      { id: newId(), category: 'Front View', section: 'Glass', label: 'Windshield condition', checked: false },
-      { id: newId(), category: 'Front View', section: 'Glass', label: 'Windshield wipers', checked: false },
-      { id: newId(), category: 'Front View', section: 'Hood', label: 'Hood alignment and paint', checked: false },
-      // Right View
-      { id: newId(), category: 'Right View', section: 'Body', label: 'Right front fender', checked: false },
-      { id: newId(), category: 'Right View', section: 'Body', label: 'Right front door', checked: false },
-      { id: newId(), category: 'Right View', section: 'Body', label: 'Right rear door', checked: false },
-      { id: newId(), category: 'Right View', section: 'Body', label: 'Right rear quarter panel', checked: false },
-      { id: newId(), category: 'Right View', section: 'Glass', label: 'Right side windows', checked: false },
-      { id: newId(), category: 'Right View', section: 'Mirror', label: 'Right side mirror', checked: false },
-      { id: newId(), category: 'Right View', section: 'Trim', label: 'Right side molding / trim', checked: false },
-      // Left View
-      { id: newId(), category: 'Left View', section: 'Body', label: 'Left front fender', checked: false },
-      { id: newId(), category: 'Left View', section: 'Body', label: 'Left front door', checked: false },
-      { id: newId(), category: 'Left View', section: 'Body', label: 'Left rear door', checked: false },
-      { id: newId(), category: 'Left View', section: 'Body', label: 'Left rear quarter panel', checked: false },
-      { id: newId(), category: 'Left View', section: 'Glass', label: 'Left side windows', checked: false },
-      { id: newId(), category: 'Left View', section: 'Mirror', label: 'Left side mirror', checked: false },
-      { id: newId(), category: 'Left View', section: 'Trim', label: 'Left side molding / trim', checked: false },
-      // Rear View
-      { id: newId(), category: 'Rear View', section: 'Bumper', label: 'Rear bumper condition', checked: false },
-      { id: newId(), category: 'Rear View', section: 'Lights', label: 'Tail light left', checked: false },
-      { id: newId(), category: 'Rear View', section: 'Lights', label: 'Tail light right', checked: false },
-      { id: newId(), category: 'Rear View', section: 'Lights', label: 'Brake light / third brake light', checked: false },
-      { id: newId(), category: 'Rear View', section: 'Glass', label: 'Rear windshield', checked: false },
-      { id: newId(), category: 'Rear View', section: 'Trunk', label: 'Trunk/tailgate condition', checked: false },
-      { id: newId(), category: 'Rear View', section: 'Exhaust', label: 'Exhaust tip condition', checked: false },
-      // Interior View
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'All Switches', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'AC System', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Horn', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Rear View Mirror', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Tissue Box', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Floor Mat', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Seat Cover', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Glove Compartment Function', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Reverse Camera', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Cigarette Lighter & Ashtray', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Room Light', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Illuminated Sun Visor', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Strap & Buckle Holder', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Sunroof Mechanism', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Stereo System', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Air Freshener', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Console Box', checked: false },
-      { id: newId(), category: 'Interior View', section: 'Interior', label: 'Bonnet Operation', checked: false },
-      // MIL Status
-      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'ABS (Anti-lock Braking System)', checked: false },
-      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Airbag', checked: false },
-      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Warning Triangle', checked: false },
-      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Check Engine', checked: false },
-      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Battery Warning', checked: false },
-      { id: newId(), category: 'Interior View', section: 'MIL Status', label: 'Oil Pressure Warning', checked: false },
-      // Photos
-      { id: newId(), category: 'Photos', section: 'Mileage & Fuel', label: 'Current Mileage', checked: false },
-      { id: newId(), category: 'Photos', section: 'Mileage & Fuel', label: 'Current Fuel Level', checked: false },
-      { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Front side photo', checked: false },
-      { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Rear side photo', checked: false },
-      { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Right side photo', checked: false },
-      { id: newId(), category: 'Photos', section: 'Vehicle Photos', label: 'Left side photo', checked: false },
-    ]
+    const defaultChecks = buildDefaultInspectionChecks()
 
     const appt: CWAppointment = {
       id: newId(),
@@ -3320,6 +3317,7 @@ export const useCwStore = create<CWState>((set, get) => ({
               ...a,
               assignedSAUserId: saUserId,
               status: a.status === 'New' ? 'SA Inspection' as const : a.status,
+              inspectionChecks: a.status === 'New' && a.inspectionChecks.length === 0 ? buildDefaultInspectionChecks() : a.inspectionChecks,
               timeline: [
                 ...a.timeline,
                 {
@@ -4073,6 +4071,7 @@ export const useCwStore = create<CWState>((set, get) => ({
               ? {
                   ...a,
                   status: 'SA Inspection' as const,
+                  inspectionChecks: a.inspectionChecks.length === 0 ? buildDefaultInspectionChecks() : a.inspectionChecks,
                   gateEntryId: a.gateEntryId ?? pending?.id,
                   updatedAt: nowIso(),
                 }
@@ -4163,6 +4162,7 @@ export const useCwStore = create<CWState>((set, get) => ({
               ? {
                   ...a,
                   status: 'SA Inspection' as const,
+                  inspectionChecks: a.inspectionChecks.length === 0 ? buildDefaultInspectionChecks() : a.inspectionChecks,
                   gateEntryId: a.gateEntryId ?? pending?.id,
                   updatedAt: nowIso(),
                 }
@@ -4364,6 +4364,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ partRequests: [req, ...get().partRequests] })
+    syncBackend(workshopApi.createPartRequest(input), 'create part request')
     return req
   },
 
@@ -4384,9 +4385,13 @@ export const useCwStore = create<CWState>((set, get) => ({
           : r,
       ),
     })
+    syncBackend(workshopApi.labelPartRequest(id, input), 'label part request')
   },
 
-  setPartRequestStatus: (id, status) => {
+  setPartRequestStatus: async (id, status) => {
+    const prev = get().partRequests.find((r) => r.id === id)
+    const prevStatus = prev?.status
+    // Optimistic update
     set({
       partRequests: get().partRequests.map((r) =>
         r.id === id
@@ -4394,6 +4399,40 @@ export const useCwStore = create<CWState>((set, get) => ({
           : r,
       ),
     })
+    try {
+      await workshopApi.setPartRequestStatus(id, status)
+    } catch (err) {
+      // Rollback on failure
+      if (prevStatus) {
+        set({
+          partRequests: get().partRequests.map((r) =>
+            r.id === id
+              ? { ...r, status: prevStatus, updatedAt: nowIso() }
+              : r,
+          ),
+        })
+      }
+      throw err
+    }
+  },
+
+  refreshPartRequests: async () => {
+    const pageSize = 100
+    const first = await workshopApi.listPartRequests({ page: 1, pageSize })
+    const total = first.meta.total ?? first.data.length
+    if (first.data.length >= total) {
+      set({ partRequests: first.data })
+      return
+    }
+    const pages = [first.data]
+    let page = 2
+    while ((page - 1) * pageSize < total) {
+      const next = await workshopApi.listPartRequests({ page, pageSize })
+      pages.push(next.data)
+      if (!next.data.length) break
+      page += 1
+    }
+    set({ partRequests: pages.flat() })
   },
 
   // ── Vendor actions ──────────────────────────────────────────────────────────

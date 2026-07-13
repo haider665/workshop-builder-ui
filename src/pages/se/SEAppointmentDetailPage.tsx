@@ -160,10 +160,9 @@ export function SEAppointmentDetailPage() {
     )
   }
 
-  const myConcerns = appt.concernItems.filter((c) => c.assignedSEUserId)
-  const myServices = appt.serviceItems.filter((s) =>
-    s.assignedSEUserId || (s.stageItems && s.stageItems.some((st) => st.assignedSEUserId))
-  )
+  // Show all concern/service items — assignedSEUserId may not be populated by backend
+  const myConcerns = appt.concernItems
+  const myServices = appt.serviceItems
 
   const isDiagnosisPhase = ['Diagnosis Assigned', 'Diagnosis In Progress'].includes(appt.status)
   const isDiagnosisComplete = appt.status === 'Diagnosis Complete'

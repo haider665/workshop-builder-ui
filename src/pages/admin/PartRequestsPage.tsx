@@ -1,5 +1,6 @@
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -10,13 +11,15 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material'
-import { Inventory2 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { Inventory2, Send } from '@mui/icons-material'
+import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import type { Column } from '../../components/DataTable'
 import { useCwStore } from '../../store/cwStore'
-import type { CWPartRequest, CWPartRequestStatus } from '../../types/cw'
+import type { CWPartRequest, CWPartRequestStatus, CWPart } from '../../types/cw'
 import { colors, pageLayout } from '../../theme/tokens'
+import { useSessionStore } from '../../store/sessionStore'
+import { workshopApi } from '../../services/workshopApi'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -41,16 +44,31 @@ const btnSx = {
 export function PartRequestsPage() {
   const partRequests = useCwStore((s) => s.partRequests)
   const labelPartRequest = useCwStore((s) => s.labelPartRequest)
+  const setPartRequestStatus = useCwStore((s) => s.setPartRequestStatus)
+  const refreshPartRequests = useCwStore((s) => s.refreshPartRequests)
+  const createEstimateLine = useCwStore((s) => s.createEstimateLine)
+  const identifyEstimateLine = useCwStore((s) => s.identifyEstimateLine)
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
+  const partsCatalog = useCwStore((s) => s.parts)
+  const sessionUser = useSessionStore((s) => s.user)
+
+  // Fetch fresh part requests from backend on mount
+  useEffect(() => { refreshPartRequests().catch(console.error) }, [refreshPartRequests])
+
+  // Load parts from API (store may be empty)
+  const [apiParts, setApiParts] = useState<CWPart[]>([])
+  useEffect(() => {
+    workshopApi.listParts({ status: 'Active', pageSize: 500 })
+      .then((res) => setApiParts(res.data))
+      .catch(() => { /* fallback to store */ })
+  }, [])
 
   const [statusFilter, setStatusFilter] = useState<CWPartRequestStatus | 'All'>('All')
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [partNumber, setPartNumber] = useState('')
-  const [price, setPrice] = useState('')
+  const [selectedPart, setSelectedPart] = useState<CWPart | null>(null)
   const [quantity, setQuantity] = useState('')
-  const [deliveryDate, setDeliveryDate] = useState('')
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
@@ -58,6 +76,15 @@ export function PartRequestsPage() {
     const list = statusFilter === 'All' ? partRequests : partRequests.filter((pr) => pr.status === statusFilter)
     return list.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [partRequests, statusFilter])
+
+  const activePartOptions = useMemo(
+    () => {
+      // Prefer API parts, fallback to store
+      const source = apiParts.length > 0 ? apiParts : partsCatalog
+      return source.filter((p) => p.status === 'Active')
+    },
+    [apiParts, partsCatalog],
+  )
 
   /* ── Helpers ── */
 
@@ -78,23 +105,23 @@ export function PartRequestsPage() {
     const pr = partRequests.find((p) => p.id === prId)
     if (!pr) return
     setEditingId(prId)
-    setPartNumber(pr.partNumber ?? '')
-    setPrice(typeof pr.price === 'number' ? String(pr.price) : '')
+    // Try to find matching catalog part
+    const match = activePartOptions.find((p) => p.partNumber === pr.partNumber || p.name === pr.partName)
+    setSelectedPart(match ?? null)
     setQuantity(typeof pr.quantity === 'number' ? String(pr.quantity) : '1')
-    setDeliveryDate(pr.deliveryDate ?? '')
   }
 
   function submitLabel() {
-    if (!editingId) return
+    if (!editingId || !selectedPart) return
     labelPartRequest(editingId, {
-      partNumber: partNumber.trim(),
-      price: Number(price) || 0,
+      partNumber: selectedPart.partNumber,
+      price: 0,
       quantity: Number(quantity) || 1,
-      deliveryDate: deliveryDate || undefined,
-      labeledBy: 'Admin',
+      labeledBy: sessionUser?.name || 'Admin',
     })
     setEditingId(null)
-    setSuccessMsg('Part request labeled successfully')
+    setSelectedPart(null)
+    setSuccessMsg(`Labeled as ${selectedPart.name} (${selectedPart.partNumber})`)
     setSuccessOpen(true)
   }
 
@@ -103,11 +130,44 @@ export function PartRequestsPage() {
       partNumber: '',
       price: 0,
       quantity: 0,
-      labeledBy: 'Admin',
+      labeledBy: sessionUser?.name || 'Admin',
       status: 'Rejected',
     })
     setSuccessMsg('Part request rejected')
     setSuccessOpen(true)
+  }
+
+  async function sendToEstimator(pr: CWPartRequest) {
+    const part = activePartOptions.find((p) => p.partNumber === pr.partNumber)
+    if (!part) return
+
+    // Create estimate line (status: Requested, then immediately identify)
+    try {
+      const line = createEstimateLine({
+        appointmentId: pr.appointmentId,
+        concernItemId: pr.concernItemId,
+        description: pr.partName,
+        requestedByUserId: pr.requestedBy,
+        quantity: pr.quantity ?? 1,
+      })
+
+      // Immediately identify with catalog part
+      identifyEstimateLine(line.id, {
+        partId: part.id,
+        partNumber: part.partNumber,
+        partName: part.name,
+        identifiedByUserId: sessionUser?.id || '',
+      })
+
+      // Mark part request as fulfilled (awaits backend)
+      await setPartRequestStatus(pr.id, 'Fulfilled')
+
+      setSuccessMsg(`Sent "${part.name}" to Estimator for pricing`)
+      setSuccessOpen(true)
+    } catch (err) {
+      setSuccessMsg(`Failed to send to estimator: ${err instanceof Error ? err.message : String(err)}`)
+      setSuccessOpen(true)
+    }
   }
 
   /* ── Table Columns ── */
@@ -116,6 +176,8 @@ export function PartRequestsPage() {
     {
       key: 'partName',
       header: 'Part Name',
+      sortable: true,
+      sortValue: (pr) => pr.partName.toLowerCase(),
       minWidth: 160,
       render: (pr) => (
         <Box>
@@ -167,69 +229,68 @@ export function PartRequestsPage() {
     {
       key: 'quantity',
       header: 'Qty',
+      sortable: true,
+      sortValue: (pr) => pr.quantity ?? 1,
       render: (pr) => {
         const isEditing = editingId === pr.id
         if (isEditing) {
           return (
-            <TextField size="small" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} sx={{ width: 70 }} />
+            <TextField size="small" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} sx={{ width: 70 }} slotProps={{ input: { inputProps: { min: 1 } } }} />
           )
         }
         return <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>{pr.quantity ?? 1}</Typography>
       },
     },
     {
-      key: 'partNumber',
-      header: 'Part #',
+      key: 'catalogPart',
+      header: 'Catalog Part',
+      minWidth: 220,
       render: (pr) => {
         const isEditing = editingId === pr.id
         if (isEditing) {
           return (
-            <TextField size="small" value={partNumber} onChange={(e) => setPartNumber(e.target.value)} placeholder="Part #" sx={{ width: 120 }} />
-          )
-        }
-        return <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>{pr.partNumber || '—'}</Typography>
-      },
-    },
-    {
-      key: 'price',
-      header: 'Price',
-      render: (pr) => {
-        const isEditing = editingId === pr.id
-        if (isEditing) {
-          return (
-            <TextField size="small" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" sx={{ width: 100 }} />
-          )
-        }
-        return (
-          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>
-            {typeof pr.price === 'number' ? `BDT ${pr.price}` : '—'}
-          </Typography>
-        )
-      },
-    },
-    {
-      key: 'deliveryDate',
-      header: 'Delivery Date',
-      render: (pr) => {
-        const isEditing = editingId === pr.id
-        if (isEditing) {
-          return (
-            <TextField
+            <Autocomplete
               size="small"
-              type="date"
-              value={deliveryDate}
-              onChange={(e) => setDeliveryDate(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-              sx={{ width: 140 }}
+              options={activePartOptions}
+              value={selectedPart}
+              onChange={(_, v) => setSelectedPart(v)}
+              getOptionLabel={(p) => `${p.name} (${p.partNumber})`}
+              renderOption={(props, p) => (
+                <Box component="li" {...props} key={p.id}>
+                  <Stack spacing={0}>
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 600 }}>{p.name}</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500] }}>
+                      {p.partNumber} {p.brand ? `· ${p.brand}` : ''}
+                    </Typography>
+                  </Stack>
+                </Box>
+              )}
+              sx={{ minWidth: 200 }}
+              renderInput={(params) => <TextField {...params} placeholder="Search parts..." />}
             />
           )
         }
-        return <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>{pr.deliveryDate || '—'}</Typography>
+        if (pr.partNumber) {
+          const match = activePartOptions.find((p) => p.partNumber === pr.partNumber)
+          return (
+            <Stack spacing={0}>
+              <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: colors.slate[900] }}>
+                {match?.name ?? pr.partNumber}
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500], fontFamily: 'monospace' }}>
+                {pr.partNumber}
+              </Typography>
+            </Stack>
+          )
+        }
+        return <Typography sx={{ fontSize: '0.8rem', color: colors.slate[400] }}>Not mapped</Typography>
       },
     },
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
+      sortValue: (pr) => pr.status,
       render: (pr) => (
         <Chip size="small" label={pr.status} color={STATUS_COLORS[pr.status]} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
       ),
@@ -240,15 +301,11 @@ export function PartRequestsPage() {
       align: 'right',
       render: (pr) => {
         const isEditing = editingId === pr.id
+
         if (pr.status === 'Requested' && !isEditing) {
           return (
             <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-              <Button
-                size="small"
-                variant="contained"
-                onClick={() => startEdit(pr.id)}
-                sx={btnSx}
-              >
+              <Button size="small" variant="contained" onClick={() => startEdit(pr.id)} sx={btnSx}>
                 Label
               </Button>
               <Button
@@ -263,6 +320,7 @@ export function PartRequestsPage() {
             </Stack>
           )
         }
+
         if (isEditing) {
           return (
             <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
@@ -271,6 +329,7 @@ export function PartRequestsPage() {
                 variant="contained"
                 color="success"
                 onClick={submitLabel}
+                disabled={!selectedPart}
                 sx={{ fontWeight: 700, borderRadius: '10px' }}
               >
                 Save
@@ -278,7 +337,7 @@ export function PartRequestsPage() {
               <Button
                 size="small"
                 variant="outlined"
-                onClick={() => setEditingId(null)}
+                onClick={() => { setEditingId(null); setSelectedPart(null) }}
                 sx={{ fontWeight: 700, borderRadius: '10px' }}
               >
                 Cancel
@@ -286,6 +345,27 @@ export function PartRequestsPage() {
             </Stack>
           )
         }
+
+        if (pr.status === 'Labeled') {
+          return (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<Send />}
+              onClick={() => sendToEstimator(pr)}
+              sx={{
+                bgcolor: '#7c3aed',
+                fontWeight: 700,
+                borderRadius: '10px',
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#6d28d9' },
+              }}
+            >
+              Send to Estimator
+            </Button>
+          )
+        }
+
         return null
       },
     },
@@ -302,7 +382,7 @@ export function PartRequestsPage() {
             <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
               Part Requests
             </Typography>
-            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Label and manage part requests from Service Engineers</Typography>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Map part requests to catalog, then send to Estimator for pricing</Typography>
           </Box>
         </Stack>
 

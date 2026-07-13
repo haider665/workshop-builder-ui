@@ -1,19 +1,54 @@
 import {
   Box,
+  Button,
   Chip,
+  FormControl,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material'
-import { Dashboard, Store } from '@mui/icons-material'
-import { useMemo } from 'react'
+import { ChevronLeft, ChevronRight, Dashboard, Store, Today } from '@mui/icons-material'
+import { useMemo, useState } from 'react'
 import { StatCard } from '../../components/StatCard'
 import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
 import { colors, radii } from '../../theme/tokens'
 
+function localDateToday() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function fmtTime(iso?: string) {
   if (!iso) return '—'
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+}
+
+function fmtDateLabel(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00')
+  const today = localDateToday()
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
+
+  let prefix = ''
+  if (dateStr === today) prefix = 'Today · '
+  else if (dateStr === tomorrowStr) prefix = 'Tomorrow · '
+
+  return prefix + d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function overlapsDate(startIso: string | undefined, endIso: string | undefined, dateStr: string): boolean {
+  if (!startIso) return false
+  const dayStart = new Date(`${dateStr}T00:00:00`).getTime()
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`).getTime()
+  const start = Date.parse(startIso)
+  const end = endIso ? Date.parse(endIso) : start
+  return start <= dayEnd && end >= dayStart
 }
 
 function bayChipColor(status: string, occupied: boolean): 'default' | 'warning' | 'success' {
@@ -38,6 +73,9 @@ export function JCBayManagementPage() {
   const vehicles = useCwStore((s) => s.vehicles)
   const users = useCwStore((s) => s.users)
 
+  const [selectedDate, setSelectedDate] = useState(localDateToday())
+  const [filterShop, setFilterShop] = useState('')
+
   const shopNameById = useMemo(() => {
     const m = new Map<string, string>()
     for (const s of shops) m.set(s.id, s.name)
@@ -56,18 +94,21 @@ export function JCBayManagementPage() {
     return m
   }, [users])
 
-  // Group bays by shop
+  const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
+
+  // Group bays by shop, apply shop filter
   const baysByShop = useMemo(() => {
+    const filtered = filterShop ? bays.filter((b) => b.shopId === filterShop) : bays
     const map = new Map<string, typeof bays>()
-    for (const b of bays) {
+    for (const b of filtered) {
       const list = map.get(b.shopId) ?? []
       list.push(b)
       map.set(b.shopId, list)
     }
     return map
-  }, [bays])
+  }, [bays, filterShop])
 
-  // Build bay occupancy: items currently assigned to each bay
+  // Build bay occupancy filtered by selected date
   const bayOccupancy = useMemo(() => {
     const map = new Map<string, { vehicleReg: string; label: string; status: string; seName: string; startAt?: string; endAt?: string }[]>()
     for (const appt of appointments) {
@@ -76,6 +117,7 @@ export function JCBayManagementPage() {
 
       for (const c of appt.concernItems) {
         if (!c.bayId) continue
+        if (!overlapsDate(c.plannedStartAt, c.plannedEndAt, selectedDate)) continue
         const items = map.get(c.bayId) ?? []
         items.push({
           vehicleReg: vReg,
@@ -89,10 +131,10 @@ export function JCBayManagementPage() {
       }
 
       for (const s of appt.serviceItems) {
-        // Stage-level bay assignments
         if (s.stageItems?.length) {
           for (const st of s.stageItems) {
             if (!st.bayId) continue
+            if (!overlapsDate(st.plannedStartAt, st.plannedEndAt, selectedDate)) continue
             const items = map.get(st.bayId) ?? []
             items.push({
               vehicleReg: vReg,
@@ -105,6 +147,7 @@ export function JCBayManagementPage() {
             map.set(st.bayId, items)
           }
         } else if (s.bayId) {
+          if (!overlapsDate(s.plannedStartAt, s.plannedEndAt, selectedDate)) continue
           const items = map.get(s.bayId) ?? []
           items.push({
             vehicleReg: vReg,
@@ -119,10 +162,20 @@ export function JCBayManagementPage() {
       }
     }
     return map
-  }, [appointments, vehicleRegById, userNameById])
+  }, [appointments, vehicleRegById, userNameById, selectedDate])
 
-  const activeBays = bays.filter((b) => b.status !== 'Inactive')
-  const occupiedCount = activeBays.filter((b) => (bayOccupancy.get(b.id)?.length ?? 0) > 0).length
+  const filteredBays = useMemo(() => {
+    const all = filterShop ? bays.filter((b) => b.shopId === filterShop) : bays
+    return all.filter((b) => b.status !== 'Inactive')
+  }, [bays, filterShop])
+
+  const occupiedCount = filteredBays.filter((b) => (bayOccupancy.get(b.id)?.length ?? 0) > 0).length
+
+  function shiftDate(days: number) {
+    const d = new Date(selectedDate + 'T00:00:00')
+    d.setDate(d.getDate() + days)
+    setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+  }
 
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -133,15 +186,64 @@ export function JCBayManagementPage() {
             Bay Management
           </Typography>
           <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
-            View all bays and their current occupancy
+            View bay occupancy by date
           </Typography>
         </Box>
 
+        {/* Filters: Date + Shop */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
+          {/* Date navigation */}
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+            <IconButton size="small" onClick={() => shiftDate(-1)} sx={{ color: colors.slate[600] }}>
+              <ChevronLeft />
+            </IconButton>
+            <TextField
+              type="date"
+              size="small"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              sx={{ minWidth: 160, '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }}
+            />
+            <IconButton size="small" onClick={() => shiftDate(1)} sx={{ color: colors.slate[600] }}>
+              <ChevronRight />
+            </IconButton>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<Today />}
+              onClick={() => setSelectedDate(localDateToday())}
+              sx={{ textTransform: 'none', fontWeight: 700, borderRadius: radii.sm, whiteSpace: 'nowrap' }}
+            >
+              Today
+            </Button>
+          </Stack>
+
+          <Typography sx={{ fontWeight: 700, fontSize: '0.88rem', color: colors.slate[700], whiteSpace: 'nowrap' }}>
+            {fmtDateLabel(selectedDate)}
+          </Typography>
+
+          {/* Shop filter */}
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel>Shop</InputLabel>
+            <Select
+              label="Shop"
+              value={filterShop}
+              onChange={(e) => setFilterShop(e.target.value)}
+              sx={{ borderRadius: radii.sm }}
+            >
+              <MenuItem value="">All Shops</MenuItem>
+              {activeShops.map((s) => (
+                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Stack>
+
         {/* Stats */}
         <Stack direction="row" sx={{ gap: 2, flexWrap: 'wrap' }}>
-          <StatCard icon={<Dashboard fontSize="small" />} title="Total Bays" value={activeBays.length} gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)" />
+          <StatCard icon={<Dashboard fontSize="small" />} title="Total Bays" value={filteredBays.length} gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)" />
           <StatCard icon={<Dashboard fontSize="small" />} title="Occupied" value={occupiedCount} gradient="linear-gradient(135deg, #F59E0B 0%, #D97706 100%)" />
-          <StatCard icon={<Dashboard fontSize="small" />} title="Available" value={activeBays.length - occupiedCount} gradient="linear-gradient(135deg, #10B981 0%, #059669 100%)" />
+          <StatCard icon={<Dashboard fontSize="small" />} title="Available" value={filteredBays.length - occupiedCount} gradient="linear-gradient(135deg, #10B981 0%, #059669 100%)" />
         </Stack>
 
         {/* Bays grouped by shop */}
@@ -173,7 +275,7 @@ export function JCBayManagementPage() {
                       <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: colors.slate[900] }}>{bay.name}</Typography>
                       <Chip
                         size="small"
-                        label={bay.status === 'Inactive' ? 'Inactive' : isOccupied ? 'Occupied' : 'Available'}
+                        label={bay.status === 'Inactive' ? 'Inactive' : isOccupied ? `Occupied (${items.length})` : 'Available'}
                         color={bayChipColor(bay.status, isOccupied)}
                         sx={{ fontWeight: 700, fontSize: '0.72rem' }}
                       />
@@ -205,7 +307,7 @@ export function JCBayManagementPage() {
                       </Stack>
                     ) : (
                       <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], fontStyle: 'italic' }}>
-                        No active assignments
+                        No assignments for this date
                       </Typography>
                     )}
                   </Box>

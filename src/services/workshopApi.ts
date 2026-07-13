@@ -1885,4 +1885,44 @@ export const workshopApi = {
       `/api/method/workshop.api.communications.whatsapp_list${buildQuery(params)}`,
     )
   },
+
+  // ── Part Requests ─────────────────────────────────────────────────────────────
+
+  async listPartRequests(params: { appointmentId?: string; status?: import('../types/cw').CWPartRequestStatus; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWPartRequest>> {
+    return request<ApiListResponse<import('../types/cw').CWPartRequest>>(`/api/method/workshop.api.part_requests.list${buildQuery(params)}`)
+  },
+
+  async createPartRequest(input: {
+    appointmentId: string
+    concernItemId?: string
+    partName: string
+    quantity?: number
+    requestedBy: string
+  }): Promise<import('../types/cw').CWPartRequest> {
+    return request<import('../types/cw').CWPartRequest>('/api/method/workshop.api.part_requests.create', {
+      method: 'POST',
+      body: { data: input },
+    })
+  },
+
+  async labelPartRequest(id: string, input: {
+    partNumber: string
+    price: number
+    quantity: number
+    deliveryDate?: string
+    labeledBy: string
+    status?: import('../types/cw').CWPartRequestStatus
+  }): Promise<import('../types/cw').CWPartRequest> {
+    return request<import('../types/cw').CWPartRequest>('/api/method/workshop.api.part_requests.label', {
+      method: 'POST',
+      body: { data: { id, ...input } },
+    })
+  },
+
+  async setPartRequestStatus(id: string, status: import('../types/cw').CWPartRequestStatus): Promise<import('../types/cw').CWPartRequest> {
+    return request<import('../types/cw').CWPartRequest>('/api/method/workshop.api.part_requests.set_status', {
+      method: 'POST',
+      body: { data: { id, status } },
+    })
+  },
 }

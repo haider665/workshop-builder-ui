@@ -38,7 +38,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
-import { useCwStore } from '../../store/cwStore'
+import { useCwStore, buildDefaultInspectionChecks } from '../../store/cwStore'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
@@ -117,8 +117,11 @@ export function SAAppointmentDetailPage() {
   const concerns = useCwStore((s) => s.concerns)
   const activeConcerns = useMemo(() => concerns.filter((c) => c.status === 'Active'), [concerns])
 
-  // Inspection state
-  const [inspChecks, setInspChecks] = useState<CWInspectionCheck[]>(appt?.inspectionChecks ?? [])
+  // Inspection state — lazily populate if appointment is in SA Inspection but has no checks (legacy data)
+  const [inspChecks, setInspChecks] = useState<CWInspectionCheck[]>(() => {
+    const existing = appt?.inspectionChecks ?? []
+    return existing.length > 0 ? existing : buildDefaultInspectionChecks()
+  })
 
   // WhatsApp dialog
   const [waDialogOpen, setWaDialogOpen] = useState(false)
@@ -353,6 +356,9 @@ export function SAAppointmentDetailPage() {
         {/* ── Inspection Checklist ── */}
         {isInspection && inspChecks.length > 0 && (
           <SAInspectionTabs checks={inspChecks} onChange={setInspChecks} />
+        )}
+        {!isInspection && appt.inspectionChecks.length > 0 && (
+          <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
         )}
 
         {/* ── Concerns ── */}

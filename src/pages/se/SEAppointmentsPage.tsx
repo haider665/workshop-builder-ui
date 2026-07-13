@@ -122,8 +122,9 @@ export function SEAppointmentsPage() {
     () =>
       appointments.filter((a) => {
         if (!SE_STATUSES.includes(a.status as CWAppointmentStatus)) return false
-        return a.concernItems.some((c) => c.assignedSEUserId) ||
-          a.serviceItems.some((s) => s.assignedSEUserId || (s.stageItems && s.stageItems.some((st) => st.assignedSEUserId)))
+        // Status alone proves SE relevance. Item-level assignedSEUserId may not
+        // be populated by backend, so don't gate on it.
+        return true
       }),
     [appointments],
   )
