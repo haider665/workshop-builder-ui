@@ -4,6 +4,10 @@ import {
   Button,
   Checkbox,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControlLabel,
   IconButton,
   MenuItem,
@@ -14,8 +18,11 @@ import {
 } from '@mui/material'
 import {
   Add,
+  Cancel,
+  CheckCircle,
   Close,
   Delete,
+  LocalShipping,
   Send,
   ShoppingCart,
 } from '@mui/icons-material'
@@ -24,8 +31,10 @@ import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
 import { workshopApi } from '../../services/workshopApi'
-import type { CWPurchaseOrder, CWPurchaseOrderStatus } from '../../types/cw'
+import type { CWPurchaseOrder, CWPurchaseOrderStatus, CWGRNLineCondition } from '../../types/cw'
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
+import { useSessionStore } from '../../store/sessionStore'
+import { useCwStore } from '../../store/cwStore'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -88,6 +97,20 @@ function emptyLine(): LineDraft {
   return { partId: '', quantity: 1, unitPrice: 0, discount: 0 }
 }
 
+type GRNLineDraft = {
+  poLineId: string
+  partId: string
+  partName: string
+  orderedQty: number
+  alreadyReceived: number
+  receivedQty: number
+  acceptedQty: number
+  rejectedQty: number
+  sellPrice: number
+  condition: CWGRNLineCondition
+  notes: string
+}
+
 function lineTotal(l: LineDraft) {
   return l.quantity * l.unitPrice * (1 - l.discount / 100)
 }
@@ -111,6 +134,29 @@ export function PurchaseOrdersPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [draft, setDraft] = useState<PODraft>(emptyDraft())
+
+  /* ── Session & Admin ── */
+  const sessionUser = useSessionStore((s) => s.user)
+  const isAdmin = sessionUser?.roles?.some(r => r.toLowerCase().includes('admin')) ?? false
+
+  /* ── Store actions for approve/reject ── */
+  const approvePurchaseOrder = useCwStore((s) => s.approvePurchaseOrder)
+  const rejectPurchaseOrder = useCwStore((s) => s.rejectPurchaseOrder)
+  const users = useCwStore((s) => s.users)
+
+  const getUserName = (id?: string) => users.find(u => u.id === id)?.fullName || '—'
+
+  /* ── Reject dialog state ── */
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [rejectPoId, setRejectPoId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+
+  /* ── GRN dialog state ── */
+  const [grnDialogOpen, setGrnDialogOpen] = useState(false)
+  const [grnPoId, setGrnPoId] = useState<string | null>(null)
+  const [grnLines, setGrnLines] = useState<GRNLineDraft[]>([])
+  const [grnNotes, setGrnNotes] = useState('')
+  const [grnDiscrepancy, setGrnDiscrepancy] = useState('')
 
   async function loadPOData() {
     setLoading(true)
@@ -192,23 +238,24 @@ export function PurchaseOrdersPage() {
     setError(null)
     try {
       await workshopApi.createPurchaseOrder({
-      vendorId: draft.vendorId,
-      currency: draft.currency,
-      sourcingType: draft.sourcingType,
-      expectedArrivalDate: draft.expectedArrivalDate,
-      advanceRequired: draft.advanceRequired,
-      lines: validLines.map((l) => {
-        const part = parts.find((p) => p.id === l.partId)
-        return {
-          partId: l.partId,
-          partNumber: part?.partNumber ?? '',
-          partName: part?.name ?? '',
-          quantity: l.quantity,
-          unitPrice: l.unitPrice,
-          discount: l.discount || undefined,
-        }
-      }),
-    })
+        vendorId: draft.vendorId,
+        currency: draft.currency,
+        sourcingType: draft.sourcingType,
+        expectedArrivalDate: draft.expectedArrivalDate,
+        advanceRequired: draft.advanceRequired,
+        createdByUserId: sessionUser?.id,
+        lines: validLines.map((l) => {
+          const part = parts.find((p) => p.id === l.partId)
+          return {
+            partId: l.partId,
+            partNumber: part?.partNumber ?? '',
+            partName: part?.name ?? '',
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            discount: l.discount || undefined,
+          }
+        }),
+      })
       setCreateOpen(false)
       await loadPOData()
     } catch (err) {
@@ -223,6 +270,95 @@ export function PurchaseOrdersPage() {
       await loadPOData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit purchase order')
+    }
+  }
+
+  async function handleApprovePO(id: string) {
+    try {
+      await workshopApi.approvePurchaseOrder(id)
+      approvePurchaseOrder(id, sessionUser?.id || '')
+      await loadPOData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to approve PO')
+    }
+  }
+
+  function openRejectDialog(id: string) {
+    setRejectPoId(id)
+    setRejectReason('')
+    setRejectDialogOpen(true)
+  }
+
+  function handleConfirmReject() {
+    if (rejectPoId && rejectReason.trim()) {
+      rejectPurchaseOrder(rejectPoId, rejectReason.trim(), sessionUser?.id || '')
+      setRejectDialogOpen(false)
+      setRejectPoId(null)
+      setRejectReason('')
+      void loadPOData()
+    }
+  }
+
+  /* ── GRN handlers ── */
+  function openGrnDialog(po: CWPurchaseOrder) {
+    setGrnPoId(po.id)
+    setGrnLines(
+      po.lines.map((line) => ({
+        poLineId: line.id,
+        partId: line.partId,
+        partName: line.partName || line.partNumber,
+        orderedQty: line.quantity,
+        alreadyReceived: line.receivedQty ?? 0,
+        receivedQty: line.quantity - (line.receivedQty ?? 0),
+        acceptedQty: line.quantity - (line.receivedQty ?? 0),
+        rejectedQty: 0,
+        sellPrice: 0,
+        condition: 'Good' as CWGRNLineCondition,
+        notes: '',
+      }))
+    )
+    setGrnNotes('')
+    setGrnDiscrepancy('')
+    setGrnDialogOpen(true)
+  }
+
+  function updateGrnLine(idx: number, patch: Partial<GRNLineDraft>) {
+    setGrnLines((prev) =>
+      prev.map((l, i) => {
+        if (i !== idx) return l
+        const updated = { ...l, ...patch }
+        // Auto-calc: acceptedQty = receivedQty - rejectedQty
+        if ('receivedQty' in patch || 'rejectedQty' in patch) {
+          updated.acceptedQty = Math.max(0, updated.receivedQty - updated.rejectedQty)
+        }
+        return updated
+      })
+    )
+  }
+
+  async function handleSubmitGRN() {
+    if (!grnPoId) return
+    setError(null)
+    try {
+      await workshopApi.createGRN(grnPoId, {
+        lines: grnLines.map((l) => ({
+          poLineId: l.poLineId,
+          partId: l.partId,
+          receivedQty: l.receivedQty,
+          acceptedQty: l.acceptedQty,
+          rejectedQty: l.rejectedQty,
+          sellPrice: l.sellPrice,
+          condition: l.condition,
+          notes: l.notes || undefined,
+        })),
+        notes: grnNotes || undefined,
+        discrepancyNotes: grnDiscrepancy || undefined,
+      })
+      setGrnDialogOpen(false)
+      setGrnPoId(null)
+      await loadPOData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create GRN')
     }
   }
 
@@ -334,6 +470,50 @@ export function PurchaseOrdersPage() {
       ),
     },
     {
+      key: 'createdBy',
+      header: 'Created By',
+      render: (po) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
+          {getUserName(po.createdByUserId)}
+        </Typography>
+      ),
+    },
+    {
+      key: 'approvedBy',
+      header: 'Approved By',
+      render: (po) => {
+        if (['Issued', 'Received', 'In Transit', 'Partially Received', 'Closed'].includes(po.status) && po.approvedByUserId) {
+          return (
+            <Stack spacing={0}>
+              <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                {getUserName(po.approvedByUserId)}
+              </Typography>
+              {po.approvedAt && (
+                <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>
+                  {fmtDate(po.approvedAt)}
+                </Typography>
+              )}
+            </Stack>
+          )
+        }
+        if (po.status === 'Rejected' && po.rejectedByUserId) {
+          return (
+            <Stack spacing={0}>
+              <Typography sx={{ fontSize: '0.875rem', color: '#b91c1c', fontWeight: 600 }}>
+                {getUserName(po.rejectedByUserId)}
+              </Typography>
+              <Typography sx={{ fontSize: '0.72rem', color: '#b91c1c' }}>
+                Rejected
+              </Typography>
+            </Stack>
+          )
+        }
+        return (
+          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>—</Typography>
+        )
+      },
+    },
+    {
       key: 'actions',
       header: 'Actions',
       align: 'right',
@@ -345,6 +525,60 @@ export function PurchaseOrdersPage() {
                 <Send fontSize="small" />
               </IconButton>
             </Tooltip>
+          )}
+          {isAdmin && po.status === 'Pending Approval' && (
+            <Stack direction="row" spacing={0.5}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<CheckCircle />}
+                onClick={() => handleApprovePO(po.id)}
+                sx={{
+                  color: '#047857',
+                  borderColor: '#047857',
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  py: 0.25,
+                  '&:hover': { bgcolor: 'rgba(4,120,87,0.08)', borderColor: '#047857' },
+                }}
+              >
+                Approve
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<Cancel />}
+                onClick={() => openRejectDialog(po.id)}
+                sx={{
+                  color: '#b91c1c',
+                  borderColor: '#b91c1c',
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  py: 0.25,
+                  '&:hover': { bgcolor: 'rgba(185,28,28,0.08)', borderColor: '#b91c1c' },
+                }}
+              >
+                Reject
+              </Button>
+            </Stack>
+          )}
+          {['Issued', 'Partially Received', 'In Transit'].includes(po.status) && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<LocalShipping />}
+              onClick={() => openGrnDialog(po)}
+              sx={{
+                color: '#1d4ed8',
+                borderColor: '#1d4ed8',
+                textTransform: 'none',
+                fontSize: '0.75rem',
+                py: 0.25,
+                '&:hover': { bgcolor: 'rgba(29,78,216,0.08)', borderColor: '#1d4ed8' },
+              }}
+            >
+              Receive Goods
+            </Button>
           )}
           {!['Received', 'Closed', 'Cancelled'].includes(po.status) && (
             <Tooltip title="Cancel PO">
@@ -608,8 +842,170 @@ export function PurchaseOrdersPage() {
                 </Typography>
               </Stack>
             )}
-          </Box>
+           </Box>
         </FormDialog>
+
+        {/* ── Reject Reason Dialog ── */}
+        <Dialog open={rejectDialogOpen} onClose={() => setRejectDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{ fontWeight: 700, fontSize: '1rem' }}>Reject Purchase Order</DialogTitle>
+          <DialogContent>
+            <TextField
+              label="Rejection Reason"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              multiline
+              rows={3}
+              fullWidth
+              required
+              sx={{ mt: 1 }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setRejectDialogOpen(false)} sx={{ color: colors.slate[600] }}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleConfirmReject}
+              disabled={!rejectReason.trim()}
+              sx={{ bgcolor: '#b91c1c', '&:hover': { bgcolor: '#991b1b' } }}
+            >
+              Reject
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ── GRN Dialog ── */}
+        <Dialog open={grnDialogOpen} onClose={() => setGrnDialogOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle sx={{ fontWeight: 700, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LocalShipping sx={{ color: '#1d4ed8' }} /> Receive Goods (GRN)
+          </DialogTitle>
+          <DialogContent>
+            <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500], mb: 2 }}>
+              Record received quantities, condition, and sell price for each line item.
+            </Typography>
+
+            <Stack spacing={2}>
+              {grnLines.map((line, idx) => (
+                <Box
+                  key={line.poLineId}
+                  sx={{
+                    border: `1px solid ${colors.slate[200]}`,
+                    borderRadius: '8px',
+                    p: 2,
+                    bgcolor: line.rejectedQty > 0 ? '#fef2f2' : '#f8fafc',
+                  }}
+                >
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>
+                        {line.partName}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                        Ordered: {line.orderedQty} | Already Received: {line.alreadyReceived}
+                      </Typography>
+                    </Stack>
+
+                    <Stack direction="row" spacing={1.5}>
+                      <TextField
+                        label="Received Qty"
+                        type="number"
+                        size="small"
+                        value={line.receivedQty}
+                        onChange={(e) => updateGrnLine(idx, { receivedQty: Math.max(0, Number(e.target.value)) })}
+                        sx={{ flex: 1 }}
+                        slotProps={{ input: { inputProps: { min: 0 } } }}
+                      />
+                      <TextField
+                        label="Rejected Qty"
+                        type="number"
+                        size="small"
+                        value={line.rejectedQty}
+                        onChange={(e) => updateGrnLine(idx, { rejectedQty: Math.max(0, Number(e.target.value)) })}
+                        sx={{ flex: 1 }}
+                        slotProps={{ input: { inputProps: { min: 0 } } }}
+                      />
+                      <TextField
+                        label="Accepted Qty"
+                        size="small"
+                        value={line.acceptedQty}
+                        sx={{ flex: 1 }}
+                        slotProps={{ input: { readOnly: true } }}
+                      />
+                    </Stack>
+
+                    <Stack direction="row" spacing={1.5}>
+                      <TextField
+                        label="Sell Price (৳)"
+                        type="number"
+                        size="small"
+                        value={line.sellPrice}
+                        onChange={(e) => updateGrnLine(idx, { sellPrice: Math.max(0, Number(e.target.value)) })}
+                        sx={{ flex: 1 }}
+                        slotProps={{ input: { inputProps: { min: 0 } } }}
+                      />
+                      <TextField
+                        label="Condition"
+                        select
+                        size="small"
+                        value={line.condition}
+                        onChange={(e) => updateGrnLine(idx, { condition: e.target.value as CWGRNLineCondition })}
+                        sx={{ flex: 1 }}
+                      >
+                        <MenuItem value="Good">Good</MenuItem>
+                        <MenuItem value="Damaged">Damaged</MenuItem>
+                        <MenuItem value="Wrong Item">Wrong Item</MenuItem>
+                      </TextField>
+                      <TextField
+                        label="Notes"
+                        size="small"
+                        value={line.notes}
+                        onChange={(e) => updateGrnLine(idx, { notes: e.target.value })}
+                        sx={{ flex: 1 }}
+                        placeholder="Optional"
+                      />
+                    </Stack>
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+
+            <TextField
+              label="General Notes"
+              value={grnNotes}
+              onChange={(e) => setGrnNotes(e.target.value)}
+              multiline
+              rows={2}
+              fullWidth
+              sx={{ mt: 2 }}
+              placeholder="Optional receiving notes"
+            />
+            <TextField
+              label="Discrepancy Notes"
+              value={grnDiscrepancy}
+              onChange={(e) => setGrnDiscrepancy(e.target.value)}
+              multiline
+              rows={2}
+              fullWidth
+              sx={{ mt: 1.5 }}
+              placeholder="Note any discrepancies between ordered and received"
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setGrnDialogOpen(false)} sx={{ color: colors.slate[600] }}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => { void handleSubmitGRN() }}
+              disabled={grnLines.every((l) => l.receivedQty === 0)}
+              startIcon={<LocalShipping />}
+              sx={{ bgcolor: '#1d4ed8', '&:hover': { bgcolor: '#1e40af' } }}
+            >
+              Confirm Receipt
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Stack>
     </Box>
   )

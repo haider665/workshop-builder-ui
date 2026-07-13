@@ -561,11 +561,14 @@ export type CWPart = {
   rackLocation?: string                  // e.g. "A-3-14"
   binNumber?: string
   reorderLevel?: number                  // triggers procurement when stock ≤ this
+  defaultSellPrice?: number              // default sell price (৳) for this part
   stockCount?: number                    // current unit count (denormalized for display)
   stockStatus?: 'In Stock' | 'Low Stock' | 'Out of Stock'
   status: CWPartStatus
   createdAt: string
   updatedAt: string
+  createdByUserId?: string
+  updatedByUserId?: string
 }
 
 // ── Stock Units ───────────────────────────────────────────────────────────────
@@ -614,6 +617,8 @@ export type CWVendor = {
   status: CWVendorStatus
   createdAt: string
   updatedAt: string
+  createdByUserId?: string
+  updatedByUserId?: string
 }
 
 export type CWPricingSourcingType = 'OEM' | 'Genuine' | 'Aftermarket'
@@ -677,9 +682,14 @@ export type CWEstimateLine = {
   options?: CWEstimateLineOption[]
   // State
   status: CWEstimateLineStatus
+  identifiedByUserId?: string
+  pricedByUserId?: string
   submittedAt?: string
+  submittedByUserId?: string
   approvedAt?: string
+  approvedByUserId?: string
   declinedAt?: string
+  declinedByUserId?: string
   substitutedByLineId?: string
   createdAt: string
   updatedAt: string
@@ -725,9 +735,11 @@ export type CWPurchaseOrder = {
   advanceConfirmedAt?: string
   advanceConfirmedByUserId?: string
   submittedAt?: string
+  submittedByUserId?: string
   approvedAt?: string
   approvedByUserId?: string
   rejectedAt?: string
+  rejectedByUserId?: string
   rejectionReason?: string
   blockedAppointmentIds: string[]
   lines: CWPOLine[]
@@ -761,6 +773,7 @@ export type CWGoodsReceiptNote = {
   lines: CWGRNLine[]
   notes?: string
   discrepancyNotes?: string
+  createdAt: string
 }
 
 // ── Requisitions ──────────────────────────────────────────────────────────────
@@ -815,6 +828,8 @@ export type CWRequisition = {
   receiveProofUrl?: string
   receiveSignatureUrl?: string
   receivePhotoUrls?: string[]
+  acknowledgedByUserId?: string
+  acknowledgedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -946,6 +961,7 @@ export type CWNotification = {
   /** Reference entity ID (e.g. PO id, requisition id) */
   referenceId?: string
   read: boolean
+  createdByUserId?: string
   createdAt: string
 }
 
@@ -978,6 +994,7 @@ export type CWInvoice = {
   advanceApplied: number
   netPayable: number
   issuedAt?: string
+  issuedByUserId?: string
   paidAt?: string
   createdByUserId: string
   createdAt: string

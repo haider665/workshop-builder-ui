@@ -417,8 +417,10 @@ export type CreatePartInput = {
   rackLocation?: string
   binNumber?: string
   reorderLevel?: number
+  defaultSellPrice?: number
   stockCount?: number
   status?: 'Active' | 'Inactive'
+  createdByUserId?: string
 }
 export type UpdatePartInput = {
   name: string
@@ -489,6 +491,7 @@ export type IdentifyEstimateLineInput = {
   partId: string
   partNumber: string
   partName: string
+  identifiedByUserId: string
 }
 
 export type PriceEstimateLineInput = {
@@ -501,6 +504,7 @@ export type PriceEstimateLineInput = {
   inStock: boolean
   estimatedDeliveryDate?: string
   advanceRequired?: boolean
+  pricedByUserId: string
   options?: Array<{
     vendorId: string
     vendorName: string
@@ -940,23 +944,23 @@ type CWState = {
   createEstimateLine: (input: CreateEstimateLineInput) => CWEstimateLine
   identifyEstimateLine: (id: string, input: IdentifyEstimateLineInput) => void
   priceEstimateLine: (id: string, input: PriceEstimateLineInput) => void
-  submitEstimateLines: (appointmentId: string) => void
-  approveEstimateLine: (id: string) => void
-  declineEstimateLine: (id: string) => void
+  submitEstimateLines: (appointmentId: string, submittedByUserId: string) => void
+  approveEstimateLine: (id: string, approvedByUserId: string) => void
+  declineEstimateLine: (id: string, declinedByUserId: string) => void
   getEstimateLinesForAppointment: (appointmentId: string) => CWEstimateLine[]
 
   // Purchase Order actions
   createPurchaseOrder: (input: CreatePurchaseOrderInput) => CWPurchaseOrder
-  submitPurchaseOrder: (id: string) => void
+  submitPurchaseOrder: (id: string, submittedByUserId: string) => void
   approvePurchaseOrder: (id: string, approvedByUserId: string) => void
-  rejectPurchaseOrder: (id: string, reason: string) => void
+  rejectPurchaseOrder: (id: string, reason: string, rejectedByUserId: string) => void
   confirmAdvance: (id: string, confirmedByUserId: string) => void
   cancelPurchaseOrder: (id: string) => void
   createGRN: (input: CreateGRNInput) => CWGoodsReceiptNote
 
   // Requisition actions
   createRequisition: (input: CreateRequisitionInput) => CWRequisition
-  acknowledgeRequisition: (id: string) => void
+  acknowledgeRequisition: (id: string, acknowledgedByUserId: string) => void
   pickRequisitionLine: (reqId: string, lineId: string, pickedByUserId: string) => void
   collectRequisition: (id: string, proofUrl: string) => void
   receiveRequisition: (id: string, proofUrl: string) => void
@@ -976,7 +980,7 @@ type CWState = {
   // Invoice actions
   invoices: CWInvoice[]
   createInvoice: (input: CreateInvoiceInput) => CWInvoice
-  issueInvoice: (id: string) => void
+  issueInvoice: (id: string, issuedByUserId: string) => void
   markInvoicePaid: (id: string) => void
 
   // Inventory helpers
@@ -4298,8 +4302,10 @@ export const useCwStore = create<CWState>((set, get) => ({
       rackLocation: input.rackLocation,
       binNumber: input.binNumber,
       reorderLevel: input.reorderLevel,
+      defaultSellPrice: input.defaultSellPrice,
       stockCount: input.stockCount ?? 0,
       status: input.status ?? 'Active',
+      createdByUserId: input.createdByUserId,
       createdAt: ts,
       updatedAt: ts,
     }
@@ -4481,6 +4487,7 @@ export const useCwStore = create<CWState>((set, get) => ({
               partId: input.partId,
               partNumber: input.partNumber,
               partName: input.partName,
+              identifiedByUserId: input.identifiedByUserId,
               status: 'Identified' as const,
               updatedAt: nowIso(),
             }
@@ -4504,6 +4511,7 @@ export const useCwStore = create<CWState>((set, get) => ({
               inStock: input.inStock,
               estimatedDeliveryDate: input.estimatedDeliveryDate,
               advanceRequired: input.advanceRequired ?? false,
+              pricedByUserId: input.pricedByUserId,
               options: input.options,
               status: 'Priced' as const,
               updatedAt: nowIso(),
@@ -4514,34 +4522,34 @@ export const useCwStore = create<CWState>((set, get) => ({
   },
 
   // PRICE LOCK: after submission, no edits allowed
-  submitEstimateLines: (appointmentId) => {
+  submitEstimateLines: (appointmentId, submittedByUserId) => {
     const ts = nowIso()
     set({
       estimateLines: get().estimateLines.map((l) =>
         l.appointmentId === appointmentId && l.status === 'Priced'
-          ? { ...l, status: 'Submitted' as const, submittedAt: ts, updatedAt: ts }
+          ? { ...l, status: 'Submitted' as const, submittedByUserId, submittedAt: ts, updatedAt: ts }
           : l,
       ),
     })
   },
 
-  approveEstimateLine: (id) => {
+  approveEstimateLine: (id, approvedByUserId) => {
     const ts = nowIso()
     set({
       estimateLines: get().estimateLines.map((l) =>
         l.id === id && l.status === 'Submitted'
-          ? { ...l, status: 'Approved' as const, approvedAt: ts, updatedAt: ts }
+          ? { ...l, status: 'Approved' as const, approvedByUserId, approvedAt: ts, updatedAt: ts }
           : l,
       ),
     })
   },
 
-  declineEstimateLine: (id) => {
+  declineEstimateLine: (id, declinedByUserId) => {
     const ts = nowIso()
     set({
       estimateLines: get().estimateLines.map((l) =>
         l.id === id && l.status === 'Submitted'
-          ? { ...l, status: 'Declined' as const, declinedAt: ts, updatedAt: ts }
+          ? { ...l, status: 'Declined' as const, declinedByUserId, declinedAt: ts, updatedAt: ts }
           : l,
       ),
     })
@@ -4589,12 +4597,12 @@ export const useCwStore = create<CWState>((set, get) => ({
     return po
   },
 
-  submitPurchaseOrder: (id) => {
+  submitPurchaseOrder: (id, submittedByUserId) => {
     const ts = nowIso()
     set({
       purchaseOrders: get().purchaseOrders.map((po) =>
         po.id === id && po.status === 'Draft'
-          ? { ...po, status: 'Pending Approval' as const, submittedAt: ts, updatedAt: ts }
+          ? { ...po, status: 'Pending Approval' as const, submittedByUserId, submittedAt: ts, updatedAt: ts }
           : po,
       ),
     })
@@ -4611,12 +4619,12 @@ export const useCwStore = create<CWState>((set, get) => ({
     })
   },
 
-  rejectPurchaseOrder: (id, reason) => {
+  rejectPurchaseOrder: (id, reason, rejectedByUserId) => {
     const ts = nowIso()
     set({
       purchaseOrders: get().purchaseOrders.map((po) =>
         po.id === id && po.status === 'Pending Approval'
-          ? { ...po, status: 'Rejected' as const, rejectedAt: ts, rejectionReason: reason, updatedAt: ts }
+          ? { ...po, status: 'Rejected' as const, rejectedByUserId, rejectedAt: ts, rejectionReason: reason, updatedAt: ts }
           : po,
       ),
     })
@@ -4664,6 +4672,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       poId: input.poId,
       receivedByUserId: input.receivedByUserId,
       receivedAt: ts,
+      createdAt: ts,
       lines: grnLines,
       notes: input.notes,
       discrepancyNotes: input.discrepancyNotes,
@@ -4724,11 +4733,12 @@ export const useCwStore = create<CWState>((set, get) => ({
     return req
   },
 
-  acknowledgeRequisition: (id) => {
+  acknowledgeRequisition: (id, acknowledgedByUserId) => {
+    const ts = nowIso()
     set({
       requisitions: get().requisitions.map((r) =>
         r.id === id && r.status === 'Created'
-          ? { ...r, status: 'Request Received' as const, updatedAt: nowIso() }
+          ? { ...r, status: 'Request Received' as const, acknowledgedByUserId, acknowledgedAt: ts, updatedAt: ts }
           : r,
       ),
     })
@@ -5009,12 +5019,12 @@ export const useCwStore = create<CWState>((set, get) => ({
     return inv
   },
 
-  issueInvoice: (id) => {
+  issueInvoice: (id, issuedByUserId) => {
     const ts = nowIso()
     set({
       invoices: get().invoices.map((inv) =>
         inv.id === id && inv.status === 'Draft'
-          ? { ...inv, status: 'Issued' as const, issuedAt: ts, updatedAt: ts }
+          ? { ...inv, status: 'Issued' as const, issuedByUserId, issuedAt: ts, updatedAt: ts }
           : inv,
       ),
     })

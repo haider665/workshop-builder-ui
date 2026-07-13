@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -22,6 +23,8 @@ import type { Column } from '../../components/DataTable'
 import { workshopApi } from '../../services/workshopApi'
 import type { CWPart, CWPartStatus } from '../../types/cw'
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
+import { useCwStore } from '../../store/cwStore'
+import { useSessionStore } from '../../store/sessionStore'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -40,6 +43,15 @@ const CATEGORY_PRESETS = [
   'Filters',
 ] as const
 
+const BRAND_OPTIONS = [
+  'Bosch', 'Denso', 'NGK', 'Brembo', 'Aisin', 'Monroe',
+  'Philips', 'Mishimoto', 'Magnaflow', 'Walbro', 'K&N',
+  'Mann', 'Hella', 'Continental', 'Valeo', 'Mahle',
+  'ACDelco', 'Delphi', 'Gates', 'SKF', 'Toyota Genuine',
+  'Honda Genuine', 'Hyundai Genuine', 'Nissan Genuine',
+  'OEM Direct', 'Shell', 'Mobil', 'Castrol',
+] as const
+
 /* ─────────────────────── Types ──────────────────────────────── */
 
 type PartDraft = {
@@ -52,6 +64,7 @@ type PartDraft = {
   rackLocation: string
   binNumber: string
   reorderLevel: string
+  defaultSellPrice: string
   stockCount: string
   status: CWPartStatus
 }
@@ -67,6 +80,7 @@ function emptyDraft(): PartDraft {
     rackLocation: '',
     binNumber: '',
     reorderLevel: '',
+    defaultSellPrice: '',
     stockCount: '',
     status: 'Active',
   }
@@ -113,6 +127,19 @@ export function InventoryTrackerPage() {
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [draft, setDraft] = useState<PartDraft>(emptyDraft())
+
+  const vehicles = useCwStore((s) => s.vehicles)
+  const users = useCwStore((s) => s.users)
+  const sessionUser = useSessionStore((s) => s.user)
+
+  const modelOptions = useMemo(
+    () => [...new Set(vehicles.map((v) => v.modelVariant || v.model).filter(Boolean) as string[]), 'Universal'],
+    [vehicles],
+  )
+  const getUserName = (id?: string) => users.find((u) => u.id === id)?.fullName || '—'
+
+  const formatSellPrice = (price?: number) =>
+    price != null ? `৳${price.toLocaleString('en-IN')}` : '—'
 
   async function loadInventory() {
     setLoading(true)
@@ -195,8 +222,10 @@ export function InventoryTrackerPage() {
       rackLocation: draft.rackLocation.trim() || undefined,
       binNumber: draft.binNumber.trim() || undefined,
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel) : undefined,
+      defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice) : undefined,
       stockCount: draft.stockCount.trim() ? Number(draft.stockCount) : undefined,
       status: draft.status,
+      createdByUserId: sessionUser?.id || '',
     })
       setCreateOpen(false)
       await loadInventory()
@@ -295,6 +324,25 @@ export function InventoryTrackerPage() {
       render: (part) => (
         <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[700] }}>
           {part.stockCount ?? 0} units
+        </Typography>
+      ),
+    },
+    {
+      key: 'sellPrice',
+      header: 'Sell Price',
+      align: 'right',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[700] }}>
+          {formatSellPrice(part.defaultSellPrice)}
+        </Typography>
+      ),
+    },
+    {
+      key: 'createdBy',
+      header: 'Created By',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
+          {getUserName(part.createdByUserId)}
         </Typography>
       ),
     },
@@ -610,17 +658,19 @@ export function InventoryTrackerPage() {
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            label="Brand"
+          <Autocomplete
+            freeSolo
+            options={BRAND_OPTIONS as unknown as string[]}
             value={draft.brand}
-            onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))}
-            fullWidth
+            onInputChange={(_e, val) => setDraft((d) => ({ ...d, brand: val }))}
+            renderInput={(params) => <TextField {...params} label="Brand" fullWidth />}
           />
-          <TextField
-            label="Model Variant"
+          <Autocomplete
+            freeSolo
+            options={modelOptions}
             value={draft.modelVariant}
-            onChange={(e) => setDraft((d) => ({ ...d, modelVariant: e.target.value }))}
-            fullWidth
+            onInputChange={(_e, val) => setDraft((d) => ({ ...d, modelVariant: val }))}
+            renderInput={(params) => <TextField {...params} label="Model Variant" fullWidth />}
           />
           <TextField
             label="Rack Location"
@@ -640,6 +690,13 @@ export function InventoryTrackerPage() {
             type="number"
             value={draft.reorderLevel}
             onChange={(e) => setDraft((d) => ({ ...d, reorderLevel: e.target.value }))}
+            fullWidth
+          />
+          <TextField
+            label="Default Sell Price"
+            type="number"
+            value={draft.defaultSellPrice}
+            onChange={(e) => setDraft((d) => ({ ...d, defaultSellPrice: e.target.value }))}
             fullWidth
           />
           <TextField

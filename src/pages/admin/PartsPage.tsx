@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -17,6 +18,17 @@ import type { Column } from '../../components/DataTable'
 import { workshopApi } from '../../services/workshopApi'
 import type { CWPart, CWPartStatus } from '../../types/cw'
 import { colors, pageLayout } from '../../theme/tokens'
+import { useSessionStore } from '../../store/sessionStore'
+import { useCwStore } from '../../store/cwStore'
+
+const BRAND_OPTIONS = [
+  'Bosch', 'Denso', 'NGK', 'Brembo', 'Aisin', 'Monroe',
+  'Philips', 'Mishimoto', 'Magnaflow', 'Walbro', 'K&N',
+  'Mann', 'Hella', 'Continental', 'Valeo', 'Mahle',
+  'ACDelco', 'Delphi', 'Gates', 'SKF', 'Toyota Genuine',
+  'Honda Genuine', 'Hyundai Genuine', 'Nissan Genuine',
+  'OEM Direct', 'Shell', 'Mobil', 'Castrol',
+]
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -43,6 +55,7 @@ type PartDraft = {
   rackLocation: string
   binNumber: string
   reorderLevel: string
+  defaultSellPrice: string
   stockCount: string
   status: CWPartStatus
 }
@@ -58,6 +71,7 @@ function emptyDraft(): PartDraft {
     rackLocation: '',
     binNumber: '',
     reorderLevel: '',
+    defaultSellPrice: '',
     stockCount: '',
     status: 'Active',
   }
@@ -68,6 +82,7 @@ function toDraft(part: CWPart): PartDraft {
     name: part.name,
     partNumber: part.partNumber,
     description: part.description ?? '',
+    defaultSellPrice: part.defaultSellPrice != null ? String(part.defaultSellPrice) : '',
     category: part.category ?? '',
     brand: part.brand ?? '',
     modelVariant: part.modelVariant ?? '',
@@ -90,6 +105,10 @@ const btnSx = {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function PartsPage() {
+  const sessionUser = useSessionStore((s) => s.user)
+  const vehicles = useCwStore((s) => s.vehicles)
+  const modelOptions = [...new Set(vehicles.map((v) => v.modelVariant || v.model).filter(Boolean)), 'Universal']
+
   const [parts, setParts] = useState<CWPart[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -139,8 +158,10 @@ export function PartsPage() {
       rackLocation: draft.rackLocation.trim() || undefined,
       binNumber: draft.binNumber.trim() || undefined,
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
+      defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice.trim()) : undefined,
       stockCount: draft.stockCount.trim() ? Number(draft.stockCount.trim()) : 0,
       status: draft.status,
+      createdByUserId: sessionUser?.id,
     })
       setCreateOpen(false)
       await loadParts()
@@ -262,6 +283,15 @@ export function PartsPage() {
           </Stack>
         )
       },
+    },
+    {
+      key: 'defaultSellPrice',
+      header: 'Sell Price',
+      render: (part) => (
+        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700], fontWeight: 600 }}>
+          {part.defaultSellPrice != null ? `৳${part.defaultSellPrice.toLocaleString()}` : '—'}
+        </Typography>
+      ),
     },
     {
       key: 'rackLocation',
@@ -389,6 +419,14 @@ export function PartsPage() {
             fullWidth
           />
           <TextField
+            label="Default Sell Price (৳)"
+            type="number"
+            value={draft.defaultSellPrice}
+            onChange={(e) => setDraft((d) => ({ ...d, defaultSellPrice: e.target.value }))}
+            helperText="Default selling price for this part."
+            fullWidth
+          />
+          <TextField
             label="Description"
             value={draft.description}
             onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
@@ -412,19 +450,23 @@ export function PartsPage() {
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            label="Brand"
+          <Autocomplete
+            freeSolo
+            options={BRAND_OPTIONS}
             value={draft.brand}
-            onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))}
-            placeholder="e.g. Bosch, Brembo, Denso"
-            fullWidth
+            onInputChange={(_e, val) => setDraft((d) => ({ ...d, brand: val }))}
+            renderInput={(params) => (
+              <TextField {...params} label="Brand" placeholder="Select or type brand" fullWidth />
+            )}
           />
-          <TextField
-            label="Model Variant"
+          <Autocomplete
+            freeSolo
+            options={modelOptions}
             value={draft.modelVariant}
-            onChange={(e) => setDraft((d) => ({ ...d, modelVariant: e.target.value }))}
-            placeholder="e.g. Sedan XLE, SUV Sport"
-            fullWidth
+            onInputChange={(_e, val) => setDraft((d) => ({ ...d, modelVariant: val }))}
+            renderInput={(params) => (
+              <TextField {...params} label="Model Variant" placeholder="Select or type model" fullWidth />
+            )}
           />
           <TextField
             label="Stock Count"

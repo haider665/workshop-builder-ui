@@ -1788,7 +1788,7 @@ export const workshopApi = {
     return request<ApiListResponse<import('../types/cw').CWPurchaseOrder>>(`/api/method/workshop.api.purchase_orders.list${buildQuery(params)}`)
   },
 
-  async createPurchaseOrder(input: { vendorId: string; currency: 'BDT' | 'USD' | 'EUR'; sourcingType: import('../types/cw').CWVendorSourcingType; expectedArrivalDate: string; advanceRequired?: boolean; lines: Array<{ partId: string; quantity: number; unitPrice: number; discount?: number; estimateLineId?: string }> }): Promise<import('../types/cw').CWPurchaseOrder> {
+  async createPurchaseOrder(input: { vendorId: string; currency: 'BDT' | 'USD' | 'EUR'; sourcingType: import('../types/cw').CWVendorSourcingType; expectedArrivalDate: string; advanceRequired?: boolean; createdByUserId?: string; lines: Array<{ partId: string; quantity: number; unitPrice: number; discount?: number; estimateLineId?: string }> }): Promise<import('../types/cw').CWPurchaseOrder> {
     return request<import('../types/cw').CWPurchaseOrder>('/api/method/workshop.api.purchase_orders.create', { method: 'POST', body: { data: input } })
   },
 
