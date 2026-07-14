@@ -325,7 +325,7 @@ export function JCAppointmentPage() {
     }
   }
 
-  function submitDiagnosisAssignment(skipBayWarning = false) {
+  async function submitDiagnosisAssignment(skipBayWarning = false) {
     try {
       setError(null)
       validateDiagnosisForm()
@@ -348,7 +348,7 @@ export function JCAppointmentPage() {
         const start = toIso(form.startLocal)
         const end = toIso(form.endLocal) || start
 
-        assignConcernDiagnosis({
+        await assignConcernDiagnosis({
           appointmentId: appt!.id,
           concernItemId: c.id,
           seUserId: form.seUserId,
@@ -403,7 +403,7 @@ export function JCAppointmentPage() {
     }
   }
 
-  function submitServiceAssignment(skipBayWarning = false) {
+  async function submitServiceAssignment(skipBayWarning = false) {
     try {
       setError(null)
       validateServiceForm()
@@ -456,7 +456,7 @@ export function JCAppointmentPage() {
           const startIso = toIso(form.startLocal)
           const endIso = toIso(form.endLocal) || startIso
 
-          assignServiceSE({
+          await assignServiceSE({
             appointmentId: appt!.id,
             serviceItemId: s.id,
             seUserId: form.seUserId,

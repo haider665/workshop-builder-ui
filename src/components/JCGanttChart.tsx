@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCwStore } from '../store/cwStore'
 
 type ViewMode = 'task' | 'bay' | 'team'
@@ -61,6 +61,10 @@ export function JCGanttChart({ fullPage = false }: { fullPage?: boolean } = {}) 
   const vehicles = useCwStore((s) => s.vehicles)
   const shops = useCwStore((s) => s.shops)
   const services = useCwStore((s) => s.services)
+  const refreshAppointments = useCwStore((s) => s.refreshAppointments)
+
+  // Fetch fresh appointments from backend on mount
+  useEffect(() => { refreshAppointments().catch(console.error) }, [refreshAppointments])
 
   const [selectedDate, setSelectedDate] = useState(localDateToday())
   const [viewMode, setViewMode] = useState<ViewMode>('task')

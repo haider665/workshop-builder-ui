@@ -919,10 +919,10 @@ type CWState = {
   updateServiceItemAssignment: (input: UpdateServiceItemAssignmentInput) => void
 
   // New flow: JC assigns SE to concerns/services, SE assigns technicians
-  assignConcernDiagnosis: (input: AssignConcernDiagnosisInput) => void
+  assignConcernDiagnosis: (input: AssignConcernDiagnosisInput) => Promise<void>
   assignConcernTechnicians: (input: AssignConcernTechniciansInput) => void
   setConcernWorkStatus: (input: SetConcernWorkStatusInput) => void
-  assignServiceSE: (input: AssignServiceSEInput) => void
+  assignServiceSE: (input: AssignServiceSEInput) => Promise<void>
   assignServiceTechnicians: (input: AssignServiceTechniciansInput) => void
   // Stage-level scheduling (JC assigns per stage)
   assignStageSchedule: (input: {
@@ -1039,6 +1039,7 @@ type CWState = {
   labelPartRequest: (id: string, input: LabelPartRequestInput) => void
   setPartRequestStatus: (id: string, status: CWPartRequestStatus) => Promise<void>
   refreshPartRequests: () => Promise<void>
+  refreshAppointments: () => Promise<void>
 
   // Vendor actions
   createVendor: (input: CreateVendorInput) => CWVendor
@@ -2751,7 +2752,8 @@ export const useCwStore = create<CWState>((set, get) => ({
 
   // ─── New flow: JC assigns SE to concerns/services, SE assigns technicians ────
 
-  assignConcernDiagnosis: (input) => {
+  assignConcernDiagnosis: async (input) => {
+    // Optimistic local update
     set({
       appointments: get().appointments.map((a) =>
         a.id === input.appointmentId
@@ -2774,7 +2776,18 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
-    syncBackend(workshopApi.assignConcernDiagnosis(input), 'assign concern diagnosis')
+    try {
+      const updated = await workshopApi.assignConcernDiagnosis(input)
+      // Merge backend response into store to ensure persisted state
+      set({
+        appointments: get().appointments.map((a) =>
+          a.id === updated.id ? updated : a,
+        ),
+      })
+    } catch (err) {
+      console.error('Failed to assign concern diagnosis', err)
+      throw err
+    }
   },
 
   assignConcernTechnicians: (input) => {
@@ -2821,7 +2834,8 @@ export const useCwStore = create<CWState>((set, get) => ({
     syncBackend(workshopApi.setConcernWorkStatus(input), 'concern work status')
   },
 
-  assignServiceSE: (input) => {
+  assignServiceSE: async (input) => {
+    // Optimistic local update
     set({
       appointments: get().appointments.map((a) =>
         a.id === input.appointmentId
@@ -2844,7 +2858,17 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
-    syncBackend(workshopApi.assignServiceSE(input), 'assign service SE')
+    try {
+      const updated = await workshopApi.assignServiceSE(input)
+      set({
+        appointments: get().appointments.map((a) =>
+          a.id === updated.id ? updated : a,
+        ),
+      })
+    } catch (err) {
+      console.error('Failed to assign service SE', err)
+      throw err
+    }
   },
 
   assignServiceTechnicians: (input) => {
@@ -4433,6 +4457,25 @@ export const useCwStore = create<CWState>((set, get) => ({
       page += 1
     }
     set({ partRequests: pages.flat() })
+  },
+
+  refreshAppointments: async () => {
+    const pageSize = 100
+    const first = await workshopApi.listAppointments({ page: 1, pageSize })
+    const total = first.meta.total ?? first.data.length
+    if (first.data.length >= total) {
+      set({ appointments: first.data })
+      return
+    }
+    const pages = [first.data]
+    let page = 2
+    while ((page - 1) * pageSize < total) {
+      const next = await workshopApi.listAppointments({ page, pageSize })
+      pages.push(next.data)
+      if (!next.data.length) break
+      page += 1
+    }
+    set({ appointments: pages.flat() })
   },
 
   // ── Vendor actions ──────────────────────────────────────────────────────────
