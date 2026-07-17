@@ -31,6 +31,7 @@ import { useNavigate } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import type { CWCustomerType } from '../../types/cw'
 import { colors, radii } from '../../theme/tokens'
 
@@ -42,6 +43,7 @@ type ParentCompanyMode = 'none' | 'existing' | 'new'
 
 export function CreateCustomerPage() {
   const navigate = useNavigate()
+  useCREData()
   const [saving, setSaving] = useState(false)
   const vehicles = useCwStore((s) => s.vehicles)
 
@@ -96,7 +98,7 @@ export function CreateCustomerPage() {
       if (!fullName.trim()) throw new Error('Name is required')
       if (!phone.trim()) throw new Error('Phone number is required')
 
-      await workshopApi.createCustomer({
+      const created = await workshopApi.createCustomer({
         fullName: fullName.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
@@ -128,6 +130,8 @@ export function CreateCustomerPage() {
             }
           : undefined,
       })
+      // Push into store so list updates immediately
+      useCwStore.setState((s) => ({ customers: [created, ...s.customers] }))
 
       navigate('/cre/customers')
     } catch (e) {

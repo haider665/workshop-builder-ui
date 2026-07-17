@@ -1,5 +1,6 @@
 export function CalendarPage() {
   return <TasksCalendarPage />
+  useBackendData()
 }
 
 import { Box, Button, ButtonGroup, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
@@ -10,6 +11,7 @@ import { SectionCard } from '../../components/SectionCard'
 import { colors, radii, shadows } from '../../theme/tokens'
 import { useSessionStore } from '../../store/sessionStore'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import type { CWTask } from '../../types/cw'
 
 type ViewMode = 'month' | 'week'

@@ -20,6 +20,7 @@ import { FieldRenderer } from '../../components/FieldRenderer'
 import { SectionCard } from '../../components/SectionCard'
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { useSessionStore } from '../../store/sessionStore'
 import { tasksService } from '../../services/tasks/tasksService'
 import type { CWTask, CWTaskField, CWTaskFieldValue, CWTaskStatus } from '../../types/cw'
@@ -62,6 +63,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 export function TaskDetailPage() {
   const { taskId } = useParams()
+  useBackendData()
 
   const navigate = useNavigate()
   const user = useSessionStore((s) => s.user)

@@ -29,6 +29,7 @@ import {
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
 
@@ -186,6 +187,7 @@ const bodyCellSx = {
 
 export function AppointmentsPage() {
   const appointments = useCwStore((s) => s.appointments)
+  useCREData()
   const customers = useCwStore((s) => s.customers)
   const vehicles = useCwStore((s) => s.vehicles)
   const navigate = useNavigate()

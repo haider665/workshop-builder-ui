@@ -22,6 +22,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
 
 function fmtDate(iso?: string) {
@@ -88,6 +89,7 @@ const statCardSx = (gradient: string) => ({
 
 export function QCAppointmentsPage() {
   const navigate = useNavigate()
+  useBackendData()
 
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)

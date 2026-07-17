@@ -23,6 +23,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { colors, radii } from '../../theme/tokens'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 
@@ -46,6 +47,7 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
 
 export function VehicleDetailPage() {
   const { vehicleId } = useParams()
+  useCREData()
   const navigate = useNavigate()
 
   const customers = useCwStore((s) => s.customers)

@@ -24,6 +24,7 @@ import { headerCellSx, bodyCellSx, tableSectionSx, tableHeaderSx, tableHeaderIco
 import { colors, radii, pageLayout } from '../../theme/tokens'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import type { CWTaskTemplate } from '../../types/cw'
 
 function toIsoFromLocal(value: string) {
@@ -68,6 +69,7 @@ const fieldSx = {
 
 export function NewJobPage() {
   const navigate = useNavigate()
+  useBackendData()
   const [params] = useSearchParams()
 
   const shops = useCwStore((s) => s.shops)

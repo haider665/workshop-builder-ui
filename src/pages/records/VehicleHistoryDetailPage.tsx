@@ -18,6 +18,7 @@ import { StatCard } from '../../components/StatCard'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import type { CWTaskStatus } from '../../types/cw'
 
 function statusChip(status: CWTaskStatus) {
@@ -29,6 +30,7 @@ function statusChip(status: CWTaskStatus) {
 
 export function VehicleHistoryDetailPage() {
   const { registrationNo } = useParams()
+  useBackendData()
   const navigate = useNavigate()
   const tasks = useCwStore((s) => s.tasks)
   const jobs = useCwStore((s) => s.jobs)

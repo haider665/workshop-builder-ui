@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, pageLayout } from '../../theme/tokens'
 import type { CWVehicleCategory, CWVehicleSize } from '../../types/cw'
 
@@ -58,6 +59,7 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
 
 export function CreateVehiclePage() {
   const navigate = useNavigate()
+  useCREData()
   const customers = useCwStore((s) => s.customers)
 
   const [error, setError] = useState<string | null>(null)
@@ -128,6 +130,8 @@ export function CreateVehiclePage() {
         additionalNotes: additionalNotes.trim() || undefined,
       })
 
+      // Push into store so list updates immediately
+      useCwStore.setState((s) => ({ vehicles: [created, ...s.vehicles] }))
       setSuccessOpen(true)
       setTimeout(() => navigate(`/cre/vehicles/${created.id}`), 800)
     } catch (e) {

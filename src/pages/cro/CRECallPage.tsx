@@ -23,6 +23,7 @@ import { Call, CallMade, CallReceived } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { StatCard } from '../../components/StatCard'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWCallDirection } from '../../types/cw'
@@ -39,6 +40,7 @@ function fmtDateTime(iso: string) {
 
 export function CRECallPage() {
   const callRecords = useCwStore((s) => s.callRecords)
+  useCREData()
   const addCallRecord = useCwStore((s) => s.addCallRecord)
   const customers = useCwStore((s) => s.customers)
   const appointments = useCwStore((s) => s.appointments)

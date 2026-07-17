@@ -29,6 +29,7 @@ import React, { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
@@ -88,6 +89,7 @@ const primaryBtnSx = {
 
 export function JCAppointmentPage() {
   const { appointmentId } = useParams<{ appointmentId: string }>()
+  useBackendData()
 
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
@@ -201,6 +203,12 @@ export function JCAppointmentPage() {
     if (!local) return ''
     const d = new Date(local)
     return Number.isNaN(d.getTime()) ? '' : d.toISOString()
+  }
+
+  /** Format a Date as 'YYYY-MM-DDTHH:MM' in LOCAL time for datetime-local inputs */
+  function toLocalInput(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
   function getConcernFormVal(id: string) {
@@ -682,8 +690,8 @@ export function JCAppointmentPage() {
                             onClick={() => setRelocateDialog({
                               open: true, itemType: 'concern', itemId: c.id, itemName: c.concernName,
                               bayId: c.bayId ?? '', seUserId: c.assignedSEUserId ?? '',
-                              startLocal: c.plannedStartAt ? new Date(c.plannedStartAt).toISOString().slice(0, 16) : '',
-                              endLocal: c.plannedEndAt ? new Date(c.plannedEndAt).toISOString().slice(0, 16) : '',
+                              startLocal: c.plannedStartAt ? toLocalInput(new Date(c.plannedStartAt)) : '',
+                              endLocal: c.plannedEndAt ? toLocalInput(new Date(c.plannedEndAt)) : '',
                             })}>
                             <SwapHoriz sx={{ fontSize: '1rem', color: colors.slate[600] }} />
                           </IconButton>
@@ -805,8 +813,8 @@ export function JCAppointmentPage() {
                             onClick={() => setRelocateDialog({
                               open: true, itemType: 'service', itemId: s.id, itemName: s.serviceDescription,
                               bayId: s.bayId ?? '', seUserId: s.assignedSEUserId ?? '',
-                              startLocal: s.plannedStartAt ? new Date(s.plannedStartAt).toISOString().slice(0, 16) : '',
-                              endLocal: s.plannedEndAt ? new Date(s.plannedEndAt).toISOString().slice(0, 16) : '',
+                              startLocal: s.plannedStartAt ? toLocalInput(new Date(s.plannedStartAt)) : '',
+                              endLocal: s.plannedEndAt ? toLocalInput(new Date(s.plannedEndAt)) : '',
                             })}>
                             <SwapHoriz sx={{ fontSize: '1rem', color: colors.slate[600] }} />
                           </IconButton>
@@ -919,7 +927,7 @@ export function JCAppointmentPage() {
                           if (startVal && mins > 0) {
                             const d = new Date(startVal)
                             d.setMinutes(d.getMinutes() + mins)
-                            updates.endLocal = d.toISOString().slice(0, 16)
+                            updates.endLocal = toLocalInput(d)
                           }
                           setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), ...updates } }))
                         }}
@@ -1025,7 +1033,7 @@ export function JCAppointmentPage() {
                                     if (startVal && stage.durationMins > 0) {
                                       const d = new Date(startVal)
                                       d.setMinutes(d.getMinutes() + stage.durationMins)
-                                      updates.endLocal = d.toISOString().slice(0, 16)
+                                      updates.endLocal = toLocalInput(d)
                                     }
                                     setServiceForm((prev) => {
                                       const updated = { ...prev, [stageKey]: { ...form, ...updates } }
@@ -1036,7 +1044,7 @@ export function JCAppointmentPage() {
                                         const nextForm = prev[nextKey] ?? { teamId: '', seUserId: '', bayId: '', startLocal: '', endLocal: '', bufferMins: '0' }
                                         const nextEnd = new Date(updates.endLocal)
                                         nextEnd.setMinutes(nextEnd.getMinutes() + nextStage.durationMins)
-                                        updated[nextKey] = { ...nextForm, startLocal: updates.endLocal, endLocal: nextEnd.toISOString().slice(0, 16) }
+                                        updated[nextKey] = { ...nextForm, startLocal: updates.endLocal, endLocal: toLocalInput(nextEnd) }
                                       }
                                       return updated
                                     })
@@ -1125,7 +1133,7 @@ export function JCAppointmentPage() {
                           if (startVal && mins > 0) {
                             const d = new Date(startVal)
                             d.setMinutes(d.getMinutes() + mins)
-                            updates.endLocal = d.toISOString().slice(0, 16)
+                            updates.endLocal = toLocalInput(d)
                           }
                           setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), ...updates } }))
                         }}
@@ -1210,7 +1218,7 @@ export function JCAppointmentPage() {
                           if (startVal && mins > 0) {
                             const d = new Date(startVal)
                             d.setMinutes(d.getMinutes() + mins)
-                            updates.endLocal = d.toISOString().slice(0, 16)
+                            updates.endLocal = toLocalInput(d)
                           }
                           setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), ...updates } }))
                         }}

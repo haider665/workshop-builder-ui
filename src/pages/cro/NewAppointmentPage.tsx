@@ -35,6 +35,7 @@ import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii } from '../../theme/tokens'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import type { CWConcern, CWService } from '../../types/cw'
 
 const HOURS = [
@@ -80,6 +81,7 @@ const fieldSx = {
 
 export function NewAppointmentPage() {
   const navigate = useNavigate()
+  useCREData()
   const [searchParams] = useSearchParams()
 
   const vehicles = useCwStore((s) => s.vehicles)
@@ -93,14 +95,24 @@ export function NewAppointmentPage() {
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const shops = useCwStore((s) => s.shops)
 
-  const saRoleId = useMemo(
-    () => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id,
-    [roles],
-  )
-  const saUsers = useMemo(
-    () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
-    [users, saRoleId],
-  )
+  const saRoleId = useMemo(() => {
+    const match = roles.find((r) => {
+      const n = r.name.toLowerCase().trim()
+      return n === 'sa' || n === 'service advisor'
+    })
+    if (!match && roles.length) {
+      console.warn('[NewAppointmentPage] SA role not found. Available roles:', roles.map((r) => ({ id: r.id, name: r.name })))
+    }
+    return match?.id
+  }, [roles])
+
+  const saUsers = useMemo(() => {
+    const filtered = users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId))
+    if (!filtered.length && users.length) {
+      console.warn('[NewAppointmentPage] No SA users found. saRoleId:', saRoleId, 'Users roleIds:', users.slice(0, 3).map((u) => ({ name: u.fullName, roleIds: u.roleIds })))
+    }
+    return filtered
+  }, [users, saRoleId])
 
   // Customer → Vehicle selection (customer-first flow)
   const initVehicleId = searchParams.get('vehicleId') ?? ''

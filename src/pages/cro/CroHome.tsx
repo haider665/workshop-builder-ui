@@ -28,6 +28,7 @@ import {
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
@@ -258,6 +259,7 @@ const bodyCellSx = {
 
 export function CroHome() {
   const navigate = useNavigate()
+  useCREData()
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const customers = useCwStore((s) => s.customers)
   const vehicles = useCwStore((s) => s.vehicles)

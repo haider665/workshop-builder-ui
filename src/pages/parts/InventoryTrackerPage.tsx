@@ -24,6 +24,7 @@ import { workshopApi } from '../../services/workshopApi'
 import type { CWPart, CWPartStatus } from '../../types/cw'
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { useSessionStore } from '../../store/sessionStore'
 
 /* ─────────────────────── Constants ─────────────────────────── */
@@ -118,6 +119,7 @@ const stockChipProps: Record<StockLevel, { bg: string; color: string }> = {
 
 export function InventoryTrackerPage() {
   const [parts, setParts] = useState<CWPart[]>([])
+  useBackendData()
   const [lowStockItems, setLowStockItems] = useState<Array<{ id: string; name: string; partNumber: string; reorderLevel: number; stockCount: number; remaining: number; vendorName?: string | null }>>([])
   const [slowMoverItems, setSlowMoverItems] = useState<Array<{ id: string; name: string; partNumber?: string; stockCount: number; daysInStock: number; lastMovementDate: string }>>([])
   const [vendorNames, setVendorNames] = useState<Record<string, string | null>>({})

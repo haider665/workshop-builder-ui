@@ -23,6 +23,7 @@ import { NotificationsActive, Send, Cancel, Schedule, CheckCircle, Inbox } from 
 import { useMemo, useState } from 'react'
 import { StatCard } from '../../components/StatCard'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii } from '../../theme/tokens'
 import type { CWReminderType } from '../../types/cw'
@@ -40,6 +41,7 @@ const TEMPLATES: { type: CWReminderType; label: string; message: string; daysFro
 
 export function CRERemindersPage() {
   const reminders = useCwStore((s) => s.reminders)
+  useCREData()
   const createReminder = useCwStore((s) => s.createReminder)
   const markReminderSent = useCwStore((s) => s.markReminderSent)
   const cancelReminder = useCwStore((s) => s.cancelReminder)

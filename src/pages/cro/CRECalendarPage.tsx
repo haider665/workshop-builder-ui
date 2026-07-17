@@ -2,9 +2,11 @@ import { useMemo } from 'react'
 import { Page } from '../../components/Page'
 import { AppointmentCalendar } from '../../components/AppointmentCalendar'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 
 export function CRECalendarPage() {
   const appointments = useCwStore((s) => s.appointments)
+  useCREData()
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
 

@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
 
 /* ─────────────── Helpers (outside component) ─────────────── */
@@ -142,6 +143,7 @@ const bodyCellSx = {
 
 export function CustomerDetailPage() {
   const { customerId } = useParams()
+  useCREData()
   const navigate = useNavigate()
 
   const customers = useCwStore((s) => s.customers)

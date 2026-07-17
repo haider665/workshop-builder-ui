@@ -4,6 +4,7 @@ import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded'
 import { SectionCard } from '../../components/SectionCard'
 import { AppointmentCalendar } from '../../components/AppointmentCalendar'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { colors } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
 
@@ -30,6 +31,7 @@ const SA_STATUSES: CWAppointmentStatus[] = [
 
 export function SACalendarPage() {
   const appointments = useCwStore((s) => s.appointments)
+  useBackendData()
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
 

@@ -27,6 +27,7 @@ import {
 import { useMemo, useState } from 'react'
 import { colors, pageLayout, radii, shadows } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 
 
 /* ─────────────────────── Helpers ─────────────────────────────── */
@@ -118,6 +119,7 @@ const chipColors: Record<string, { bg: string; color: string }> = {
 
 export function CounterDeskPage() {
   const [search, setSearch] = useState('')
+  useBackendData()
 
   /* ── Store data ── */
 

@@ -21,6 +21,7 @@ import { StatCard } from '../../components/StatCard'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 
 /* ─── chip helpers (defined outside component to prevent focus-loss) ─── */
 
@@ -40,6 +41,7 @@ function apptChip(status: string) {
 
 export function PendingVehiclesPage() {
   const navigate = useNavigate()
+  useBackendData()
 
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)
   const customers = useCwStore((s) => s.customers)

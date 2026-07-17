@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react'
 import { StatCard } from '../../components/StatCard'
 import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii } from '../../theme/tokens'
 
 function localDateToday() {
@@ -68,6 +69,7 @@ function bayBg(status: string, occupied: boolean): string {
 
 export function JCBayManagementPage() {
   const bays = useCwStore((s) => s.bays)
+  useBackendData()
   const shops = useCwStore((s) => s.shops)
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)

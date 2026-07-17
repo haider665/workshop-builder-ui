@@ -36,6 +36,7 @@ import { StatCard } from '../../components/StatCard'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 
@@ -110,6 +111,7 @@ function ActionCard({ borderColor, children }: { borderColor: string; children: 
 
 export function AppointmentDetailPage() {
   const { appointmentId } = useParams<{ appointmentId: string }>()
+  useCREData()
   const navigate = useNavigate()
 
   const appointments = useCwStore((s) => s.appointments)

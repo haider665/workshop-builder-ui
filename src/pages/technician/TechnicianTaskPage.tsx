@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { colors, radii, shadows } from '../../theme/tokens'
 
@@ -49,6 +50,7 @@ function timerGradient(status: string) {
 
 export function TechnicianTaskPage() {
   const navigate = useNavigate()
+  useBackendData()
   const { appointmentId, itemType, itemId } = useParams<{
     appointmentId: string
     itemType: string

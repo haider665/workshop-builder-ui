@@ -22,6 +22,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWTechnicianAssignment } from '../../types/cw'
@@ -180,6 +181,7 @@ const bodyCellSx = {
 
 export function TechnicianDashboardPage() {
   const navigate = useNavigate()
+  useBackendData()
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)

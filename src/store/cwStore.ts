@@ -1845,6 +1845,16 @@ export const useCwStore = create<CWState>((set, get) => ({
       return pages.flat()
     }
 
+    // Safe wrapper — one failing endpoint won't kill the rest
+    const safe = async <T,>(label: string, fn: () => Promise<T[]>): Promise<T[]> => {
+      try {
+        return await fn()
+      } catch (err) {
+        console.warn(`[hydrate] ${label} failed, using empty fallback:`, err)
+        return []
+      }
+    }
+
     const [
       shops,
       bays,
@@ -1865,30 +1875,30 @@ export const useCwStore = create<CWState>((set, get) => ({
       reminders,
       partRequests,
     ] = await Promise.all([
-      workshopApi.listShops(),
-      fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize })),
-      workshopApi.listRoles(false),
-      fetchAll((page, pageSize) => workshopApi.listUsers({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listCustomers({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listVehicles({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listAppointments({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listConcernCategories({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listConcerns({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listServices({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listTeams({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listTaskTemplates({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listPendingVehicles({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listJobs({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listTasks({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listCallRecords({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listReminders({ page, pageSize })),
-      fetchAll((page, pageSize) => workshopApi.listPartRequests({ page, pageSize })),
+      safe('shops', async () => (await workshopApi.listShops()).data),
+      safe('bays', () => fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize }))),
+      safe('roles', async () => (await workshopApi.listRoles(false)).data),
+      safe('users', () => fetchAll((page, pageSize) => workshopApi.listUsers({ page, pageSize }))),
+      safe('customers', () => fetchAll((page, pageSize) => workshopApi.listCustomers({ page, pageSize }))),
+      safe('vehicles', () => fetchAll((page, pageSize) => workshopApi.listVehicles({ page, pageSize }))),
+      safe('appointments', () => fetchAll((page, pageSize) => workshopApi.listAppointments({ page, pageSize }))),
+      safe('concernCategories', () => fetchAll((page, pageSize) => workshopApi.listConcernCategories({ page, pageSize }))),
+      safe('concerns', () => fetchAll((page, pageSize) => workshopApi.listConcerns({ page, pageSize }))),
+      safe('services', () => fetchAll((page, pageSize) => workshopApi.listServices({ page, pageSize }))),
+      safe('teams', () => fetchAll((page, pageSize) => workshopApi.listTeams({ page, pageSize }))),
+      safe('taskTemplates', () => fetchAll((page, pageSize) => workshopApi.listTaskTemplates({ page, pageSize }))),
+      safe('pendingVehicles', () => fetchAll((page, pageSize) => workshopApi.listPendingVehicles({ page, pageSize }))),
+      safe('jobs', () => fetchAll((page, pageSize) => workshopApi.listJobs({ page, pageSize }))),
+      safe('tasks', () => fetchAll((page, pageSize) => workshopApi.listTasks({ page, pageSize }))),
+      safe('callRecords', () => fetchAll((page, pageSize) => workshopApi.listCallRecords({ page, pageSize }))),
+      safe('reminders', () => fetchAll((page, pageSize) => workshopApi.listReminders({ page, pageSize }))),
+      safe('partRequests', () => fetchAll((page, pageSize) => workshopApi.listPartRequests({ page, pageSize }))),
     ])
 
     set({
-      shops: shops.data,
+      shops,
       bays,
-      roles: roles.data,
+      roles,
       users,
       customers,
       vehicles,

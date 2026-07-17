@@ -31,6 +31,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWCustomerType } from '../../types/cw'
 
@@ -133,6 +134,7 @@ const bodyCellSx = {
 /* ═══════════════════════ Main Component ═══════════════════ */
 
 export function CustomersPage() {
+  useCREData()
   const customers = useCwStore((s) => s.customers)
   const vehicles = useCwStore((s) => s.vehicles)
   const navigate = useNavigate()
@@ -200,6 +202,8 @@ export function CustomersPage() {
     try {
       setError(null)
       const created = await workshopApi.createCustomer({ fullName, phone, email })
+      // Push into store so list updates immediately
+      useCwStore.setState((s) => ({ customers: [created, ...s.customers] }))
       setFullName('')
       setPhone('')
       setEmail('')

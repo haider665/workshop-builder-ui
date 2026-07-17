@@ -19,9 +19,11 @@ import { StatCard } from '../../components/StatCard'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 
 export function EmployeeRecordsPage() {
   const navigate = useNavigate()
+  useBackendData()
   const users = useCwStore((s) => s.users)
   const roles = useCwStore((s) => s.roles)
   const tasks = useCwStore((s) => s.tasks)

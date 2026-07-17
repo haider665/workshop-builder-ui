@@ -40,7 +40,7 @@ function roleFromBackend(session: AuthSessionDto): Role[] {
     roles.add('Admin')
   }
   if (hasAnyRole(roleIds, ['Guard', 'CW Guard'])) roles.add('Guard')
-  if (hasAnyRole(roleIds, ['Job Creation', 'CW Job Creation'])) roles.add('Job Creation')
+  if (hasAnyRole(roleIds, ['Job Creation', 'JC', 'Job Controller', 'CW Job Creation'])) roles.add('Job Creation')
   if (hasAnyRole(roleIds, ['CRE', 'CW CRE'])) roles.add('CRE')
   if (hasAnyRole(roleIds, ['Technician', 'CW Technician'])) roles.add('Technician')
   if (hasAnyRole(roleIds, ['Service Advisor', 'SA', 'CW Service Advisor'])) roles.add('Service Advisor')

@@ -11,7 +11,8 @@ function firstLanding(roles: string[]) {
   if (roles.includes('QC')) return '/qc/appointments'
   if (roles.includes('Technician')) return '/technician'
   if (roles.includes('Parts')) return '/parts/inventory'
-  return '/tasks'
+  console.warn('[LandingRedirect] No role matched. roles:', roles)
+  return '/notifications'
 }
 
 export function LandingRedirect() {

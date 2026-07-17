@@ -39,6 +39,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { useCwStore, buildDefaultInspectionChecks } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
@@ -77,6 +78,7 @@ function partStatusColor(status: string): 'success' | 'info' | 'error' | 'warnin
 
 export function SAAppointmentDetailPage() {
   const { appointmentId } = useParams<{ appointmentId: string }>()
+  useBackendData()
   const navigate = useNavigate()
 
   const appointments = useCwStore((s) => s.appointments)

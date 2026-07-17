@@ -25,6 +25,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
@@ -52,6 +53,7 @@ function workStatusColor(s?: string): 'default' | 'info' | 'warning' | 'success'
 
 export function QCAppointmentDetailPage() {
   const { appointmentId } = useParams<{ appointmentId: string }>()
+  useBackendData()
   const navigate = useNavigate()
 
   const appointments = useCwStore((s) => s.appointments)

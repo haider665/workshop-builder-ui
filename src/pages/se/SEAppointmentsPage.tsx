@@ -27,6 +27,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
 
@@ -111,6 +112,7 @@ const statCardSx = (gradient: string) => ({
 
 export function SEAppointmentsPage() {
   const navigate = useNavigate()
+  useBackendData()
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)

@@ -18,6 +18,7 @@ import { StatCard } from '../../components/StatCard'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import type { CWJob, CWTask } from '../../types/cw'
 
 function lastActivityIsoForRegistration(reg: string, tasks: CWTask[], jobs: CWJob[]) {
@@ -36,6 +37,7 @@ function lastActivityIsoForRegistration(reg: string, tasks: CWTask[], jobs: CWJo
 
 export function VehicleHistoryPage() {
   const navigate = useNavigate()
+  useBackendData()
   const tasks = useCwStore((s) => s.tasks)
   const jobs = useCwStore((s) => s.jobs)
   const pendingVehicles = useCwStore((s) => s.pendingVehicles)

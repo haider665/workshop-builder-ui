@@ -23,6 +23,8 @@ import { StatCard } from '../../components/StatCard'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useCREData } from '../../hooks/useCREData'
+
 
 function includesLoose(haystack: string, needle: string) {
   return haystack.toLowerCase().includes(needle.toLowerCase())
@@ -33,6 +35,7 @@ function statusChipColor(status: string): 'success' | 'default' {
 }
 
 export function VehiclesPage() {
+  useCREData()
   const customers = useCwStore((s) => s.customers)
   const vehicles = useCwStore((s) => s.vehicles)
   const navigate = useNavigate()

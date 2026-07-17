@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import { Page } from '../../components/Page'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import { AppointmentCalendar } from '../../components/AppointmentCalendar'
 
 export function JCCalendarPage() {
   const appointments = useCwStore((s) => s.appointments)
+  useBackendData()
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
 

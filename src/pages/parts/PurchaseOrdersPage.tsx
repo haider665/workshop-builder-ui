@@ -35,6 +35,7 @@ import type { CWPurchaseOrder, CWPurchaseOrderStatus, CWGRNLineCondition } from 
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 import { useSessionStore } from '../../store/sessionStore'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -128,6 +129,7 @@ const btnSx = {
 
 export function PurchaseOrdersPage() {
   const [purchaseOrders, setPurchaseOrders] = useState<CWPurchaseOrder[]>([])
+  useBackendData()
   const [vendors, setVendors] = useState<import('../../types/cw').CWVendor[]>([])
   const [parts, setParts] = useState<import('../../types/cw').CWPart[]>([])
   const [loading, setLoading] = useState(true)

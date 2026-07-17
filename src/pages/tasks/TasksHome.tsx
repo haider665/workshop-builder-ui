@@ -23,6 +23,7 @@ import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIco
 import { colors, radii } from '../../theme/tokens'
 import { useSessionStore } from '../../store/sessionStore'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import type { CWAppointmentStatus, CWTask, CWTaskStatus, CWTaskTemplate } from '../../types/cw'
 import { tasksService } from '../../services/tasks/tasksService'
 
@@ -79,6 +80,7 @@ const statusColorMap: Record<string, 'default' | 'info' | 'warning' | 'success' 
 
 export function TasksHome() {
   const user = useSessionStore((s) => s.user)
+  useBackendData()
   const navigate = useNavigate()
 
   const tasks = useCwStore((s) => s.tasks)

@@ -36,6 +36,7 @@ import { StatCard } from '../../components/StatCard'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii, pageLayout } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
+import { useBackendData } from '../../hooks/useCREData'
 import type { CWJobStatus, CWTaskStatus } from '../../types/cw'
 
 function toIsoFromLocal(value: string) {
@@ -60,6 +61,7 @@ function jobStatusChip(status: CWJobStatus) {
 
 export function JobDetailsPage() {
   const { jobId } = useParams()
+  useBackendData()
   const navigate = useNavigate()
 
   const jobs = useCwStore((s) => s.jobs)
