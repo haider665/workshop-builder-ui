@@ -1768,6 +1768,20 @@ export const workshopApi = {
     return request<import('../types/cw').CWVendorPartPrice>('/api/method/workshop.api.vendor_part_prices.upsert', { method: 'POST', body: { data: input } })
   },
 
+  async createEstimateLine(input: {
+    appointmentId: string
+    concernItemId?: string
+    partRequestId?: string
+    description: string
+    partId?: string
+    partNumber?: string
+    partName?: string
+    quantity?: number
+    mediaUrls?: string[]
+  }): Promise<import('../types/cw').CWEstimateLine> {
+    return request<import('../types/cw').CWEstimateLine>('/api/method/workshop.api.estimate_lines.create', { method: 'POST', body: input })
+  },
+
   async listEstimateLines(params: { appointmentId?: string; status?: import('../types/cw').CWEstimateLineStatus; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWEstimateLine>> {
     return request<ApiListResponse<import('../types/cw').CWEstimateLine>>(`/api/method/workshop.api.estimate_lines.list${buildQuery(params)}`)
   },

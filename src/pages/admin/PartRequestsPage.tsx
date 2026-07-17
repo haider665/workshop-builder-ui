@@ -46,8 +46,6 @@ export function PartRequestsPage() {
   const labelPartRequest = useCwStore((s) => s.labelPartRequest)
   const setPartRequestStatus = useCwStore((s) => s.setPartRequestStatus)
   const refreshPartRequests = useCwStore((s) => s.refreshPartRequests)
-  const createEstimateLine = useCwStore((s) => s.createEstimateLine)
-  const identifyEstimateLine = useCwStore((s) => s.identifyEstimateLine)
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
@@ -141,22 +139,17 @@ export function PartRequestsPage() {
     const part = activePartOptions.find((p) => p.partNumber === pr.partNumber)
     if (!part) return
 
-    // Create estimate line (status: Requested, then immediately identify)
     try {
-      const line = createEstimateLine({
+      // Create estimate line in backend directly (with partId → status: Identified)
+      await workshopApi.createEstimateLine({
         appointmentId: pr.appointmentId,
         concernItemId: pr.concernItemId,
+        partRequestId: pr.id,
         description: pr.partName,
-        requestedByUserId: pr.requestedBy,
-        quantity: pr.quantity ?? 1,
-      })
-
-      // Immediately identify with catalog part
-      identifyEstimateLine(line.id, {
         partId: part.id,
         partNumber: part.partNumber,
         partName: part.name,
-        identifiedByUserId: sessionUser?.id || '',
+        quantity: pr.quantity ?? 1,
       })
 
       // Mark part request as fulfilled (awaits backend)

@@ -1,39 +1,28 @@
-import { useEffect, useMemo, useState } from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
+  Alert,
   Box,
   Button,
   Chip,
-  Divider,
+  FormControl,
+  IconButton,
+  MenuItem,
+  Select,
+  Snackbar,
   Stack,
   Tab,
   Tabs,
+  TextField,
   Typography,
 } from '@mui/material'
-import {
-  Check,
-  Close,
-  HourglassBottom,
-  Image as ImageIcon,
-  Send,
-} from '@mui/icons-material'
-import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
-import { workshopApi } from '../../services/workshopApi'
-import type { CWEstimateLine, CWEstimateLineStatus } from '../../types/cw'
+import {Delete, Image as ImageIcon, Lock, Search, Send,} from '@mui/icons-material'
+import {colors, pageLayout, radii, shadows} from '../../theme/tokens'
+import {workshopApi} from '../../services/workshopApi'
+import type {CWEstimateLine, CWEstimateLineStatus, CWPart} from '../../types/cw'
 
-/* ─────────────────────── Helpers ─────────────────────────── */
+/* ─────────────────────── Constants ─────────────────────────── */
 
-function fmtBDT(n?: number) {
-  if (n == null) return '—'
-  return `৳${n.toLocaleString()}`
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
-}
+const SOURCING_TYPES = ['OEM', 'Genuine', 'Aftermarket', 'In Stock', 'Purchase', 'Transfer'] as const
 
 const STATUS_COLOR: Record<CWEstimateLineStatus, string> = {
   Requested: colors.accent.amber,
@@ -46,21 +35,36 @@ const STATUS_COLOR: Record<CWEstimateLineStatus, string> = {
   'Substitution Required': colors.status.warning,
 }
 
+const QUEUE_TABS = ['All', 'Requested', 'Identified'] as const
+type QueueTab = (typeof QUEUE_TABS)[number]
+
+/* ─────────────────────── Helpers ─────────────────────────── */
+
+function fmtBDT(n?: number) {
+  if (n == null) return '—'
+  return `৳${n.toLocaleString()}`
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 function statusBg(status: CWEstimateLineStatus) {
   const c = STATUS_COLOR[status] ?? colors.slate[400]
-  return `${c}18` // 10% opacity hex suffix
+  return `${c}18`
 }
 
 function statusFg(status: CWEstimateLineStatus) {
   return STATUS_COLOR[status] ?? colors.slate[600]
 }
 
-const FILTER_TABS = ['All', 'Requested', 'Identified', 'Priced', 'Submitted'] as const
-type FilterTab = (typeof FILTER_TABS)[number]
+/* ─────────────────────── Part Card (Left Panel) ─────────────────────────── */
 
-/* ─────────────────────── Requirement Card ─────────────────────────── */
+function PartCard({ line, onAddToEstimate }: { line: CWEstimateLine; onAddToEstimate: (line: CWEstimateLine) => void }) {
+  const isRequested = line.status === 'Requested'
+  const isIdentified = line.status === 'Identified'
+  const canAdd = isRequested || isIdentified
 
-function RequirementCard({ line }: { line: CWEstimateLine }) {
   return (
     <Box
       sx={{
@@ -70,255 +74,256 @@ function RequirementCard({ line }: { line: CWEstimateLine }) {
         boxShadow: shadows.card,
         p: 2,
         display: 'flex',
-        flexDirection: 'column',
-        gap: 1.5,
-        transition: 'box-shadow 0.15s',
-        '&:hover': { boxShadow: shadows.elevated },
+        gap: 2,
+        alignItems: 'flex-start',
+        transition: 'box-shadow 0.15s, border-color 0.15s',
+        cursor: canAdd ? 'pointer' : 'default',
+        '&:hover': canAdd ? { boxShadow: shadows.elevated, borderColor: colors.accent.blue } : {},
       }}
+      onClick={() => canAdd && onAddToEstimate(line)}
     >
-      {/* Top row: status + appointment */}
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-        <Chip
-          label={line.status}
-          size="small"
-          sx={{
-            bgcolor: statusBg(line.status),
-            color: statusFg(line.status),
-            fontWeight: 700,
-            fontSize: '0.7rem',
-            height: 24,
-            borderRadius: radii.sm,
-          }}
-        />
-        <Typography
-          sx={{
-            fontSize: '0.75rem',
-            color: colors.accent.blue,
-            fontWeight: 600,
-            cursor: 'pointer',
-            '&:hover': { textDecoration: 'underline' },
-          }}
-        >
-          {line.appointmentId}
-        </Typography>
-      </Stack>
+      {/* Thumbnail / placeholder */}
+      <Box
+        sx={{
+          width: 64,
+          height: 64,
+          borderRadius: radii.sm,
+          bgcolor: colors.bg.subtle,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {line.mediaUrls && line.mediaUrls.length > 0 ? (
+          <Box component="img" src={line.mediaUrls[0]} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: radii.sm }} />
+        ) : (
+          <ImageIcon sx={{ fontSize: 28, color: colors.slate[300] }} />
+        )}
+      </Box>
 
-      {/* Description */}
-      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[800], lineHeight: 1.4 }}>
-        {line.description}
-      </Typography>
+      {/* Info */}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: colors.slate[900] }}>
+            {line.partName ?? line.description}
+          </Typography>
+          <Chip
+            label={line.status}
+            size="small"
+            sx={{ fontWeight: 700, fontSize: '0.6rem', height: 20, bgcolor: statusBg(line.status), color: statusFg(line.status), flexShrink: 0, ml: 1 }}
+          />
+        </Stack>
 
-      {/* Part info (if identified) */}
-      {line.partName && (
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-            {line.partNumber}
-          </Typography>
-          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[700], fontWeight: 600 }}>
-            {line.partName}
-          </Typography>
-          {line.sourcingType && (
-            <Chip label={line.sourcingType} size="small" sx={{ fontSize: '0.65rem', height: 20, bgcolor: colors.bg.subtle }} />
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
+          <Chip label={`Qty: ${line.quantity}`} size="small" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: colors.accent.amber + '20', color: colors.accent.amber }} />
+          {line.partNumber && (
+            <Chip label={line.partNumber} size="small" sx={{ fontWeight: 600, fontSize: '0.65rem', height: 20, fontFamily: 'monospace', bgcolor: colors.bg.subtle }} />
           )}
-        </Stack>
-      )}
-
-      {/* Pricing row */}
-      {line.sellPrice != null && (
-        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-          <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
-            Unit: {fmtBDT(line.unitPrice)}
-          </Typography>
-          <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: colors.slate[900] }}>
-            Sell: {fmtBDT(line.sellPrice)}
-          </Typography>
-          <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
-            Qty: {line.quantity}
-          </Typography>
-        </Stack>
-      )}
-
-      {/* Media thumbnails placeholder */}
-      {line.mediaUrls && line.mediaUrls.length > 0 && (
-        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-          <ImageIcon sx={{ fontSize: 16, color: colors.slate[400] }} />
-          <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400] }}>
-            {line.mediaUrls.length} attachment{line.mediaUrls.length > 1 ? 's' : ''}
-          </Typography>
-        </Stack>
-      )}
-
-      {/* Footer: requester + date + actions */}
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400] }}>
-            By: {line.requestedByUserId}
-          </Typography>
-          <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400] }}>
-            {fmtDate(line.createdAt)}
-          </Typography>
           {line.inStock && (
-            <Chip label="In Stock" size="small" sx={{ fontSize: '0.6rem', height: 18, bgcolor: `${colors.status.success}18`, color: colors.status.success, fontWeight: 700 }} />
+            <Chip label="In Stock" size="small" sx={{ fontWeight: 700, fontSize: '0.6rem', height: 18, bgcolor: `${colors.status.success}18`, color: colors.status.success }} />
           )}
         </Stack>
-        <ActionButton status={line.status} />
-      </Stack>
+
+        <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400], mt: 0.5 }}>
+          By: {line.requestedByUserId} · {fmtDate(line.createdAt)}
+        </Typography>
+      </Box>
+
+      {/* View icon */}
+      <IconButton size="small" sx={{ flexShrink: 0, color: colors.slate[400] }}>
+        <Search sx={{ fontSize: 18 }} />
+      </IconButton>
     </Box>
   )
 }
 
-/* ─────────────────────── Action Button ─────────────────────────── */
+/* ─────────────────────── Pricing Row (Right Panel Table) ─────────────────────────── */
 
-function ActionButton({ status }: { status: CWEstimateLineStatus }) {
-  switch (status) {
-    case 'Requested':
-      return (
-        <Button
-          size="small"
-          variant="contained"
-          sx={{ bgcolor: colors.accent.blue, fontSize: '0.7rem', fontWeight: 700, borderRadius: radii.sm, px: 1.5, py: 0.25, minWidth: 0, textTransform: 'none', '&:hover': { bgcolor: '#2563eb' } }}
-        >
-          Identify
-        </Button>
-      )
-    case 'Identified':
-      return (
-        <Button
-          size="small"
-          variant="contained"
-          sx={{ bgcolor: colors.accent.purple, fontSize: '0.7rem', fontWeight: 700, borderRadius: radii.sm, px: 1.5, py: 0.25, minWidth: 0, textTransform: 'none', '&:hover': { bgcolor: '#7c3aed' } }}
-        >
-          Price
-        </Button>
-      )
-    case 'Priced':
-      return (
-        <Chip
-          label="Ready to Submit"
-          size="small"
-          sx={{ fontSize: '0.65rem', fontWeight: 700, height: 22, bgcolor: `${colors.accent.purple}18`, color: colors.accent.purple }}
-        />
-      )
-    case 'Submitted':
-      return (
-        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-          <HourglassBottom sx={{ fontSize: 14, color: colors.accent.orange }} />
-          <Typography sx={{ fontSize: '0.7rem', color: colors.accent.orange, fontWeight: 700 }}>Awaiting SA</Typography>
-        </Stack>
-      )
-    case 'Approved':
-      return <Check sx={{ fontSize: 20, color: colors.status.success }} />
-    case 'Declined':
-      return <Close sx={{ fontSize: 20, color: colors.status.error }} />
-    default:
-      return null
-  }
+type PricingRowData = {
+  lineId: string
+  partName: string
+  partNumber?: string
+  sourcingType: string
+  unitPrice: string
+  sellPrice: string
+  quantity: string
+  deliveryDate: string
+  inStock: boolean
+  status: CWEstimateLineStatus
+  dirty: boolean
 }
 
-/* ─────────────────────── Estimate Summary Panel ─────────────────────────── */
+function PricingRow({ row, onChange, onSave, onRemove, locked }: {
+  row: PricingRowData
+  onChange: (field: keyof PricingRowData, value: string) => void
+  onSave: () => void
+  onRemove: () => void
+  locked: boolean
+}) {
+  const total = (parseFloat(row.sellPrice) || 0) * (parseInt(row.quantity, 10) || 1)
+  const isPriced = row.status === 'Priced' || row.status === 'Submitted'
 
-function EstimateSummary({ lines, onSubmitAppointment }: { lines: CWEstimateLine[]; onSubmitAppointment: (appointmentId: string, lineIds: string[]) => void }) {
-  const pricedLines = useMemo(() => lines.filter((l) => l.status === 'Priced'), [lines])
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, CWEstimateLine[]>()
-    for (const l of pricedLines) {
-      const arr = map.get(l.appointmentId) ?? []
-      arr.push(l)
-      map.set(l.appointmentId, arr)
-    }
-    return map
-  }, [pricedLines])
-
-  const total = useMemo(
-    () => pricedLines.reduce((sum, l) => sum + (l.sellPrice ?? 0) * l.quantity, 0),
-    [pricedLines],
-  )
+  const inputSx = {
+    '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.75, px: 1 },
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: colors.border.default },
+  }
 
   return (
     <Box
       sx={{
-        bgcolor: colors.bg.card,
-        border: `1px solid ${colors.border.default}`,
-        borderRadius: radii.md,
-        boxShadow: shadows.card,
-        p: 2.5,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        height: 'fit-content',
-        position: { md: 'sticky' },
-        top: { md: 24 },
+        display: 'grid',
+        gridTemplateColumns: '1.8fr 1fr 0.8fr 0.8fr 0.6fr 1fr 0.8fr 0.4fr',
+        gap: 1,
+        alignItems: 'center',
+        py: 1,
+        px: 1.5,
+        borderBottom: `1px solid ${colors.border.subtle}`,
+        bgcolor: locked ? colors.bg.subtle : 'transparent',
+        '&:hover': { bgcolor: locked ? colors.bg.subtle : colors.bg.cardHover },
       }}
     >
-      <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: colors.slate[900] }}>
-        Estimate Summary
+      {/* Part Name */}
+      <Box sx={{ minWidth: 0 }}>
+        <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: colors.slate[900], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {row.partName}
+        </Typography>
+        {row.partNumber && (
+          <Typography sx={{ fontSize: '0.65rem', color: colors.slate[400], fontFamily: 'monospace' }}>{row.partNumber}</Typography>
+        )}
+      </Box>
+
+      {/* Sourcing Type */}
+      <FormControl size="small" disabled={locked}>
+        <Select
+          value={row.sourcingType}
+          onChange={(e) => onChange('sourcingType', e.target.value)}
+          sx={{ fontSize: '0.75rem', '& .MuiSelect-select': { py: 0.5, px: 1 } }}
+        >
+          {SOURCING_TYPES.map((t) => <MenuItem key={t} value={t} sx={{ fontSize: '0.8rem' }}>{t}</MenuItem>)}
+        </Select>
+      </FormControl>
+
+      {/* Sell Price */}
+      <TextField
+        size="small"
+        type="number"
+        value={row.sellPrice}
+        onChange={(e) => onChange('sellPrice', e.target.value)}
+        disabled={locked}
+        placeholder="0.00"
+        sx={inputSx}
+        slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
+      />
+
+      {/* Qty */}
+      <TextField
+        size="small"
+        type="number"
+        value={row.quantity}
+        onChange={(e) => onChange('quantity', e.target.value)}
+        disabled={locked}
+        sx={inputSx}
+        slotProps={{ input: { inputProps: { min: 1 } } }}
+      />
+
+      {/* Delivery Date */}
+      <TextField
+        size="small"
+        type="date"
+        value={row.deliveryDate}
+        onChange={(e) => onChange('deliveryDate', e.target.value)}
+        disabled={locked}
+        sx={{ ...inputSx, '& .MuiInputBase-input': { fontSize: '0.7rem', py: 0.75, px: 0.5 } }}
+      />
+
+      {/* Total */}
+      <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: colors.slate[900], textAlign: 'right' }}>
+        {fmtBDT(total)}
       </Typography>
 
-      {pricedLines.length === 0 ? (
-        <Typography sx={{ fontSize: '0.8rem', color: colors.slate[400], py: 4, textAlign: 'center' }}>
-          No priced lines yet. Identify and price parts from the queue.
-        </Typography>
-      ) : (
-        <>
-          {Array.from(grouped.entries()).map(([apptId, items]) => (
-            <Box key={apptId}>
-              <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: colors.accent.blue, mb: 1 }}>
-                {apptId}
-              </Typography>
-              {items.map((item) => (
-                <Stack key={item.id} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', py: 0.75 }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: colors.slate[800], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.partName ?? item.description}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400] }}>
-                      {item.quantity} × {fmtBDT(item.sellPrice)}
-                    </Typography>
-                  </Box>
-                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: colors.slate[900], ml: 1, flexShrink: 0 }}>
-                    {fmtBDT((item.sellPrice ?? 0) * item.quantity)}
-                  </Typography>
-                </Stack>
-              ))}
-              <Divider sx={{ mt: 0.5 }} />
-            </Box>
-          ))}
-
-          {/* Total */}
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', pt: 1 }}>
-            <Typography sx={{ fontSize: '0.875rem', fontWeight: 800, color: colors.slate[900] }}>
-              Total
-            </Typography>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: colors.slate[900] }}>
-              {fmtBDT(total)}
-            </Typography>
-          </Stack>
-
-          {/* Submit */}
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<Send sx={{ fontSize: 16 }} />}
-            disabled={pricedLines.length === 0}
-            onClick={() => {
-              const firstAppointmentId = pricedLines[0]?.appointmentId
-              if (firstAppointmentId) {
-                onSubmitAppointment(firstAppointmentId, pricedLines.filter((line) => line.appointmentId === firstAppointmentId).map((line) => line.id))
-              }
-            }}
-            sx={{
-              bgcolor: colors.slate[900],
-              fontWeight: 700,
-              borderRadius: radii.sm,
-              textTransform: 'none',
-              mt: 1,
-              '&:hover': { bgcolor: colors.slate[800] },
-            }}
-          >
-            Submit to SA
+      {/* Status indicator */}
+      <Box sx={{ textAlign: 'center' }}>
+        {isPriced ? (
+          <Chip label="✓" size="small" sx={{ fontWeight: 700, fontSize: '0.7rem', height: 20, bgcolor: `${colors.accent.purple}18`, color: colors.accent.purple }} />
+        ) : row.dirty ? (
+          <Button size="small" variant="text" onClick={onSave} sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'none', color: colors.accent.purple, minWidth: 0, px: 0.5 }}>
+            Save
           </Button>
-        </>
+        ) : null}
+      </Box>
+
+      {/* Delete */}
+      <Box sx={{ textAlign: 'center' }}>
+        {locked ? (
+          <Lock sx={{ fontSize: 14, color: colors.slate[300] }} />
+        ) : (
+          <IconButton size="small" onClick={onRemove} sx={{ color: colors.slate[400], '&:hover': { color: colors.status.error } }}>
+            <Delete sx={{ fontSize: 16 }} />
+          </IconButton>
+        )}
+      </Box>
+    </Box>
+  )
+}
+
+/* ─────────────────────── Estimation Summary ─────────────────────────── */
+
+function EstimationSummary({ rows, onSubmit, submitting }: {
+  rows: PricingRowData[]
+  onSubmit: () => void
+  submitting: boolean
+}) {
+  const pricedRows = rows.filter((r) => r.status === 'Priced')
+  // const subtotal = pricedRows.reduce((sum, r) => sum + (parseFloat(r.sellPrice) || 0) * (parseInt(r.quantity, 10) || 1), 0)
+  const allTotal = rows.reduce((sum, r) => sum + (parseFloat(r.sellPrice) || 0) * (parseInt(r.quantity, 10) || 1), 0)
+
+  return (
+    <Box sx={{ bgcolor: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.md, boxShadow: shadows.card, p: 2.5 }}>
+      <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: colors.slate[900], mb: 2 }}>
+        Estimation Summary
+      </Typography>
+
+      <Stack spacing={1}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+          <Typography sx={{ fontSize: '0.85rem', color: colors.slate[600] }}>Parts Subtotal:</Typography>
+          <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: colors.slate[900] }}>{fmtBDT(allTotal)}</Typography>
+        </Stack>
+
+        <Box sx={{ borderTop: `2px solid ${colors.slate[900]}`, pt: 1.5, mt: 1 }}>
+          <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+            <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: colors.slate[900] }}>Grand Total:</Typography>
+            <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: colors.slate[900] }}>{fmtBDT(allTotal)}</Typography>
+          </Stack>
+        </Box>
+      </Stack>
+
+      {/* Actions */}
+      <Stack direction="row" spacing={1.5} sx={{ mt: 3 }}>
+        <Button
+          fullWidth
+          variant="contained"
+          startIcon={<Send sx={{ fontSize: 14 }} />}
+          disabled={pricedRows.length === 0 || submitting}
+          onClick={onSubmit}
+          sx={{
+            fontWeight: 800,
+            fontSize: '0.8rem',
+            textTransform: 'none',
+            borderRadius: radii.sm,
+            bgcolor: colors.slate[900],
+            '&:hover': { bgcolor: colors.slate[800] },
+            py: 1.25,
+          }}
+        >
+          {submitting ? 'Submitting…' : 'Send to Advisor'}
+        </Button>
+      </Stack>
+
+      {pricedRows.length === 0 && rows.length > 0 && (
+        <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 1.5, textAlign: 'center' }}>
+          Save pricing on all parts before submitting.
+        </Typography>
       )}
     </Box>
   )
@@ -330,142 +335,289 @@ export function EstimatorPage() {
   const [lines, setLines] = useState<CWEstimateLine[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<FilterTab>('All')
+  const [queueTab, setQueueTab] = useState<QueueTab>('All')
+  const [pricingRows, setPricingRows] = useState<PricingRowData[]>([])
+  const [submitting, setSubmitting] = useState(false)
+  const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' })
 
-  async function loadLines() {
+  // Parts catalog lookup for defaultSellPrice
+  const partsMapRef = useRef<Map<string, CWPart>>(new Map())
+
+  const loadLines = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await workshopApi.listEstimateLines({ pageSize: 100 })
-      setLines(response.data)
+      const [linesRes, partsRes] = await Promise.all([
+        workshopApi.listEstimateLines({ pageSize: 200 }),
+        workshopApi.listParts({ status: 'Active', pageSize: 200 }),
+      ])
+      setLines(linesRes.data)
+      const map = new Map<string, CWPart>()
+      for (const p of partsRes.data) map.set(p.id, p)
+      partsMapRef.current = map
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load estimate lines')
     } finally {
       setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    void loadLines()
   }, [])
 
-  const allLines = lines
+  useEffect(() => { void loadLines() }, [loadLines])
 
-  const filteredLines = useMemo(() => {
-    if (tab === 'All') return allLines
-    return allLines.filter((l) => l.status === tab)
-  }, [allLines, tab])
+  // Lines available for the queue (not yet priced/submitted)
+  const queueLines = useMemo(() => {
+    const inPricing = new Set(pricingRows.map((r) => r.lineId))
+    const available = lines.filter((l) => (l.status === 'Requested' || l.status === 'Identified') && !inPricing.has(l.id))
+    if (queueTab === 'All') return available
+    return available.filter((l) => l.status === queueTab)
+  }, [lines, queueTab, pricingRows])
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { All: allLines.length }
-    for (const l of allLines) {
-      c[l.status] = (c[l.status] ?? 0) + 1
+  const queueCounts = useMemo(() => {
+    const inPricing = new Set(pricingRows.map((r) => r.lineId))
+    const available = lines.filter((l) => (l.status === 'Requested' || l.status === 'Identified') && !inPricing.has(l.id))
+    return {
+      All: available.length,
+      Requested: available.filter((l) => l.status === 'Requested').length,
+      Identified: available.filter((l) => l.status === 'Identified').length,
     }
-    return c
-  }, [allLines])
+  }, [lines, pricingRows])
+
+  // Lines already priced or submitted (show in table as locked)
+  useEffect(() => {
+    const priced = lines.filter((l) => l.status === 'Priced' || l.status === 'Submitted')
+    setPricingRows((prev) => {
+      const existingIds = new Set(prev.map((r) => r.lineId))
+      const newRows = priced
+        .filter((l) => !existingIds.has(l.id))
+        .map((l) => lineToRow(l))
+      if (newRows.length === 0) return prev
+      return [...prev, ...newRows]
+    })
+  }, [lines])
+
+  function lineToRow(line: CWEstimateLine): PricingRowData {
+    return {
+      lineId: line.id,
+      partName: line.partName ?? line.description,
+      partNumber: line.partNumber,
+      sourcingType: line.sourcingType ?? 'OEM',
+      unitPrice: line.unitPrice?.toString() ?? '',
+      sellPrice: line.sellPrice?.toString() ?? '',
+      quantity: line.quantity?.toString() ?? '1',
+      deliveryDate: line.estimatedDeliveryDate ?? '',
+      inStock: line.inStock,
+      status: line.status,
+      dirty: false,
+    }
+  }
+
+  function handleAddToEstimate(line: CWEstimateLine) {
+    if (pricingRows.some((r) => r.lineId === line.id)) return
+    const row = lineToRow(line)
+    // Pre-fill sell price from part's defaultSellPrice if not already set
+    if (!row.sellPrice && line.partId) {
+      const part = partsMapRef.current.get(line.partId)
+      if (part?.defaultSellPrice) {
+        row.sellPrice = part.defaultSellPrice.toString()
+        row.unitPrice = part.defaultSellPrice.toString()
+      }
+    }
+    setPricingRows((prev) => [...prev, { ...row, dirty: true }])
+  }
+
+  function handleRowChange(idx: number, field: keyof PricingRowData, value: string) {
+    setPricingRows((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value, dirty: true } : r))
+  }
+
+  async function handleRowSave(idx: number) {
+    const row = pricingRows[idx]
+    if (!row) return
+    const sp = parseFloat(row.sellPrice)
+    const qty = parseInt(row.quantity, 10) || 1
+    if (isNaN(sp) || sp < 0) {
+      setSnack({ open: true, msg: 'Enter valid sell price', severity: 'error' })
+      return
+    }
+
+    try {
+      await workshopApi.priceEstimateLine(row.lineId, {
+        unitPrice: parseFloat(row.unitPrice) || sp,
+        sellPrice: sp,
+        quantity: qty,
+        sourcingType: row.sourcingType as import('../../types/cw').CWPricingSourcingType,
+        estimatedDeliveryDate: row.deliveryDate || undefined,
+      })
+      setPricingRows((prev) => prev.map((r, i) => i === idx ? { ...r, status: 'Priced', dirty: false } : r))
+      setSnack({ open: true, msg: `${row.partName} priced`, severity: 'success' })
+    } catch (err) {
+      setSnack({ open: true, msg: err instanceof Error ? err.message : 'Failed to save pricing', severity: 'error' })
+    }
+  }
+
+  function handleRowRemove(idx: number) {
+    const row = pricingRows[idx]
+    if (row.status === 'Submitted') return
+    setPricingRows((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  async function handleSubmitToAdvisor() {
+    const pricedRows = pricingRows.filter((r) => r.status === 'Priced')
+    if (pricedRows.length === 0) return
+
+    // Group by appointment
+    const byAppt = new Map<string, string[]>()
+    for (const row of pricedRows) {
+      const line = lines.find((l) => l.id === row.lineId)
+      if (!line) continue
+      const arr = byAppt.get(line.appointmentId) ?? []
+      arr.push(row.lineId)
+      byAppt.set(line.appointmentId, arr)
+    }
+
+    setSubmitting(true)
+    try {
+      for (const [appointmentId, lineIds] of byAppt) {
+        await workshopApi.submitEstimateLines(appointmentId, lineIds)
+      }
+      setSnack({ open: true, msg: `${pricedRows.length} line(s) submitted to Advisor — prices locked 🔒`, severity: 'success' })
+      setPricingRows([])
+      await loadLines()
+    } catch (err) {
+      setSnack({ open: true, msg: err instanceof Error ? err.message : 'Failed to submit', severity: 'error' })
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
       {/* Header */}
-      <Box sx={{ mb: 3.5 }}>
-        <Typography
-          sx={{
-            fontWeight: 800,
-            fontSize: { xs: '1.5rem', md: '1.85rem' },
-            color: colors.slate[900],
-            letterSpacing: '-0.02em',
-          }}
-        >
+      <Box sx={{ mb: 3 }}>
+        <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
           Estimator
         </Typography>
         <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
-          Manage part requirements and build estimates
+          Price parts submitted by engineers and send estimates to Service Advisor
         </Typography>
       </Box>
 
+      <Snackbar open={snack.open} onClose={() => setSnack((s) => ({ ...s, open: false }))} autoHideDuration={3000} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert onClose={() => setSnack((s) => ({ ...s, open: false }))} severity={snack.severity} variant="filled">{snack.msg}</Alert>
+      </Snackbar>
+
       {/* Two-panel layout */}
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
-        {/* Left: Requirements Queue (70%) */}
-        <Box sx={{ flex: { md: 7 }, minWidth: 0 }}>
-          {/* Section title + count */}
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}>
-            <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[800] }}>
-              Incoming Requirements
-            </Typography>
-            <Chip
-              label={allLines.length}
-              size="small"
+
+        {/* ── Left Panel: Parts Submitted by Engineer ── */}
+        <Box sx={{ flex: { md: 4 }, minWidth: 0 }}>
+          <Box sx={{ bgcolor: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.md, boxShadow: shadows.card, p: 2.5 }}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[800] }}>
+                Parts Submitted by Engineer
+              </Typography>
+              <Chip label={queueCounts.All} size="small" sx={{ fontWeight: 800, fontSize: '0.7rem', height: 22, bgcolor: colors.accent.amber + '20', color: colors.accent.amber }} />
+            </Stack>
+
+            {/* Filter tabs */}
+            <Tabs
+              value={queueTab}
+              onChange={(_e, v: QueueTab) => setQueueTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
               sx={{
-                fontWeight: 800,
-                fontSize: '0.7rem',
-                height: 22,
-                bgcolor: colors.slate[100],
-                color: colors.slate[600],
+                mb: 2, minHeight: 32,
+                '& .MuiTab-root': { minHeight: 32, textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', px: 1.5, minWidth: 0 },
+                '& .Mui-selected': { color: colors.slate[900] },
+                '& .MuiTabs-indicator': { bgcolor: colors.slate[900], height: 2 },
               }}
-            />
-          </Stack>
+            >
+              {QUEUE_TABS.map((t) => (
+                <Tab key={t} label={`${t} (${queueCounts[t]})`} value={t} />
+              ))}
+            </Tabs>
 
-          {/* Filter tabs */}
-          <Tabs
-            value={tab}
-            onChange={(_e, v: FilterTab) => setTab(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{
-              mb: 2,
-              minHeight: 36,
-              '& .MuiTab-root': {
-                minHeight: 36,
-                textTransform: 'none',
-                fontWeight: 600,
-                fontSize: '0.8rem',
-                px: 1.5,
-                minWidth: 0,
-              },
-              '& .Mui-selected': { color: colors.slate[900] },
-              '& .MuiTabs-indicator': { bgcolor: colors.slate[900], height: 2 },
-            }}
-          >
-            {FILTER_TABS.map((t) => (
-              <Tab
-                key={t}
-                label={`${t}${counts[t] ? ` (${counts[t]})` : ''}`}
-                value={t}
-              />
-            ))}
-          </Tabs>
-
-          {/* Cards */}
-          <Stack spacing={1.5}>
-            {filteredLines.length === 0 ? (
-              <Box sx={{ py: 6, textAlign: 'center' }}>
-                <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>
-                  No requirements matching "{tab}"
-                </Typography>
-              </Box>
-            ) : (
-              loading ? (
-                <Box sx={{ py: 6, textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>Loading requirements…</Typography>
-                </Box>
+            {/* Cards */}
+            <Stack spacing={1.5} sx={{ maxHeight: { md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
+              {loading ? (
+                <Typography sx={{ fontSize: '0.85rem', color: colors.slate[400], py: 4, textAlign: 'center' }}>Loading…</Typography>
               ) : error ? (
-                <Box sx={{ py: 6, textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '0.875rem', color: colors.status.error }}>{error}</Typography>
-                </Box>
+                <Alert severity="error" sx={{ fontSize: '0.8rem' }}>{error}</Alert>
+              ) : queueLines.length === 0 ? (
+                <Typography sx={{ fontSize: '0.85rem', color: colors.slate[400], py: 4, textAlign: 'center' }}>
+                  No pending parts. All submitted parts have been processed.
+                </Typography>
               ) : (
-                filteredLines.map((line) => <RequirementCard key={line.id} line={line} />)
-              )
-            )}
-          </Stack>
+                queueLines.map((line) => (
+                  <PartCard key={line.id} line={line} onAddToEstimate={handleAddToEstimate} />
+                ))
+              )}
+            </Stack>
+          </Box>
         </Box>
 
-        {/* Right: Estimate Summary (30%) */}
-        <Box sx={{ flex: { md: 3 }, minWidth: { md: 280 } }}>
-          <EstimateSummary lines={allLines} onSubmitAppointment={(appointmentId, lineIds) => {
-            void workshopApi.submitEstimateLines(appointmentId, lineIds).then(loadLines).catch((err: unknown) => {
-              setError(err instanceof Error ? err.message : 'Failed to submit estimate')
-            })
-          }} />
+        {/* ── Right Panel: Build Estimation ── */}
+        <Box sx={{ flex: { md: 6 }, minWidth: 0 }}>
+          <Stack spacing={3}>
+            {/* Pricing Table */}
+            <Box sx={{ bgcolor: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.md, boxShadow: shadows.card, overflow: 'hidden' }}>
+              <Box sx={{ px: 2.5, py: 2, borderBottom: `1px solid ${colors.border.default}` }}>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[800] }}>
+                      Build Estimation
+                    </Typography>
+                    <Chip label={`${pricingRows.length} parts`} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem', height: 22, bgcolor: colors.accent.purple + '18', color: colors.accent.purple }} />
+                  </Stack>
+                </Stack>
+              </Box>
+
+              {/* Table header */}
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.8fr 1fr 0.8fr 0.8fr 0.6fr 1fr 0.8fr 0.4fr',
+                  gap: 1,
+                  px: 1.5,
+                  py: 1,
+                  bgcolor: colors.slate[50],
+                  borderBottom: `1px solid ${colors.border.default}`,
+                }}
+              >
+                {['Part Name', 'Category', 'Price', 'Qty', 'Delivery', 'Total', 'Status', ''].map((h) => (
+                  <Typography key={h} sx={{ fontSize: '0.7rem', fontWeight: 700, color: colors.slate[500], textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {h}
+                  </Typography>
+                ))}
+              </Box>
+
+              {/* Rows */}
+              {pricingRows.length === 0 ? (
+                <Box sx={{ py: 6, textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: '0.85rem', color: colors.slate[400] }}>
+                    Click a part from the left panel to start building the estimate.
+                  </Typography>
+                </Box>
+              ) : (
+                pricingRows.map((row, idx) => (
+                  <PricingRow
+                    key={row.lineId}
+                    row={row}
+                    locked={row.status === 'Submitted'}
+                    onChange={(field, value) => handleRowChange(idx, field, value)}
+                    onSave={() => handleRowSave(idx)}
+                    onRemove={() => handleRowRemove(idx)}
+                  />
+                ))
+              )}
+            </Box>
+
+            {/* Summary */}
+            <EstimationSummary
+              rows={pricingRows}
+              onSubmit={handleSubmitToAdvisor}
+              submitting={submitting}
+            />
+          </Stack>
         </Box>
       </Stack>
     </Box>
