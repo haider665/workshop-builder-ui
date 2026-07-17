@@ -1791,6 +1791,11 @@ function reindexFields(fields: CWTaskField[]) {
 // MVP rule: in-memory only. No persistence.
 export const useCwStore = create<CWState>((set, get) => ({
   ...DEMO_SEED,
+  // Override seed data — backend provides via hydrateFromBackend
+  users: [],
+  customers: [],
+  vehicles: [],
+  appointments: [],
   concernCategories: CONCERNS_SEED.concernCategories,
   concerns: CONCERNS_SEED.concerns,
   services: SERVICES_SEED,

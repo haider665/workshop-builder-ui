@@ -1,5 +1,9 @@
 import {
   Alert,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Box,
   Button,
   Chip,
@@ -15,7 +19,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Block, Edit, PersonAdd, ToggleOff, ToggleOn, Visibility, VisibilityOff } from '@mui/icons-material'
+import { Add, Block, Edit, LockReset, PersonAdd, ToggleOff, ToggleOn, Visibility, VisibilityOff } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
@@ -70,6 +74,9 @@ export function UsersPage() {
   const [createDraft, setCreateDraft] = useState<UserDraft>(toDraft())
   const [editDraft, setEditDraft] = useState<UserDraft>(toDraft())
   const [showPassword, setShowPassword] = useState(false)
+  const [resetUser, setResetUser] = useState<CWUser | null>(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const [showResetPassword, setShowResetPassword] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -192,6 +199,30 @@ export function UsersPage() {
     }
   }
 
+  async function submitResetPassword() {
+    if (!resetUser || !resetPassword.trim()) return
+    setSaving(true)
+    setError(null)
+    try {
+      await usersService.update(resetUser.id, {
+        fullName: resetUser.fullName,
+        email: resetUser.email,
+        mobile: resetUser.mobile ?? '',
+        roleIds: resetUser.roleIds,
+        shopIds: resetUser.shopIds,
+        status: resetUser.status,
+        password: resetPassword,
+      })
+      setResetUser(null)
+      setResetPassword('')
+      setShowResetPassword(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset password')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function setStatus(user: CWUser, status: CWUserStatus) {
     setSaving(true)
     setError(null)
@@ -296,6 +327,18 @@ export function UsersPage() {
                 disabled={saving}
               >
                 <Block fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+
+          <Tooltip title="Reset Password">
+            <span>
+              <IconButton
+                size="small"
+                onClick={() => { setResetUser(u); setResetPassword(''); setShowResetPassword(false) }}
+                disabled={saving}
+              >
+                <LockReset fontSize="small" />
               </IconButton>
             </span>
           </Tooltip>
@@ -536,6 +579,50 @@ export function UsersPage() {
           ) : null}
           {renderUserFormFields(editDraft, setEditDraft, 'edit')}
         </FormDialog>
+
+        {/* Reset Password Dialog */}
+        <Dialog open={!!resetUser} onClose={() => setResetUser(null)} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{ fontWeight: 700 }}>
+            Reset Password
+          </DialogTitle>
+          <DialogContent>
+            {resetUser && (
+              <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 2 }}>
+                Set a new password for <strong>{resetUser.fullName}</strong> ({resetUser.email})
+              </Typography>
+            )}
+            {error && resetUser && (
+              <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>{error}</Alert>
+            )}
+            <FormControl fullWidth variant="outlined" size="small">
+              <InputLabel>New Password</InputLabel>
+              <OutlinedInput
+                type={showResetPassword ? 'text' : 'password'}
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                label="New Password"
+                endAdornment={
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setShowResetPassword(!showResetPassword)} edge="end">
+                      {showResetPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                    </IconButton>
+                  </InputAdornment>
+                }
+              />
+            </FormControl>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setResetUser(null)} sx={{ textTransform: 'none' }}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={() => void submitResetPassword()}
+              disabled={saving || !resetPassword.trim()}
+              sx={{ textTransform: 'none', fontWeight: 700 }}
+            >
+              {saving ? 'Resetting…' : 'Reset Password'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Stack>
     </Box>
   )
