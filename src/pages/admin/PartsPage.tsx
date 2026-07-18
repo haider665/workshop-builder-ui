@@ -1,4 +1,5 @@
 import {
+  Alert,
   Autocomplete,
   Box,
   Button,
@@ -9,6 +10,7 @@ import {
   Divider,
   IconButton,
   MenuItem,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -63,7 +65,7 @@ type PartDraft = {
   brand: string
   modelVariant: string
   rackLocation: string
-  binNumber: string
+
   reorderLevel: string
   defaultSellPrice: string
   stockCount: string
@@ -79,7 +81,7 @@ function emptyDraft(): PartDraft {
     brand: '',
     modelVariant: '',
     rackLocation: '',
-    binNumber: '',
+
     reorderLevel: '',
     defaultSellPrice: '',
     stockCount: '',
@@ -97,7 +99,7 @@ function toDraft(part: CWPart): PartDraft {
     brand: part.brand ?? '',
     modelVariant: part.modelVariant ?? '',
     rackLocation: part.rackLocation ?? '',
-    binNumber: part.binNumber ?? '',
+
     reorderLevel: typeof part.reorderLevel === 'number' ? String(part.reorderLevel) : '',
     stockCount: typeof part.stockCount === 'number' ? String(part.stockCount) : '',
     status: part.status,
@@ -123,6 +125,7 @@ export function PartsPage() {
   const [parts, setParts] = useState<CWPart[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   /* Stock lots dialog */
   const [lotsDialogOpen, setLotsDialogOpen] = useState(false)
@@ -178,7 +181,7 @@ export function PartsPage() {
       brand: draft.brand.trim() || undefined,
       modelVariant: draft.modelVariant.trim() || undefined,
       rackLocation: draft.rackLocation.trim() || undefined,
-      binNumber: draft.binNumber.trim() || undefined,
+
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
       defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice.trim()) : undefined,
       stockCount: draft.stockCount.trim() ? Number(draft.stockCount.trim()) : 0,
@@ -186,6 +189,7 @@ export function PartsPage() {
       createdByUserId: sessionUser?.id,
     })
       setCreateOpen(false)
+      setSuccess('Part created successfully')
       await loadParts()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create part')
@@ -204,13 +208,14 @@ export function PartsPage() {
       brand: draft.brand.trim() || undefined,
       modelVariant: draft.modelVariant.trim() || undefined,
       rackLocation: draft.rackLocation.trim() || undefined,
-      binNumber: draft.binNumber.trim() || undefined,
+
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
       defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice.trim()) : undefined,
       stockCount: draft.stockCount.trim() ? Number(draft.stockCount.trim()) : 0,
       status: draft.status,
     })
       setEditPart(null)
+      setSuccess('Part updated successfully')
       await loadParts()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update part')
@@ -393,6 +398,7 @@ export function PartsPage() {
   /* ── Render ── */
 
   return (
+    <>
     <Box sx={{ py: pageLayout.py, px: pageLayout.px }}>
       <Stack spacing={3.5}>
         {/* Header */}
@@ -525,12 +531,7 @@ export function PartsPage() {
             placeholder="e.g. A-3-14"
             fullWidth
           />
-          <TextField
-            label="Bin Number"
-            value={draft.binNumber}
-            onChange={(e) => setDraft((d) => ({ ...d, binNumber: e.target.value }))}
-            fullWidth
-          />
+
           <TextField
             label="Reorder Level"
             type="number"
@@ -699,5 +700,30 @@ export function PartsPage() {
         </Dialog>
       </Stack>
     </Box>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!success}
+        autoHideDuration={3000}
+        onClose={() => setSuccess(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSuccess(null)} severity="success" sx={{ width: '100%', fontWeight: 600 }}>
+          {success}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={5000}
+        onClose={() => setError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setError(null)} severity="error" sx={{ width: '100%', fontWeight: 600 }}>
+          {error}
+        </Alert>
+      </Snackbar>
+    </>
   )
 }

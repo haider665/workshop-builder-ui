@@ -149,8 +149,8 @@ export function SEAppointmentDetailPage() {
   // Part request form (per-concern)
   const [partRequestForm, setPartRequestForm] = useState<Record<string, { name: string; qty: string }>>({})
   const [serviceShopFilter, setServiceShopFilter] = useState('')
-  const [concernServiceShopFilter, setConcernServiceShopFilter] = useState('')
-  const [concernAddServiceId, setConcernAddServiceId] = useState('')
+  const [concernServiceShopFilter, setConcernServiceShopFilter] = useState<Record<string, string>>({})
+  const [concernAddServiceId, setConcernAddServiceId] = useState<Record<string, string>>({})
 
   const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
 
@@ -417,7 +417,7 @@ export function SEAppointmentDetailPage() {
                       <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                         <FormControl size="small" sx={{ minWidth: 140 }}>
                           <InputLabel>Shop</InputLabel>
-                          <Select label="Shop" value={concernServiceShopFilter} onChange={(e) => { setConcernServiceShopFilter(e.target.value as string); setConcernAddServiceId('') }}
+                          <Select label="Shop" value={concernServiceShopFilter[c.id] ?? ''} onChange={(e) => { setConcernServiceShopFilter((prev) => ({ ...prev, [c.id]: e.target.value as string })); setConcernAddServiceId((prev) => ({ ...prev, [c.id]: '' })) }}
                             sx={{ borderRadius: radii.sm }}>
                             <MenuItem value="">— Shop —</MenuItem>
                             {activeShops.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
@@ -425,26 +425,27 @@ export function SEAppointmentDetailPage() {
                         </FormControl>
                         <Autocomplete
                           size="small"
-                          options={activeServices.filter((s) => s.shopId === concernServiceShopFilter && !(c.serviceIds ?? []).includes(s.id))}
+                          options={activeServices.filter((s) => s.shopId === (concernServiceShopFilter[c.id] ?? '') && !(c.serviceIds ?? []).includes(s.id))}
                           getOptionLabel={(o) => `${o.description} (${o.code}) — ${fmtBDT(o.price)}`}
-                          value={activeServices.find((s) => s.id === concernAddServiceId) ?? null}
-                          onChange={(_, val) => setConcernAddServiceId(val?.id ?? '')}
-                          disabled={!concernServiceShopFilter}
+                          value={activeServices.find((s) => s.id === (concernAddServiceId[c.id] ?? '')) ?? null}
+                          onChange={(_, val) => setConcernAddServiceId((prev) => ({ ...prev, [c.id]: val?.id ?? '' }))}
+                          disabled={!(concernServiceShopFilter[c.id] ?? '')}
                           sx={{ minWidth: 280, flex: 1 }}
                           renderInput={(params) => (
-                            <TextField {...params} label="Service" placeholder={!concernServiceShopFilter ? 'Select shop first' : 'Type to search…'}
+                            <TextField {...params} label="Service" placeholder={!(concernServiceShopFilter[c.id] ?? '') ? 'Select shop first' : 'Type to search…'}
                               sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }} />
                           )}
                         />
                         <Button
                           variant="contained" size="small" sx={{ ...actionBtnSx, height: 40, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}
-                          disabled={!concernAddServiceId}
+                          disabled={!(concernAddServiceId[c.id] ?? '')}
                           onClick={() => {
+                            const svcId = concernAddServiceId[c.id] ?? ''
                             const current = c.serviceIds ?? []
-                            if (!current.includes(concernAddServiceId)) {
-                              updateConcernItemServices(appt.id, c.id, [...current, concernAddServiceId])
+                            if (svcId && !current.includes(svcId)) {
+                              updateConcernItemServices(appt.id, c.id, [...current, svcId])
                             }
-                            setConcernAddServiceId('')
+                            setConcernAddServiceId((prev) => ({ ...prev, [c.id]: '' }))
                           }}
                         >Add</Button>
                       </Stack>
@@ -536,25 +537,25 @@ export function SEAppointmentDetailPage() {
             {/* Submit Diagnosis Complete */}
             {isDiagnosisPhase && allConcernsDone && (() => {
               const pendingParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.status === 'Requested')
-              if (pendingParts.length > 0) {
-                return (
-                  <Alert severity="warning" sx={{ mt: 2, borderRadius: radii.sm }}>
-                    Cannot submit diagnosis: {pendingParts.length} part request(s) still pending admin labeling.
-                  </Alert>
-                )
-              }
               return (
-                <Button
-                  variant="contained" fullWidth size="large"
-                  sx={{
-                    fontWeight: 800, mt: 2.5, py: 1.5, borderRadius: '10px',
-                    bgcolor: colors.status.warning, color: colors.slate[900],
-                    '&:hover': { bgcolor: '#e6920a' },
-                  }}
-                  onClick={handleSubmitDiagnosisComplete}
-                >
-                  Submit Diagnosis Complete
-                </Button>
+                <>
+                  {pendingParts.length > 0 && (
+                    <Alert severity="info" sx={{ mt: 2, borderRadius: radii.sm }}>
+                      {pendingParts.length} part request(s) still pending admin labeling. You can still submit diagnosis.
+                    </Alert>
+                  )}
+                  <Button
+                    variant="contained" fullWidth size="large"
+                    sx={{
+                      fontWeight: 800, mt: 2.5, py: 1.5, borderRadius: '10px',
+                      bgcolor: colors.status.warning, color: colors.slate[900],
+                      '&:hover': { bgcolor: '#e6920a' },
+                    }}
+                    onClick={handleSubmitDiagnosisComplete}
+                  >
+                    Submit Diagnosis Complete
+                  </Button>
+                </>
               )
             })()}
           </SectionCard>

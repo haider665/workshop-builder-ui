@@ -22,6 +22,7 @@ import {
   CheckCircle,
   Close,
   Delete,
+  Edit,
   LocalShipping,
   Send,
   ShoppingCart,
@@ -136,6 +137,7 @@ export function PurchaseOrdersPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [editPoId, setEditPoId] = useState<string | null>(null)
   const [draft, setDraft] = useState<PODraft>(emptyDraft())
 
   /* ── Session & Admin ── */
@@ -236,7 +238,7 @@ export function PurchaseOrdersPage() {
 
   async function submitCreate() {
     if (!draft.vendorId || !draft.expectedArrivalDate || draft.lines.length === 0) return
-    const validLines = draft.lines.filter((l) => l.partId && l.quantity > 0)
+    const validLines = draft.lines.filter((l) => l.partId && l.quantity > 0 && l.unitPrice > 0)
     if (validLines.length === 0) return
 
     setError(null)
@@ -264,6 +266,51 @@ export function PurchaseOrdersPage() {
       await loadPOData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create purchase order')
+    }
+  }
+
+  function openEdit(po: CWPurchaseOrder) {
+    setEditPoId(po.id)
+    setDraft({
+      vendorId: po.vendorId,
+      currency: po.currency as 'BDT' | 'USD' | 'EUR',
+      sourcingType: po.sourcingType as 'Local' | 'Foreign',
+      expectedArrivalDate: po.expectedArrivalDate ?? '',
+      advanceRequired: po.advanceRequired ?? false,
+      lines: po.lines.map((l) => ({
+        partId: l.partId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        discount: l.discount ?? 0,
+      })),
+    })
+    setCreateOpen(true)
+  }
+
+  async function submitEdit() {
+    if (!editPoId || !draft.vendorId || !draft.expectedArrivalDate || draft.lines.length === 0) return
+    const validLines = draft.lines.filter((l) => l.partId && l.quantity > 0 && l.unitPrice > 0)
+    if (validLines.length === 0) return
+    setError(null)
+    try {
+      await workshopApi.updatePurchaseOrder(editPoId, {
+        vendorId: draft.vendorId,
+        currency: draft.currency,
+        sourcingType: draft.sourcingType,
+        expectedArrivalDate: draft.expectedArrivalDate,
+        advanceRequired: draft.advanceRequired,
+        lines: validLines.map((l) => ({
+          partId: l.partId,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          discount: l.discount || undefined,
+        })),
+      })
+      setCreateOpen(false)
+      setEditPoId(null)
+      await loadPOData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update purchase order')
     }
   }
 
@@ -406,7 +453,16 @@ export function PurchaseOrdersPage() {
     }
   }
 
-  const canSubmitCreate = draft.vendorId && draft.expectedArrivalDate && draft.lines.some((l) => l.partId && l.quantity > 0)
+  const isDialogOpen = createOpen
+  const isEditing = !!editPoId
+
+  function closeDialog() {
+    setCreateOpen(false)
+    setEditPoId(null)
+    setDraft(emptyDraft())
+  }
+
+  const canSubmitCreate = draft.vendorId && draft.expectedArrivalDate && draft.lines.some((l) => l.partId && l.quantity > 0 && l.unitPrice > 0)
 
   /* ── Table Columns ── */
 
@@ -585,11 +641,18 @@ export function PurchaseOrdersPage() {
       render: (po) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
           {po.status === 'Draft' && (
-            <Tooltip title="Submit for Approval">
-              <IconButton size="small" onClick={() => { void handleSubmitPO(po.id) }}>
-                <Send fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <>
+              <Tooltip title="Edit PO">
+                <IconButton size="small" onClick={() => openEdit(po)}>
+                  <Edit fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Submit for Approval">
+                <IconButton size="small" onClick={() => { void handleSubmitPO(po.id) }}>
+                  <Send fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
           )}
           {isAdmin && po.status === 'Pending Approval' && (
             <Stack direction="row" spacing={0.5}>
@@ -730,14 +793,14 @@ export function PurchaseOrdersPage() {
           }
         />
 
-        {/* ── Create PO Dialog ── */}
+        {/* ── Create / Edit PO Dialog ── */}
         <FormDialog
-          open={createOpen}
-          onClose={() => setCreateOpen(false)}
-          title="Create Purchase Order"
-          icon={<ShoppingCart />}
-          onSubmit={submitCreate}
-          submitLabel="Create PO"
+          open={isDialogOpen}
+          onClose={closeDialog}
+          title={isEditing ? 'Edit Purchase Order' : 'Create Purchase Order'}
+          icon={isEditing ? <Edit /> : <ShoppingCart />}
+          onSubmit={isEditing ? submitEdit : submitCreate}
+          submitLabel={isEditing ? 'Save Changes' : 'Create PO'}
           submitDisabled={!canSubmitCreate}
           maxWidth="md"
         >
@@ -871,10 +934,13 @@ export function PurchaseOrdersPage() {
                           label="Unit Price"
                           type="number"
                           size="small"
+                          required
                           value={line.unitPrice}
                           onChange={(e) => updateLine(idx, { unitPrice: Math.max(0, Number(e.target.value)) })}
                           sx={{ flex: 1 }}
                           slotProps={{ input: { inputProps: { min: 0 } } }}
+                          error={line.unitPrice <= 0}
+                          helperText={line.unitPrice <= 0 ? 'Required' : ''}
                         />
                         <TextField
                           label="Discount %"
