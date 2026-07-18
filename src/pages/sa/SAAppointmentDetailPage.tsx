@@ -167,6 +167,7 @@ export function SAAppointmentDetailPage() {
   const isPaymentPending = appt.status === 'Payment Pending'
 
   // SA can send WhatsApp for initial concern approval
+  const hasPendingParts = partRequests.some((pr) => pr.appointmentId === appointmentId && pr.status === 'Requested')
   const canSendConcernWA = isReviewed
   // SA can send WhatsApp for service approval after diagnosis
   const canSendServiceWA = isDiagnosisComplete
@@ -548,6 +549,73 @@ export function SAAppointmentDetailPage() {
           )}
         </Box>
 
+        {/* ── Parts & Estimates Summary ── */}
+        {(() => {
+          const allParts = partRequests.filter((pr) => pr.appointmentId === appointmentId)
+          if (allParts.length === 0) return null
+          const labeled = allParts.filter((pr) => pr.status === 'Labeled')
+          const fulfilled = allParts.filter((pr) => pr.status === 'Fulfilled')
+          const pending = allParts.filter((pr) => pr.status === 'Requested')
+          const readyParts = [...labeled, ...fulfilled]
+          const partsTotal = readyParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
+          return (
+            <SectionCard title={`Parts Requests (${allParts.length})`} icon={<Build sx={{ fontSize: '1rem' }} />}>
+              {readyParts.length > 0 && (
+                <Alert severity="info" sx={{ mb: 2, fontWeight: 600, fontSize: '0.85rem', borderRadius: radii.md }}>
+                  {readyParts.length} part(s) ready — total {fmtBDT(partsTotal)}. Discuss with customer.
+                </Alert>
+              )}
+              {pending.length > 0 && (
+                <Alert severity="warning" sx={{ mb: 2, fontWeight: 600, fontSize: '0.85rem', borderRadius: radii.md }}>
+                  {pending.length} part request(s) still pending admin labeling.
+                </Alert>
+              )}
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                    <TableCell>Part</TableCell>
+                    <TableCell>Qty</TableCell>
+                    <TableCell>Price</TableCell>
+                    <TableCell>ETA</TableCell>
+                    <TableCell>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {allParts.map((pr) => (
+                    <TableRow key={pr.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: colors.slate[900] }}>{pr.partName}</Typography>
+                        {pr.partNumber && <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>#{pr.partNumber}</Typography>}
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700] }}>{pr.quantity ?? 1}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: typeof pr.price === 'number' ? colors.slate[900] : colors.slate[400] }}>
+                          {typeof pr.price === 'number' ? fmtBDT(pr.price * (pr.quantity ?? 1)) : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.82rem', color: colors.slate[600] }}>{pr.deliveryDate ?? '—'}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="small" label={pr.status} color={partStatusColor(pr.status)} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {readyParts.length > 0 && (
+                <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1.5, px: 1 }}>
+                  <Typography sx={{ fontSize: '0.92rem', fontWeight: 800, color: colors.slate[900] }}>
+                    Parts Total: {fmtBDT(partsTotal)}
+                  </Typography>
+                </Stack>
+              )}
+            </SectionCard>
+          )
+        })()}
+
         {/* ── Submit Inspection ── */}
         {isInspection && (
           <Button variant="contained" color="info" size="large" fullWidth
@@ -562,8 +630,14 @@ export function SAAppointmentDetailPage() {
             <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 1.5 }}>
               Review complete. Send concerns and services to customer for approval.
             </Typography>
+            {hasPendingParts && (
+              <Alert severity="warning" sx={{ mb: 1.5, fontSize: '0.82rem', borderRadius: radii.md }}>
+                Part requests still pending admin labeling. Wait for parts to be priced before contacting customer.
+              </Alert>
+            )}
             <Button variant="contained" color="success" startIcon={<Send />}
               onClick={() => openWhatsApp('concern-approval')}
+              disabled={hasPendingParts}
               sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5 }}>
               Compose WhatsApp
             </Button>
@@ -576,8 +650,14 @@ export function SAAppointmentDetailPage() {
             <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 1.5 }}>
               SE completed diagnosis and may have added services. Send updated list to customer.
             </Typography>
+            {hasPendingParts && (
+              <Alert severity="warning" sx={{ mb: 1.5, fontSize: '0.82rem', borderRadius: radii.md }}>
+                Part requests still pending admin labeling. Wait for parts to be priced before contacting customer.
+              </Alert>
+            )}
             <Button variant="contained" color="success" startIcon={<Send />}
               onClick={() => openWhatsApp('service-approval')}
+              disabled={hasPendingParts}
               sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5 }}>
               Compose WhatsApp (Services)
             </Button>

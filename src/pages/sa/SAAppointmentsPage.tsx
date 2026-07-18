@@ -23,6 +23,7 @@ import {
   PendingActions,
   RateReview,
   DirectionsCar,
+  Inventory,
 } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -148,6 +149,7 @@ export function SAAppointmentsPage() {
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
+  const partRequests = useCwStore((s) => s.partRequests)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CWAppointmentStatus | 'All'>('All')
@@ -185,6 +187,18 @@ export function SAAppointmentsPage() {
   const pendingInspection = relevant.filter((a) => a.status === 'SA Inspection').length
   const underReview = relevant.filter((a) => a.status === 'SA Reviewed').length
   const totalAssigned = relevant.length
+
+  // Count appointments that have at least one part request completed (Labeled/Fulfilled) — SA needs to talk to customer
+  const partsReadyCount = useMemo(() => {
+    const apptIds = new Set(relevant.map((a) => a.id))
+    const readyApptIds = new Set<string>()
+    for (const pr of partRequests) {
+      if (apptIds.has(pr.appointmentId) && (pr.status === 'Labeled' || pr.status === 'Fulfilled')) {
+        readyApptIds.add(pr.appointmentId)
+      }
+    }
+    return readyApptIds.size
+  }, [relevant, partRequests])
 
   return (
     <Box sx={{ px: pageLayout.px, py: pageLayout.py, minHeight: '100vh', bgcolor: colors.bg.page }}>
@@ -234,6 +248,16 @@ export function SAAppointmentsPage() {
               <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Assigned</Typography>
             </Stack>
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{totalAssigned}</Typography>
+          </Box>
+
+          <Box sx={statCardSx('linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)')}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
+              <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Inventory sx={{ fontSize: '1.2rem' }} />
+              </Box>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Parts Ready</Typography>
+            </Stack>
+            <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{partsReadyCount}</Typography>
           </Box>
         </Stack>
 
