@@ -72,6 +72,7 @@ export function CreateVehiclePage() {
   const [vehicleCategory, setVehicleCategory] = useState<CWVehicleCategory | ''>('')
   const [vehicleSize, setVehicleSize] = useState<CWVehicleSize | ''>('')
   const [modelVariant, setModelVariant] = useState('')
+  const [modelYear, setModelYear] = useState('')
   const [countryOfOrigin, setCountryOfOrigin] = useState('')
   const [countryOfAssembly, setCountryOfAssembly] = useState('')
   const [vin, setVin] = useState('')
@@ -118,6 +119,7 @@ export function CreateVehiclePage() {
         model: model.trim() || undefined,
         vehicleCategory: vehicleCategory || undefined,
         vehicleSize: vehicleSize as CWVehicleSize,
+        modelYear: modelYear ? parseInt(modelYear, 10) : undefined,
         modelVariant: modelVariant.trim() || undefined,
         countryOfOrigin: countryOfOrigin || undefined,
         countryOfAssembly: countryOfAssembly || undefined,
@@ -194,6 +196,9 @@ export function CreateVehiclePage() {
           </FormRow>
           <FormRow label="Model Variant">
             <TextField size="small" fullWidth value={modelVariant} onChange={(e) => setModelVariant(e.target.value)} placeholder="e.g. M50i, XLE" sx={fieldSx} />
+          </FormRow>
+          <FormRow label="Model Year">
+            <TextField size="small" fullWidth type="number" value={modelYear} onChange={(e) => setModelYear(e.target.value)} placeholder="e.g. 2024" sx={fieldSx} slotProps={{ input: { inputProps: { min: 1990, max: 2030 } } }} />
           </FormRow>
           <FormRow label="Country of Origin">
             <TextField size="small" select fullWidth value={countryOfOrigin} onChange={(e) => setCountryOfOrigin(e.target.value)} sx={fieldSx}>

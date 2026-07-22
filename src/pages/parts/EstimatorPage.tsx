@@ -151,6 +151,7 @@ type PricingData = {
   quantity: string
   deliveryDate: string
   inStock: boolean
+  remarks: string
 }
 
 /* ─────────────────────── Main Page ─────────────────────────── */
@@ -225,6 +226,7 @@ export function EstimatorPage() {
       quantity: line.quantity?.toString() ?? '1',
       deliveryDate: line.estimatedDeliveryDate ?? '',
       inStock: line.inStock,
+      remarks: line.remarks ?? '',
     })
   }
 
@@ -252,6 +254,7 @@ export function EstimatorPage() {
         quantity: qty,
         sourcingType: activePricing.sourcingType as import('../../types/cw').CWPricingSourcingType,
         estimatedDeliveryDate: activePricing.deliveryDate || undefined,
+        remarks: activePricing.remarks.trim() || undefined,
       })
       // Submit to advisor
       await workshopApi.submitEstimateLines(activePricing.appointmentId, [activePricing.lineId])
@@ -416,6 +419,18 @@ export function EstimatorPage() {
                       slotProps={{ inputLabel: { shrink: true } }}
                     />
                   </Stack>
+
+                  <TextField
+                    size="small"
+                    label="Notes / Remarks"
+                    multiline
+                    minRows={2}
+                    maxRows={4}
+                    value={activePricing.remarks}
+                    onChange={(e) => updateField('remarks', e.target.value)}
+                    placeholder="Add any notes for the Service Advisor..."
+                    sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.85rem' } }}
+                  />
 
                   {/* Total */}
                   <Box sx={{ bgcolor: colors.bg.subtle, borderRadius: radii.md, p: 2, border: `1px solid ${colors.border.default}` }}>

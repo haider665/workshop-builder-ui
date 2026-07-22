@@ -207,6 +207,7 @@ export type CWVehicle = {
   odometerKm?: number
   vehicleCategory?: CWVehicleCategory
   vehicleSize: CWVehicleSize
+  modelYear?: number
   modelVariant?: string
   countryOfOrigin?: string
   countryOfAssembly?: string
@@ -697,6 +698,7 @@ export type CWEstimateLine = {
   approvedByUserId?: string
   declinedAt?: string
   declinedByUserId?: string
+  remarks?: string
   substitutedByLineId?: string
   createdAt: string
   updatedAt: string
@@ -902,6 +904,7 @@ export type CWPartRequest = {
   status: CWPartRequestStatus
   requestedBy: string
   labeledBy?: string
+  estimatorRemarks?: string
   createdAt: string
   updatedAt: string
 }

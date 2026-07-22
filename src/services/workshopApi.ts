@@ -319,6 +319,7 @@ export const workshopApi = {
     odometerKm?: number
     vehicleCategory?: import('../types/cw').CWVehicleCategory
     vehicleSize: import('../types/cw').CWVehicleSize
+    modelYear?: number
     modelVariant?: string
     countryOfOrigin?: string
     countryOfAssembly?: string
@@ -347,6 +348,7 @@ export const workshopApi = {
       odometerKm?: number
       vehicleCategory?: import('../types/cw').CWVehicleCategory
       vehicleSize: import('../types/cw').CWVehicleSize
+      modelYear?: number
       modelVariant?: string
       countryOfOrigin?: string
       countryOfAssembly?: string

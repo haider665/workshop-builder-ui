@@ -272,7 +272,7 @@ export function NewAppointmentPage() {
         addedBySA: false as const,
       }))
 
-      const appt = await workshopApi.createAppointment({
+      await workshopApi.createAppointment({
         customerId: selectedCustomer.id,
         vehicleId: selectedVehicle.id,
         slotDate: slotDate || undefined,
@@ -314,7 +314,7 @@ export function NewAppointmentPage() {
         }
       }
 
-      navigate(`/cre/appointments/${appt.id}`)
+      navigate('/cre/appointments')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }

@@ -20,5 +20,11 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       include: ['tslib', 'echarts', 'echarts-for-react'],
     },
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: ['./src/test-setup.ts'],
+      include: ['src/**/*.test.{ts,tsx}'],
+    },
   }
 })

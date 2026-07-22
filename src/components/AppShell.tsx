@@ -158,6 +158,7 @@ export function AppShell() {
       { kind: 'link', label: 'Counter Desk', to: '/parts/counter-desk', icon: <Store />, anyOfRoles: ['Parts', 'Admin'] },
       { kind: 'link', label: 'Inventory Tracker', to: '/parts/inventory', icon: <Inventory />, anyOfRoles: ['Parts', 'Admin'] },
       { kind: 'link', label: 'Estimator', to: '/parts/estimator', icon: <Calculate />, anyOfRoles: ['Parts', 'Admin'] },
+      { kind: 'link', label: 'Part Requests', to: '/parts/part-requests', icon: <ReceiptLong />, anyOfRoles: ['Parts', 'Admin'] },
 
       {
         kind: 'link',

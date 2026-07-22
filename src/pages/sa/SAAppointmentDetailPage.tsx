@@ -141,6 +141,7 @@ export function SAAppointmentDetailPage() {
   const [concernShopFilter, setConcernShopFilter] = useState('')
   const [serviceShopFilter, setServiceShopFilter] = useState('')
 
+
   const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
   const concernShopId = useMemo(() => {
     const cMap = new Map(concerns.map((c) => [c.id, c]))
@@ -355,6 +356,8 @@ export function SAAppointmentDetailPage() {
 
         {/* ── Timeline ── */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
+
+
 
         {/* ── Inspection Checklist ── */}
         {isInspection && inspChecks.length > 0 && (
@@ -577,6 +580,7 @@ export function SAAppointmentDetailPage() {
                     <TableCell>Qty</TableCell>
                     <TableCell>Price</TableCell>
                     <TableCell>ETA</TableCell>
+                    <TableCell>Notes</TableCell>
                     <TableCell>Status</TableCell>
                   </TableRow>
                 </TableHead>
@@ -597,6 +601,9 @@ export function SAAppointmentDetailPage() {
                       </TableCell>
                       <TableCell>
                         <Typography sx={{ fontSize: '0.82rem', color: colors.slate[600] }}>{pr.deliveryDate ?? '—'}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.82rem', color: colors.slate[600], fontStyle: pr.estimatorRemarks ? 'normal' : 'italic' }}>{pr.estimatorRemarks ?? '—'}</Typography>
                       </TableCell>
                       <TableCell>
                         <Chip size="small" label={pr.status} color={partStatusColor(pr.status)} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />

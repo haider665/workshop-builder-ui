@@ -184,7 +184,7 @@ export function AppointmentDetailPage() {
     )
   }
 
-  const totalBDT = appt.serviceItems.reduce((sum, s) => sum + s.price, 0)
+  const totalBDT = (appt.serviceItems ?? []).reduce((sum, s) => sum + s.price, 0)
 
   // ── Workflow flags ──
   const isReviewed = appt.status === 'SA Reviewed'
@@ -237,17 +237,17 @@ export function AppointmentDetailPage() {
     const reg = vehicle?.registrationNo ?? ''
 
     if (purpose === 'concern-approval') {
-      const concernBlock = appt!.concernItems.map((c) => {
+      const concernBlock = (appt!.concernItems ?? []).map((c) => {
         let block = `• ${c.concernName}`
         if (c.remark) block += `\n  Note: ${c.remark}`
         return block
       }).join('\n')
-      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
-      const total = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const serviceList = (appt!.serviceItems ?? []).map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const total = (appt!.serviceItems ?? []).reduce((sum, s) => sum + s.price, 0)
       setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nConcerns:\n${concernBlock}\n\nProposed Services:\n${serviceList}\n\nEstimated Total: ${fmtBDT(total)}\n\nPlease confirm.`)
     } else if (purpose === 'service-approval') {
       const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
-      const concernBlock = appt!.concernItems.map((c) => {
+      const concernBlock = (appt!.concernItems ?? []).map((c) => {
         const lines: string[] = [`• ${c.concernName}`]
         if (c.diagnosisRemark) lines.push(`  Diagnosis: ${c.diagnosisRemark}`)
         const cServices = (c.serviceIds ?? []).map((sid) => catalogServices.find((s) => s.id === sid)).filter(Boolean)
@@ -260,16 +260,16 @@ export function AppointmentDetailPage() {
         }
         return lines.join('\n')
       }).join('\n\n')
-      const globalServices = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const globalServices = (appt!.serviceItems ?? []).map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
       const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
-      const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const serviceTotal = (appt!.serviceItems ?? []).reduce((sum, s) => sum + s.price, 0)
       const grandTotal = serviceTotal + partsTotal
       setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nDiagnosis Report:\n${concernBlock}\n\nAll Services:\n${globalServices}\n\nServices Total: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts Total: ${fmtBDT(partsTotal)}` : ''}\nGrand Total: ${fmtBDT(grandTotal)}\n\nPlease confirm to proceed.`)
     } else {
       const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
-      const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
+      const serviceList = (appt!.serviceItems ?? []).map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
       const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
-      const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
+      const serviceTotal = (appt!.serviceItems ?? []).reduce((sum, s) => sum + s.price, 0)
       const grandTotal = serviceTotal + partsTotal
       let partBlock = ''
       if (allParts.length > 0) {
@@ -411,14 +411,14 @@ export function AppointmentDetailPage() {
         <SectionCard title="Concerns" icon={<ReportProblem sx={{ fontSize: '1rem' }} />}
           actions={
             <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
-              {appt.concernItems.length}
+              {(appt.concernItems ?? []).length}
             </Box>
           }>
-          {appt.concernItems.length === 0 ? (
+          {(appt.concernItems ?? []).length === 0 ? (
             <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No concerns listed.</Typography>
           ) : (
             <Stack spacing={2}>
-              {appt.concernItems.map((c) => {
+              {(appt.concernItems ?? []).map((c) => {
                 const concernServices = (c.serviceIds ?? []).map((sid) => catalogServices.find((s) => s.id === sid)).filter(Boolean)
                 const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
                 const shopName = getConcernShopName(c.concernId)
@@ -456,9 +456,9 @@ export function AppointmentDetailPage() {
                         {fmtDateTime(c.plannedStartAt)} → {fmtDateTime(c.plannedEndAt)}
                       </Typography>
                     )}
-                    {c.technicianAssignments.length > 0 && (
+                    {(c.technicianAssignments ?? []).length > 0 && (
                       <Typography sx={{ display: 'block', mt: 0.5, fontSize: '0.75rem', color: colors.slate[400] }}>
-                        Technicians: {c.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ')}
+                        Technicians: {(c.technicianAssignments ?? []).map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ')}
                       </Typography>
                     )}
 
@@ -514,11 +514,11 @@ export function AppointmentDetailPage() {
               <Box sx={tableHeaderIconSx}><Build sx={{ fontSize: '1rem' }} /></Box>
               <Typography sx={tableHeaderTitleSx}>Services</Typography>
               <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
-                {appt.serviceItems.length}
+                {(appt.serviceItems ?? []).length}
               </Box>
             </Stack>
           </Box>
-          {appt.serviceItems.length === 0 ? (
+          {(appt.serviceItems ?? []).length === 0 ? (
             <Box sx={{ px: 3, py: 2 }}>
               <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No services listed.</Typography>
             </Box>
@@ -536,7 +536,7 @@ export function AppointmentDetailPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {appt.serviceItems.map((s) => {
+                {(appt.serviceItems ?? []).map((s) => {
                   const svcShopName = getServiceShopName(s.serviceId)
                   return (
                   <TableRow key={s.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>

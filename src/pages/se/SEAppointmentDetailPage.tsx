@@ -256,6 +256,9 @@ export function SEAppointmentDetailPage() {
         <SectionCard title="Vehicle Details" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />}>
           <InfoRow label="Registration" value={vehicle?.registrationNo ?? '—'} />
           <InfoRow label="Vehicle" value={`${vehicle?.make ?? ''} ${vehicle?.model ?? ''}`} />
+          <InfoRow label="Variant" value={vehicle?.modelVariant ?? '—'} />
+          <InfoRow label="Year" value={vehicle?.modelYear?.toString() ?? '—'} />
+          <InfoRow label="Color" value={vehicle?.exteriorColor ? `${vehicle.exteriorColor}${vehicle.exteriorColorCode ? ` (${vehicle.exteriorColorCode})` : ''}` : '—'} />
           <InfoRow label="Customer" value={customer?.fullName ?? '—'} />
           <InfoRow label="Phone" value={customer?.phone ?? '—'} />
         </SectionCard>

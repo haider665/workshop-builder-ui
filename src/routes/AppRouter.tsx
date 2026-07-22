@@ -95,6 +95,7 @@ export function AppRouter() {
             <Route path="/parts/vendors" element={<VendorManagementPage />} />
             <Route path="/parts/counter-desk" element={<CounterDeskPage />} />
             <Route path="/parts/estimator" element={<EstimatorPage />} />
+            <Route path="/parts/part-requests" element={<PartRequestsPage />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Guard']} />}>
