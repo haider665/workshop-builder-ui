@@ -51,6 +51,8 @@ export function useBackendData() {
         tasks,
         taskTemplates,
         partRequests,
+        requisitions,
+        estimateLines,
       ] = await Promise.all([
         safe('customers', () => workshopApi.listCustomers({ pageSize: 500 })),
         safe('vehicles', () => workshopApi.listVehicles({ pageSize: 500 })),
@@ -68,6 +70,8 @@ export function useBackendData() {
         safe('tasks', () => workshopApi.listTasks({ pageSize: 500 })),
         safe('taskTemplates', () => workshopApi.listTaskTemplates({ pageSize: 500 })),
         safe('partRequests', () => workshopApi.listPartRequests({ pageSize: 500 })),
+        safe('requisitions', () => workshopApi.listRequisitions({ pageSize: 500 })),
+        safe('estimateLines', () => workshopApi.listEstimateLines({ pageSize: 500 })),
       ])
 
       useCwStore.setState({
@@ -87,6 +91,8 @@ export function useBackendData() {
         tasks,
         taskTemplates,
         partRequests,
+        requisitions,
+        estimateLines,
       })
     }
 

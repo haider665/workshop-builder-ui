@@ -815,6 +815,10 @@ export type CWRequisitionLine = {
   quantity: number
   stockUnitIds: string[]
   rackLocation?: string
+  bayId?: string
+  serviceItemId?: string
+  concernItemId?: string
+  estimateLineId?: string
   status: CWRequisitionLineStatus
   pendingReason?: string                 // "procure" | "substitute"
 }

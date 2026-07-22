@@ -2460,6 +2460,13 @@ export const useCwStore = create<CWState>((set, get) => ({
       ),
     })
     syncBackend(workshopApi.transitionAppointment(appointmentId, status), 'appointment status')
+
+    // After Service Assigned, backend auto-creates requisition — re-fetch to sync local state
+    if (status === 'Service Assigned') {
+      workshopApi.listRequisitions({ pageSize: 500 }).then((res) => {
+        set({ requisitions: res.data })
+      }).catch((err) => console.warn('[setAppointmentStatus] Failed to refresh requisitions:', err))
+    }
   },
 
   setAppointmentGateEntry: (appointmentId, gateEntryId) => {
@@ -4943,6 +4950,8 @@ export const useCwStore = create<CWState>((set, get) => ({
       quantity: l.quantity,
       stockUnitIds: [],
       estimateLineId: l.estimateLineId,
+      bayId: (l as any).bayId,
+      concernItemId: (l as any).concernItemId,
       status: 'Pending',
     }))
     const req: CWRequisition = {
@@ -4950,7 +4959,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       requisitionNumber: `PR-${String(reqCount + 1).padStart(3, '0')}`,
       appointmentId: input.appointmentId,
       requestedByUserId: input.requestedByUserId,
-      status: 'Created',
+      status: 'Sent to Store',
       lines,
       createdAt: ts,
       updatedAt: ts,
@@ -4963,7 +4972,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     const ts = nowIso()
     set({
       requisitions: get().requisitions.map((r) =>
-        r.id === id && r.status === 'Created'
+        r.id === id && (r.status === 'Created' || r.status === 'Sent to Store')
           ? { ...r, status: 'Request Received' as const, acknowledgedByUserId, acknowledgedAt: ts, updatedAt: ts }
           : r,
       ),
