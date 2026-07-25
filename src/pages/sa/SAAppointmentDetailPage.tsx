@@ -269,21 +269,20 @@ export function SAAppointmentDetailPage() {
     setWaMessage('')
   }
 
-  function handleApproval(status: 'Approved' | 'Rejected') {
-    setCustomerApproval({ appointmentId: appt!.id, status, note: approvalNote.trim() || undefined })
+  async function handleApproval(status: 'Approved' | 'Rejected') {
+    await setCustomerApproval({ appointmentId: appt!.id, status, note: approvalNote.trim() || undefined })
 
     if (status === 'Approved') {
       if (isCustomerNotified) {
-        // 1st approval → goes to JC for diagnosis assignment
-        setAppointmentStatus(appt!.id, 'Customer Approved')
+        // 1st approval → set_customer_approval already sets status to 'Customer Approved'
         pushTimeline(appt!.id, { actor: 'SA', action: 'Customer approved concerns — ready for JC diagnosis assignment' })
       } else if (isServiceApprovalPending) {
-        // 2nd approval → goes to JC for service assignment
-        setAppointmentStatus(appt!.id, 'Service Approved')
+        // 2nd approval → needs explicit transition to 'Service Approved' (after approval save)
+        await setAppointmentStatus(appt!.id, 'Service Approved')
         pushTimeline(appt!.id, { actor: 'SA', action: 'Customer approved services — ready for JC service assignment' })
       }
     } else {
-      setAppointmentStatus(appt!.id, 'Customer Rejected')
+      // set_customer_approval already sets status to 'Customer Rejected'
       pushTimeline(appt!.id, { actor: 'SA', action: `Customer rejected${approvalNote.trim() ? `: ${approvalNote.trim()}` : ''}` })
     }
     setApprovalNote('')

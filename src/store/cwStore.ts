@@ -904,7 +904,7 @@ type CWState = {
 
   createAppointment: (input: CreateAppointmentInput) => CWAppointment
   updateAppointment: (appointmentId: string, input: UpdateAppointmentInput) => void
-  setAppointmentStatus: (appointmentId: string, status: CWAppointmentStatus) => void
+  setAppointmentStatus: (appointmentId: string, status: CWAppointmentStatus) => Promise<void>
   setAppointmentGateEntry: (appointmentId: string, gateEntryId: string | undefined) => void
   addAppointmentConcern: (input: AddAppointmentConcernInput) => CWAppointmentConcernItem
   removeAppointmentConcern: (appointmentId: string, itemId: string) => void
@@ -915,7 +915,7 @@ type CWState = {
   removeAppointmentService: (appointmentId: string, itemId: string) => void
   updateAppointmentService: (appointmentId: string, itemId: string, input: UpdateAppointmentServiceInput) => void
   addWhatsappLog: (input: AddWhatsappLogInput) => CWWhatsappLog
-  setCustomerApproval: (input: SetCustomerApprovalInput) => void
+  setCustomerApproval: (input: SetCustomerApprovalInput) => Promise<void>
   updateServiceItemAssignment: (input: UpdateServiceItemAssignmentInput) => void
 
   // New flow: JC assigns SE to concerns/services, SE assigns technicians
@@ -2447,7 +2447,10 @@ export const useCwStore = create<CWState>((set, get) => ({
     syncBackend(workshopApi.updateAppointment(appointmentId, input), 'update appointment')
   },
 
-  setAppointmentStatus: (appointmentId, status) => {
+  setAppointmentStatus: async (appointmentId, status) => {
+    const prev = get().appointments.find(a => a.id === appointmentId)
+    const prevStatus = prev?.status
+    // Optimistic update
     set({
       appointments: get().appointments.map((a) =>
         a.id === appointmentId
@@ -2459,7 +2462,21 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
-    syncBackend(workshopApi.transitionAppointment(appointmentId, status), 'appointment status')
+    try {
+      await workshopApi.transitionAppointment(appointmentId, status)
+    } catch (err) {
+      // Rollback on failure
+      if (prevStatus) {
+        set({
+          appointments: get().appointments.map((a) =>
+            a.id === appointmentId
+              ? { ...a, status: prevStatus, updatedAt: nowIso() }
+              : a,
+          ),
+        })
+      }
+      throw err
+    }
 
     // After Service Assigned, backend auto-creates requisition — re-fetch to sync local state
     if (status === 'Service Assigned') {
@@ -2752,7 +2769,11 @@ export const useCwStore = create<CWState>((set, get) => ({
     return log
   },
 
-  setCustomerApproval: (input) => {
+  setCustomerApproval: async (input) => {
+    const prev = get().appointments.find(a => a.id === input.appointmentId)
+    const prevApproval = prev?.customerApprovalStatus
+    const prevStatus = prev?.status
+    // Optimistic update
     set({
       appointments: get().appointments.map((a) =>
         a.id === input.appointmentId
@@ -2766,10 +2787,21 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
-    syncBackend(
-      workshopApi.setCustomerApproval(input.appointmentId, { status: input.status, note: input.note }),
-      'customer approval',
-    )
+    try {
+      await workshopApi.setCustomerApproval(input.appointmentId, { status: input.status, note: input.note })
+    } catch (err) {
+      // Rollback on failure
+      if (prev) {
+        set({
+          appointments: get().appointments.map((a) =>
+            a.id === input.appointmentId
+              ? { ...a, customerApprovalStatus: prevApproval!, status: prevStatus!, updatedAt: nowIso() }
+              : a,
+          ),
+        })
+      }
+      throw err
+    }
   },
 
   // ─── New flow: JC assigns SE to concerns/services, SE assigns technicians ────
@@ -4415,6 +4447,7 @@ export const useCwStore = create<CWState>((set, get) => ({
   },
 
   labelPartRequest: (id, input) => {
+    console.log('[store.labelPartRequest] called for', id.slice(-6), 'status:', input.status ?? 'Labeled')
     set({
       partRequests: get().partRequests.map((r) =>
         r.id === id
@@ -4431,7 +4464,13 @@ export const useCwStore = create<CWState>((set, get) => ({
           : r,
       ),
     })
-    syncBackend(workshopApi.labelPartRequest(id, input), 'label part request')
+    syncBackend(
+      workshopApi.labelPartRequest(id, input).then(res => {
+        console.log('[store.labelPartRequest] backend DONE for', id.slice(-6), 'returned status:', res?.status)
+        return res
+      }),
+      'label part request',
+    )
   },
 
   setPartRequestStatus: async (id, status) => {

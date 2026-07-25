@@ -148,6 +148,8 @@ export function SEAppointmentDetailPage() {
 
   // Part request form (per-concern)
   const [partRequestForm, setPartRequestForm] = useState<Record<string, { name: string; qty: string }>>({})
+  // Queued parts waiting to be sent in one batch
+  const [pendingPartsQueue, setPendingPartsQueue] = useState<{ concernItemId: string; concernName: string; partName: string; quantity: number }[]>([])
   const [serviceShopFilter, setServiceShopFilter] = useState('')
   const [concernServiceShopFilter, setConcernServiceShopFilter] = useState<Record<string, string>>({})
   const [concernAddServiceId, setConcernAddServiceId] = useState<Record<string, string>>({})
@@ -515,27 +517,73 @@ export function SEAppointmentDetailPage() {
                           size="small"
                           onClick={() => {
                             if (!prForm.name.trim()) return
-                            createPartRequest({
-                              appointmentId: appt!.id,
+                            setPendingPartsQueue((prev) => [...prev, {
                               concernItemId: c.id,
+                              concernName: c.concernName,
                               partName: prForm.name.trim(),
                               quantity: Number(prForm.qty) || 1,
-                              requestedBy: 'SE',
-                            })
-                            pushTimeline(appt!.id, { actor: 'SE', action: `Requested part "${prForm.name.trim()}" for concern "${c.concernName}"` })
+                            }])
                             setPartRequestForm((prev) => ({ ...prev, [c.id]: { name: '', qty: '1' } }))
                           }}
                           disabled={!prForm.name.trim()}
                           sx={{ ...actionBtnSx, bgcolor: colors.accent.purple, '&:hover': { bgcolor: '#7c3aed' } }}
                         >
-                          <LocalShipping sx={{ fontSize: '0.9rem', mr: 0.5 }} /> Request Part
+                          <LocalShipping sx={{ fontSize: '0.9rem', mr: 0.5 }} /> Add Part
                         </Button>
                       </Stack>
+
+                      {/* Show queued (unsent) parts for this concern */}
+                      {pendingPartsQueue.filter(p => p.concernItemId === c.id).length > 0 && (
+                        <Stack spacing={0.5} sx={{ mt: 1 }}>
+                          {pendingPartsQueue.map((p, idx) => p.concernItemId === c.id && (
+                            <Box key={idx} sx={{ p: 1, bgcolor: '#fef3c7', borderRadius: radii.sm, border: '1px dashed #f59e0b' }}>
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: colors.slate[800] }}>
+                                  {p.partName} × {p.quantity}
+                                </Typography>
+                                <Chip
+                                  size="small" label="Queued" color="warning"
+                                  onDelete={() => setPendingPartsQueue((prev) => prev.filter((_, i) => i !== idx))}
+                                  sx={{ fontWeight: 700, fontSize: '0.7rem' }}
+                                />
+                              </Stack>
+                            </Box>
+                          ))}
+                        </Stack>
+                      )}
                     </Box>
                   )}
                 </ItemCard>
               )})}
             </Stack>
+
+            {/* Send All Parts Requests — single button for all queued parts */}
+            {isDiagnosisPhase && pendingPartsQueue.length > 0 && (
+              <Button
+                variant="contained" fullWidth size="large"
+                sx={{
+                  fontWeight: 800, mt: 2, py: 1.5, borderRadius: '10px',
+                  bgcolor: colors.accent.purple, color: '#fff',
+                  '&:hover': { bgcolor: '#7c3aed' },
+                }}
+                onClick={() => {
+                  for (const p of pendingPartsQueue) {
+                    createPartRequest({
+                      appointmentId: appt!.id,
+                      concernItemId: p.concernItemId,
+                      partName: p.partName,
+                      quantity: p.quantity,
+                      requestedBy: 'SE',
+                    })
+                  }
+                  pushTimeline(appt!.id, { actor: 'SE', action: `Sent ${pendingPartsQueue.length} part request(s) to Parts Department` })
+                  setPendingPartsQueue([])
+                }}
+              >
+                <LocalShipping sx={{ fontSize: '1rem', mr: 1 }} />
+                Send All Parts Requests ({pendingPartsQueue.length})
+              </Button>
+            )}
 
             {/* Submit Diagnosis Complete */}
             {isDiagnosisPhase && allConcernsDone && (() => {

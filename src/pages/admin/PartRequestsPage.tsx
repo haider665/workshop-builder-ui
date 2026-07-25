@@ -10,11 +10,18 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material'
-import { Inventory2, Send } from '@mui/icons-material'
+import { Inventory2, Send, ExpandMore, DirectionsCar } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
-import { DataTable } from '../../components/DataTable'
-import type { Column } from '../../components/DataTable'
 import { useCwStore } from '../../store/cwStore'
 import type { CWPartRequest, CWPartRequestStatus, CWPart } from '../../types/cw'
 import { colors, pageLayout } from '../../theme/tokens'
@@ -44,7 +51,6 @@ const btnSx = {
 export function PartRequestsPage() {
   const partRequests = useCwStore((s) => s.partRequests)
   const labelPartRequest = useCwStore((s) => s.labelPartRequest)
-  const setPartRequestStatus = useCwStore((s) => s.setPartRequestStatus)
   const refreshPartRequests = useCwStore((s) => s.refreshPartRequests)
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
@@ -53,7 +59,13 @@ export function PartRequestsPage() {
   const sessionUser = useSessionStore((s) => s.user)
 
   // Fetch fresh part requests from backend on mount
-  useEffect(() => { refreshPartRequests().catch(console.error) }, [refreshPartRequests])
+  useEffect(() => {
+    console.log('[PartRequests] mount → refreshPartRequests()')
+    refreshPartRequests().then(() => {
+      const prs = useCwStore.getState().partRequests
+      console.log('[PartRequests] refreshed from backend:', JSON.stringify(prs.map(p => ({ id: p.id.slice(-6), status: p.status }))))
+    }).catch(console.error)
+  }, [refreshPartRequests])
 
   // Load parts from API (store may be empty)
   const [apiParts, setApiParts] = useState<CWPart[]>([])
@@ -84,6 +96,16 @@ export function PartRequestsPage() {
     [apiParts, partsCatalog],
   )
 
+  const grouped = useMemo(() => {
+    const map = new Map<string, CWPartRequest[]>()
+    filtered.forEach((pr) => {
+      const arr = map.get(pr.appointmentId) ?? []
+      arr.push(pr)
+      map.set(pr.appointmentId, arr)
+    })
+    return map
+  }, [filtered])
+
   /* ── Helpers ── */
 
   function getApptInfo(appointmentId: string, concernItemId?: string) {
@@ -111,6 +133,7 @@ export function PartRequestsPage() {
 
   function submitLabel() {
     if (!editingId || !selectedPart) return
+    console.log('[submitLabel] labeling', editingId.slice(-6), 'as', selectedPart.partNumber)
     labelPartRequest(editingId, {
       partNumber: selectedPart.partNumber,
       price: 0,
@@ -136,233 +159,78 @@ export function PartRequestsPage() {
   }
 
   async function sendToEstimator(pr: CWPartRequest) {
+    console.log('[sendToEstimator] START', pr.id.slice(-6), pr.partName, 'status:', pr.status)
     const part = activePartOptions.find((p) => p.partNumber === pr.partNumber)
-    if (!part) return
-
-    try {
-      // Create estimate line in backend directly (with partId → status: Identified)
-      await workshopApi.createEstimateLine({
-        appointmentId: pr.appointmentId,
-        concernItemId: pr.concernItemId,
-        partRequestId: pr.id,
-        description: pr.partName,
-        partId: part.id,
-        partNumber: part.partNumber,
-        partName: part.name,
-        quantity: pr.quantity ?? 1,
-      })
-
-      // Mark part request as fulfilled (awaits backend)
-      await setPartRequestStatus(pr.id, 'Fulfilled')
-
-      setSuccessMsg(`Sent "${part.name}" to Estimator for pricing`)
-      setSuccessOpen(true)
-    } catch (err) {
-      setSuccessMsg(`Failed to send to estimator: ${err instanceof Error ? err.message : String(err)}`)
-      setSuccessOpen(true)
+    if (!part) {
+      throw new Error(`Catalog part not found for "${pr.partName}" (${pr.partNumber ?? 'no part number'})`)
     }
+
+    // Create estimate line in backend directly (with partId → status: Identified)
+    console.log('[sendToEstimator] creating estimate line...')
+    await workshopApi.createEstimateLine({
+      appointmentId: pr.appointmentId,
+      concernItemId: pr.concernItemId,
+      partRequestId: pr.id,
+      description: pr.partName,
+      partId: part.id,
+      partNumber: part.partNumber,
+      partName: part.name,
+      quantity: pr.quantity ?? 1,
+    })
+    console.log('[sendToEstimator] estimate line created ✓')
+
+    // Mark as Fulfilled via label API (avoids race with fire-and-forget label sync)
+    console.log('[sendToEstimator] calling labelPartRequest API with status=Fulfilled...')
+    const result = await workshopApi.labelPartRequest(pr.id, {
+      partNumber: pr.partNumber ?? part.partNumber,
+      price: pr.price ?? 0,
+      quantity: pr.quantity ?? 1,
+      labeledBy: sessionUser?.name || 'Admin',
+      status: 'Fulfilled',
+    })
+    console.log('[sendToEstimator] label API returned:', result)
+    // Update local state
+    set_partRequestStatusLocal(pr.id, 'Fulfilled')
+    console.log('[sendToEstimator] local state updated to Fulfilled ✓')
   }
 
-  /* ── Table Columns ── */
-
-  const columns: Column<CWPartRequest>[] = [
-    {
-      key: 'partName',
-      header: 'Part Name',
-      sortable: true,
-      sortValue: (pr) => pr.partName.toLowerCase(),
-      minWidth: 160,
-      render: (pr) => (
-        <Box>
-          <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
-            {pr.partName}
-          </Typography>
-          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 0.25 }}>
-            by {pr.requestedBy}
-          </Typography>
-        </Box>
+  function set_partRequestStatusLocal(id: string, status: CWPartRequestStatus) {
+    const store = useCwStore.getState()
+    useCwStore.setState({
+      partRequests: store.partRequests.map((r) =>
+        r.id === id ? { ...r, status, updatedAt: new Date().toISOString() } : r
       ),
-    },
-    {
-      key: 'concern',
-      header: 'Concern',
-      render: (pr) => {
-        const info = getApptInfo(pr.appointmentId, pr.concernItemId)
-        return (
-          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>
-            {info.concern}
-          </Typography>
-        )
-      },
-    },
-    {
-      key: 'vehicle',
-      header: 'Vehicle',
-      render: (pr) => {
-        const info = getApptInfo(pr.appointmentId, pr.concernItemId)
-        return (
-          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>
-            {info.vehicle}
-          </Typography>
-        )
-      },
-    },
-    {
-      key: 'customer',
-      header: 'Customer',
-      render: (pr) => {
-        const info = getApptInfo(pr.appointmentId, pr.concernItemId)
-        return (
-          <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>
-            {info.customer}
-          </Typography>
-        )
-      },
-    },
-    {
-      key: 'quantity',
-      header: 'Qty',
-      sortable: true,
-      sortValue: (pr) => pr.quantity ?? 1,
-      render: (pr) => {
-        const isEditing = editingId === pr.id
-        if (isEditing) {
-          return (
-            <TextField size="small" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} sx={{ width: 70 }} slotProps={{ input: { inputProps: { min: 1 } } }} />
-          )
-        }
-        return <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>{pr.quantity ?? 1}</Typography>
-      },
-    },
-    {
-      key: 'catalogPart',
-      header: 'Catalog Part',
-      minWidth: 220,
-      render: (pr) => {
-        const isEditing = editingId === pr.id
-        if (isEditing) {
-          return (
-            <Autocomplete
-              size="small"
-              options={activePartOptions}
-              value={selectedPart}
-              onChange={(_, v) => setSelectedPart(v)}
-              getOptionLabel={(p) => `${p.name} (${p.partNumber})`}
-              renderOption={(props, p) => (
-                <Box component="li" {...props} key={p.id}>
-                  <Stack spacing={0}>
-                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 600 }}>{p.name}</Typography>
-                    <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500] }}>
-                      {p.partNumber} {p.brand ? `· ${p.brand}` : ''}
-                    </Typography>
-                  </Stack>
-                </Box>
-              )}
-              sx={{ minWidth: 200 }}
-              renderInput={(params) => <TextField {...params} placeholder="Search parts..." />}
-            />
-          )
-        }
-        if (pr.partNumber) {
-          const match = activePartOptions.find((p) => p.partNumber === pr.partNumber)
-          return (
-            <Stack spacing={0}>
-              <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: colors.slate[900] }}>
-                {match?.name ?? pr.partNumber}
-              </Typography>
-              <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500], fontFamily: 'monospace' }}>
-                {pr.partNumber}
-              </Typography>
-            </Stack>
-          )
-        }
-        return <Typography sx={{ fontSize: '0.8rem', color: colors.slate[400] }}>Not mapped</Typography>
-      },
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      sortable: true,
-      sortValue: (pr) => pr.status,
-      render: (pr) => (
-        <Chip size="small" label={pr.status} color={STATUS_COLORS[pr.status]} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
-      ),
-    },
-    {
-      key: 'actions',
-      header: 'Action',
-      align: 'right',
-      render: (pr) => {
-        const isEditing = editingId === pr.id
+    })
+  }
 
-        if (pr.status === 'Requested' && !isEditing) {
-          return (
-            <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-              <Button size="small" variant="contained" onClick={() => startEdit(pr.id)} sx={btnSx}>
-                Label
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                color="error"
-                onClick={() => rejectRequest(pr.id)}
-                sx={{ fontWeight: 700, borderRadius: '10px' }}
-              >
-                Reject
-              </Button>
-            </Stack>
-          )
-        }
-
-        if (isEditing) {
-          return (
-            <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-              <Button
-                size="small"
-                variant="contained"
-                color="success"
-                onClick={submitLabel}
-                disabled={!selectedPart}
-                sx={{ fontWeight: 700, borderRadius: '10px' }}
-              >
-                Save
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => { setEditingId(null); setSelectedPart(null) }}
-                sx={{ fontWeight: 700, borderRadius: '10px' }}
-              >
-                Cancel
-              </Button>
-            </Stack>
-          )
-        }
-
-        if (pr.status === 'Labeled') {
-          return (
-            <Button
-              size="small"
-              variant="contained"
-              startIcon={<Send />}
-              onClick={() => sendToEstimator(pr)}
-              sx={{
-                bgcolor: '#7c3aed',
-                fontWeight: 700,
-                borderRadius: '10px',
-                textTransform: 'none',
-                '&:hover': { bgcolor: '#6d28d9' },
-              }}
-            >
-              Send to Estimator
-            </Button>
-          )
-        }
-
-        return null
-      },
-    },
-  ]
+  async function sendAllToEstimator(groupParts: CWPartRequest[]) {
+    const labeled = groupParts.filter(pr => pr.status === 'Labeled')
+    console.log('[sendAll] labeled count:', labeled.length, labeled.map(p => p.id.slice(-6)))
+    if (labeled.length === 0) {
+      console.log('[sendAll] NO labeled parts found! statuses:', groupParts.map(p => ({ id: p.id.slice(-6), status: p.status })))
+      return
+    }
+    let sent = 0
+    for (const pr of labeled) {
+      try {
+        await sendToEstimator(pr)
+        sent++
+      } catch (err) {
+        console.error('[sendAll] error:', err)
+        setSuccessMsg(`Failed: ${err instanceof Error ? err.message : String(err)}`)
+        setSuccessOpen(true)
+        return
+      }
+    }
+    console.log('[sendAll] DONE, sent:', sent)
+    // Check backend state after 2 seconds
+    setTimeout(async () => {
+      const res = await workshopApi.listPartRequests({ pageSize: 100 })
+      console.log('[sendAll] backend state after 2s:', JSON.stringify(res.data.map((p: CWPartRequest) => ({ id: p.id.slice(-6), status: p.status }))))
+    }, 2000)
+    setSuccessMsg(`Sent ${sent} part${sent > 1 ? 's' : ''} to Estimator ✓`)
+    setSuccessOpen(true)
+  }
 
   /* ── Render ── */
 
@@ -424,15 +292,208 @@ export function PartRequestsPage() {
           </ToggleButtonGroup>
         </Stack>
 
-        {/* ── Table ── */}
-        <DataTable
-          columns={columns}
-          rows={filtered}
-          keyExtractor={(pr) => pr.id}
-          emptyIcon={<Inventory2 />}
-          emptyTitle="No part requests found"
-          emptyDescription="Part requests from Service Engineers will appear here."
-        />
+        {/* ── Accordion List ── */}
+        <Box>
+          {grouped.size === 0 ? (
+            <Stack sx={{ alignItems: 'center', py: 8, bgcolor: '#fff', borderRadius: '12px', border: `1px dashed ${colors.border.default}` }}>
+              <Inventory2 sx={{ fontSize: 48, color: colors.slate[300], mb: 2 }} />
+              <Typography sx={{ fontWeight: 600, color: colors.slate[700], fontSize: '1.1rem' }}>No part requests found</Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.9rem', mt: 0.5 }}>Part requests from Service Engineers will appear here.</Typography>
+            </Stack>
+          ) : (
+            Array.from(grouped.entries()).map(([appointmentId, parts]) => {
+              const info = getApptInfo(appointmentId)
+              const allReady = parts.every(pr => pr.status === 'Labeled' || pr.status === 'Fulfilled' || pr.status === 'Rejected')
+              const hasLabeled = parts.some(pr => pr.status === 'Labeled')
+              const canSendAll = allReady && hasLabeled
+
+              return (
+                <Accordion
+                  key={appointmentId}
+                  defaultExpanded
+                  sx={{
+                    borderRadius: '12px !important',
+                    mb: 2,
+                    border: `1px solid ${colors.border.default}`,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    '&:before': { display: 'none' },
+                    overflow: 'hidden'
+                  }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Stack direction="row" sx={{ width: '100%', justifyContent: 'space-between', alignItems: 'center', pr: 2 }}>
+                      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+                        <Box sx={{ p: 1, bgcolor: colors.slate[50], borderRadius: '8px', display: 'flex' }}>
+                          <DirectionsCar sx={{ color: colors.slate[600] }} />
+                        </Box>
+                        <Box>
+                          <Typography sx={{ fontWeight: 700, color: colors.slate[900] }}>
+                            {info.vehicle}
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
+                            {info.customer} · #{appointmentId.slice(-6).toUpperCase()}
+                          </Typography>
+                        </Box>
+                        <Chip size="small" label={`${parts.length} part${parts.length === 1 ? '' : 's'}`} sx={{ fontWeight: 600 }} />
+                      </Stack>
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 0, borderTop: `1px solid ${colors.border.default}` }}>
+                    <TableContainer>
+                      <Table>
+                        <TableHead sx={{ bgcolor: colors.slate[50] }}>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 600, color: colors.slate[600], py: 1.5, pl: 3 }}>Part Name</TableCell>
+                            <TableCell sx={{ fontWeight: 600, color: colors.slate[600], py: 1.5 }}>Concern</TableCell>
+                            <TableCell sx={{ fontWeight: 600, color: colors.slate[600], py: 1.5 }}>Qty</TableCell>
+                            <TableCell sx={{ fontWeight: 600, color: colors.slate[600], py: 1.5 }}>Catalog Part</TableCell>
+                            <TableCell sx={{ fontWeight: 600, color: colors.slate[600], py: 1.5 }}>Status</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600, color: colors.slate[600], py: 1.5, pr: 3 }}>Action</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {parts.map(pr => {
+                            const concernInfo = getApptInfo(pr.appointmentId, pr.concernItemId)
+                            const isEditing = editingId === pr.id
+
+                            return (
+                              <TableRow key={pr.id} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                                <TableCell sx={{ pl: 3 }}>
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+                                      {pr.partName}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 0.25 }}>
+                                      by {pr.requestedBy}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>
+                                    {concernInfo.concern}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  {isEditing ? (
+                                    <TextField size="small" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} sx={{ width: 70 }} slotProps={{ input: { inputProps: { min: 1 } } }} />
+                                  ) : (
+                                    <Typography sx={{ fontSize: '0.875rem', color: colors.slate[900] }}>{pr.quantity ?? 1}</Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell sx={{ minWidth: 220 }}>
+                                  {isEditing ? (
+                                    <Autocomplete
+                                      size="small"
+                                      options={activePartOptions}
+                                      value={selectedPart}
+                                      onChange={(_, v) => setSelectedPart(v)}
+                                      getOptionLabel={(p) => `${p.name} (${p.partNumber})`}
+                                      renderOption={(props, p) => (
+                                        <Box component="li" {...props} key={p.id}>
+                                          <Stack spacing={0}>
+                                            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600 }}>{p.name}</Typography>
+                                            <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500] }}>
+                                              {p.partNumber} {p.brand ? `· ${p.brand}` : ''}
+                                            </Typography>
+                                          </Stack>
+                                        </Box>
+                                      )}
+                                      sx={{ minWidth: 200 }}
+                                      renderInput={(params) => <TextField {...params} placeholder="Search parts..." />}
+                                    />
+                                  ) : pr.partNumber ? (
+                                    (() => {
+                                      const match = activePartOptions.find((p) => p.partNumber === pr.partNumber)
+                                      return (
+                                        <Stack spacing={0}>
+                                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: colors.slate[900] }}>
+                                            {match?.name ?? pr.partNumber}
+                                          </Typography>
+                                          <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500], fontFamily: 'monospace' }}>
+                                            {pr.partNumber}
+                                          </Typography>
+                                        </Stack>
+                                      )
+                                    })()
+                                  ) : (
+                                    <Typography sx={{ fontSize: '0.8rem', color: colors.slate[400] }}>Not mapped</Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Chip size="small" label={pr.status} color={STATUS_COLORS[pr.status]} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+                                </TableCell>
+                                <TableCell align="right" sx={{ pr: 3 }}>
+                                  {pr.status === 'Requested' && !isEditing && (
+                                    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                                      <Button size="small" variant="contained" onClick={() => startEdit(pr.id)} sx={btnSx}>
+                                        Label
+                                      </Button>
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        color="error"
+                                        onClick={() => rejectRequest(pr.id)}
+                                        sx={{ fontWeight: 700, borderRadius: '10px' }}
+                                      >
+                                        Reject
+                                      </Button>
+                                    </Stack>
+                                  )}
+                                  {isEditing && (
+                                    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                                      <Button
+                                        size="small"
+                                        variant="contained"
+                                        color="success"
+                                        onClick={submitLabel}
+                                        disabled={!selectedPart}
+                                        sx={{ fontWeight: 700, borderRadius: '10px' }}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={() => { setEditingId(null); setSelectedPart(null) }}
+                                        sx={{ fontWeight: 700, borderRadius: '10px' }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </Stack>
+                                  )}
+
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    {/* Footer */}
+                    <Stack direction="row" sx={{ justifyContent: 'flex-end', p: 2, borderTop: `1px solid ${colors.border.default}`, bgcolor: colors.slate[50] }}>
+                      <Button
+                        variant="contained"
+                        startIcon={<Send />}
+                        onClick={() => sendAllToEstimator(parts)}
+                        disabled={!canSendAll}
+                        sx={{
+                          bgcolor: canSendAll ? '#7c3aed' : undefined,
+                          fontWeight: 700,
+                          borderRadius: '10px',
+                          textTransform: 'none',
+                          px: 3,
+                          '&:hover': { bgcolor: canSendAll ? '#6d28d9' : undefined },
+                        }}
+                      >
+                        Send All to Estimator
+                      </Button>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+              )
+            })
+          )}
+        </Box>
       </Stack>
     </Box>
   )

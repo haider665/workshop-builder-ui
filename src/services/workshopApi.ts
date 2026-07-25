@@ -1933,10 +1933,13 @@ export const workshopApi = {
     labeledBy: string
     status?: import('../types/cw').CWPartRequestStatus
   }): Promise<import('../types/cw').CWPartRequest> {
-    return request<import('../types/cw').CWPartRequest>('/api/method/workshop.api.part_requests.label', {
+    console.log('[API.labelPartRequest] CALL', id.slice(-6), 'status:', input.status ?? '(none→Labeled)', new Error().stack?.split('\n').slice(1,4).join(' ← '))
+    const result = await request<import('../types/cw').CWPartRequest>('/api/method/workshop.api.part_requests.label', {
       method: 'POST',
       body: { data: { id, ...input } },
     })
+    console.log('[API.labelPartRequest] DONE', id.slice(-6), 'returned status:', result.status)
+    return result
   },
 
   async setPartRequestStatus(id: string, status: import('../types/cw').CWPartRequestStatus): Promise<import('../types/cw').CWPartRequest> {

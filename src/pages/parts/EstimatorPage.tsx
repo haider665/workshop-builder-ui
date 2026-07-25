@@ -5,7 +5,6 @@ import {
   Button,
   Chip,
   FormControl,
-  IconButton,
   MenuItem,
   Select,
   Snackbar,
@@ -15,9 +14,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import {Image as ImageIcon, Search, Send,} from '@mui/icons-material'
+import {Send} from '@mui/icons-material'
 import {colors, pageLayout, radii, shadows} from '../../theme/tokens'
 import {workshopApi} from '../../services/workshopApi'
+import {useCwStore} from '../../store/cwStore'
 import type {CWEstimateLine, CWEstimateLineStatus, CWPart} from '../../types/cw'
 
 /* ─────────────────────── Constants ─────────────────────────── */
@@ -45,10 +45,6 @@ function fmtBDT(n?: number) {
   return `৳${n.toLocaleString()}`
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
 function statusBg(status: CWEstimateLineStatus) {
   const c = STATUS_COLOR[status] ?? colors.slate[400]
   return `${c}18`
@@ -56,86 +52,6 @@ function statusBg(status: CWEstimateLineStatus) {
 
 function statusFg(status: CWEstimateLineStatus) {
   return STATUS_COLOR[status] ?? colors.slate[600]
-}
-
-/* ─────────────────────── Part Card (Left Panel) ─────────────────────────── */
-
-function PartCard({ line, onSelect, active }: { line: CWEstimateLine; onSelect: (line: CWEstimateLine) => void; active: boolean }) {
-  const isRequested = line.status === 'Requested'
-  const isIdentified = line.status === 'Identified'
-  const canAdd = isRequested || isIdentified
-
-  return (
-    <Box
-      sx={{
-        bgcolor: active ? colors.accent.blue + '08' : colors.bg.card,
-        border: `1px solid ${active ? colors.accent.blue : colors.border.default}`,
-        borderRadius: radii.md,
-        boxShadow: active ? `0 0 0 2px ${colors.accent.blue}30` : shadows.card,
-        p: 2,
-        display: 'flex',
-        gap: 2,
-        alignItems: 'flex-start',
-        transition: 'box-shadow 0.15s, border-color 0.15s',
-        cursor: canAdd ? 'pointer' : 'default',
-        '&:hover': canAdd ? { boxShadow: shadows.elevated, borderColor: colors.accent.blue } : {},
-      }}
-      onClick={() => canAdd && onSelect(line)}
-    >
-      {/* Thumbnail / placeholder */}
-      <Box
-        sx={{
-          width: 64,
-          height: 64,
-          borderRadius: radii.sm,
-          bgcolor: colors.bg.subtle,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {line.mediaUrls && line.mediaUrls.length > 0 ? (
-          <Box component="img" src={line.mediaUrls[0]} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: radii.sm }} />
-        ) : (
-          <ImageIcon sx={{ fontSize: 28, color: colors.slate[300] }} />
-        )}
-      </Box>
-
-      {/* Info */}
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: colors.slate[900] }}>
-            {line.partName ?? line.description}
-          </Typography>
-          <Chip
-            label={line.status}
-            size="small"
-            sx={{ fontWeight: 700, fontSize: '0.6rem', height: 20, bgcolor: statusBg(line.status), color: statusFg(line.status), flexShrink: 0, ml: 1 }}
-          />
-        </Stack>
-
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
-          <Chip label={`Qty: ${line.quantity}`} size="small" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: colors.accent.amber + '20', color: colors.accent.amber }} />
-          {line.partNumber && (
-            <Chip label={line.partNumber} size="small" sx={{ fontWeight: 600, fontSize: '0.65rem', height: 20, fontFamily: 'monospace', bgcolor: colors.bg.subtle }} />
-          )}
-          {line.inStock && (
-            <Chip label="In Stock" size="small" sx={{ fontWeight: 700, fontSize: '0.6rem', height: 18, bgcolor: `${colors.status.success}18`, color: colors.status.success }} />
-          )}
-        </Stack>
-
-        <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400], mt: 0.5 }}>
-          By: {line.requestedByUserId} · {fmtDate(line.createdAt)}
-        </Typography>
-      </Box>
-
-      {/* View icon */}
-      <IconButton size="small" sx={{ flexShrink: 0, color: colors.slate[400] }}>
-        <Search sx={{ fontSize: 18 }} />
-      </IconButton>
-    </Box>
-  )
 }
 
 /* ─────────────────────── Pricing State ─────────────────────────── */
@@ -161,9 +77,14 @@ export function EstimatorPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [queueTab, setQueueTab] = useState<QueueTab>('All')
-  const [activePricing, setActivePricing] = useState<PricingData | null>(null)
+  const [selectedApptId, setSelectedApptId] = useState<string | null>(null)
+  const [pricingMap, setPricingMap] = useState<Map<string, PricingData>>(new Map())
   const [submitting, setSubmitting] = useState(false)
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' })
+
+  const appointments = useCwStore(s => s.appointments)
+  const vehicles = useCwStore(s => s.vehicles)
+  const customers = useCwStore(s => s.customers)
 
   const partsMapRef = useRef<Map<string, CWPart>>(new Map())
 
@@ -205,62 +126,96 @@ export function EstimatorPage() {
     }
   }, [lines])
 
-  /* ── Select Part ── */
-
-  function handleSelectPart(line: CWEstimateLine) {
-    let sellPrice = ''
-    if (line.partId) {
-      const part = partsMapRef.current.get(line.partId)
-      if (part?.defaultSellPrice) {
-        sellPrice = part.defaultSellPrice.toString()
-      }
+  const groupedLines = useMemo(() => {
+    const map = new Map<string, typeof queueLines>()
+    for (const line of queueLines) {
+      const key = line.appointmentId
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(line)
     }
-    setActivePricing({
-      lineId: line.id,
-      appointmentId: line.appointmentId,
-      partName: line.partName ?? line.description,
-      partNumber: line.partNumber,
-      description: line.description,
-      sourcingType: line.sourcingType ?? 'OEM',
-      sellPrice: line.sellPrice?.toString() ?? sellPrice,
-      quantity: line.quantity?.toString() ?? '1',
-      deliveryDate: line.estimatedDeliveryDate ?? '',
-      inStock: line.inStock,
-      remarks: line.remarks ?? '',
+    return [...map.entries()]
+  }, [queueLines])
+
+  /* ── Select Appointment ── */
+
+  function handleSelectAppointment(apptId: string) {
+    setSelectedApptId(apptId)
+    const apptLines = queueLines.filter(l => l.appointmentId === apptId)
+    const newMap = new Map<string, PricingData>()
+    for (const line of apptLines) {
+      let sellPrice = ''
+      if (line.partId) {
+        const part = partsMapRef.current.get(line.partId)
+        if (part?.defaultSellPrice) sellPrice = part.defaultSellPrice.toString()
+      }
+      newMap.set(line.id, {
+        lineId: line.id,
+        appointmentId: line.appointmentId,
+        partName: line.partName ?? line.description,
+        partNumber: line.partNumber,
+        description: line.description,
+        sourcingType: line.sourcingType ?? 'OEM',
+        sellPrice: line.sellPrice?.toString() ?? sellPrice,
+        quantity: line.quantity?.toString() ?? '1',
+        deliveryDate: line.estimatedDeliveryDate ?? '',
+        inStock: line.inStock,
+        remarks: line.remarks ?? '',
+      })
+    }
+    setPricingMap(newMap)
+  }
+
+  function updateLineField(lineId: string, field: keyof PricingData, value: string) {
+    setPricingMap(prev => {
+      const next = new Map(prev)
+      const item = next.get(lineId)
+      if (item) next.set(lineId, { ...item, [field]: value })
+      return next
     })
   }
 
-  function updateField(field: keyof PricingData, value: string) {
-    setActivePricing((prev) => prev ? { ...prev, [field]: value } : null)
-  }
+  /* ── Price & Send All ── */
 
-  /* ── Price & Send ── */
+  const selectedLines = useMemo(() => {
+    if (!selectedApptId) return []
+    return queueLines.filter(l => l.appointmentId === selectedApptId)
+  }, [selectedApptId, queueLines])
 
-  async function handleSaveAndSend() {
-    if (!activePricing) return
-    const sp = parseFloat(activePricing.sellPrice)
-    const qty = parseInt(activePricing.quantity, 10) || 1
-    if (isNaN(sp) || sp <= 0) {
-      setSnack({ open: true, msg: 'Enter valid sell price', severity: 'error' })
-      return
+  const allPriced = useMemo(() => {
+    if (pricingMap.size === 0) return false
+    return [...pricingMap.values()].every(p => parseFloat(p.sellPrice) > 0 && p.deliveryDate !== '')
+  }, [pricingMap])
+
+  const grandTotal = useMemo(() => {
+    let sum = 0
+    for (const p of pricingMap.values()) {
+      sum += (parseFloat(p.sellPrice) || 0) * (parseInt(p.quantity, 10) || 1)
     }
+    return sum
+  }, [pricingMap])
 
+  async function handleSendAll() {
+    if (!selectedApptId || !allPriced) return
     setSubmitting(true)
     try {
-      // Price the line
-      await workshopApi.priceEstimateLine(activePricing.lineId, {
-        unitPrice: sp,
-        sellPrice: sp,
-        quantity: qty,
-        sourcingType: activePricing.sourcingType as import('../../types/cw').CWPricingSourcingType,
-        estimatedDeliveryDate: activePricing.deliveryDate || undefined,
-        remarks: activePricing.remarks.trim() || undefined,
-      })
-      // Submit to advisor
-      await workshopApi.submitEstimateLines(activePricing.appointmentId, [activePricing.lineId])
-
-      setSnack({ open: true, msg: `${activePricing.partName} — priced & sent to Advisor ✓`, severity: 'success' })
-      setActivePricing(null)
+      const lineIds: string[] = []
+      for (const [lineId, pricing] of pricingMap.entries()) {
+        const sp = parseFloat(pricing.sellPrice)
+        const qty = parseInt(pricing.quantity, 10) || 1
+        await workshopApi.priceEstimateLine(lineId, {
+          unitPrice: sp,
+          sellPrice: sp,
+          quantity: qty,
+          sourcingType: pricing.sourcingType as import('../../types/cw').CWPricingSourcingType,
+          estimatedDeliveryDate: pricing.deliveryDate || undefined,
+          remarks: pricing.remarks.trim() || undefined,
+        })
+        lineIds.push(lineId)
+      }
+      await workshopApi.submitEstimateLines(selectedApptId, lineIds)
+      setSnack({ open: true, msg: `${lineIds.length} part${lineIds.length > 1 ? 's' : ''} priced & sent to Advisor ✓`, severity: 'success' })
+      setSelectedApptId(null)
+      setPricingMap(new Map())
       await loadLines()
     } catch (err) {
       setSnack({ open: true, msg: err instanceof Error ? err.message : 'Failed to save & send', severity: 'error' })
@@ -269,8 +224,15 @@ export function EstimatorPage() {
     }
   }
 
-  const total = activePricing ? (parseFloat(activePricing.sellPrice) || 0) * (parseInt(activePricing.quantity, 10) || 1) : 0
-  const canSend = activePricing && parseFloat(activePricing.sellPrice) > 0
+  function getApptDisplay(apptId: string) {
+    const appt = appointments.find(a => a.id === apptId)
+    const vehicle = vehicles.find(v => v.id === appt?.vehicleId)
+    const customer = customers.find(c => c.id === appt?.customerId)
+    return {
+      vehicle: vehicle ? `${vehicle.make ?? ''} ${vehicle.model ?? ''} · ${vehicle.registrationNo}`.trim() : 'Unknown Vehicle',
+      customer: customer?.fullName ?? 'Unknown Customer',
+    }
+  }
 
   /* ── Render ── */
 
@@ -281,7 +243,7 @@ export function EstimatorPage() {
           Estimator
         </Typography>
         <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
-          Price parts submitted by engineers and send estimates to Service Advisor
+          Price parts per appointment and send estimates to Service Advisor
         </Typography>
       </Box>
 
@@ -291,14 +253,14 @@ export function EstimatorPage() {
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
 
-        {/* ── Left Panel: Parts Queue ── */}
+        {/* ── Left Panel: Appointment Queue ── */}
         <Box sx={{ flex: { md: 4 }, minWidth: 0 }}>
           <Box sx={{ bgcolor: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.md, boxShadow: shadows.card, p: 2.5 }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}>
               <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[800] }}>
-                Parts Queue
+                Appointments
               </Typography>
-              <Chip label={queueCounts.All} size="small" sx={{ fontWeight: 800, fontSize: '0.7rem', height: 22, bgcolor: colors.accent.amber + '20', color: colors.accent.amber }} />
+              <Chip label={groupedLines.length} size="small" sx={{ fontWeight: 800, fontSize: '0.7rem', height: 22, bgcolor: colors.accent.amber + '20', color: colors.accent.amber }} />
             </Stack>
 
             <Tabs value={queueTab} onChange={(_, v) => setQueueTab(v as QueueTab)} sx={{ minHeight: 32, mb: 2, '& .MuiTab-root': { minHeight: 32, py: 0.5, textTransform: 'none', fontWeight: 700, fontSize: '0.78rem' } }}>
@@ -312,18 +274,57 @@ export function EstimatorPage() {
                 <Typography sx={{ color: colors.slate[400], fontSize: '0.85rem', textAlign: 'center', py: 3 }}>Loading…</Typography>
               ) : error ? (
                 <Alert severity="error">{error}</Alert>
-              ) : queueLines.length === 0 ? (
+              ) : groupedLines.length === 0 ? (
                 <Typography sx={{ color: colors.slate[400], fontSize: '0.85rem', textAlign: 'center', py: 3 }}>No pending parts</Typography>
               ) : (
-                queueLines.map((line) => (
-                  <PartCard key={line.id} line={line} onSelect={handleSelectPart} active={activePricing?.lineId === line.id} />
-                ))
+                groupedLines.map(([apptId, linesInGroup]) => {
+                  const display = getApptDisplay(apptId)
+                  const isSelected = selectedApptId === apptId
+
+                  return (
+                    <Box
+                      key={apptId}
+                      onClick={() => handleSelectAppointment(apptId)}
+                      sx={{
+                        p: 2,
+                        borderRadius: radii.sm,
+                        border: `1.5px solid ${isSelected ? colors.accent.blue : colors.border.default}`,
+                        bgcolor: isSelected ? `${colors.accent.blue}08` : colors.bg.card,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        '&:hover': { borderColor: colors.accent.blue, bgcolor: `${colors.accent.blue}05` },
+                      }}
+                    >
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.88rem', color: colors.slate[900] }}>
+                        {display.vehicle}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500], mt: 0.25 }}>
+                        {display.customer}
+                      </Typography>
+                      <Stack direction="row" spacing={0.5} sx={{ mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
+                        <Chip
+                          label={`${linesInGroup.length} part${linesInGroup.length > 1 ? 's' : ''}`}
+                          size="small"
+                          sx={{ fontWeight: 700, fontSize: '0.68rem', height: 20, bgcolor: colors.accent.amber + '18', color: colors.accent.amber }}
+                        />
+                        {linesInGroup.map(l => (
+                          <Chip
+                            key={l.id}
+                            label={l.partName ?? l.description}
+                            size="small"
+                            sx={{ fontWeight: 600, fontSize: '0.65rem', height: 20, bgcolor: statusBg(l.status), color: statusFg(l.status), maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )
+                })
               )}
             </Stack>
           </Box>
         </Box>
 
-        {/* ── Right Panel: Price & Send ── */}
+        {/* ── Right Panel: Price All Parts for Appointment ── */}
         <Box sx={{ flex: { md: 6 }, minWidth: 0 }}>
           <Box sx={{ bgcolor: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.md, boxShadow: shadows.card, overflow: 'hidden' }}>
             <Box sx={{ px: 2.5, py: 2, borderBottom: `1px solid ${colors.border.default}` }}>
@@ -332,152 +333,144 @@ export function EstimatorPage() {
               </Typography>
             </Box>
 
-            {!activePricing ? (
+            {!selectedApptId || selectedLines.length === 0 ? (
               <Box sx={{ py: 8, textAlign: 'center' }}>
                 <Typography sx={{ fontSize: '0.9rem', color: colors.slate[400], mb: 0.5 }}>
-                  Select a part from the left panel to price it.
+                  Select an appointment from the left panel
                 </Typography>
                 <Typography sx={{ fontSize: '0.78rem', color: colors.slate[300] }}>
-                  One part at a time — Price → Send → Next.
+                  Price all parts for the appointment, then send to Advisor.
                 </Typography>
               </Box>
             ) : (
-              <Box sx={{ p: 3 }}>
-                {/* Part Info */}
-                <Box sx={{ mb: 3, pb: 2, borderBottom: `1px solid ${colors.border.subtle}` }}>
-                  <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', color: colors.slate[900], mb: 0.25 }}>
-                    {activePricing.partName}
-                  </Typography>
-                  {activePricing.partNumber && (
-                    <Typography sx={{ fontSize: '0.78rem', color: colors.slate[400], fontFamily: 'monospace' }}>
-                      #{activePricing.partNumber}
+              <Box sx={{ p: 2.5 }}>
+                {/* Appointment Header */}
+                {(() => {
+                  const display = getApptDisplay(selectedApptId)
+                  return (
+                    <Box sx={{ mb: 2.5, pb: 2, borderBottom: `1px solid ${colors.border.subtle}` }}>
+                      <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', color: colors.slate[900] }}>
+                        {display.vehicle}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
+                        {display.customer} · {selectedLines.length} part{selectedLines.length > 1 ? 's' : ''}
+                      </Typography>
+                    </Box>
+                  )
+                })()}
+
+                {/* Per-line pricing */}
+                <Stack spacing={2.5}>
+                  {selectedLines.map((line, idx) => {
+                    const pricing = pricingMap.get(line.id)
+                    if (!pricing) return null
+                    const lineTotal = (parseFloat(pricing.sellPrice) || 0) * (parseInt(pricing.quantity, 10) || 1)
+
+                    return (
+                      <Box
+                        key={line.id}
+                        sx={{ p: 2, border: `1px solid ${colors.border.default}`, borderRadius: radii.sm, bgcolor: colors.bg.subtle }}
+                      >
+                        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                          <Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: colors.slate[900] }}>
+                              {idx + 1}. {pricing.partName}
+                            </Typography>
+                            {pricing.partNumber && (
+                              <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400], fontFamily: 'monospace' }}>
+                                #{pricing.partNumber}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Stack direction="row" spacing={0.5}>
+                            {pricing.inStock && (
+                              <Chip label="In Stock" size="small" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: `${colors.status.success}18`, color: colors.status.success }} />
+                            )}
+                            <Chip
+                              label={fmtBDT(lineTotal)}
+                              size="small"
+                              sx={{ fontWeight: 800, fontSize: '0.72rem', height: 22, bgcolor: lineTotal > 0 ? `${colors.accent.blue}15` : colors.slate[100], color: lineTotal > 0 ? colors.accent.blue : colors.slate[400] }}
+                            />
+                          </Stack>
+                        </Stack>
+
+                        <Stack direction="row" spacing={1.5}>
+                          <FormControl size="small" sx={{ flex: 1 }}>
+                            <Select
+                              value={pricing.sourcingType}
+                              onChange={(e) => updateLineField(line.id, 'sourcingType', e.target.value)}
+                              sx={{ fontSize: '0.8rem' }}
+                            >
+                              {SOURCING_TYPES.map((t) => <MenuItem key={t} value={t} sx={{ fontSize: '0.8rem' }}>{t}</MenuItem>)}
+                            </Select>
+                          </FormControl>
+                          <TextField
+                            size="small" label="Qty" type="number"
+                            value={pricing.quantity}
+                            onChange={(e) => updateLineField(line.id, 'quantity', e.target.value)}
+                            sx={{ width: 70 }}
+                            slotProps={{ input: { inputProps: { min: 1 } } }}
+                          />
+                          <TextField
+                            size="small" label="Sell Price (৳)" type="number" required
+                            value={pricing.sellPrice}
+                            onChange={(e) => updateLineField(line.id, 'sellPrice', e.target.value)}
+                            error={pricing.sellPrice !== '' && parseFloat(pricing.sellPrice) <= 0}
+                            sx={{ flex: 1 }}
+                            slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
+                          />
+                          <TextField
+                            size="small" label="Delivery" type="date" required
+                            value={pricing.deliveryDate}
+                            onChange={(e) => updateLineField(line.id, 'deliveryDate', e.target.value)}
+                            error={pricing.deliveryDate === ''}
+                            sx={{ width: 140 }}
+                            slotProps={{ inputLabel: { shrink: true } }}
+                          />
+                        </Stack>
+                      </Box>
+                    )
+                  })}
+                </Stack>
+
+                {/* Grand Total */}
+                <Box sx={{ bgcolor: colors.slate[900], borderRadius: radii.md, p: 2, mt: 3 }}>
+                  <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography sx={{ fontSize: '0.9rem', color: colors.slate[300] }}>
+                      Grand Total ({selectedLines.length} part{selectedLines.length > 1 ? 's' : ''})
                     </Typography>
-                  )}
-                  {activePricing.description !== activePricing.partName && (
-                    <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], mt: 0.5 }}>
-                      {activePricing.description}
+                    <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff' }}>
+                      {fmtBDT(grandTotal)}
                     </Typography>
-                  )}
-                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                    {activePricing.inStock && (
-                      <Chip label="In Stock" size="small" sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: `${colors.status.success}18`, color: colors.status.success }} />
-                    )}
-                    <Chip
-                      label={`Appt: ${activePricing.appointmentId.length > 10 ? activePricing.appointmentId.slice(0, 10) + '…' : activePricing.appointmentId}`}
-                      size="small"
-                      sx={{ fontWeight: 600, fontSize: '0.65rem', fontFamily: 'monospace', bgcolor: colors.bg.subtle }}
-                    />
                   </Stack>
                 </Box>
 
-                {/* Pricing Form */}
-                <Stack spacing={2.5}>
-                  <Stack direction="row" spacing={2}>
-                    <FormControl size="small" sx={{ flex: 1 }}>
-                      <Select
-                        value={activePricing.sourcingType}
-                        onChange={(e) => updateField('sourcingType', e.target.value)}
-                        sx={{ fontSize: '0.85rem' }}
-                      >
-                        {SOURCING_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                      </Select>
-                      <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400], mt: 0.5 }}>Sourcing Type</Typography>
-                    </FormControl>
-
-                    <TextField
-                      size="small"
-                      label="Quantity"
-                      type="number"
-                      value={activePricing.quantity}
-                      onChange={(e) => updateField('quantity', e.target.value)}
-                      sx={{ flex: 0.6 }}
-                      slotProps={{ input: { inputProps: { min: 1 } } }}
-                    />
-                  </Stack>
-
-                  <Stack direction="row" spacing={2}>
-                    <TextField
-                      size="small"
-                      label="Sell Price (৳)"
-                      type="number"
-                      required
-                      value={activePricing.sellPrice}
-                      onChange={(e) => updateField('sellPrice', e.target.value)}
-                      error={activePricing.sellPrice !== '' && parseFloat(activePricing.sellPrice) <= 0}
-                      helperText={activePricing.sellPrice !== '' && parseFloat(activePricing.sellPrice) <= 0 ? 'Must be > 0' : ''}
-                      sx={{ flex: 1 }}
-                      slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
-                    />
-
-                    <TextField
-                      size="small"
-                      label="Delivery Date"
-                      type="date"
-                      value={activePricing.deliveryDate}
-                      onChange={(e) => updateField('deliveryDate', e.target.value)}
-                      sx={{ flex: 1 }}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                  </Stack>
-
-                  <TextField
-                    size="small"
-                    label="Notes / Remarks"
-                    multiline
-                    minRows={2}
-                    maxRows={4}
-                    value={activePricing.remarks}
-                    onChange={(e) => updateField('remarks', e.target.value)}
-                    placeholder="Add any notes for the Service Advisor..."
-                    sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.85rem' } }}
-                  />
-
-                  {/* Total */}
-                  <Box sx={{ bgcolor: colors.bg.subtle, borderRadius: radii.md, p: 2, border: `1px solid ${colors.border.default}` }}>
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography sx={{ fontSize: '0.85rem', color: colors.slate[600] }}>Total</Typography>
-                      <Typography sx={{ fontSize: '1.3rem', fontWeight: 800, color: colors.slate[900] }}>
-                        {fmtBDT(total)}
-                      </Typography>
-                    </Stack>
-                  </Box>
-
-                  {/* Actions */}
-                  <Stack direction="row" spacing={1.5}>
-                    <Button
-                      variant="outlined"
-                      onClick={() => setActivePricing(null)}
-                      disabled={submitting}
-                      sx={{
-                        flex: 1,
-                        fontWeight: 700,
-                        textTransform: 'none',
-                        borderRadius: radii.sm,
-                        color: colors.slate[600],
-                        borderColor: colors.border.default,
-                        '&:hover': { bgcolor: colors.bg.subtle, borderColor: colors.slate[400] },
-                      }}
-                    >
-                      Skip
-                    </Button>
-                    <Button
-                      variant="contained"
-                      startIcon={<Send sx={{ fontSize: 14 }} />}
-                      disabled={!canSend || submitting}
-                      onClick={handleSaveAndSend}
-                      sx={{
-                        flex: 2,
-                        fontWeight: 800,
-                        textTransform: 'none',
-                        borderRadius: radii.sm,
-                        bgcolor: colors.slate[900],
-                        '&:hover': { bgcolor: colors.slate[800] },
-                        py: 1.25,
-                      }}
-                    >
-                      {submitting ? 'Sending…' : 'Price & Send to Advisor'}
-                    </Button>
-                  </Stack>
+                {/* Actions */}
+                <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => { setSelectedApptId(null); setPricingMap(new Map()) }}
+                    disabled={submitting}
+                    sx={{
+                      flex: 1, fontWeight: 700, textTransform: 'none', borderRadius: radii.sm,
+                      color: colors.slate[600], borderColor: colors.border.default,
+                      '&:hover': { bgcolor: colors.bg.subtle, borderColor: colors.slate[400] },
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<Send sx={{ fontSize: 14 }} />}
+                    disabled={!allPriced || submitting}
+                    onClick={handleSendAll}
+                    sx={{
+                      flex: 2, fontWeight: 800, textTransform: 'none', borderRadius: radii.sm,
+                      bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] }, py: 1.25,
+                    }}
+                  >
+                    {submitting ? 'Sending…' : `Price & Send All (${selectedLines.length})`}
+                  </Button>
                 </Stack>
               </Box>
             )}
