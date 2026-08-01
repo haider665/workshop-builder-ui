@@ -651,6 +651,8 @@ export const workshopApi = {
     categoryId: string
     code: string
     name: string
+    sourceSystem?: string
+    externalReference?: string
     processTimeMins?: number
     status?: import('../types/cw').CWConcernStatus
   }): Promise<import('../types/cw').CWConcern> {
@@ -666,6 +668,8 @@ export const workshopApi = {
       categoryId?: string
       code?: string
       name: string
+      sourceSystem?: string
+      externalReference?: string
       processTimeMins?: number
       status: import('../types/cw').CWConcernStatus
     },

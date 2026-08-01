@@ -54,6 +54,8 @@ export function ConcernsPage() {
   const [newConcernCatId, setNewConcernCatId] = useState('')
   const [newConcernCode, setNewConcernCode] = useState('')
   const [newConcernName, setNewConcernName] = useState('')
+  const [newConcernSource, setNewConcernSource] = useState('Manual')
+  const [newConcernExternalRef, setNewConcernExternalRef] = useState('')
   const [newConcernEstTime, setNewConcernEstTime] = useState('30')
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
@@ -109,6 +111,8 @@ export function ConcernsPage() {
   function openConcernDialog() {
     setNewConcernCode('')
     setNewConcernName('')
+    setNewConcernSource('Manual')
+    setNewConcernExternalRef('')
     setNewConcernEstTime('30')
     setNewConcernCatId(
       concernCategories.filter((c) => c.status === 'Active').length
@@ -147,11 +151,15 @@ export function ConcernsPage() {
         categoryId: newConcernCatId,
         code: newConcernCode.trim(),
         name: newConcernName,
+        sourceSystem: newConcernSource.trim() || undefined,
+        externalReference: newConcernExternalRef.trim() || undefined,
         processTimeMins: estMins,
       })
       setConcerns((current) => [c, ...current.filter((item) => item.id !== c.id)])
       setNewConcernCode('')
       setNewConcernName('')
+      setNewConcernSource('Manual')
+      setNewConcernExternalRef('')
       setNewConcernEstTime('30')
       setConcernDialogOpen(false)
       setSuccessMessage(`Concern created: ${c.name}`)
@@ -299,6 +307,16 @@ export function ConcernsPage() {
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>
           {typeof c.processTimeMins === 'number' ? `${c.processTimeMins}m` : '—'}
         </Typography>
+      ),
+    },
+    {
+      key: 'source',
+      header: 'Source',
+      render: (c) => (
+        <Box>
+          <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>{c.sourceSystem ?? '—'}</Typography>
+          {c.externalReference ? <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>{c.externalReference}</Typography> : null}
+        </Box>
       ),
     },
     {
@@ -513,6 +531,20 @@ export function ConcernsPage() {
           type="number"
           value={newConcernEstTime}
           onChange={(e) => setNewConcernEstTime(e.target.value)}
+          fullWidth
+        />
+        <TextField
+          label="Source system"
+          value={newConcernSource}
+          onChange={(e) => setNewConcernSource(e.target.value)}
+          placeholder="e.g. Manual or Customer Concern Codes 0526"
+          fullWidth
+        />
+        <TextField
+          label="External reference"
+          value={newConcernExternalRef}
+          onChange={(e) => setNewConcernExternalRef(e.target.value)}
+          placeholder="Optional source record ID"
           fullWidth
         />
       </FormDialog>

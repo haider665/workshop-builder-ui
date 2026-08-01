@@ -256,6 +256,8 @@ export type CWConcern = {
   categoryId: string
   code: string             // e.g. "CC-BRK-001"
   name: string
+  sourceSystem?: string
+  externalReference?: string
   processTimeMins?: number
   status: CWConcernStatus
   createdAt: string

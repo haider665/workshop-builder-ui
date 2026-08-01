@@ -14,8 +14,16 @@ export const concernsService = {
     page?: number
     pageSize?: number
   } = {}): Promise<CWConcernCategory[]> {
-    const response = await workshopApi.listConcernCategories(params)
-    return response.data
+    const pageSize = params.pageSize ?? 200
+    const first = await workshopApi.listConcernCategories({ ...params, page: params.page ?? 1, pageSize })
+    const rows = [...first.data]
+    const total = first.meta?.total ?? rows.length
+    for (let page = (params.page ?? 1) + 1; rows.length < total; page += 1) {
+      const response = await workshopApi.listConcernCategories({ ...params, page, pageSize })
+      if (!response.data.length) break
+      rows.push(...response.data)
+    }
+    return rows
   },
 
   async createCategory(input: {
@@ -48,14 +56,24 @@ export const concernsService = {
     page?: number
     pageSize?: number
   } = {}): Promise<CWConcern[]> {
-    const response = await workshopApi.listConcerns(params)
-    return response.data
+    const pageSize = params.pageSize ?? 200
+    const first = await workshopApi.listConcerns({ ...params, page: params.page ?? 1, pageSize })
+    const rows = [...first.data]
+    const total = first.meta?.total ?? rows.length
+    for (let page = (params.page ?? 1) + 1; rows.length < total; page += 1) {
+      const response = await workshopApi.listConcerns({ ...params, page, pageSize })
+      if (!response.data.length) break
+      rows.push(...response.data)
+    }
+    return rows
   },
 
   async create(input: {
     categoryId: string
     code: string
     name: string
+    sourceSystem?: string
+    externalReference?: string
     processTimeMins?: number
     status?: CWConcernStatus
   }): Promise<CWConcern> {
@@ -68,6 +86,8 @@ export const concernsService = {
       categoryId?: string
       code?: string
       name: string
+      sourceSystem?: string
+      externalReference?: string
       processTimeMins?: number
       status: CWConcernStatus
     },

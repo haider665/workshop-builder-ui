@@ -9,8 +9,16 @@ export const servicesService = {
     page?: number
     pageSize?: number
   } = {}): Promise<CWService[]> {
-    const response = await workshopApi.listServices(params)
-    return response.data
+    const pageSize = params.pageSize ?? 200
+    const first = await workshopApi.listServices({ ...params, page: params.page ?? 1, pageSize })
+    const rows = [...first.data]
+    const total = first.meta?.total ?? rows.length
+    for (let page = (params.page ?? 1) + 1; rows.length < total; page += 1) {
+      const response = await workshopApi.listServices({ ...params, page, pageSize })
+      if (!response.data.length) break
+      rows.push(...response.data)
+    }
+    return rows
   },
 
   async create(input: {
