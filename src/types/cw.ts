@@ -550,17 +550,29 @@ export type CWPartStatus = 'Active' | 'Inactive'
 
 export type CWPart = {
   id: string
+  itemId?: string
+  itemName?: string
   name: string
   partNumber: string
   description?: string
   category?: string                      // "Engine Parts", "Brake System", "Body Parts", etc.
   brand?: string                         // "Bosch", "Brembo", "Denso", etc.
+  manufacturer?: string
   modelVariant?: string                  // "Sedan XLE", "SUV Sport", etc.
+  modelYear?: string
   vehicleFitment?: string[]              // e.g. ["Toyota Corolla 2020"]
   alternatePartNumbers?: string[]        // supersession / interchangeability
   mediaUrls?: string[]
   rackLocation?: string                  // e.g. "A-3-14"
   binNumber?: string
+  uom?: string
+  purchaseCategory?: string
+  salesDescription?: string
+  purchaseDescription?: string
+  isReturnable?: boolean
+  isComboProduct?: boolean
+  isSalesItem?: boolean
+  isPurchaseItem?: boolean
   reorderLevel?: number                  // triggers procurement when stock ≤ this
   defaultSellPrice?: number              // default sell price (৳) for this part
   stockCount?: number                    // current unit count (denormalized for display)

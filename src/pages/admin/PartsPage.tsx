@@ -3,11 +3,13 @@ import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   IconButton,
   MenuItem,
   Snackbar,
@@ -63,8 +65,22 @@ type PartDraft = {
   description: string
   category: string
   brand: string
+  manufacturer: string
   modelVariant: string
+  modelYear: string
   rackLocation: string
+  binNumber: string
+  uom: string
+  purchaseCategory: string
+  salesDescription: string
+  purchaseDescription: string
+  vehicleFitment: string
+  alternatePartNumbers: string
+  mediaUrls: string
+  isReturnable: boolean
+  isComboProduct: boolean
+  isSalesItem: boolean
+  isPurchaseItem: boolean
 
   reorderLevel: string
   defaultSellPrice: string
@@ -79,8 +95,22 @@ function emptyDraft(): PartDraft {
     description: '',
     category: '',
     brand: '',
+    manufacturer: '',
     modelVariant: '',
+    modelYear: '',
     rackLocation: '',
+    binNumber: '',
+    uom: '',
+    purchaseCategory: '',
+    salesDescription: '',
+    purchaseDescription: '',
+    vehicleFitment: '',
+    alternatePartNumbers: '',
+    mediaUrls: '',
+    isReturnable: false,
+    isComboProduct: false,
+    isSalesItem: true,
+    isPurchaseItem: true,
 
     reorderLevel: '',
     defaultSellPrice: '',
@@ -91,14 +121,28 @@ function emptyDraft(): PartDraft {
 
 function toDraft(part: CWPart): PartDraft {
   return {
-    name: part.name,
+    name: part.itemName ?? part.name,
     partNumber: part.partNumber,
     description: part.description ?? '',
     defaultSellPrice: part.defaultSellPrice != null ? String(part.defaultSellPrice) : '',
     category: part.category ?? '',
     brand: part.brand ?? '',
+    manufacturer: part.manufacturer ?? '',
     modelVariant: part.modelVariant ?? '',
+    modelYear: part.modelYear ?? '',
     rackLocation: part.rackLocation ?? '',
+    binNumber: part.binNumber ?? '',
+    uom: part.uom ?? '',
+    purchaseCategory: part.purchaseCategory ?? '',
+    salesDescription: part.salesDescription ?? '',
+    purchaseDescription: part.purchaseDescription ?? '',
+    vehicleFitment: (part.vehicleFitment ?? []).join(', '),
+    alternatePartNumbers: (part.alternatePartNumbers ?? []).join(', '),
+    mediaUrls: (part.mediaUrls ?? []).join('\n'),
+    isReturnable: part.isReturnable ?? false,
+    isComboProduct: part.isComboProduct ?? false,
+    isSalesItem: part.isSalesItem ?? true,
+    isPurchaseItem: part.isPurchaseItem ?? true,
 
     reorderLevel: typeof part.reorderLevel === 'number' ? String(part.reorderLevel) : '',
     stockCount: typeof part.stockCount === 'number' ? String(part.stockCount) : '',
@@ -175,12 +219,25 @@ export function PartsPage() {
     try {
       await workshopApi.createPart({
       name: draft.name.trim(),
+      itemName: draft.name.trim(),
       partNumber: draft.partNumber.trim(),
       description: draft.description.trim() || undefined,
       category: draft.category || undefined,
       brand: draft.brand.trim() || undefined,
+      manufacturer: draft.manufacturer.trim() || undefined,
       modelVariant: draft.modelVariant.trim() || undefined,
+      modelYear: draft.modelYear.trim() || undefined,
       rackLocation: draft.rackLocation.trim() || undefined,
+      binNumber: draft.binNumber.trim() || undefined,
+      uom: draft.uom.trim() || undefined,
+      purchaseCategory: draft.purchaseCategory.trim() || undefined,
+      salesDescription: draft.salesDescription.trim() || undefined,
+      purchaseDescription: draft.purchaseDescription.trim() || undefined,
+      vehicleFitment: draft.vehicleFitment.split(',').map(v=>v.trim()).filter(Boolean),
+      alternatePartNumbers: draft.alternatePartNumbers.split(',').map(v=>v.trim()).filter(Boolean),
+      mediaUrls: draft.mediaUrls.split(/\n|,/).map(v=>v.trim()).filter(Boolean),
+      isReturnable: draft.isReturnable, isComboProduct: draft.isComboProduct,
+      isSalesItem: draft.isSalesItem, isPurchaseItem: draft.isPurchaseItem,
 
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
       defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice.trim()) : undefined,
@@ -202,12 +259,25 @@ export function PartsPage() {
     try {
       await workshopApi.updatePart(editPart.id, {
       name: draft.name.trim(),
+      itemName: draft.name.trim(),
       partNumber: draft.partNumber.trim(),
       description: draft.description.trim() || undefined,
       category: draft.category || undefined,
       brand: draft.brand.trim() || undefined,
+      manufacturer: draft.manufacturer.trim() || undefined,
       modelVariant: draft.modelVariant.trim() || undefined,
+      modelYear: draft.modelYear.trim() || undefined,
       rackLocation: draft.rackLocation.trim() || undefined,
+      binNumber: draft.binNumber.trim() || undefined,
+      uom: draft.uom.trim() || undefined,
+      purchaseCategory: draft.purchaseCategory.trim() || undefined,
+      salesDescription: draft.salesDescription.trim() || undefined,
+      purchaseDescription: draft.purchaseDescription.trim() || undefined,
+      vehicleFitment: draft.vehicleFitment.split(',').map(v=>v.trim()).filter(Boolean),
+      alternatePartNumbers: draft.alternatePartNumbers.split(',').map(v=>v.trim()).filter(Boolean),
+      mediaUrls: draft.mediaUrls.split(/\n|,/).map(v=>v.trim()).filter(Boolean),
+      isReturnable: draft.isReturnable, isComboProduct: draft.isComboProduct,
+      isSalesItem: draft.isSalesItem, isPurchaseItem: draft.isPurchaseItem,
 
       reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel.trim()) : undefined,
       defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice.trim()) : undefined,
@@ -453,10 +523,11 @@ export function PartsPage() {
           submitDisabled={!draft.name.trim() || !draft.partNumber.trim()}
         >
           <TextField
-            label="Part Name"
+            label="Item Name"
             value={draft.name}
             onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
             required
+            helperText="Human-readable ERP item name; this is different from the internal record ID."
             fullWidth
           />
           <TextField
@@ -507,6 +578,7 @@ export function PartsPage() {
               <TextField {...params} label="Brand" placeholder="Select or type brand" fullWidth />
             )}
           />
+          <TextField label="Manufacturer" value={draft.manufacturer} onChange={(e) => setDraft((d) => ({ ...d, manufacturer: e.target.value }))} fullWidth />
           <Autocomplete
             freeSolo
             options={modelOptions}
@@ -516,6 +588,10 @@ export function PartsPage() {
               <TextField {...params} label="Model Variant" placeholder="Select or type model" fullWidth />
             )}
           />
+          <TextField label="Model Year" value={draft.modelYear} onChange={(e) => setDraft((d) => ({ ...d, modelYear: e.target.value }))} placeholder="e.g. 2020-2024" fullWidth />
+          <Divider><Typography variant="caption">Inventory details</Typography></Divider>
+          <TextField label="Stock Unit (UOM)" value={draft.uom} onChange={(e) => setDraft((d) => ({ ...d, uom: e.target.value }))} placeholder="e.g. Nos, PCS, Set" fullWidth />
+          <TextField label="Purchase Category" value={draft.purchaseCategory} onChange={(e) => setDraft((d) => ({ ...d, purchaseCategory: e.target.value }))} select fullWidth><MenuItem value=""><em>None</em></MenuItem><MenuItem value="Local">Local</MenuItem><MenuItem value="Import">Import</MenuItem></TextField>
           <TextField
             label="Stock Count"
             type="number"
@@ -531,6 +607,7 @@ export function PartsPage() {
             placeholder="e.g. A-3-14"
             fullWidth
           />
+          <TextField label="Bin Number" value={draft.binNumber} onChange={(e) => setDraft((d) => ({ ...d, binNumber: e.target.value }))} fullWidth />
 
           <TextField
             label="Reorder Level"
@@ -539,6 +616,17 @@ export function PartsPage() {
             onChange={(e) => setDraft((d) => ({ ...d, reorderLevel: e.target.value }))}
             fullWidth
           />
+          <TextField label="Vehicle Fitment" value={draft.vehicleFitment} onChange={(e) => setDraft((d) => ({ ...d, vehicleFitment: e.target.value }))} helperText="Comma-separated vehicle/model/year values." multiline minRows={2} fullWidth />
+          <TextField label="Alternative Part Numbers" value={draft.alternatePartNumbers} onChange={(e) => setDraft((d) => ({ ...d, alternatePartNumbers: e.target.value }))} helperText="Comma-separated supersession or interchange numbers." fullWidth />
+          <TextField label="Sales Description" value={draft.salesDescription} onChange={(e) => setDraft((d) => ({ ...d, salesDescription: e.target.value }))} multiline minRows={2} fullWidth />
+          <TextField label="Purchase Description" value={draft.purchaseDescription} onChange={(e) => setDraft((d) => ({ ...d, purchaseDescription: e.target.value }))} multiline minRows={2} fullWidth />
+          <TextField label="Media URLs" value={draft.mediaUrls} onChange={(e) => setDraft((d) => ({ ...d, mediaUrls: e.target.value }))} helperText="One uploaded file URL per line." multiline minRows={2} fullWidth />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
+            <FormControlLabel control={<Checkbox checked={draft.isSalesItem} onChange={(e)=>setDraft(d=>({...d,isSalesItem:e.target.checked}))}/>} label="Sales item" />
+            <FormControlLabel control={<Checkbox checked={draft.isPurchaseItem} onChange={(e)=>setDraft(d=>({...d,isPurchaseItem:e.target.checked}))}/>} label="Purchase item" />
+            <FormControlLabel control={<Checkbox checked={draft.isReturnable} onChange={(e)=>setDraft(d=>({...d,isReturnable:e.target.checked}))}/>} label="Returnable" />
+            <FormControlLabel control={<Checkbox checked={draft.isComboProduct} onChange={(e)=>setDraft(d=>({...d,isComboProduct:e.target.checked}))}/>} label="Combo product" />
+          </Stack>
         </FormDialog>
 
         {/* ── Stock Lots Dialog ── */}
