@@ -190,8 +190,16 @@ export function PartsPage() {
     setLoading(true)
     setError(null)
     try {
-      const response = await workshopApi.listParts({ pageSize: 100 })
-      setParts(response.data)
+      const pageSize = 200
+      const firstPage = await workshopApi.listParts({ page: 1, pageSize })
+      const allParts = [...firstPage.data]
+      const total = firstPage.meta?.total ?? allParts.length
+      for (let page = 2; allParts.length < total; page += 1) {
+        const response = await workshopApi.listParts({ page, pageSize })
+        if (response.data.length === 0) break
+        allParts.push(...response.data)
+      }
+      setParts(allParts)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load parts')
     } finally {
