@@ -11,8 +11,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { CameraAlt } from '@mui/icons-material'
-import { useRef, useState } from 'react'
+import { CameraAlt, DirectionsCarFilledOutlined, EditNoteOutlined } from '@mui/icons-material'
+import { useMemo, useRef, useState } from 'react'
 import type { CWInspectionCheck, CWInspectionCondition } from '../types/cw'
 
 const TABS = [
@@ -30,6 +30,29 @@ const TABS = [
 
 const CONDITIONS: CWInspectionCondition[] = ['Good', 'Warning', 'Bad']
 
+type InspectionCategory = (typeof TABS)[number]
+
+const VISUAL_AREAS: Array<{ category: InspectionCategory; title: string; hint: string }> = [
+  { category: 'Front View', title: 'Front', hint: 'Lights, bumper, grille & windshield' },
+  { category: 'System Component', title: 'Engine & systems', hint: 'Engine, battery, cooling & steering' },
+  { category: 'Left View', title: 'Left side', hint: 'Doors, mirror, windows & body' },
+  { category: 'Interior View', title: 'Cabin', hint: 'Interior controls, seats & safety' },
+  { category: 'Right View', title: 'Right side', hint: 'Doors, mirror, windows & body' },
+  { category: 'Rear View', title: 'Rear', hint: 'Tail lights, boot, bumper & glass' },
+  { category: 'Tyre/Brake Wire', title: 'Wheels & brakes', hint: 'Tyres, pads, rotors & wiring' },
+  { category: 'Underbody', title: 'Underbody', hint: 'Frame, exhaust, pans & suspension' },
+  { category: 'Scheduled Maintenance', title: 'Maintenance', hint: 'Fluids, filters & belts' },
+]
+
+function areaColor(items: CWInspectionCheck[], selected: boolean) {
+  if (selected) return '#2563eb'
+  if (items.some((item) => item.checked && item.condition === 'Bad')) return '#dc2626'
+  if (items.some((item) => item.checked && item.condition === 'Warning')) return '#d97706'
+  if (items.length > 0 && items.every((item) => item.checked)) return '#16a34a'
+  if (items.some((item) => item.checked)) return '#0891b2'
+  return '#94a3b8'
+}
+
 function conditionColor(c?: CWInspectionCondition): 'success' | 'warning' | 'error' | 'default' {
   if (c === 'Good') return 'success'
   if (c === 'Warning') return 'warning'
@@ -44,13 +67,21 @@ type Props = {
 }
 
 export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
+  const [mode, setMode] = useState<'visual' | 'manual'>('visual')
   const [activeTab, setActiveTab] = useState(0)
+  const [selectedArea, setSelectedArea] = useState<InspectionCategory>('Front View')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [photoTargetId, setPhotoTargetId] = useState<string | null>(null)
 
   const tabName = TABS[activeTab] ?? TABS[0]
 
   const tabChecks = checks.filter((c) => c.category === tabName)
+  const selectedChecks = checks.filter((c) => c.category === selectedArea)
+  const selectedDetails = VISUAL_AREAS.find((area) => area.category === selectedArea) ?? VISUAL_AREAS[0]
+  const visualCounts = useMemo(() => new Map(VISUAL_AREAS.map((area) => {
+    const items = checks.filter((check) => check.category === area.category)
+    return [area.category, { total: items.length, checked: items.filter((item) => item.checked).length }]
+  })), [checks])
 
   function updateCheck(id: string, patch: Partial<CWInspectionCheck>) {
     onChange(checks.map((c) => (c.id === id ? { ...c, ...patch } : c)))
@@ -81,10 +112,27 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
     return { tab, total: items.length, checked }
   })
 
+  const displayedChecks = mode === 'visual' ? selectedChecks : tabChecks
+
+  function zoneProps(category: InspectionCategory) {
+    const items = checks.filter((check) => check.category === category)
+    return {
+      fill: areaColor(items, selectedArea === category),
+      onClick: () => setSelectedArea(category),
+      role: 'button',
+      tabIndex: 0,
+      'aria-label': 'Inspect ' + category,
+      onKeyDown: (event: React.KeyboardEvent<SVGElement>) => {
+        if (event.key === 'Enter' || event.key === ' ') setSelectedArea(category)
+      },
+      style: { cursor: 'pointer', transition: 'fill 180ms ease' },
+    }
+  }
+
   return (
-    <Paper sx={{ border: '2px solid', borderColor: 'info.main', overflow: 'hidden' }}>
+    <Paper sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, overflow: 'hidden', boxShadow: '0 14px 40px rgba(15, 23, 42, 0.08)' }}>
       <Box sx={{ p: 2.5, pb: 0 }}>
-        <Typography sx={{ fontWeight: 900, fontSize: '1.1rem', color: 'info.main', mb: 1 }}>
+        <Typography sx={{ fontWeight: 900, fontSize: '1.1rem', color: 'text.primary', mb: 1 }}>
           Vehicle Health Check Inspection
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
@@ -92,6 +140,100 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
         </Typography>
       </Box>
 
+      <Tabs
+        value={mode}
+        onChange={(_, value: 'visual' | 'manual') => setMode(value)}
+        sx={{
+          px: { xs: 1, sm: 2 },
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          '& .MuiTab-root': { minHeight: 48, textTransform: 'none', fontWeight: 750 },
+        }}
+      >
+        <Tab value="visual" icon={<DirectionsCarFilledOutlined />} iconPosition="start" label="Visual Inspection" />
+        <Tab value="manual" icon={<EditNoteOutlined />} iconPosition="start" label="Manual Input" />
+      </Tabs>
+
+      {mode === 'visual' && (
+        <Box sx={{ bgcolor: '#f8fafc', p: { xs: 1.5, sm: 2.5 }, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(280px, 0.9fr) minmax(320px, 1.1fr)' }, gap: 2.5, alignItems: 'center' }}>
+            <Paper variant="outlined" sx={{ borderRadius: 3, p: 1.5 }}>
+              <Typography sx={{ fontWeight: 800, px: 0.5 }}>Tap a vehicle area</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
+                Green is complete, amber is a warning and red needs attention.
+              </Typography>
+              <Box sx={{ width: '100%', maxWidth: 400, mx: 'auto' }}>
+                <svg viewBox="0 0 420 660" width="100%" aria-label="Interactive top view of vehicle">
+                  <defs>
+                    <filter id="vehicle-shadow" x="-30%" y="-20%" width="160%" height="160%">
+                      <feDropShadow dx="0" dy="10" stdDeviation="12" floodOpacity="0.18" />
+                    </filter>
+                  </defs>
+                  <ellipse cx="210" cy="625" rx="142" ry="18" fill="#0f172a" opacity="0.09" />
+                  <g filter="url(#vehicle-shadow)" stroke="#fff" strokeWidth="5" strokeLinejoin="round">
+                    <path {...zoneProps('Front View')} d="M116 118 Q128 46 210 30 Q292 46 304 118 L288 174 L132 174 Z" />
+                    <path {...zoneProps('System Component')} d="M132 174 L288 174 L302 272 L118 272 Z" />
+                    <path {...zoneProps('Left View')} d="M118 180 Q83 210 76 292 L78 454 Q82 500 112 526 L140 481 L140 222 Z" />
+                    <path {...zoneProps('Right View')} d="M302 180 Q337 210 344 292 L342 454 Q338 500 308 526 L280 481 L280 222 Z" />
+                    <path {...zoneProps('Interior View')} d="M140 222 L280 222 L280 481 L140 481 Z" />
+                    <path {...zoneProps('Rear View')} d="M140 481 L280 481 L304 548 Q286 610 210 628 Q134 610 116 548 Z" />
+                    <circle {...zoneProps('Tyre/Brake Wire')} cx="91" cy="235" r="22" />
+                    <circle {...zoneProps('Tyre/Brake Wire')} cx="329" cy="235" r="22" />
+                    <circle {...zoneProps('Tyre/Brake Wire')} cx="91" cy="470" r="22" />
+                    <circle {...zoneProps('Tyre/Brake Wire')} cx="329" cy="470" r="22" />
+                  </g>
+                  <g pointerEvents="none" fill="#fff" textAnchor="middle" fontFamily="inherit" fontWeight="700">
+                    <text x="210" y="101" fontSize="16">FRONT</text>
+                    <text x="210" y="222" fontSize="15">ENGINE</text>
+                    <text x="210" y="350" fontSize="18">CABIN</text>
+                    <text x="210" y="555" fontSize="16">REAR</text>
+                    <text x="110" y="356" fontSize="13" transform="rotate(-90 110 356)">LEFT SIDE</text>
+                    <text x="310" y="356" fontSize="13" transform="rotate(90 310 356)">RIGHT SIDE</text>
+                  </g>
+                  <g pointerEvents="none" fill="none" stroke="#fff" strokeWidth="3" opacity="0.5">
+                    <path d="M158 244 L262 244 L270 322 L150 322 Z" />
+                    <path d="M150 338 L270 338 L264 449 L156 449 Z" />
+                  </g>
+                </svg>
+              </Box>
+            </Paper>
+
+            <Box>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
+                {VISUAL_AREAS.map((area) => {
+                  const count = visualCounts.get(area.category) ?? { checked: 0, total: 0 }
+                  return (
+                    <Button
+                      key={area.category}
+                      onClick={() => setSelectedArea(area.category)}
+                      variant={selectedArea === area.category ? 'contained' : 'outlined'}
+                      sx={{ minWidth: 0, minHeight: 58, px: 1.25, borderRadius: 2, textTransform: 'none', textAlign: 'left' }}
+                    >
+                      <Box sx={{ width: '100%' }}>
+                        <Typography component="span" sx={{ display: 'block', fontWeight: 750, fontSize: '0.76rem', lineHeight: 1.25 }}>
+                          {area.title}
+                        </Typography>
+                        <Typography component="span" sx={{ display: 'block', opacity: 0.8, fontSize: '0.67rem', mt: 0.25 }}>
+                          {count.checked}/{count.total}
+                        </Typography>
+                      </Box>
+                    </Button>
+                  )
+                })}
+              </Box>
+              <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                <Typography sx={{ fontWeight: 800 }}>{selectedDetails.title}</Typography>
+                <Typography variant="caption" color="text.secondary">{selectedDetails.hint}</Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Complete the {selectedChecks.length} checks below. Changes are also reflected in Manual Input.
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {mode === 'manual' && (
       <Tabs
         value={activeTab}
         onChange={(_, v) => setActiveTab(v)}
@@ -120,13 +262,20 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
           />
         ))}
       </Tabs>
+      )}
 
       <Box sx={{ p: 2.5 }}>
-        {tabChecks.length === 0 ? (
+        {mode === 'visual' && (
+          <Box sx={{ mb: 2 }}>
+            <Typography sx={{ fontWeight: 850, fontSize: '1rem' }}>{selectedDetails.title}</Typography>
+            <Typography variant="body2" color="text.secondary">{selectedDetails.hint}</Typography>
+          </Box>
+        )}
+        {displayedChecks.length === 0 ? (
           <Typography color="text.secondary">No items in this category.</Typography>
         ) : (
           <Stack spacing={1.5}>
-            {tabChecks.map((check) => (
+            {displayedChecks.map((check) => (
               <Box
                 key={check.id}
                 sx={{
