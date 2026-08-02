@@ -21,7 +21,6 @@ import {
 import {
   ArrowBack,
   Build,
-  Chat,
   DirectionsCar,
   Payment,
   Person,
@@ -35,9 +34,10 @@ import { SectionCard } from '../../components/SectionCard'
 import { StatCard } from '../../components/StatCard'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
+import { WhatsAppHistory } from '../../components/WhatsAppHistory'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
-import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 
 function fmtBDT(n: number) {
@@ -205,7 +205,7 @@ export function AppointmentDetailPage() {
   // WhatsApp dialog state
   const [waDialogOpen, setWaDialogOpen] = useState(false)
   const [waMessage, setWaMessage] = useState('')
-  const [waDialogPurpose, setWaDialogPurpose] = useState<'concern-approval' | 'service-approval' | 'payment'>('concern-approval')
+  const [waDialogPurpose, setWaDialogPurpose] = useState<'concern-approval' | 'service-approval' | 'payment' | 'reply'>('concern-approval')
   const [approvalNote, setApprovalNote] = useState('')
 
   // QC user selection
@@ -265,7 +265,7 @@ export function AppointmentDetailPage() {
       const serviceTotal = (appt!.serviceItems ?? []).reduce((sum, s) => sum + s.price, 0)
       const grandTotal = serviceTotal + partsTotal
       setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nDiagnosis Report:\n${concernBlock}\n\nAll Services:\n${globalServices}\n\nServices Total: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts Total: ${fmtBDT(partsTotal)}` : ''}\nGrand Total: ${fmtBDT(grandTotal)}\n\nPlease confirm to proceed.`)
-    } else {
+    } else if (waDialogPurpose === 'payment') {
       const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
       const serviceList = (appt!.serviceItems ?? []).map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
       const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
@@ -408,7 +408,7 @@ export function AppointmentDetailPage() {
         )}
 
         {/* ── Concerns ── */}
-        <SectionCard title="Concerns" icon={<ReportProblem sx={{ fontSize: '1rem' }} />}
+        <SectionCard title="Concerns" icon={<ReportProblem sx={{ fontSize: '1rem' }} />} defaultCollapsed
           actions={
             <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
               {(appt.concernItems ?? []).length}
@@ -508,7 +508,7 @@ export function AppointmentDetailPage() {
         </SectionCard>
 
         {/* ── Services ── */}
-        <SectionCard title={'Services (' + (appt.serviceItems ?? []).length + ')'} icon={<Build sx={{ fontSize: '1rem' }} />}>
+        <SectionCard title={'Services (' + (appt.serviceItems ?? []).length + ')'} icon={<Build sx={{ fontSize: '1rem' }} />} defaultCollapsed>
           {(appt.serviceItems ?? []).length === 0 ? (
             <Box sx={{ px: 3, py: 2 }}>
               <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No services listed.</Typography>
@@ -671,41 +671,14 @@ export function AppointmentDetailPage() {
         )}
 
         {/* ── WhatsApp Log ── */}
-        {appt.whatsappLogs.length > 0 && (
-          <Box sx={tableSectionSx}>
-            <Box sx={tableHeaderSx}>
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                <Box sx={tableHeaderIconSx}><Chat sx={{ fontSize: '1rem' }} /></Box>
-                <Typography sx={tableHeaderTitleSx}>WhatsApp Communication</Typography>
-                <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
-                  {appt.whatsappLogs.length}
-                </Box>
-              </Stack>
-            </Box>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Direction</TableCell>
-                  <TableCell>Author</TableCell>
-                  <TableCell>Message</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {appt.whatsappLogs.map((log) => (
-                  <TableRow key={log.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
-                    <TableCell><Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>{fmtDateTime(log.sentAt)}</Typography></TableCell>
-                    <TableCell>
-                      <Chip label={log.direction} size="small" color={log.direction === 'outbound' ? 'success' : 'default'} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
-                    </TableCell>
-                    <TableCell><Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>{log.authorName}</Typography></TableCell>
-                    <TableCell><Typography sx={{ fontSize: '0.82rem', whiteSpace: 'pre-wrap', color: colors.slate[700] }}>{log.message}</Typography></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Box>
-        )}
+        <WhatsAppHistory
+          logs={appt.whatsappLogs}
+          onReply={(log) => {
+            setWaDialogPurpose('reply')
+            setWaMessage(`Regarding your message:\n“${log.message}”\n\n`)
+            setWaDialogOpen(true)
+          }}
+        />
 
         {/* ── Customer Approval Status ── */}
         {appt.customerApprovalStatus !== 'Pending' && (

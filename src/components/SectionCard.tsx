@@ -27,7 +27,7 @@ export function SectionCard({
   children,
   actions,
   collapsible = true,
-  defaultCollapsed = true,
+  defaultCollapsed = false,
 }: SectionCardProps) {
   const [collapsed, setCollapsed] = useState(collapsible && defaultCollapsed)
 
@@ -59,6 +59,7 @@ export function SectionCard({
         borderBottom: `1px solid ${colors.border.default}`,
         background: `linear-gradient(135deg, ${colors.bg.subtle} 0%, ${colors.bg.card} 100%)`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 1, sm: 2 },
         position: 'relative',
         '&::before': {
           content: '""', position: 'absolute', left: 0, top: 0, bottom: 0,
@@ -86,7 +87,12 @@ export function SectionCard({
             {title}
           </Typography>
         </Stack>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }} onClick={(event) => event.stopPropagation()}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', maxWidth: '100%', flexWrap: 'wrap', rowGap: 1, ml: 'auto' }}
+          onClick={(event) => event.stopPropagation()}
+        >
           {actions}
           {collapsible && (
             <IconButton
@@ -106,7 +112,7 @@ export function SectionCard({
         </Stack>
       </Box>
       <Collapse in={!collapsed} timeout="auto" unmountOnExit>
-        <Box sx={{ px: { xs: 1.5, sm: 3 }, py: 1.5, minWidth: 0, overflow: 'hidden' }}>
+        <Box sx={{ px: { xs: 1.5, sm: 3 }, py: 1.5, minWidth: 0, overflowX: 'auto' }}>
           {children}
         </Box>
       </Collapse>

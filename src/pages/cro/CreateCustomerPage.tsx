@@ -235,7 +235,7 @@ export function CreateCustomerPage() {
             </SectionCard>
 
             {/* Address */}
-            <SectionCard title="Address" icon={<HomeWork sx={{ fontSize: '1rem' }} />}>
+            <SectionCard title="Address" icon={<HomeWork sx={{ fontSize: '1rem' }} />} defaultCollapsed>
               <Stack spacing={2} sx={{ py: 1 }}>
                 <FormControl fullWidth>
                   <InputLabel>Division</InputLabel>
@@ -257,7 +257,7 @@ export function CreateCustomerPage() {
             </SectionCard>
 
             {/* Occupation */}
-            <SectionCard title="Occupation" icon={<Person sx={{ fontSize: '1rem' }} />}>
+            <SectionCard title="Occupation" icon={<Person sx={{ fontSize: '1rem' }} />} defaultCollapsed>
               <Stack spacing={2} sx={{ py: 1 }}>
                 <FormControl fullWidth>
                   <InputLabel>Occupation Type</InputLabel>
@@ -272,7 +272,7 @@ export function CreateCustomerPage() {
             </SectionCard>
 
             {/* Vehicle */}
-            <SectionCard title="Vehicle" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />}>
+            <SectionCard title="Vehicle" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />} defaultCollapsed>
               <Box sx={{ py: 1 }}>
                 <FormControl fullWidth>
                   <InputLabel>Vehicle</InputLabel>
@@ -289,7 +289,7 @@ export function CreateCustomerPage() {
             </SectionCard>
 
             {/* Socials */}
-            <SectionCard title="Socials" icon={<LinkIcon sx={{ fontSize: '1rem' }} />}>
+            <SectionCard title="Socials" icon={<LinkIcon sx={{ fontSize: '1rem' }} />} defaultCollapsed>
               <Stack spacing={2} sx={{ py: 1 }}>
                 <TextField label="WhatsApp Link" value={whatsappLink} onChange={(e) => setWhatsappLink(e.target.value)} fullWidth placeholder="https://wa.me/..." />
                 <TextField label="Facebook Link" value={facebookLink} onChange={(e) => setFacebookLink(e.target.value)} fullWidth />
@@ -318,7 +318,7 @@ export function CreateCustomerPage() {
             </SectionCard>
 
             {/* Parent Company */}
-            <SectionCard title="Parent Company" icon={<CorporateFare sx={{ fontSize: '1rem' }} />}>
+            <SectionCard title="Parent Company" icon={<CorporateFare sx={{ fontSize: '1rem' }} />} defaultCollapsed>
               <Stack spacing={2} sx={{ py: 1 }}>
                 <RadioGroup
                   row

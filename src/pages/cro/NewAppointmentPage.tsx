@@ -490,7 +490,7 @@ export function NewAppointmentPage() {
         </SectionCard>
 
         {/* ── Concerns ── */}
-        <SectionCard title="Concerns" icon={<Build sx={{ fontSize: '1rem' }} />}>
+        <SectionCard title="Concerns" icon={<Build sx={{ fontSize: '1rem' }} />} defaultCollapsed>
           {concernItems.length > 0 && (
             <Table size="small" sx={{ mb: 2 }}>
               <TableHead>
@@ -589,6 +589,7 @@ export function NewAppointmentPage() {
         <SectionCard
           title="Service Requests"
           icon={<MiscellaneousServices sx={{ fontSize: '1rem' }} />}
+          defaultCollapsed
           actions={
             serviceItems.length > 0 ? (
               <Tooltip title="Total labour estimate">
@@ -725,7 +726,7 @@ export function NewAppointmentPage() {
         </SectionCard>
 
         {/* ── Appointment Info ── */}
-        <SectionCard title="Appointment Info" icon={<CalendarMonth sx={{ fontSize: '1rem' }} />}>
+        <SectionCard title="Appointment Info" icon={<CalendarMonth sx={{ fontSize: '1rem' }} />} defaultCollapsed>
           <Stack spacing={2.5}>
             {/* Date navigator */}
             <Stack spacing={0.5}>

@@ -243,7 +243,7 @@ export function CreateVehiclePage() {
         </SectionCard>
 
         {/* Customer */}
-        <SectionCard title="Customer" icon={<Person sx={{ fontSize: '1rem' }} />}>
+        <SectionCard title="Customer" icon={<Person sx={{ fontSize: '1rem' }} />} defaultCollapsed>
           <FormRow label="Customer">
             <TextField size="small" select fullWidth value={customerId} onChange={(e) => setCustomerId(e.target.value)} required sx={fieldSx}>
               <MenuItem value="">— Select Customer —</MenuItem>
@@ -281,7 +281,7 @@ export function CreateVehiclePage() {
         </SectionCard>
 
         {/* Others */}
-        <SectionCard title="Additional Details" icon={<Palette sx={{ fontSize: '1rem' }} />}>
+        <SectionCard title="Additional Details" icon={<Palette sx={{ fontSize: '1rem' }} />} defaultCollapsed>
           <FormRow label="Exterior Colour">
             <TextField size="small" select fullWidth value={exteriorColor} onChange={(e) => setExteriorColor(e.target.value)} sx={fieldSx}>
               <MenuItem value="">— Select —</MenuItem>

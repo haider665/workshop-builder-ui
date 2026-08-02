@@ -340,7 +340,7 @@ export function SEAppointmentDetailPage() {
 
         {/* ── Concern Diagnosis ── */}
         {(isDiagnosisPhase || isDiagnosisComplete) && myConcerns.length > 0 && (
-          <SectionCard title={`Concern Diagnosis (${myConcerns.length})`} icon={<Warning sx={{ fontSize: '1rem' }} />}>
+          <SectionCard title={`Concern Diagnosis (${myConcerns.length})`} icon={<Warning sx={{ fontSize: '1rem' }} />} defaultCollapsed>
             <Stack spacing={2}>
               {myConcerns.map((c) => {
                 const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
@@ -667,7 +667,7 @@ export function SEAppointmentDetailPage() {
 
         {/* ── Service Execution ── */}
         {isServicePhase && myServices.length > 0 && (
-          <SectionCard title={`Assigned Services (${myServices.length})`} icon={<Build sx={{ fontSize: '1rem' }} />}>
+          <SectionCard title={`Assigned Services (${myServices.length})`} icon={<Build sx={{ fontSize: '1rem' }} />} defaultCollapsed>
             <Stack spacing={2}>
               {myServices.map((s) => {
                 const hasStages = s.stageItems && s.stageItems.length > 0

@@ -199,7 +199,7 @@ export function QCAppointmentDetailPage() {
         )}
 
         {/* ── Concerns (readonly — no QC marking) ── */}
-        <SectionCard title={`Concerns (${allConcerns.length})`} icon={<ReportProblem sx={{ fontSize: '1rem' }} />}>
+        <SectionCard title={`Concerns (${allConcerns.length})`} icon={<ReportProblem sx={{ fontSize: '1rem' }} />} defaultCollapsed>
           <Stack spacing={2}>
             {allConcerns.map((c) => {
               const concernServices = (c.serviceIds ?? []).map((sid) => services.find((s) => s.id === sid)).filter(Boolean)
@@ -258,7 +258,7 @@ export function QCAppointmentDetailPage() {
         </SectionCard>
 
         {/* ── Services (QC marking — Pass/Fail) ── */}
-        <SectionCard title={`Services — QC Verification (${allServices.length})`} icon={<Build sx={{ fontSize: '1rem' }} />}>
+        <SectionCard title={`Services — QC Verification (${allServices.length})`} icon={<Build sx={{ fontSize: '1rem' }} />} defaultCollapsed>
           {allServices.length === 0 ? (
             <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No services.</Typography>
           ) : (

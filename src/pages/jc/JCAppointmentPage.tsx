@@ -648,6 +648,7 @@ export function JCAppointmentPage() {
         <SectionCard
           title={`Concerns (${appt.concernItems.length})`}
           icon={<Warning sx={{ fontSize: '1rem' }} />}
+          defaultCollapsed
           actions={
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -754,7 +755,7 @@ export function JCAppointmentPage() {
         </SectionCard>
 
         {/* ── Services Summary ── */}
-        <SectionCard title={'Services (' + appt.serviceItems.length + ')'} icon={<MedicalServices sx={{ fontSize: '1rem' }} />}>
+        <SectionCard title={'Services (' + appt.serviceItems.length + ')'} icon={<MedicalServices sx={{ fontSize: '1rem' }} />} defaultCollapsed>
           <Box sx={tableHeaderSx}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <Box sx={tableHeaderIconSx}><MedicalServices sx={{ fontSize: '1rem' }} /></Box>
