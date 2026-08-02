@@ -508,16 +508,7 @@ export function AppointmentDetailPage() {
         </SectionCard>
 
         {/* ── Services ── */}
-        <Box sx={tableSectionSx}>
-          <Box sx={tableHeaderSx}>
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-              <Box sx={tableHeaderIconSx}><Build sx={{ fontSize: '1rem' }} /></Box>
-              <Typography sx={tableHeaderTitleSx}>Services</Typography>
-              <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
-                {(appt.serviceItems ?? []).length}
-              </Box>
-            </Stack>
-          </Box>
+        <SectionCard title={'Services (' + (appt.serviceItems ?? []).length + ')'} icon={<Build sx={{ fontSize: '1rem' }} />}>
           {(appt.serviceItems ?? []).length === 0 ? (
             <Box sx={{ px: 3, py: 2 }}>
               <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No services listed.</Typography>
@@ -571,7 +562,7 @@ export function AppointmentDetailPage() {
               </TableBody>
             </Table>
           )}
-        </Box>
+        </SectionCard>
 
         {/* ── WhatsApp: Concern Approval (1st round) ── */}
         {canSendConcernWA && (

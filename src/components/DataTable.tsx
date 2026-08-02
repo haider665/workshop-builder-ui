@@ -12,7 +12,7 @@ import {
   Skeleton,
   Stack,
 } from '@mui/material'
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { colors, shadows, radii, motion } from '../theme/tokens'
 
@@ -74,18 +74,9 @@ export function DataTable<T>({
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(initialPageSize)
 
-  /* Reset page when rows change */
-  useEffect(() => {
-    setPage(0)
-  }, [rows])
-
-  /* Reset page when sort changes */
-  useEffect(() => {
-    setPage(0)
-  }, [sortKey, sortDir])
-
   /* ── Handle sort toggle ── */
   const handleSort = (colKey: string) => {
+    setPage(0)
     if (sortKey !== colKey) {
       setSortKey(colKey)
       setSortDir('asc')
@@ -121,9 +112,10 @@ export function DataTable<T>({
     })
   }, [rows, sortKey, sortDir, columns])
 
+  const safePage = Math.min(page, Math.max(0, Math.ceil(sortedRows.length / rowsPerPage) - 1))
   const paginatedRows = useMemo(
-    () => sortedRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage),
-    [sortedRows, page, rowsPerPage],
+    () => sortedRows.slice(safePage * rowsPerPage, (safePage + 1) * rowsPerPage),
+    [sortedRows, safePage, rowsPerPage],
   )
 
   const isEmpty = !loading && rows.length === 0
@@ -138,8 +130,14 @@ export function DataTable<T>({
         overflow: 'hidden',
       }}
     >
-      <TableContainer>
-        <Table size="small">
+      <TableContainer sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <Table
+          size="small"
+          stickyHeader
+          sx={{
+            minWidth: Math.max(640, columns.reduce((total, column) => total + (column.minWidth ?? 140), 0)),
+          }}
+        >
           {/* ── Header ── */}
           <TableHead>
             <TableRow
@@ -201,8 +199,8 @@ export function DataTable<T>({
                       <TableCell
                         key={col.key}
                         sx={{
-                          '&:first-of-type': { pl: 3 },
-                          '&:last-of-type': { pr: 3 },
+                          '&:first-of-type': { pl: { xs: 1.5, sm: 3 } },
+                          '&:last-of-type': { pr: { xs: 1.5, sm: 3 } },
                         }}
                       >
                         <Skeleton
@@ -227,8 +225,8 @@ export function DataTable<T>({
                         py: 1.5,
                         color: colors.slate[700],
                         fontSize: '0.875rem',
-                        '&:first-of-type': { pl: 3 },
-                        '&:last-of-type': { pr: 3 },
+                        '&:first-of-type': { pl: { xs: 1.5, sm: 3 } },
+                        '&:last-of-type': { pr: { xs: 1.5, sm: 3 } },
                       },
                       '&:last-of-type .MuiTableCell-body': {
                         borderBottom: 'none',
@@ -237,7 +235,7 @@ export function DataTable<T>({
                   >
                     {columns.map((col) => (
                       <TableCell key={col.key} align={col.align ?? 'left'}>
-                        {col.render(row, page * rowsPerPage + index)}
+                        {col.render(row, safePage * rowsPerPage + index)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -251,7 +249,7 @@ export function DataTable<T>({
         <TablePagination
           component="div"
           count={rows.length}
-          page={page}
+          page={safePage}
           onPageChange={(_e, newPage) => setPage(newPage)}
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={(e) => {
@@ -262,10 +260,15 @@ export function DataTable<T>({
           sx={{
             borderTop: `1px solid ${colors.border.subtle}`,
             color: colors.slate[600],
+            overflowX: 'auto',
             '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows':
               {
                 fontSize: '0.8125rem',
               },
+            '.MuiTablePagination-toolbar': {
+              px: { xs: 1, sm: 2 },
+              minWidth: 'max-content',
+            },
           }}
         />
       )}

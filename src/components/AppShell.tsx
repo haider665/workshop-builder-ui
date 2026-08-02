@@ -17,6 +17,7 @@ import {
   Badge,
   CalendarMonth,
   Calculate,
+  ChevronRight,
   DirectionsCar,
   DoorFront,
   Groups,
@@ -200,6 +201,12 @@ export function AppShell() {
   )
 
   const allowedItems = navItems.filter((item) => user && item.anyOfRoles.some((r) => user.roles.includes(r)))
+  const currentLink = [...allowedItems]
+    .filter((item) => item.kind === 'link' && item.to && (
+      location.pathname === item.to || location.pathname.startsWith(item.to + '/')
+    ))
+    .sort((a, b) => (b.to?.length ?? 0) - (a.to?.length ?? 0))[0]
+  const isDetailRoute = currentLink?.to ? location.pathname !== currentLink.to : false
 
 
 
@@ -541,6 +548,41 @@ export function AppShell() {
           minHeight: '100vh',
         }}
       >
+        {currentLink && (
+          <Box
+            component="nav"
+            aria-label="Page context"
+            sx={{
+              minHeight: 42,
+              px: { xs: 1.5, sm: 3 },
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.75,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'rgba(255,255,255,0.88)',
+              backdropFilter: 'blur(10px)',
+              position: 'sticky',
+              top: { xs: 56, md: 0 },
+              zIndex: 10,
+              overflowX: 'auto',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 650 }}>Workshop</Typography>
+            <ChevronRight sx={{ fontSize: 15, color: 'text.disabled' }} />
+            <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 800 }}>{currentLink.label}</Typography>
+            {isDetailRoute && (
+              <>
+                <ChevronRight sx={{ fontSize: 15, color: 'text.disabled' }} />
+                <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 750 }}>Details</Typography>
+              </>
+            )}
+            <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary', display: { xs: 'none', lg: 'block' } }}>
+              Expand a section to continue; completed information stays available without crowding the page.
+            </Typography>
+          </Box>
+        )}
         <Outlet />
       </Box>
     </Box>

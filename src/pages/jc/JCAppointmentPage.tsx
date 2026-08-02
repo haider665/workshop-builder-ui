@@ -33,7 +33,7 @@ import { useBackendData } from '../../hooks/useCREData'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
-import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import { headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 
 function fmtBDT(n: number) {
@@ -754,7 +754,7 @@ export function JCAppointmentPage() {
         </SectionCard>
 
         {/* ── Services Summary ── */}
-        <Box sx={tableSectionSx}>
+        <SectionCard title={'Services (' + appt.serviceItems.length + ')'} icon={<MedicalServices sx={{ fontSize: '1rem' }} />}>
           <Box sx={tableHeaderSx}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <Box sx={tableHeaderIconSx}><MedicalServices sx={{ fontSize: '1rem' }} /></Box>
@@ -845,7 +845,7 @@ export function JCAppointmentPage() {
               </TableBody>
             </Table>
           )}
-        </Box>
+        </SectionCard>
 
         {/* ── Phase 1: Assign SE + Bay to CONCERNS (Diagnosis) ── */}
         {isDiagnosisPhase && appt.concernItems.length > 0 && (
