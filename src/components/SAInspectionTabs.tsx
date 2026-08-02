@@ -3,6 +3,10 @@ import {
   Button,
   Checkbox,
   Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   MenuItem,
   Paper,
   Stack,
@@ -11,7 +15,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { CameraAlt, DirectionsCarFilledOutlined, EditNoteOutlined } from '@mui/icons-material'
+import { CameraAlt, Close, DirectionsCarFilledOutlined, EditNoteOutlined } from '@mui/icons-material'
 import { useMemo, useRef, useState } from 'react'
 import type { CWInspectionCheck, CWInspectionCondition } from '../types/cw'
 
@@ -70,6 +74,7 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
   const [mode, setMode] = useState<'visual' | 'manual'>('visual')
   const [activeTab, setActiveTab] = useState(0)
   const [selectedArea, setSelectedArea] = useState<InspectionCategory>('Front View')
+  const [visualDialogOpen, setVisualDialogOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [photoTargetId, setPhotoTargetId] = useState<string | null>(null)
 
@@ -114,16 +119,21 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
 
   const displayedChecks = mode === 'visual' ? selectedChecks : tabChecks
 
+  function openVisualArea(category: InspectionCategory) {
+    setSelectedArea(category)
+    setVisualDialogOpen(true)
+  }
+
   function zoneProps(category: InspectionCategory) {
     const items = checks.filter((check) => check.category === category)
     return {
       fill: areaColor(items, selectedArea === category),
-      onClick: () => setSelectedArea(category),
+      onClick: () => openVisualArea(category),
       role: 'button',
       tabIndex: 0,
       'aria-label': 'Inspect ' + category,
       onKeyDown: (event: React.KeyboardEvent<SVGElement>) => {
-        if (event.key === 'Enter' || event.key === ' ') setSelectedArea(category)
+        if (event.key === 'Enter' || event.key === ' ') openVisualArea(category)
       },
       style: { cursor: 'pointer', transition: 'fill 180ms ease' },
     }
@@ -205,7 +215,7 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
                   return (
                     <Button
                       key={area.category}
-                      onClick={() => setSelectedArea(area.category)}
+                      onClick={() => openVisualArea(area.category)}
                       variant={selectedArea === area.category ? 'contained' : 'outlined'}
                       sx={{ minWidth: 0, minHeight: 58, px: 1.25, borderRadius: 2, textTransform: 'none', textAlign: 'left' }}
                     >
@@ -221,13 +231,9 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
                   )
                 })}
               </Box>
-              <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
-                <Typography sx={{ fontWeight: 800 }}>{selectedDetails.title}</Typography>
-                <Typography variant="caption" color="text.secondary">{selectedDetails.hint}</Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  Complete the {selectedChecks.length} checks below. Changes are also reflected in Manual Input.
-                </Typography>
-              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+                Choose an area to open its focused inspection checklist.
+              </Typography>
             </Box>
           </Box>
         </Box>
@@ -264,13 +270,8 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
       </Tabs>
       )}
 
+      {mode === 'manual' && (
       <Box sx={{ p: 2.5 }}>
-        {mode === 'visual' && (
-          <Box sx={{ mb: 2 }}>
-            <Typography sx={{ fontWeight: 850, fontSize: '1rem' }}>{selectedDetails.title}</Typography>
-            <Typography variant="body2" color="text.secondary">{selectedDetails.hint}</Typography>
-          </Box>
-        )}
         {displayedChecks.length === 0 ? (
           <Typography color="text.secondary">No items in this category.</Typography>
         ) : (
@@ -363,6 +364,7 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
           </Stack>
         )}
       </Box>
+      )}
 
       {/* Hidden file input */}
       <input
@@ -372,6 +374,127 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
+
+      <Dialog
+        open={visualDialogOpen}
+        onClose={() => setVisualDialogOpen(false)}
+        fullWidth
+        maxWidth="md"
+        fullScreen={false}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: { xs: 0, sm: 3 },
+              m: { xs: 0, sm: 2 },
+              width: { xs: '100%', sm: 'calc(100% - 32px)' },
+              maxHeight: { xs: '100%', sm: 'calc(100% - 48px)' },
+              height: { xs: '100%', sm: 'auto' },
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ borderBottom: '1px solid', borderColor: 'divider', pr: 7 }}>
+          <Typography sx={{ fontWeight: 850, fontSize: '1.1rem' }}>{selectedDetails.title}</Typography>
+          <Typography variant="body2" color="text.secondary">{selectedDetails.hint}</Typography>
+          <Chip
+            size="small"
+            label={selectedChecks.filter((check) => check.checked).length + '/' + selectedChecks.length + ' checked'}
+            color={selectedChecks.length > 0 && selectedChecks.every((check) => check.checked) ? 'success' : 'default'}
+            sx={{ mt: 1 }}
+          />
+          <IconButton
+            aria-label="Close inspection"
+            onClick={() => setVisualDialogOpen(false)}
+            sx={{ position: 'absolute', right: 12, top: 12 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#f8fafc' }}>
+          {selectedChecks.length === 0 ? (
+            <Typography color="text.secondary">No items in this category.</Typography>
+          ) : (
+            <Stack spacing={1.5}>
+              {selectedChecks.map((check) => (
+                <Box
+                  key={check.id}
+                  sx={{
+                    p: { xs: 1.5, sm: 2 },
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: check.checked ? 'success.light' : 'divider',
+                    bgcolor: check.checked ? 'rgba(34, 197, 94, 0.06)' : 'background.paper',
+                  }}
+                >
+                  <Stack direction="row" sx={{ alignItems: 'flex-start', gap: 1 }}>
+                    <Checkbox
+                      checked={check.checked}
+                      onChange={() => !readonly && updateCheck(check.id, { checked: !check.checked })}
+                      disabled={readonly}
+                      sx={{ mt: -0.5 }}
+                    />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: check.checked ? 700 : 500 }}>{check.label}</Typography>
+                      {check.section && <Typography variant="caption" color="text.secondary">{check.section}</Typography>}
+                      {!readonly && check.checked && (
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ mt: 1.5 }}>
+                          <TextField
+                            select
+                            size="small"
+                            label="Condition"
+                            value={check.condition ?? ''}
+                            onChange={(event) => updateCheck(check.id, {
+                              condition: (event.target.value || undefined) as CWInspectionCondition | undefined,
+                            })}
+                            sx={{ minWidth: { md: 132 } }}
+                          >
+                            <MenuItem value="">—</MenuItem>
+                            {CONDITIONS.map((condition) => <MenuItem key={condition} value={condition}>{condition}</MenuItem>)}
+                          </TextField>
+                          <TextField
+                            size="small"
+                            label="Remark"
+                            value={check.remark ?? ''}
+                            onChange={(event) => updateCheck(check.id, { remark: event.target.value })}
+                            sx={{ flex: 1 }}
+                            placeholder="Add notes..."
+                          />
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<CameraAlt />}
+                            onClick={() => handlePhotoClick(check.id)}
+                          >
+                            {check.photoUrl ? 'Replace' : 'Photo'}
+                          </Button>
+                        </Stack>
+                      )}
+                      {check.condition && (
+                        <Box sx={{ mt: 0.75 }}>
+                          <Chip size="small" label={check.condition} color={conditionColor(check.condition)} />
+                        </Box>
+                      )}
+                      {check.remark && readonly && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                          Remark: {check.remark}
+                        </Typography>
+                      )}
+                      {check.photoUrl && (
+                        <Box
+                          component="img"
+                          src={check.photoUrl}
+                          alt="Inspection photo"
+                          sx={{ mt: 1, maxWidth: '100%', maxHeight: 140, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                        />
+                      )}
+                    </Box>
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+      </Dialog>
     </Paper>
   )
 }
