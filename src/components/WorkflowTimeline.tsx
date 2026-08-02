@@ -1,5 +1,5 @@
-import { Box, Chip, Paper, Step, StepLabel, Stepper, Typography } from '@mui/material'
-import { CheckCircle, RadioButtonUnchecked, Pending } from '@mui/icons-material'
+import { Accordion, AccordionDetails, AccordionSummary, Box, Chip, Paper, Step, StepLabel, Stepper, Typography } from '@mui/material'
+import { CheckCircle, ExpandMore, RadioButtonUnchecked, Pending } from '@mui/icons-material'
 import type { CWAppointmentStatus, CWTimelineEvent } from '../types/cw'
 
 const STATUS_STEPS: CWAppointmentStatus[] = [
@@ -92,9 +92,44 @@ export function WorkflowTimeline({ status, timeline }: Props) {
   const activeIdx = stepIndex(status)
 
   return (
-    <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
+    <Paper
+      sx={{
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 3,
+        overflow: 'hidden',
+        boxShadow: 'none',
+      }}
+    >
+      <Box
+        sx={{
+          minHeight: 58,
+          px: { xs: 1.75, sm: 2.5 },
+          py: 1.25,
+          bgcolor: 'action.hover',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          minWidth: 0,
+        }}
+      >
+        <Pending sx={{ color: String(stepColor(status)) + '.main' }} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 850 }}>Appointment workflow</Typography>
+          <Typography variant="caption" color="text.secondary">
+            Current stage: {status} · {timeline.length} timeline event{timeline.length === 1 ? '' : 's'}
+          </Typography>
+        </Box>
+        <Chip
+          size="small"
+          label={status}
+          color={stepColor(status)}
+          sx={{ ml: 'auto', mr: 1, display: { xs: 'none', sm: 'inline-flex' }, fontWeight: 700 }}
+        />
+      </Box>
+      <Box sx={{ p: { xs: 1.5, sm: 2.5 }, minWidth: 0, overflow: 'hidden' }}>
       {/* ── Horizontal Stepper ── */}
-      <Box sx={{ overflowX: 'auto', mb: 3 }}>
+      <Box sx={{ overflowX: 'auto', mb: 3, WebkitOverflowScrolling: 'touch', pb: 1 }}>
         <Stepper activeStep={activeIdx} alternativeLabel sx={{ minWidth: 1200 }}>
           {STATUS_STEPS.map((s, idx) => {
             const completed = idx < activeIdx
@@ -138,9 +173,29 @@ export function WorkflowTimeline({ status, timeline }: Props) {
         </Stepper>
       </Box>
 
-      {/* ── Vertical Timeline ── */}
-      <Box>
-        <Typography sx={{ fontWeight: 900, mb: 1.5 }}>Timeline</Typography>
+      {/* ── Detailed event timeline ── */}
+      <Accordion
+        disableGutters
+        sx={{
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: '10px !important',
+          boxShadow: 'none',
+          '&:before': { display: 'none' },
+        }}
+      >
+        <AccordionSummary
+          expandIcon={<ExpandMore />}
+          sx={{ minHeight: 52, bgcolor: 'action.hover', '& .MuiAccordionSummary-content': { alignItems: 'center' } }}
+        >
+          <Box>
+            <Typography sx={{ fontWeight: 850 }}>Detailed timeline</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {timeline.length} event{timeline.length === 1 ? '' : 's'} · Expand to inspect full activity
+            </Typography>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails sx={{ p: { xs: 1.5, sm: 2 } }}>
         <Box sx={{ position: 'relative', pl: 3 }}>
           {/* Vertical line */}
           <Box
@@ -188,6 +243,8 @@ export function WorkflowTimeline({ status, timeline }: Props) {
             </Box>
           ))}
         </Box>
+        </AccordionDetails>
+      </Accordion>
       </Box>
     </Paper>
   )

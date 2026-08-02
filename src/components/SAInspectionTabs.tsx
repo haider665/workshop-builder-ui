@@ -3,6 +3,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  Collapse,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -15,7 +16,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { CameraAlt, Close, DirectionsCarFilledOutlined, EditNoteOutlined } from '@mui/icons-material'
+import { CameraAlt, Close, DirectionsCarFilledOutlined, EditNoteOutlined, KeyboardArrowDown } from '@mui/icons-material'
 import { useMemo, useRef, useState } from 'react'
 import type { CWInspectionCheck, CWInspectionCondition } from '../types/cw'
 
@@ -68,9 +69,11 @@ type Props = {
   checks: CWInspectionCheck[]
   onChange: (checks: CWInspectionCheck[]) => void
   readonly?: boolean
+  defaultCollapsed?: boolean
 }
 
-export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
+export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed = false }: Props) {
+  const [sectionCollapsed, setSectionCollapsed] = useState(defaultCollapsed)
   const [mode, setMode] = useState<'visual' | 'manual'>('visual')
   const [activeTab, setActiveTab] = useState(0)
   const [selectedArea, setSelectedArea] = useState<InspectionCategory>('Front View')
@@ -141,15 +144,40 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
 
   return (
     <Paper sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, overflow: 'hidden', boxShadow: '0 14px 40px rgba(15, 23, 42, 0.08)' }}>
-      <Box sx={{ p: 2.5, pb: 0 }}>
-        <Typography sx={{ fontWeight: 900, fontSize: '1.1rem', color: 'text.primary', mb: 1 }}>
-          Vehicle Health Check Inspection
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          {checks.filter((c) => c.checked).length} / {checks.length} items checked
-        </Typography>
+      <Box
+        onClick={() => setSectionCollapsed((value) => !value)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={!sectionCollapsed}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setSectionCollapsed((value) => !value)
+          }
+        }}
+        sx={{ p: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, cursor: 'pointer' }}
+      >
+        <Box>
+          <Typography sx={{ fontWeight: 900, fontSize: '1.1rem', color: 'text.primary', mb: 0.5 }}>
+            Vehicle Health Check Inspection
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {checks.filter((c) => c.checked).length} / {checks.length} items checked
+          </Typography>
+        </Box>
+        <IconButton
+          aria-label={sectionCollapsed ? 'Expand vehicle health inspection' : 'Collapse vehicle health inspection'}
+          onClick={(event) => {
+            event.stopPropagation()
+            setSectionCollapsed((value) => !value)
+          }}
+          sx={{ transform: sectionCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}
+        >
+          <KeyboardArrowDown />
+        </IconButton>
       </Box>
 
+      <Collapse in={!sectionCollapsed} timeout="auto" unmountOnExit>
       <Tabs
         value={mode}
         onChange={(_, value: 'visual' | 'manual') => setMode(value)}
@@ -374,6 +402,7 @@ export function SAInspectionTabs({ checks, onChange, readonly }: Props) {
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
+      </Collapse>
 
       <Dialog
         open={visualDialogOpen}

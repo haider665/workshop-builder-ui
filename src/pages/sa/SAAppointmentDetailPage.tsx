@@ -360,10 +360,10 @@ export function SAAppointmentDetailPage() {
 
         {/* ── Inspection Checklist ── */}
         {isInspection && inspChecks.length > 0 && (
-          <SAInspectionTabs checks={inspChecks} onChange={setInspChecks} />
+          <SAInspectionTabs checks={inspChecks} onChange={setInspChecks} defaultCollapsed />
         )}
         {!isInspection && appt.inspectionChecks.length > 0 && (
-          <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly />
+          <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly defaultCollapsed />
         )}
 
         {/* ── Concerns ── */}
