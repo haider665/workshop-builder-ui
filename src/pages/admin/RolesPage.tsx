@@ -13,6 +13,7 @@ import { Add, Edit, Security, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
+import { useToast } from '../../hooks/useToast'
 import type { Column } from '../../components/DataTable'
 import type { CWRole, CWRoleStatus } from '../../types/cw'
 import { rolesService } from '../../services/admin/rolesService'
@@ -36,6 +37,7 @@ function toDraft(role?: CWRole): RoleDraft {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function RolesPage() {
+  const toast = useToast()
   const [roles, setRoles] = useState<CWRole[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -89,15 +91,20 @@ export function RolesPage() {
   }
 
   async function submitCreate() {
-    if (!createDraft.name.trim()) return
+    if (!createDraft.name.trim()) {
+      toast.warning('Enter a role name before creating the role.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       const created = await rolesService.create({ name: createDraft.name, status: 'Active' })
       setRoles((current) => [created, ...current.filter((role) => role.id !== created.id)])
       setCreateOpen(false)
+      toast.success(`${created.name} was created successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create role')
+      toast.error(err, 'Failed to create role.')
     } finally {
       setSaving(false)
     }
@@ -105,22 +112,30 @@ export function RolesPage() {
 
   async function submitEdit() {
     if (!editRole) return
-    if (!editDraft.name.trim()) return
+    if (!editDraft.name.trim()) {
+      toast.warning('Enter a role name before saving changes.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       const updated = await rolesService.update(editRole.id, { name: editDraft.name })
       setRoles((current) => current.map((role) => (role.id === updated.id ? updated : role)))
       setEditRole(null)
+      toast.success(`${updated.name} was updated successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update role')
+      toast.error(err, 'Failed to update role.')
     } finally {
       setSaving(false)
     }
   }
 
   async function toggleStatus(role: CWRole) {
-    if (role.isSystem) return
+    if (role.isSystem) {
+      toast.info('System roles cannot be activated or deactivated here.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -129,8 +144,10 @@ export function RolesPage() {
         role.status === 'Active' ? 'Inactive' : 'Active',
       )
       setRoles((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`${updated.name} is now ${updated.status.toLowerCase()}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update role status')
+      toast.error(err, 'Failed to update role status.')
     } finally {
       setSaving(false)
     }

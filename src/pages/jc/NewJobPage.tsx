@@ -20,6 +20,7 @@ import { Add, ArrowBack, ArrowDownward, ArrowUpward, Delete, DirectionsCar, Assi
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
+import { useToast } from '../../hooks/useToast'
 import { headerCellSx, bodyCellSx, tableSectionSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii, pageLayout } from '../../theme/tokens'
 import { workshopApi } from '../../services/workshopApi'
@@ -68,6 +69,7 @@ const fieldSx = {
 } as const
 
 export function NewJobPage() {
+  const toast = useToast()
   const navigate = useNavigate()
   useBackendData()
   const [params] = useSearchParams()
@@ -347,9 +349,11 @@ export function NewJobPage() {
         appointmentId: appointmentIdParam,
         tasks: tasksInput,
       })
+      toast.success(`Job ${job.job.id} was created with ${tasksInput.length} task${tasksInput.length === 1 ? '' : 's'}.`)
       navigate(`/jc/jobs/${job.job.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to create job.')
     }
   }
 

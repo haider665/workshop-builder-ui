@@ -8,7 +8,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
   Stack,
   TextField,
   Tooltip,
@@ -18,6 +17,7 @@ import { Add, Category, ListAlt, ToggleOff, ToggleOn } from '@mui/icons-material
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
+import { useToast } from '../../hooks/useToast'
 import type { Column } from '../../components/DataTable'
 import type { CWConcern, CWConcernCategory, CWShop } from '../../types/cw'
 import { shopsService } from '../../services/admin/shopsService'
@@ -42,6 +42,7 @@ const btnSx = {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function ConcernsPage() {
+  const toast = useToast()
   const [shops, setShops] = useState<CWShop[]>([])
   const [concernCategories, setConcernCategories] = useState<CWConcernCategory[]>([])
   const [concerns, setConcerns] = useState<CWConcern[]>([])
@@ -57,8 +58,6 @@ export function ConcernsPage() {
   const [newConcernSource, setNewConcernSource] = useState('Manual')
   const [newConcernExternalRef, setNewConcernExternalRef] = useState('')
   const [newConcernEstTime, setNewConcernEstTime] = useState('30')
-  const [successOpen, setSuccessOpen] = useState(false)
-  const [successMessage, setSuccessMessage] = useState('')
 
   const [catDialogOpen, setCatDialogOpen] = useState(false)
   const [concernDialogOpen, setConcernDialogOpen] = useState(false)
@@ -132,10 +131,10 @@ export function ConcernsPage() {
       setNewCatName('')
       setNewCatShopId('')
       setCatDialogOpen(false)
-      setSuccessMessage(`Category created: ${cat.name}`)
-      setSuccessOpen(true)
+      toast.success(`Category created: ${cat.name}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to create concern category.')
     } finally {
       setSaving(false)
     }
@@ -162,10 +161,10 @@ export function ConcernsPage() {
       setNewConcernExternalRef('')
       setNewConcernEstTime('30')
       setConcernDialogOpen(false)
-      setSuccessMessage(`Concern created: ${c.name}`)
-      setSuccessOpen(true)
+      toast.success(`Concern created: ${c.name}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to create concern.')
     } finally {
       setSaving(false)
     }
@@ -182,8 +181,10 @@ export function ConcernsPage() {
         current === 'Active' ? 'Inactive' : 'Active',
       )
       setConcernCategories((items) => items.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`${updated.name} is now ${updated.status.toLowerCase()}.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update category status.')
     } finally {
       setSaving(false)
     }
@@ -197,8 +198,10 @@ export function ConcernsPage() {
       setError(null)
       const updated = await concernsService.setStatus(id, current === 'Active' ? 'Inactive' : 'Active')
       setConcerns((items) => items.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`${updated.name} is now ${updated.status.toLowerCase()}.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update concern status.')
     } finally {
       setSaving(false)
     }
@@ -380,17 +383,6 @@ export function ConcernsPage() {
             </Button>
           </Stack>
         </Stack>
-
-        <Snackbar
-          open={successOpen}
-          onClose={() => setSuccessOpen(false)}
-          autoHideDuration={2500}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%', borderRadius: '10px' }}>
-            {successMessage}
-          </Alert>
-        </Snackbar>
 
         {error ? (
           <Alert severity="error" sx={{ borderRadius: '10px' }}>

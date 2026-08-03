@@ -23,6 +23,7 @@ import { Add, Block, Edit, LockReset, PersonAdd, ToggleOff, ToggleOn, Visibility
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
+import { useToast } from '../../hooks/useToast'
 import type { Column } from '../../components/DataTable'
 import type { CWRole, CWShop, CWUser, CWUserStatus } from '../../types/cw'
 import { usersService } from '../../services/admin/usersService'
@@ -63,6 +64,7 @@ function statusChip(status: CWUserStatus) {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function UsersPage() {
+  const toast = useToast()
   const [shops, setShops] = useState<CWShop[]>([])
   const [roles, setRoles] = useState<CWRole[]>([])
   const [users, setUsers] = useState<CWUser[]>([])
@@ -155,6 +157,14 @@ export function UsersPage() {
   }
 
   async function submitCreate() {
+    if (!createDraft.fullName.trim() || !createDraft.email.trim()) {
+      toast.warning('Full name and email are required.')
+      return
+    }
+    if (createDraft.roleIds.length === 0) {
+      toast.warning('Assign at least one workshop role.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -169,8 +179,10 @@ export function UsersPage() {
       })
       setUsers((current) => [created, ...current.filter((user) => user.id !== created.id)])
       setCreateOpen(false)
+      toast.success(`${created.fullName} was created successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user')
+      toast.error(err, 'Failed to create user.')
     } finally {
       setSaving(false)
     }
@@ -178,6 +190,14 @@ export function UsersPage() {
 
   async function submitEdit() {
     if (!editUser) return
+    if (!editDraft.fullName.trim() || !editDraft.email.trim()) {
+      toast.warning('Full name and email are required.')
+      return
+    }
+    if (editDraft.roleIds.length === 0) {
+      toast.warning('Assign at least one workshop role.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -192,15 +212,21 @@ export function UsersPage() {
       })
       setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)))
       setEditUser(null)
+      toast.success(`${updated.fullName} was updated successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user')
+      toast.error(err, 'Failed to update user.')
     } finally {
       setSaving(false)
     }
   }
 
   async function submitResetPassword() {
-    if (!resetUser || !resetPassword.trim()) return
+    if (!resetUser) return
+    if (!resetPassword.trim()) {
+      toast.warning('Enter a new password before continuing.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -216,8 +242,10 @@ export function UsersPage() {
       setResetUser(null)
       setResetPassword('')
       setShowResetPassword(false)
+      toast.success(`Password reset for ${resetUser.fullName}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset password')
+      toast.error(err, 'Failed to reset password.')
     } finally {
       setSaving(false)
     }
@@ -229,8 +257,10 @@ export function UsersPage() {
     try {
       const updated = await usersService.setStatus(user.id, status)
       setUsers((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`${updated.fullName} is now ${updated.status.toLowerCase()}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user status')
+      toast.error(err, 'Failed to update user status.')
     } finally {
       setSaving(false)
     }

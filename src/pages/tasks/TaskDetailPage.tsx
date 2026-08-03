@@ -18,6 +18,7 @@ import { useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { FieldRenderer } from '../../components/FieldRenderer'
 import { SectionCard } from '../../components/SectionCard'
+import { useToast } from '../../hooks/useToast'
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
@@ -62,6 +63,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function TaskDetailPage() {
+  const toast = useToast()
   const { taskId } = useParams()
   useBackendData()
 
@@ -138,39 +140,54 @@ export function TaskDetailPage() {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   }, [attachments, taskId])
 
-  function setStatus(status: CWTaskStatus, reason?: string) {
+  async function setStatus(status: CWTaskStatus, reason?: string) {
     if (!taskId) return
     try {
       setError(null)
-      tasksService.setStatus(taskId, { status, pendingReason: reason })
+      await tasksService.setStatus(taskId, { status, pendingReason: reason })
+      toast.success(`Task status changed to ${status}.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update task status.')
     }
   }
 
-  function onFieldChange(fieldId: string, value: CWTaskFieldValue) {
+  async function onFieldChange(fieldId: string, value: CWTaskFieldValue) {
     if (!taskId) return
-    tasksService.setFieldValue(taskId, fieldId, value)
+    try {
+      await tasksService.setFieldValue(taskId, fieldId, value)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to save task field.')
+    }
   }
 
-  function addComment() {
+  async function addComment() {
     if (!taskId || !user) return
+    if (!commentDraft.trim()) {
+      toast.warning('Write a comment before adding it.')
+      return
+    }
     try {
       setError(null)
-      tasksService.addComment(taskId, user.name, commentDraft)
+      await tasksService.addComment(taskId, user.name, commentDraft)
       setCommentDraft('')
+      toast.success('Comment added.')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to add comment.')
     }
   }
 
-  function uploadAttachment(file: File) {
+  async function uploadAttachment(file: File) {
     if (!taskId) return
     try {
       setError(null)
-      tasksService.addAttachment(taskId, file)
+      await tasksService.addAttachment(taskId, file)
+      toast.success(`${file.name} was uploaded successfully.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to upload attachment.')
     }
   }
 

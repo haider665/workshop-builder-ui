@@ -33,6 +33,7 @@ import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { SectionCard } from '../../components/SectionCard'
 import { StatCard } from '../../components/StatCard'
+import { useToast } from '../../hooks/useToast'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii, pageLayout } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
@@ -60,6 +61,7 @@ function jobStatusChip(status: CWJobStatus) {
 }
 
 export function JobDetailsPage() {
+  const toast = useToast()
   const { jobId } = useParams()
   useBackendData()
   const navigate = useNavigate()
@@ -149,8 +151,10 @@ export function JobDetailsPage() {
       setTaskDependencyOverride(overrideOpenForTaskId, reason)
       setOverrideOpenForTaskId(null)
       setOverrideReason('')
+      toast.success('Task dependency override was recorded.')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to override task dependency.')
     }
   }
 
@@ -158,8 +162,10 @@ export function JobDetailsPage() {
     try {
       setError(null)
       setTaskDependencyOverride(taskId, null)
+      toast.success('Task dependency override was removed.')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to remove task dependency override.')
     }
   }
 
@@ -202,8 +208,10 @@ export function JobDetailsPage() {
         return
       }
       setJobStatus(job.id, next)
+      toast.success(`Job status changed to ${next}.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update job status.')
     }
   }
 
@@ -218,8 +226,10 @@ export function JobDetailsPage() {
         expectedReturnAt,
       })
       setTestDriveOpen(false)
+      toast.success('Test-drive details were saved.')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to save test-drive details.')
     }
   }
 

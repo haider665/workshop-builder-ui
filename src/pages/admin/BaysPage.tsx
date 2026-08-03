@@ -16,6 +16,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import { SectionCard } from '../../components/SectionCard'
+import { useToast } from '../../hooks/useToast'
 import type { Column } from '../../components/DataTable'
 import type { CWBay, CWBayStatus, CWShop } from '../../types/cw'
 import { baysService } from '../../services/admin/baysService'
@@ -45,6 +46,7 @@ function toDraft(bay?: CWBay): BayDraft {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function BaysPage() {
+  const toast = useToast()
   const [shops, setShops] = useState<CWShop[]>([])
   const [bays, setBays] = useState<CWBay[]>([])
   const [shopId, setShopId] = useState<string>('')
@@ -129,8 +131,14 @@ export function BaysPage() {
   }
 
   async function submitCreate() {
-    if (!selectedShop) return
-    if (!createDraft.name.trim()) return
+    if (!selectedShop) {
+      toast.warning('Select a shop before creating a bay.')
+      return
+    }
+    if (!createDraft.name.trim()) {
+      toast.warning('Enter a bay name before creating the bay.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -141,8 +149,10 @@ export function BaysPage() {
       })
       setBays((current) => [created, ...current.filter((bay) => bay.id !== created.id)])
       setCreateOpen(false)
+      toast.success(`${created.name} was created successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create bay')
+      toast.error(err, 'Failed to create bay.')
     } finally {
       setSaving(false)
     }
@@ -150,7 +160,10 @@ export function BaysPage() {
 
   async function submitEdit() {
     if (!editBay) return
-    if (!editDraft.name.trim()) return
+    if (!editDraft.name.trim()) {
+      toast.warning('Enter a bay name before saving changes.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -160,8 +173,10 @@ export function BaysPage() {
       })
       setBays((current) => current.map((bay) => (bay.id === updated.id ? updated : bay)))
       setEditBay(null)
+      toast.success(`${updated.name} was updated successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update bay')
+      toast.error(err, 'Failed to update bay.')
     } finally {
       setSaving(false)
     }
@@ -174,8 +189,10 @@ export function BaysPage() {
     try {
       const updated = await baysService.setStatus(bay.id, next)
       setBays((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`${updated.name} is now ${updated.status.toLowerCase()}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update bay status')
+      toast.error(err, 'Failed to update bay status.')
     } finally {
       setSaving(false)
     }

@@ -1,10 +1,8 @@
 import {
-  Alert,
   Autocomplete,
   Box,
   Button,
   Chip,
-  Snackbar,
   Stack,
   TextField,
   ToggleButton,
@@ -27,6 +25,7 @@ import type { CWPartRequest, CWPartRequestStatus, CWPart } from '../../types/cw'
 import { colors, pageLayout } from '../../theme/tokens'
 import { useSessionStore } from '../../store/sessionStore'
 import { workshopApi } from '../../services/workshopApi'
+import { useToast } from '../../hooks/useToast'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -49,6 +48,7 @@ const btnSx = {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function PartRequestsPage() {
+  const toast = useToast()
   const partRequests = useCwStore((s) => s.partRequests)
   const labelPartRequest = useCwStore((s) => s.labelPartRequest)
   const refreshPartRequests = useCwStore((s) => s.refreshPartRequests)
@@ -60,12 +60,8 @@ export function PartRequestsPage() {
 
   // Fetch fresh part requests from backend on mount
   useEffect(() => {
-    console.log('[PartRequests] mount → refreshPartRequests()')
-    refreshPartRequests().then(() => {
-      const prs = useCwStore.getState().partRequests
-      console.log('[PartRequests] refreshed from backend:', JSON.stringify(prs.map(p => ({ id: p.id.slice(-6), status: p.status }))))
-    }).catch(console.error)
-  }, [refreshPartRequests])
+    refreshPartRequests().catch((error) => toast.error(error, 'Failed to refresh part requests.'))
+  }, [refreshPartRequests, toast])
 
   // Load parts from API (store may be empty)
   const [apiParts, setApiParts] = useState<CWPart[]>([])
@@ -79,8 +75,6 @@ export function PartRequestsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedPart, setSelectedPart] = useState<CWPart | null>(null)
   const [quantity, setQuantity] = useState('')
-  const [successOpen, setSuccessOpen] = useState(false)
-  const [successMsg, setSuccessMsg] = useState('')
 
   const filtered = useMemo(() => {
     const list = statusFilter === 'All' ? partRequests : partRequests.filter((pr) => pr.status === statusFilter)
@@ -132,8 +126,10 @@ export function PartRequestsPage() {
   }
 
   function submitLabel() {
-    if (!editingId || !selectedPart) return
-    console.log('[submitLabel] labeling', editingId.slice(-6), 'as', selectedPart.partNumber)
+    if (!editingId || !selectedPart) {
+      toast.warning('Select a catalog part before labeling the request.')
+      return
+    }
     labelPartRequest(editingId, {
       partNumber: selectedPart.partNumber,
       price: 0,
@@ -142,8 +138,7 @@ export function PartRequestsPage() {
     })
     setEditingId(null)
     setSelectedPart(null)
-    setSuccessMsg(`Labeled as ${selectedPart.name} (${selectedPart.partNumber})`)
-    setSuccessOpen(true)
+    toast.success(`Labeled as ${selectedPart.name} (${selectedPart.partNumber}).`)
   }
 
   function rejectRequest(prId: string) {
@@ -154,19 +149,16 @@ export function PartRequestsPage() {
       labeledBy: sessionUser?.name || 'Admin',
       status: 'Rejected',
     })
-    setSuccessMsg('Part request rejected')
-    setSuccessOpen(true)
+    toast.success('Part request rejected.')
   }
 
   async function sendToEstimator(pr: CWPartRequest) {
-    console.log('[sendToEstimator] START', pr.id.slice(-6), pr.partName, 'status:', pr.status)
     const part = activePartOptions.find((p) => p.partNumber === pr.partNumber)
     if (!part) {
       throw new Error(`Catalog part not found for "${pr.partName}" (${pr.partNumber ?? 'no part number'})`)
     }
 
     // Create estimate line in backend directly (with partId → status: Identified)
-    console.log('[sendToEstimator] creating estimate line...')
     await workshopApi.createEstimateLine({
       appointmentId: pr.appointmentId,
       concernItemId: pr.concernItemId,
@@ -177,21 +169,17 @@ export function PartRequestsPage() {
       partName: part.name,
       quantity: pr.quantity ?? 1,
     })
-    console.log('[sendToEstimator] estimate line created ✓')
 
     // Mark as Fulfilled via label API (avoids race with fire-and-forget label sync)
-    console.log('[sendToEstimator] calling labelPartRequest API with status=Fulfilled...')
-    const result = await workshopApi.labelPartRequest(pr.id, {
+    await workshopApi.labelPartRequest(pr.id, {
       partNumber: pr.partNumber ?? part.partNumber,
       price: pr.price ?? 0,
       quantity: pr.quantity ?? 1,
       labeledBy: sessionUser?.name || 'Admin',
       status: 'Fulfilled',
     })
-    console.log('[sendToEstimator] label API returned:', result)
     // Update local state
     set_partRequestStatusLocal(pr.id, 'Fulfilled')
-    console.log('[sendToEstimator] local state updated to Fulfilled ✓')
   }
 
   function set_partRequestStatusLocal(id: string, status: CWPartRequestStatus) {
@@ -205,9 +193,8 @@ export function PartRequestsPage() {
 
   async function sendAllToEstimator(groupParts: CWPartRequest[]) {
     const labeled = groupParts.filter(pr => pr.status === 'Labeled')
-    console.log('[sendAll] labeled count:', labeled.length, labeled.map(p => p.id.slice(-6)))
     if (labeled.length === 0) {
-      console.log('[sendAll] NO labeled parts found! statuses:', groupParts.map(p => ({ id: p.id.slice(-6), status: p.status })))
+      toast.info('Label at least one part before sending it to the estimator.')
       return
     }
     let sent = 0
@@ -216,20 +203,11 @@ export function PartRequestsPage() {
         await sendToEstimator(pr)
         sent++
       } catch (err) {
-        console.error('[sendAll] error:', err)
-        setSuccessMsg(`Failed: ${err instanceof Error ? err.message : String(err)}`)
-        setSuccessOpen(true)
+        toast.error(err, 'Failed to send part request to the estimator.')
         return
       }
     }
-    console.log('[sendAll] DONE, sent:', sent)
-    // Check backend state after 2 seconds
-    setTimeout(async () => {
-      const res = await workshopApi.listPartRequests({ pageSize: 100 })
-      console.log('[sendAll] backend state after 2s:', JSON.stringify(res.data.map((p: CWPartRequest) => ({ id: p.id.slice(-6), status: p.status }))))
-    }, 2000)
-    setSuccessMsg(`Sent ${sent} part${sent > 1 ? 's' : ''} to Estimator ✓`)
-    setSuccessOpen(true)
+    toast.success(`Sent ${sent} part${sent > 1 ? 's' : ''} to the estimator.`)
   }
 
   /* ── Render ── */
@@ -246,10 +224,6 @@ export function PartRequestsPage() {
             <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Map part requests to catalog, then send to Estimator for pricing</Typography>
           </Box>
         </Stack>
-
-        <Snackbar open={successOpen} onClose={() => setSuccessOpen(false)} autoHideDuration={2500} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled">{successMsg}</Alert>
-        </Snackbar>
 
         {/* ── Status Filter ── */}
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>

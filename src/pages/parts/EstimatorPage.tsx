@@ -7,7 +7,6 @@ import {
   FormControl,
   MenuItem,
   Select,
-  Snackbar,
   Stack,
   Tab,
   Tabs,
@@ -19,6 +18,7 @@ import {colors, pageLayout, radii, shadows} from '../../theme/tokens'
 import {workshopApi} from '../../services/workshopApi'
 import {useCwStore} from '../../store/cwStore'
 import type {CWEstimateLine, CWEstimateLineStatus, CWPart} from '../../types/cw'
+import {useToast} from '../../hooks/useToast'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -73,6 +73,7 @@ type PricingData = {
 /* ─────────────────────── Main Page ─────────────────────────── */
 
 export function EstimatorPage() {
+  const toast = useToast()
   const [lines, setLines] = useState<CWEstimateLine[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -80,7 +81,6 @@ export function EstimatorPage() {
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null)
   const [pricingMap, setPricingMap] = useState<Map<string, PricingData>>(new Map())
   const [submitting, setSubmitting] = useState(false)
-  const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' })
 
   const appointments = useCwStore(s => s.appointments)
   const vehicles = useCwStore(s => s.vehicles)
@@ -213,12 +213,12 @@ export function EstimatorPage() {
         lineIds.push(lineId)
       }
       await workshopApi.submitEstimateLines(selectedApptId, lineIds)
-      setSnack({ open: true, msg: `${lineIds.length} part${lineIds.length > 1 ? 's' : ''} priced & sent to Advisor ✓`, severity: 'success' })
+      toast.success(`${lineIds.length} part${lineIds.length > 1 ? 's' : ''} priced and sent to the advisor.`)
       setSelectedApptId(null)
       setPricingMap(new Map())
       await loadLines()
     } catch (err) {
-      setSnack({ open: true, msg: err instanceof Error ? err.message : 'Failed to save & send', severity: 'error' })
+      toast.error(err, 'Failed to price and send the estimate.')
     } finally {
       setSubmitting(false)
     }
@@ -246,10 +246,6 @@ export function EstimatorPage() {
           Price parts per appointment and send estimates to Service Advisor
         </Typography>
       </Box>
-
-      <Snackbar open={snack.open} onClose={() => setSnack((s) => ({ ...s, open: false }))} autoHideDuration={3000} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert onClose={() => setSnack((s) => ({ ...s, open: false }))} severity={snack.severity} variant="filled">{snack.msg}</Alert>
-      </Snackbar>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
 

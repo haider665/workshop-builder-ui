@@ -9,7 +9,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Snackbar,
   Stack,
   TextField,
   Tooltip,
@@ -20,6 +19,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { SectionCard } from '../../components/SectionCard'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
+import { useToast } from '../../hooks/useToast'
 import type { Column } from '../../components/DataTable'
 import type { CWService, CWServiceSeverity, CWServiceStageDefinition, CWShop, CWVehicleSize } from '../../types/cw'
 import { shopsService } from '../../services/admin/shopsService'
@@ -50,14 +50,13 @@ const btnSx = {
 
 /* ─────────────────────── Component ─────────────────────────── */
 
-  export function ServicesPage() {
+export function ServicesPage() {
+  const toast = useToast()
   const [shops, setShops] = useState<CWShop[]>([])
   const [services, setServices] = useState<CWService[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successOpen, setSuccessOpen] = useState(false)
-  const [successMessage, setSuccessMessage] = useState('')
 
   const [filterCat, setFilterCat] = useState('')
   const [filterQuery, setFilterQuery] = useState('')
@@ -215,10 +214,10 @@ const btnSx = {
       setServices((current) => [created, ...current.filter((svc) => svc.id !== created.id)])
       clearCreateForm()
       setAddOpen(false)
-      setSuccessMessage(`Service created: ${created.code}`)
-      setSuccessOpen(true)
+      toast.success(`Service created: ${created.code}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to create service.')
     } finally {
       setSaving(false)
     }
@@ -256,10 +255,10 @@ const btnSx = {
       })
       setServices((current) => current.map((svc) => (svc.id === updated.id ? updated : svc)))
       setEditId(null)
-      setSuccessMessage('Service updated')
-      setSuccessOpen(true)
+      toast.success(`${updated.code} was updated successfully.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update service.')
     } finally {
       setSaving(false)
     }
@@ -271,8 +270,10 @@ const btnSx = {
       setError(null)
       const updated = await servicesService.setStatus(svc.id, svc.status === 'Active' ? 'Inactive' : 'Active')
       setServices((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`${updated.code} is now ${updated.status.toLowerCase()}.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update service status.')
     } finally {
       setSaving(false)
     }
@@ -496,17 +497,6 @@ const btnSx = {
             {addOpen ? 'Cancel' : '+ Add Service'}
           </Button>
         </Stack>
-
-        <Snackbar
-          open={successOpen}
-          onClose={() => setSuccessOpen(false)}
-          autoHideDuration={2500}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert onClose={() => setSuccessOpen(false)} severity="success" variant="filled" sx={{ width: '100%', borderRadius: '10px' }}>
-            {successMessage}
-          </Alert>
-        </Snackbar>
 
         {error ? (
           <Alert severity="error" sx={{ borderRadius: '10px' }}>

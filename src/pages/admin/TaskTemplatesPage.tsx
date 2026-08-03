@@ -28,6 +28,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { DataTable, type Column } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
+import { useToast } from '../../hooks/useToast'
 import { colors, radii, pageLayout } from '../../theme/tokens'
 import { tableSectionSx } from '../../theme/tableStyles'
 import type {
@@ -151,6 +152,7 @@ function PreviewField(props: { field: CWTaskField }) {
 }
 
 export function TaskTemplatesPage() {
+  const toast = useToast()
   const [shops, setShops] = useState<CWShop[]>([])
   const [taskTemplates, setTaskTemplates] = useState<CWTaskTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -227,8 +229,10 @@ export function TaskTemplatesPage() {
       setTaskTemplates((current) => [created, ...current.filter((t) => t.id !== created.id)])
       setCreateOpen(false)
       setSelectedTemplateId(created.id)
+      toast.success(`${created.name} was created successfully.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to create task template.')
     } finally {
       setSaving(false)
     }
@@ -253,8 +257,10 @@ export function TaskTemplatesPage() {
       })
       setTaskTemplates((current) => current.map((t) => (t.id === updated.id ? updated : t)))
       setEditTemplate(null)
+      toast.success(`${updated.name} was updated successfully.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update task template.')
     } finally {
       setSaving(false)
     }
@@ -266,8 +272,10 @@ export function TaskTemplatesPage() {
       setError(null)
       const updated = await taskTemplatesService.setStatus(t.id, t.status === 'Active' ? 'Inactive' : 'Active')
       setTaskTemplates((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`${updated.name} is now ${updated.status.toLowerCase()}.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update task-template status.')
     } finally {
       setSaving(false)
     }
@@ -294,8 +302,10 @@ export function TaskTemplatesPage() {
       const refreshed = await taskTemplatesService.list()
       setTaskTemplates(refreshed)
       setAddFieldOpen(false)
+      toast.success(`${fieldDraft.label} was added to the template.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to add template field.')
     } finally {
       setSaving(false)
     }
@@ -320,8 +330,10 @@ export function TaskTemplatesPage() {
       })
       setTaskTemplates((current) => current.map((t) => (t.id === updated.id ? updated : t)))
       setEditField(null)
+      toast.success(`${fieldDraft.label} was updated successfully.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to update template field.')
     } finally {
       setSaving(false)
     }
@@ -334,8 +346,10 @@ export function TaskTemplatesPage() {
       setError(null)
       const updated = await taskTemplatesService.removeField(selectedTemplate.id, f.id)
       setTaskTemplates((current) => current.map((t) => (t.id === updated.id ? updated : t)))
+      toast.success(`${f.label} was removed from the template.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to remove template field.')
     } finally {
       setSaving(false)
     }
@@ -350,6 +364,7 @@ export function TaskTemplatesPage() {
       setTaskTemplates((current) => current.map((t) => (t.id === updated.id ? updated : t)))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      toast.error(e, 'Failed to reorder template field.')
     } finally {
       setSaving(false)
     }

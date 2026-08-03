@@ -14,6 +14,7 @@ import { Add, Edit, Store, ToggleOff, ToggleOn } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
+import { useToast } from '../../hooks/useToast'
 import type { Column } from '../../components/DataTable'
 import type { CWShop, CWShopStatus, CWShopType } from '../../types/cw'
 import { shopsService } from '../../services/admin/shopsService'
@@ -54,6 +55,7 @@ function toDraft(shop?: CWShop): ShopDraft {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function ShopsPage() {
+  const toast = useToast()
   const [shops, setShops] = useState<CWShop[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [editShop, setEditShop] = useState<CWShop | null>(null)
@@ -100,7 +102,10 @@ export function ShopsPage() {
   }
 
   async function submitCreate() {
-    if (!createDraft.name.trim()) return
+    if (!createDraft.name.trim()) {
+      toast.warning('Enter a shop name before creating the shop.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -112,8 +117,10 @@ export function ShopsPage() {
       })
       setShops((current) => [created, ...current.filter((shop) => shop.id !== created.id)])
       setCreateOpen(false)
+      toast.success(`${created.name} was created successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create shop')
+      toast.error(err, 'Failed to create shop.')
     } finally {
       setSaving(false)
     }
@@ -126,7 +133,10 @@ export function ShopsPage() {
 
   async function submitEdit() {
     if (!editShop) return
-    if (!editDraft.name.trim()) return
+    if (!editDraft.name.trim()) {
+      toast.warning('Enter a shop name before saving changes.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -137,8 +147,10 @@ export function ShopsPage() {
       })
       setShops((current) => current.map((shop) => (shop.id === updated.id ? updated : shop)))
       setEditShop(null)
+      toast.success(`${updated.name} was updated successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update shop')
+      toast.error(err, 'Failed to update shop.')
     } finally {
       setSaving(false)
     }
@@ -153,8 +165,10 @@ export function ShopsPage() {
         shop.status === 'Active' ? 'Inactive' : 'Active',
       )
       setShops((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`${updated.name} is now ${updated.status.toLowerCase()}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update shop status')
+      toast.error(err, 'Failed to update shop status.')
     } finally {
       setSaving(false)
     }

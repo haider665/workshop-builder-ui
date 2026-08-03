@@ -14,6 +14,7 @@ import { Add, Edit, Groups } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
+import { useToast } from '../../hooks/useToast'
 import type { Column } from '../../components/DataTable'
 import type { CWRole, CWTeam, CWTeamStatus, CWUser } from '../../types/cw'
 import { rolesService } from '../../services/admin/rolesService'
@@ -59,6 +60,7 @@ const btnSx = {
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function TeamsPage() {
+  const toast = useToast()
   const [teams, setTeams] = useState<CWTeam[]>([])
   const [users, setUsers] = useState<CWUser[]>([])
   const [roles, setRoles] = useState<CWRole[]>([])
@@ -130,7 +132,10 @@ export function TeamsPage() {
   }
 
   async function submitCreate() {
-    if (!createDraft.name.trim() || !createDraft.seUserId) return
+    if (!createDraft.name.trim() || !createDraft.seUserId) {
+      toast.warning('Enter a team name and select a service engineer.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -142,15 +147,21 @@ export function TeamsPage() {
       })
       setTeams((current) => [created, ...current.filter((team) => team.id !== created.id)])
       setCreateOpen(false)
+      toast.success(`${created.name} was created successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create team')
+      toast.error(err, 'Failed to create team.')
     } finally {
       setSaving(false)
     }
   }
 
   async function submitEdit() {
-    if (!editTeam || !editDraft.name.trim() || !editDraft.seUserId) return
+    if (!editTeam) return
+    if (!editDraft.name.trim() || !editDraft.seUserId) {
+      toast.warning('Enter a team name and select a service engineer.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -162,8 +173,10 @@ export function TeamsPage() {
       })
       setTeams((current) => current.map((team) => (team.id === updated.id ? updated : team)))
       setEditTeam(null)
+      toast.success(`${updated.name} was updated successfully.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update team')
+      toast.error(err, 'Failed to update team.')
     } finally {
       setSaving(false)
     }
