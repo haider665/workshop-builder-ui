@@ -271,8 +271,10 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
     let pointerStart = { x: 0, y: 0 }
+    let selectionOutline: THREE.BoxHelper | null = null
+    let lastTap = { at: 0, category: '' }
 
-    function intersections(event: PointerEvent) {
+    function intersections(event: PointerEvent | MouseEvent) {
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
@@ -296,11 +298,37 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
       if (!hit) return
       const category = String(hit.object.userData.category ?? '')
       setSelectedCategory(category)
+      if (selectionOutline) {
+        scene.remove(selectionOutline)
+        selectionOutline.geometry.dispose()
+        selectionOutline.material.dispose()
+      }
+      selectionOutline = new THREE.BoxHelper(hit.object, 0x60a5fa)
+      selectionOutline.material.depthTest = false
+      selectionOutline.material.transparent = true
+      selectionOutline.material.opacity = 0.92
+      selectionOutline.renderOrder = 20
+      scene.add(selectionOutline)
+
+      const now = performance.now()
+      if (event.pointerType === 'touch' && lastTap.category === category && now - lastTap.at < 420) {
+        callbackRef.current(category)
+        lastTap = { at: 0, category: '' }
+      } else {
+        lastTap = { at: now, category }
+      }
+    }
+
+    function onDoubleClick(event: MouseEvent) {
+      const hit = intersections(event)[0]
+      if (!hit) return
+      callbackRef.current(String(hit.object.userData.category ?? ''))
     }
 
     renderer.domElement.addEventListener('pointerdown', onPointerDown)
     renderer.domElement.addEventListener('pointermove', onPointerMove)
     renderer.domElement.addEventListener('pointerup', onPointerUp)
+    renderer.domElement.addEventListener('dblclick', onDoubleClick)
 
     const resizeObserver = new ResizeObserver(() => {
       const width = Math.max(host.clientWidth, 1)
@@ -326,6 +354,12 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
       renderer.domElement.removeEventListener('pointerdown', onPointerDown)
       renderer.domElement.removeEventListener('pointermove', onPointerMove)
       renderer.domElement.removeEventListener('pointerup', onPointerUp)
+      renderer.domElement.removeEventListener('dblclick', onDoubleClick)
+      if (selectionOutline) {
+        scene.remove(selectionOutline)
+        selectionOutline.geometry.dispose()
+        selectionOutline.material.dispose()
+      }
       controls.dispose()
       renderer.dispose()
       scene.traverse((object) => {
@@ -360,7 +394,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
         <ThreeDRotationRounded sx={{ color: '#60a5fa' }} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography sx={{ fontWeight: 850, fontSize: { xs: '.9rem', sm: '1rem' } }}>Interactive 3D vehicle</Typography>
-          <Typography sx={{ color: '#94a3b8', fontSize: '.7rem' }}>Drag to rotate · pinch or scroll to zoom · tap a component</Typography>
+          <Typography sx={{ color: '#94a3b8', fontSize: '.7rem' }}>Drag to rotate · tap to select · double-tap to inspect</Typography>
         </Box>
         <Chip
           label={modelState === 'real' ? 'REAL MODEL' : modelState === 'loading' ? 'LOADING MODEL' : 'SAFE FALLBACK'}
@@ -417,7 +451,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
 
       <Box sx={{ px: { xs: 1.5, sm: 2.5 }, py: 1.5, minHeight: 72, borderTop: '1px solid rgba(148,163,184,.14)', bgcolor: 'rgba(2,6,23,.7)' }}>
         {!selectedCategory ? (
-          <Typography sx={{ color: '#94a3b8', fontSize: '.75rem' }}>Select any highlighted vehicle component to begin its inspection.</Typography>
+          <Typography sx={{ color: '#94a3b8', fontSize: '.75rem' }}>Tap a vehicle component to select it, then double-tap to open its inspection.</Typography>
         ) : (
           <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ alignItems: { sm: 'center' }, gap: 1.25 }}>
             <Box sx={{ minWidth: 0, flex: 1 }}>
