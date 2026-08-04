@@ -27,11 +27,14 @@ type Props = {
 }
 
 function areaColor(items: CWInspectionCheck[], selected: boolean) {
+  const inspected = items.filter((item) => item.checked)
+  const findings = inspected.map((item) => (item.defectType ?? item.remark ?? '').toLowerCase())
+  if (inspected.some((item) => item.condition === 'Bad' || item.result === 'Fail') || findings.some((value) => /body damage|broken|crack|collision|deform/.test(value))) return '#ef4444'
+  if (findings.some((value) => /dent|dented/.test(value))) return '#f97316'
+  if (findings.some((value) => /scratch|scrape|scuff|paint/.test(value))) return '#eab308'
+  if (inspected.some((item) => item.condition === 'Warning' || item.result === 'Advisory' || item.actionRequired) || findings.some(Boolean)) return '#a855f7'
+  if (inspected.length > 0) return '#22c55e'
   if (selected) return '#2563eb'
-  if (items.some((item) => item.condition === 'Bad' || item.result === 'Fail')) return '#dc2626'
-  if (items.some((item) => item.condition === 'Warning' || item.result === 'Advisory')) return '#d97706'
-  if (items.length > 0 && items.every((item) => item.checked)) return '#16a34a'
-  if (items.some((item) => item.checked)) return '#0891b2'
   return '#94a3b8'
 }
 
@@ -59,6 +62,20 @@ export function VehicleInspectionBlueprint({ checks, selectedCategory, onOpenCat
         <Typography variant="caption" color="text.secondary">
           Complete zone map. Tap the drawing or any section to open its inspection checklist.
         </Typography>
+        <Stack direction="row" sx={{ mt: 1, gap: 1.15, flexWrap: 'wrap' }}>
+          {[
+            ['Passed', '#22c55e'],
+            ['Scratch', '#eab308'],
+            ['Dent', '#f97316'],
+            ['Body damage', '#ef4444'],
+            ['Concern', '#a855f7'],
+          ].map(([label, color]) => (
+            <Stack key={label} direction="row" spacing={0.45} sx={{ alignItems: 'center' }}>
+              <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: color }} />
+              <Typography sx={{ color: 'text.secondary', fontSize: '.61rem' }}>{label}</Typography>
+            </Stack>
+          ))}
+        </Stack>
       </Box>
       <Box sx={{ display: { xs: 'block', md: 'grid' }, gridTemplateColumns: 'minmax(300px, .95fr) minmax(330px, 1.05fr)', gap: 0 }}>
         <Box sx={{ p: { xs: 1.25, sm: 2 }, minWidth: 0, display: 'grid', placeItems: 'center', borderRight: { md: '1px solid' }, borderColor: { md: 'divider' } }}>
@@ -141,4 +158,3 @@ export function VehicleInspectionBlueprint({ checks, selectedCategory, onOpenCat
     </Paper>
   )
 }
-

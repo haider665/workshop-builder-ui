@@ -30,6 +30,25 @@ const MODEL_URLS: Record<CWVehicleCategory, string> = {
   Other: '/models/vehicle/khronos-toy-car.glb',
 }
 
+const FINDING_COLORS = {
+  passed: 0x22c55e,
+  scratch: 0xeab308,
+  dent: 0xf97316,
+  damage: 0xef4444,
+  concern: 0xa855f7,
+}
+
+function findingColor(checks: CWInspectionCheck[], category: string) {
+  const inspected = checks.filter((check) => check.category === category && check.checked)
+  if (!inspected.length) return null
+  const findings = inspected.map((check) => (check.defectType ?? check.remark ?? '').toLowerCase())
+  if (inspected.some((check) => check.condition === 'Bad' || check.result === 'Fail') || findings.some((value) => /body damage|broken|crack|collision|deform/.test(value))) return FINDING_COLORS.damage
+  if (findings.some((value) => /dent|dented/.test(value))) return FINDING_COLORS.dent
+  if (findings.some((value) => /scratch|scrape|scuff|paint/.test(value))) return FINDING_COLORS.scratch
+  if (inspected.some((check) => check.condition === 'Warning' || check.result === 'Advisory' || check.actionRequired) || findings.some(Boolean)) return FINDING_COLORS.concern
+  return FINDING_COLORS.passed
+}
+
 const CAMERA_VIEWS = [
   { id: 'perspective', label: '3D', position: [8, 5, 9] },
   { id: 'front', label: 'Front', position: [9, 2.6, 0] },
@@ -63,6 +82,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
   const hostRef = useRef<HTMLDivElement | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const controlsRef = useRef<OrbitControls | null>(null)
+  const visualMeshesRef = useRef<THREE.Mesh[]>([])
   const callbackRef = useRef(onOpenCategory)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [hoveredPart, setHoveredPart] = useState<string | null>(null)
@@ -73,6 +93,19 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
   useEffect(() => {
     callbackRef.current = onOpenCategory
   }, [onOpenCategory])
+
+  useEffect(() => {
+    visualMeshesRef.current.forEach((mesh) => {
+      const color = findingColor(checks, String(mesh.userData.category ?? ''))
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      materials.forEach((material) => {
+        if (!(material instanceof THREE.MeshStandardMaterial)) return
+        material.emissive.setHex(color ?? 0x000000)
+        material.emissiveIntensity = color ? 0.48 : 0
+        material.needsUpdate = true
+      })
+    })
+  }, [checks, bodyType, modelState])
 
   const selectedChecks = useMemo(
     () => checks.filter((check) => check.category === selectedCategory),
@@ -150,6 +183,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
     car.scale.set(...bodyScale[bodyType])
     scene.add(car)
     const selectable: THREE.Mesh[] = []
+    visualMeshesRef.current = selectable
 
     function material(category: string, options?: { transparent?: boolean; opacity?: number }) {
       return new THREE.MeshPhysicalMaterial({
@@ -252,6 +286,9 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
         model.position.y += 0.25
         model.traverse((object) => {
           if (!(object instanceof THREE.Mesh)) return
+          object.material = Array.isArray(object.material)
+            ? object.material.map((item) => item.clone())
+            : object.material.clone()
           object.castShadow = true
           object.receiveShadow = true
           object.userData.category = categoryForMesh(object)
@@ -372,6 +409,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
       if (renderer.domElement.parentElement === host) host.removeChild(renderer.domElement)
       cameraRef.current = null
       controlsRef.current = null
+      visualMeshesRef.current = []
     }
   }, [bodyType])
 
@@ -471,6 +509,20 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
           </Stack>
         )}
       </Box>
+      <Stack direction="row" sx={{ px: { xs: 1.5, sm: 2.5 }, py: 1, gap: 1.25, flexWrap: 'wrap', borderTop: '1px solid rgba(148,163,184,.1)', bgcolor: '#050c17' }}>
+        {[
+          ['Passed', '#22c55e'],
+          ['Scratch', '#eab308'],
+          ['Dent', '#f97316'],
+          ['Body damage', '#ef4444'],
+          ['Concern', '#a855f7'],
+        ].map(([label, color]) => (
+          <Stack key={label} direction="row" spacing={0.55} sx={{ alignItems: 'center' }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
+            <Typography sx={{ color: '#94a3b8', fontSize: '.62rem' }}>{label}</Typography>
+          </Stack>
+        ))}
+      </Stack>
     </Paper>
   )
 }
