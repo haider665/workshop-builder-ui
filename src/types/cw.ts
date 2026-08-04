@@ -217,12 +217,27 @@ export type CWVehicle = {
   interiorColorCode?: string
   tyreSize?: string
   additionalNotes?: string
+  vehicleDocuments?: CWGateVehicleDocument[]
   status: CWVehicleStatus
   createdAt: string
   updatedAt: string
 }
 
 export type CWPendingVehicleStatus = 'Pending' | 'Resolved' | 'Job Created'
+export type CWIntakerType = 'Owner' | 'Driver' | 'Technician' | 'Other'
+export type CWVehicleDocumentType = 'Registration Certificate' | 'Tax Token' | 'Fitness Certificate' | 'Insurance' | 'Route Permit' | 'Other'
+export type CWDocumentVerificationStatus = 'Pending' | 'Verified' | 'Rejected'
+
+export type CWGateVehicleDocument = {
+  id?: string
+  documentType: CWVehicleDocumentType
+  documentNumber?: string
+  fileUrl: string
+  verificationStatus: CWDocumentVerificationStatus
+  verifiedByUserId?: string
+  verifiedAt?: string
+  verificationNote?: string
+}
 
 export type CWPendingVehicle = {
   id: string
@@ -230,6 +245,12 @@ export type CWPendingVehicle = {
   customerId?: string
   vehicleId?: string
   appointmentId?: string
+  intakerType?: CWIntakerType
+  intakerName?: string
+  intakerPhone?: string
+  intakerPhotoUrl?: string
+  drivingLicensePhotoUrl?: string
+  vehicleDocuments?: CWGateVehicleDocument[]
   isTemporary?: boolean
   status: CWPendingVehicleStatus
   arrivedAt: string

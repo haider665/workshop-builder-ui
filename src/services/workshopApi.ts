@@ -1125,8 +1125,17 @@ export const workshopApi = {
     })
   },
 
-  async guardEntry(input: { registrationNo: string; appointmentId?: string }): Promise<{ gateEvent: unknown; pendingVehicle: unknown }> {
-    return request<{ gateEvent: unknown; pendingVehicle: unknown }>('/api/method/workshop.api.guard.entry', {
+  async guardEntry(input: {
+    registrationNo: string
+    appointmentId?: string
+    intakerType: import('../types/cw').CWIntakerType
+    intakerName: string
+    intakerPhone: string
+    intakerPhotoUrl: string
+    drivingLicensePhotoUrl?: string
+    vehicleDocuments?: Omit<import('../types/cw').CWGateVehicleDocument, 'id' | 'verifiedByUserId' | 'verifiedAt'>[]
+  }): Promise<{ gateEvent: unknown; pendingVehicle: import('../types/cw').CWPendingVehicle }> {
+    return request<{ gateEvent: unknown; pendingVehicle: import('../types/cw').CWPendingVehicle }>('/api/method/workshop.api.guard.entry', {
       method: 'POST',
       body: { data: input },
     })

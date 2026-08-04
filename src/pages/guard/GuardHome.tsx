@@ -7,6 +7,9 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
+  IconButton,
+  MenuItem,
   Snackbar,
   Stack,
   TextField,
@@ -16,6 +19,8 @@ import {
 } from '@mui/material'
 import {
   DoorFront,
+  CloudUpload,
+  DeleteOutlined,
   ExitToApp,
   Login,
   Security,
@@ -24,7 +29,8 @@ import {
 import { useMemo, useState } from 'react'
 import { useCwStore } from '../../store/cwStore'
 import { colors, radii, shadows } from '../../theme/tokens'
-import type { CWAppointment, CWCustomer, CWJob, CWPendingVehicle, CWVehicle } from '../../types/cw'
+import { workshopApi } from '../../services/workshopApi'
+import type { CWAppointment, CWCustomer, CWGateVehicleDocument, CWIntakerType, CWJob, CWPendingVehicle, CWVehicle, CWVehicleDocumentType } from '../../types/cw'
 
 /* ─────────────────────── Types ─────────────────────────── */
 
@@ -43,6 +49,10 @@ type MatchResult = {
   customer: CWCustomer | null
   appointment: CWAppointment | null
 } | null
+
+type IntakeDocumentDraft = Omit<CWGateVehicleDocument, 'id' | 'verifiedByUserId' | 'verifiedAt'>
+
+const documentTypes: CWVehicleDocumentType[] = ['Registration Certificate', 'Tax Token', 'Fitness Certificate', 'Insurance', 'Route Permit', 'Other']
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -120,6 +130,13 @@ export function GuardHome() {
   const [reentryInfo, setReentryInfo] = useState<{ vehicle: CWVehicle; customer: CWCustomer | null; exitedMinsAgo: number; appointment: CWAppointment } | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [intakerType, setIntakerType] = useState<CWIntakerType>('Owner')
+  const [intakerName, setIntakerName] = useState('')
+  const [intakerPhone, setIntakerPhone] = useState('')
+  const [intakerPhotoUrl, setIntakerPhotoUrl] = useState('')
+  const [drivingLicensePhotoUrl, setDrivingLicensePhotoUrl] = useState('')
+  const [vehicleDocuments, setVehicleDocuments] = useState<IntakeDocumentDraft[]>([])
+  const [uploading, setUploading] = useState(false)
 
   const normalizedValue = useMemo(() => searchValue.trim(), [searchValue])
   const searchKey = useMemo(() => normalizeKey(searchValue), [searchValue])
@@ -174,6 +191,34 @@ export function GuardHome() {
     setSuccessMessage('')
   }
 
+  function resetIntakeForm() {
+    setIntakerType('Owner')
+    setIntakerName('')
+    setIntakerPhone('')
+    setIntakerPhotoUrl('')
+    setDrivingLicensePhotoUrl('')
+    setVehicleDocuments([])
+  }
+
+  async function uploadEvidence(file: File, onUploaded: (url: string) => void) {
+    try {
+      setUploading(true)
+      setError(null)
+      const uploaded = await workshopApi.uploadFile(file, { folder: 'Home/Workshop/Gate Intake', isPrivate: true })
+      onUploaded(uploaded.fileUrl)
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Unable to upload file')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function addVehicleDocument() {
+    setVehicleDocuments((current) => [...current, {
+      documentType: 'Registration Certificate', documentNumber: '', fileUrl: '', verificationStatus: 'Pending', verificationNote: '',
+    }])
+  }
+
   function startEntry() {
     setError(null)
     if (!normalizedValue) {
@@ -220,6 +265,14 @@ export function GuardHome() {
   function confirmEntry() {
     try {
       setError(null)
+      if (!intakerName.trim() || !intakerPhone.trim() || !intakerPhotoUrl) {
+        setError('Name, phone number, and a clear photo of the person bringing the vehicle are required.')
+        return
+      }
+      if (vehicleDocuments.some((document) => !document.fileUrl)) {
+        setError('Upload a file for every vehicle document row, or remove the incomplete row.')
+        return
+      }
       const vehicle = matchResult?.vehicle ?? null
       const regNo = vehicle ? vehicle.registrationNo : normalizedValue.toUpperCase()
       const appt = matchResult?.appointment ?? null
@@ -229,6 +282,12 @@ export function GuardHome() {
         customerId: appt?.customerId ?? vehicle?.customerId,
         vehicleId: appt?.vehicleId ?? vehicle?.id,
         appointmentId: appt?.id,
+        intakerType,
+        intakerName: intakerName.trim(),
+        intakerPhone: intakerPhone.trim(),
+        intakerPhotoUrl,
+        drivingLicensePhotoUrl: drivingLicensePhotoUrl || undefined,
+        vehicleDocuments,
         isTemporary: !vehicle,
       })
 
@@ -239,6 +298,7 @@ export function GuardHome() {
       setEntryCreated(created)
       setSearchValue('')
       setStep('idle')
+      resetIntakeForm()
 
       if (!vehicle) {
         setSuccessMessage(`Temporary entry logged: ${created.registrationNo} — CRE will resolve.`)
@@ -424,7 +484,7 @@ export function GuardHome() {
         </Dialog>
 
         {/* ── Entry confirm dialog ── */}
-        <Dialog open={step === 'entry-confirm'} onClose={() => setStep('idle')} fullWidth maxWidth="sm" slotProps={{ paper: { sx: dialogPaperSx } }}>
+        <Dialog open={step === 'entry-confirm'} onClose={() => setStep('idle')} fullWidth maxWidth="md" slotProps={{ paper: { sx: dialogPaperSx } }}>
           <DialogTitle sx={{ fontWeight: 800, color: colors.slate[900] }}>Confirm Entry</DialogTitle>
           <DialogContent>
             <Stack spacing={2}>
@@ -493,6 +553,66 @@ export function GuardHome() {
                   </Stack>
                 </Box>
               )}
+
+              <Divider />
+              <Box>
+                <Typography sx={{ fontWeight: 800, color: colors.slate[900], mb: 0.5 }}>Person handing over the vehicle</Typography>
+                <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem', mb: 2 }}>Record the person physically present at the gate. Fields marked * are required.</Typography>
+                <Stack spacing={2}>
+                  <TextField select required label="Person type" value={intakerType} onChange={(event) => setIntakerType(event.target.value as CWIntakerType)} fullWidth>
+                    {(['Owner', 'Driver', 'Technician', 'Other'] as CWIntakerType[]).map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}
+                  </TextField>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField required label="Full name" value={intakerName} onChange={(event) => setIntakerName(event.target.value)} fullWidth />
+                    <TextField required label="Phone number" value={intakerPhone} onChange={(event) => setIntakerPhone(event.target.value)} fullWidth inputMode="tel" />
+                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                    <Button component="label" variant={intakerPhotoUrl ? 'outlined' : 'contained'} startIcon={<CloudUpload />} disabled={uploading} sx={{ minHeight: 46 }}>
+                      {intakerPhotoUrl ? 'Person photo added' : 'Add person photo *'}
+                      <input hidden type="file" accept="image/*" capture="environment" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, setIntakerPhotoUrl) }} />
+                    </Button>
+                    <Button component="label" variant="outlined" startIcon={<CloudUpload />} disabled={uploading} sx={{ minHeight: 46 }}>
+                      {drivingLicensePhotoUrl ? 'License photo added' : 'Driving license photo (optional)'}
+                      <input hidden type="file" accept="image/*,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, setDrivingLicensePhotoUrl) }} />
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Box>
+
+              <Divider />
+              <Box>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, mb: 1.5 }}>
+                  <Box>
+                    <Typography sx={{ fontWeight: 800, color: colors.slate[900] }}>Vehicle papers</Typography>
+                    <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem' }}>Upload available papers and record whether the original has been checked.</Typography>
+                  </Box>
+                  <Button variant="outlined" onClick={addVehicleDocument}>Add paper</Button>
+                </Stack>
+                <Stack spacing={1.5}>
+                  {vehicleDocuments.length === 0 ? <Alert severity="info">No vehicle papers added yet. Add each available paper and verify it at the gate.</Alert> : null}
+                  {vehicleDocuments.map((document, index) => (
+                    <Box key={index} sx={{ ...infoPanelSx, p: 1.5 }}>
+                      <Stack spacing={1.5}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                          <TextField select label="Paper type" value={document.documentType} onChange={(event) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, documentType: event.target.value as CWVehicleDocumentType } : row))} fullWidth>
+                            {documentTypes.map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}
+                          </TextField>
+                          <TextField label="Document number (optional)" value={document.documentNumber ?? ''} onChange={(event) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, documentNumber: event.target.value } : row))} fullWidth />
+                          <IconButton aria-label="Remove paper" onClick={() => setVehicleDocuments((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}><DeleteOutlined /></IconButton>
+                        </Stack>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
+                          <Button component="label" variant={document.fileUrl ? 'outlined' : 'contained'} startIcon={<CloudUpload />} disabled={uploading}>
+                            {document.fileUrl ? 'File added' : 'Upload paper *'}
+                            <input hidden type="file" accept="image/*,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, (fileUrl) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, fileUrl } : row))) }} />
+                          </Button>
+                          <FormControlLabel control={<input type="checkbox" checked={document.verificationStatus === 'Verified'} onChange={(event) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, verificationStatus: event.target.checked ? 'Verified' : 'Pending' } : row))} />} label="Original checked and verified" />
+                        </Stack>
+                        <TextField label="Verification note (optional)" value={document.verificationNote ?? ''} onChange={(event) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, verificationNote: event.target.value } : row))} fullWidth multiline minRows={2} />
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
             </Stack>
           </DialogContent>
           <DialogActions sx={{ p: 2, pt: 0 }}>
@@ -500,7 +620,7 @@ export function GuardHome() {
               sx={{ fontWeight: 700, borderRadius: '10px', borderColor: colors.slate[300], color: colors.slate[700] }}>
               Cancel
             </Button>
-            <Button variant="contained" size="large" onClick={confirmEntry}
+            <Button variant="contained" size="large" onClick={confirmEntry} disabled={uploading || !intakerName.trim() || !intakerPhone.trim() || !intakerPhotoUrl}
               sx={{ fontWeight: 700, borderRadius: '10px', bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
               Confirm
             </Button>

@@ -418,6 +418,12 @@ export type CreatePendingVehicleInput = {
   vehicleId?: string
   appointmentId?: string
   isTemporary?: boolean
+  intakerType?: import('../types/cw').CWIntakerType
+  intakerName?: string
+  intakerPhone?: string
+  intakerPhotoUrl?: string
+  drivingLicensePhotoUrl?: string
+  vehicleDocuments?: import('../types/cw').CWGateVehicleDocument[]
 }
 
 export type CreateJobInput = {
@@ -4007,14 +4013,29 @@ export const useCwStore = create<CWState>((set, get) => ({
       registrationNo,
       customerId: input.customerId,
       vehicleId: input.vehicleId,
-      appointmentId: input.appointmentId,
-      isTemporary: input.isTemporary,
+		appointmentId: input.appointmentId,
+		intakerType: input.intakerType,
+		intakerName: input.intakerName,
+		intakerPhone: input.intakerPhone,
+		intakerPhotoUrl: input.intakerPhotoUrl,
+		drivingLicensePhotoUrl: input.drivingLicensePhotoUrl,
+		vehicleDocuments: input.vehicleDocuments,
+		isTemporary: input.isTemporary,
       status: 'Pending',
       arrivedAt: ts,
       updatedAt: ts,
     }
     set({ pendingVehicles: [pending, ...get().pendingVehicles] })
-    syncBackend(workshopApi.guardEntry({ registrationNo, appointmentId: input.appointmentId }), 'pending vehicle entry')
+		if (input.intakerType && input.intakerName && input.intakerPhone && input.intakerPhotoUrl) syncBackend(workshopApi.guardEntry({
+			registrationNo,
+			appointmentId: input.appointmentId,
+			intakerType: input.intakerType,
+			intakerName: input.intakerName,
+			intakerPhone: input.intakerPhone,
+			intakerPhotoUrl: input.intakerPhotoUrl,
+			drivingLicensePhotoUrl: input.drivingLicensePhotoUrl,
+			vehicleDocuments: input.vehicleDocuments,
+		}), 'pending vehicle entry')
     return pending
   },
 

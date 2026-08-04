@@ -18,6 +18,8 @@ import {
   HistoryOutlined,
   MoreHorizOutlined,
   Person,
+  DescriptionOutlined,
+  OpenInNewOutlined,
 } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -175,6 +177,33 @@ export function VehicleDetailPage() {
             </SectionCard>
           </Box>
         </Stack>
+
+        <SectionCard title="VEHICLE PAPERS" icon={<DescriptionOutlined sx={{ fontSize: '1rem' }} />}>
+          {!v.vehicleDocuments?.length ? (
+            <Alert severity="info">No vehicle papers have been captured yet. The guard can upload and verify them during entry.</Alert>
+          ) : (
+            <Box sx={{ overflowX: 'auto', width: '100%' }}>
+              <Table size="small" sx={{ minWidth: 680 }}>
+                <TableHead>
+                  <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
+                    <TableCell>Paper</TableCell><TableCell>Number</TableCell><TableCell>Status</TableCell><TableCell>Verified by</TableCell><TableCell>Evidence</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {v.vehicleDocuments.map((document, index) => (
+                    <TableRow key={document.id ?? `${document.fileUrl}-${index}`} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
+                      <TableCell sx={{ fontWeight: 700 }}>{document.documentType}</TableCell>
+                      <TableCell>{document.documentNumber ?? '-'}</TableCell>
+                      <TableCell><Box component="span" sx={{ px: 1, py: 0.35, borderRadius: 5, fontSize: '0.72rem', fontWeight: 800, color: document.verificationStatus === 'Verified' ? '#047857' : document.verificationStatus === 'Rejected' ? '#b91c1c' : '#92400e', bgcolor: document.verificationStatus === 'Verified' ? '#d1fae5' : document.verificationStatus === 'Rejected' ? '#fee2e2' : '#fef3c7' }}>{document.verificationStatus}</Box></TableCell>
+                      <TableCell>{document.verifiedByUserId ?? '-'}{document.verifiedAt ? <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500] }}>{new Date(document.verifiedAt).toLocaleString()}</Typography> : null}</TableCell>
+                      <TableCell><Button size="small" component="a" href={document.fileUrl} target="_blank" rel="noreferrer" endIcon={<OpenInNewOutlined />}>Open</Button></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+        </SectionCard>
 
         {/* Service History */}
         <Box sx={tableSectionSx}>
