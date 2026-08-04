@@ -44,6 +44,7 @@ import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { WhatsAppHistory } from '../../components/WhatsAppHistory'
+import { useToast } from '../../hooks/useToast'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWInspectionCheck } from '../../types/cw'
@@ -78,6 +79,7 @@ function partStatusColor(status: string): 'success' | 'info' | 'error' | 'warnin
 }
 
 export function SAAppointmentDetailPage() {
+  const toast = useToast()
   const { appointmentId } = useParams<{ appointmentId: string }>()
   useBackendData()
   const navigate = useNavigate()
@@ -191,6 +193,11 @@ export function SAAppointmentDetailPage() {
   const [selectedQCUserId, setSelectedQCUserId] = useState('')
 
   function handleSubmitInspection() {
+    const invalidNotApplicable = inspChecks.find((check) => check.result === 'Not Applicable' && !check.notApplicableReason?.trim())
+    if (invalidNotApplicable) {
+      toast.warning(`Add a not-applicable reason for “${invalidNotApplicable.label}”.`)
+      return
+    }
     submitInspection({
       appointmentId: appt!.id,
       checks: inspChecks,
@@ -232,7 +239,7 @@ export function SAAppointmentDetailPage() {
       const serviceTotal = appt!.serviceItems.reduce((sum, s) => sum + s.price, 0)
       const grandTotal = serviceTotal + partsTotal
       setWaMessage(`Dear ${name},\n\nVehicle: ${reg}\n\nDiagnosis Report:\n${concernBlock}\n\nAll Services:\n${globalServices}\n\nServices Total: ${fmtBDT(serviceTotal)}${partsTotal > 0 ? `\nParts Total: ${fmtBDT(partsTotal)}` : ''}\nGrand Total: ${fmtBDT(grandTotal)}\n\nPlease confirm to proceed.`)
-    } else if (waDialogPurpose === 'payment') {
+    } else if (purpose === 'payment') {
       const allParts = partRequests.filter((pr) => pr.appointmentId === appt!.id)
       const serviceList = appt!.serviceItems.map((s) => `• ${s.serviceDescription} — ${fmtBDT(s.price)}`).join('\n')
       const partsTotal = allParts.filter((pr) => typeof pr.price === 'number').reduce((sum, pr) => sum + (pr.price! * (pr.quantity ?? 1)), 0)
@@ -261,7 +268,7 @@ export function SAAppointmentDetailPage() {
     } else if (waDialogPurpose === 'service-approval') {
       setAppointmentStatus(appt!.id, 'Service Approval Pending')
       pushTimeline(appt!.id, { actor: 'SA', action: 'WhatsApp sent for service approval (post-diagnosis)' })
-    } else {
+    } else if (waDialogPurpose === 'payment') {
       setAppointmentStatus(appt!.id, 'Payment Pending')
       pushTimeline(appt!.id, { actor: 'SA', action: 'WhatsApp sent for payment' })
     }

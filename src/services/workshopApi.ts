@@ -1115,7 +1115,13 @@ export const workshopApi = {
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.submit_inspection', {
       method: 'POST',
-      body: { data: input },
+      body: {
+        data: {
+          appointmentId: input.appointmentId,
+          inspectionChecks: input.checks,
+          actorName: input.actorName,
+        },
+      },
     })
   },
 

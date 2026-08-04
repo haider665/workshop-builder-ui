@@ -293,7 +293,7 @@ export function AppointmentDetailPage() {
     } else if (waDialogPurpose === 'service-approval') {
       setAppointmentStatus(appt!.id, 'Service Approval Pending')
       pushTimeline(appt!.id, { actor: 'CRE', action: 'WhatsApp sent for service approval (post-diagnosis)' })
-    } else {
+    } else if (waDialogPurpose === 'payment') {
       setAppointmentStatus(appt!.id, 'Payment Pending')
       pushTimeline(appt!.id, { actor: 'CRE', action: 'WhatsApp sent for payment' })
     }

@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  InputAdornment,
   MenuItem,
   Paper,
   Stack,
@@ -16,9 +17,15 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { CameraAlt, Close, DirectionsCarFilledOutlined, EditNoteOutlined, KeyboardArrowDown } from '@mui/icons-material'
-import { useMemo, useRef, useState } from 'react'
+import { CameraAlt, Close, DirectionsCarFilledOutlined, EditNoteOutlined, FactCheckOutlined, KeyboardArrowDown, Search, ThreeDRotationRounded } from '@mui/icons-material'
+import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 import type { CWInspectionCheck, CWInspectionCondition } from '../types/cw'
+import { EngineeringInspectionFields } from './EngineeringInspectionFields'
+import { VehicleInspectionBlueprint } from './VehicleInspectionBlueprint'
+
+const EngineeringVehicleViews = lazy(() => import('./EngineeringVehicleViews').then((module) => ({
+  default: module.EngineeringVehicleViews,
+})))
 
 const TABS = [
   'System Component',
@@ -49,15 +56,6 @@ const VISUAL_AREAS: Array<{ category: InspectionCategory; title: string; hint: s
   { category: 'Scheduled Maintenance', title: 'Maintenance', hint: 'Fluids, filters & belts' },
 ]
 
-function areaColor(items: CWInspectionCheck[], selected: boolean) {
-  if (selected) return '#2563eb'
-  if (items.some((item) => item.checked && item.condition === 'Bad')) return '#dc2626'
-  if (items.some((item) => item.checked && item.condition === 'Warning')) return '#d97706'
-  if (items.length > 0 && items.every((item) => item.checked)) return '#16a34a'
-  if (items.some((item) => item.checked)) return '#0891b2'
-  return '#94a3b8'
-}
-
 function conditionColor(c?: CWInspectionCondition): 'success' | 'warning' | 'error' | 'default' {
   if (c === 'Good') return 'success'
   if (c === 'Warning') return 'warning'
@@ -74,22 +72,29 @@ type Props = {
 
 export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed = false }: Props) {
   const [sectionCollapsed, setSectionCollapsed] = useState(defaultCollapsed)
-  const [mode, setMode] = useState<'visual' | 'manual'>('visual')
+  const [mode, setMode] = useState<'blueprint' | 'threeDimensional' | 'manual' | 'complete'>('blueprint')
   const [activeTab, setActiveTab] = useState(0)
   const [selectedArea, setSelectedArea] = useState<InspectionCategory>('Front View')
   const [visualDialogOpen, setVisualDialogOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [photoTargetId, setPhotoTargetId] = useState<string | null>(null)
+  const [completeSearch, setCompleteSearch] = useState('')
+  const [completeFilter, setCompleteFilter] = useState<'all' | 'incomplete' | 'attention' | 'failed'>('all')
 
   const tabName = TABS[activeTab] ?? TABS[0]
 
   const tabChecks = checks.filter((c) => c.category === tabName)
   const selectedChecks = checks.filter((c) => c.category === selectedArea)
   const selectedDetails = VISUAL_AREAS.find((area) => area.category === selectedArea) ?? VISUAL_AREAS[0]
-  const visualCounts = useMemo(() => new Map(VISUAL_AREAS.map((area) => {
-    const items = checks.filter((check) => check.category === area.category)
-    return [area.category, { total: items.length, checked: items.filter((item) => item.checked).length }]
-  })), [checks])
+  const completeChecks = useMemo(() => checks.filter((check) => {
+    const query = completeSearch.trim().toLowerCase()
+    if (query && ![check.label, check.section, check.category, check.componentCode, check.defectType]
+      .filter(Boolean).some((value) => String(value).toLowerCase().includes(query))) return false
+    if (completeFilter === 'incomplete') return !check.checked
+    if (completeFilter === 'attention') return check.condition === 'Warning' || check.result === 'Advisory'
+    if (completeFilter === 'failed') return check.condition === 'Bad' || check.result === 'Fail'
+    return true
+  }), [checks, completeFilter, completeSearch])
 
   function updateCheck(id: string, patch: Partial<CWInspectionCheck>) {
     onChange(checks.map((c) => (c.id === id ? { ...c, ...patch } : c)))
@@ -106,7 +111,9 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
 
     const reader = new FileReader()
     reader.onload = () => {
-      updateCheck(photoTargetId, { photoUrl: reader.result as string })
+      const mediaUrl = reader.result as string
+      const check = checks.find((item) => item.id === photoTargetId)
+      updateCheck(photoTargetId, { photoUrl: mediaUrl, mediaUrls: [...(check?.mediaUrls ?? []), mediaUrl] })
       setPhotoTargetId(null)
     }
     reader.readAsDataURL(file)
@@ -120,26 +127,11 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
     return { tab, total: items.length, checked }
   })
 
-  const displayedChecks = mode === 'visual' ? selectedChecks : tabChecks
+  const displayedChecks = tabChecks
 
   function openVisualArea(category: InspectionCategory) {
     setSelectedArea(category)
     setVisualDialogOpen(true)
-  }
-
-  function zoneProps(category: InspectionCategory) {
-    const items = checks.filter((check) => check.category === category)
-    return {
-      fill: areaColor(items, selectedArea === category),
-      onClick: () => openVisualArea(category),
-      role: 'button',
-      tabIndex: 0,
-      'aria-label': 'Inspect ' + category,
-      onKeyDown: (event: React.KeyboardEvent<SVGElement>) => {
-        if (event.key === 'Enter' || event.key === ' ') openVisualArea(category)
-      },
-      style: { cursor: 'pointer', transition: 'fill 180ms ease' },
-    }
   }
 
   return (
@@ -180,7 +172,9 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
       <Collapse in={!sectionCollapsed} timeout="auto" unmountOnExit>
       <Tabs
         value={mode}
-        onChange={(_, value: 'visual' | 'manual') => setMode(value)}
+        onChange={(_, value: 'blueprint' | 'threeDimensional' | 'manual' | 'complete') => setMode(value)}
+        variant="scrollable"
+        scrollButtons="auto"
         sx={{
           px: { xs: 1, sm: 2 },
           borderBottom: '1px solid',
@@ -188,82 +182,77 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
           '& .MuiTab-root': { minHeight: 48, textTransform: 'none', fontWeight: 750 },
         }}
       >
-        <Tab value="visual" icon={<DirectionsCarFilledOutlined />} iconPosition="start" label="Visual Inspection" />
+        <Tab value="blueprint" icon={<DirectionsCarFilledOutlined />} iconPosition="start" label="Blueprint" />
+        <Tab value="threeDimensional" icon={<ThreeDRotationRounded />} iconPosition="start" label="3D Vehicle" />
         <Tab value="manual" icon={<EditNoteOutlined />} iconPosition="start" label="Manual Input" />
+        <Tab value="complete" icon={<FactCheckOutlined />} iconPosition="start" label="All Checks" />
       </Tabs>
 
-      {mode === 'visual' && (
+      {mode === 'blueprint' && (
         <Box sx={{ bgcolor: '#f8fafc', p: { xs: 1.5, sm: 2.5 }, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(280px, 0.9fr) minmax(320px, 1.1fr)' }, gap: 2.5, alignItems: 'center' }}>
-            <Paper variant="outlined" sx={{ borderRadius: 3, p: 1.5 }}>
-              <Typography sx={{ fontWeight: 800, px: 0.5 }}>Tap a vehicle area</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
-                Green is complete, amber is a warning and red needs attention.
-              </Typography>
-              <Box sx={{ width: '100%', maxWidth: 400, mx: 'auto' }}>
-                <svg viewBox="0 0 420 660" width="100%" aria-label="Interactive top view of vehicle">
-                  <defs>
-                    <filter id="vehicle-shadow" x="-30%" y="-20%" width="160%" height="160%">
-                      <feDropShadow dx="0" dy="10" stdDeviation="12" floodOpacity="0.18" />
-                    </filter>
-                  </defs>
-                  <ellipse cx="210" cy="625" rx="142" ry="18" fill="#0f172a" opacity="0.09" />
-                  <g filter="url(#vehicle-shadow)" stroke="#fff" strokeWidth="5" strokeLinejoin="round">
-                    <path {...zoneProps('Front View')} d="M116 118 Q128 46 210 30 Q292 46 304 118 L288 174 L132 174 Z" />
-                    <path {...zoneProps('System Component')} d="M132 174 L288 174 L302 272 L118 272 Z" />
-                    <path {...zoneProps('Left View')} d="M118 180 Q83 210 76 292 L78 454 Q82 500 112 526 L140 481 L140 222 Z" />
-                    <path {...zoneProps('Right View')} d="M302 180 Q337 210 344 292 L342 454 Q338 500 308 526 L280 481 L280 222 Z" />
-                    <path {...zoneProps('Interior View')} d="M140 222 L280 222 L280 481 L140 481 Z" />
-                    <path {...zoneProps('Rear View')} d="M140 481 L280 481 L304 548 Q286 610 210 628 Q134 610 116 548 Z" />
-                    <circle {...zoneProps('Tyre/Brake Wire')} cx="91" cy="235" r="22" />
-                    <circle {...zoneProps('Tyre/Brake Wire')} cx="329" cy="235" r="22" />
-                    <circle {...zoneProps('Tyre/Brake Wire')} cx="91" cy="470" r="22" />
-                    <circle {...zoneProps('Tyre/Brake Wire')} cx="329" cy="470" r="22" />
-                  </g>
-                  <g pointerEvents="none" fill="#fff" textAnchor="middle" fontFamily="inherit" fontWeight="700">
-                    <text x="210" y="101" fontSize="16">FRONT</text>
-                    <text x="210" y="222" fontSize="15">ENGINE</text>
-                    <text x="210" y="350" fontSize="18">CABIN</text>
-                    <text x="210" y="555" fontSize="16">REAR</text>
-                    <text x="110" y="356" fontSize="13" transform="rotate(-90 110 356)">LEFT SIDE</text>
-                    <text x="310" y="356" fontSize="13" transform="rotate(90 310 356)">RIGHT SIDE</text>
-                  </g>
-                  <g pointerEvents="none" fill="none" stroke="#fff" strokeWidth="3" opacity="0.5">
-                    <path d="M158 244 L262 244 L270 322 L150 322 Z" />
-                    <path d="M150 338 L270 338 L264 449 L156 449 Z" />
-                  </g>
-                </svg>
-              </Box>
-            </Paper>
+          <VehicleInspectionBlueprint
+            checks={checks}
+            selectedCategory={selectedArea}
+            onOpenCategory={(category) => openVisualArea(category as InspectionCategory)}
+          />
+        </Box>
+      )}
 
-            <Box>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
-                {VISUAL_AREAS.map((area) => {
-                  const count = visualCounts.get(area.category) ?? { checked: 0, total: 0 }
-                  return (
-                    <Button
-                      key={area.category}
-                      onClick={() => openVisualArea(area.category)}
-                      variant={selectedArea === area.category ? 'contained' : 'outlined'}
-                      sx={{ minWidth: 0, minHeight: 58, px: 1.25, borderRadius: 2, textTransform: 'none', textAlign: 'left' }}
-                    >
-                      <Box sx={{ width: '100%' }}>
-                        <Typography component="span" sx={{ display: 'block', fontWeight: 750, fontSize: '0.76rem', lineHeight: 1.25 }}>
-                          {area.title}
-                        </Typography>
-                        <Typography component="span" sx={{ display: 'block', opacity: 0.8, fontSize: '0.67rem', mt: 0.25 }}>
-                          {count.checked}/{count.total}
-                        </Typography>
-                      </Box>
-                    </Button>
-                  )
-                })}
-              </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-                Choose an area to open its focused inspection checklist.
-              </Typography>
-            </Box>
-          </Box>
+      {mode === 'threeDimensional' && (
+        <Box sx={{ bgcolor: '#f8fafc', p: { xs: 1.5, sm: 2.5 }, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Suspense fallback={
+            <Paper variant="outlined" sx={{ minHeight: { xs: 350, sm: 460 }, borderRadius: 3, bgcolor: '#07111f', display: 'grid', placeItems: 'center' }}>
+              <Typography sx={{ color: '#94a3b8', fontSize: '.8rem' }}>Loading interactive vehicle…</Typography>
+            </Paper>
+          }>
+            <EngineeringVehicleViews
+              checks={checks}
+              onOpenCategory={(category) => openVisualArea(category as InspectionCategory)}
+            />
+          </Suspense>
+        </Box>
+      )}
+
+      {mode === 'complete' && (
+        <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#f8fafc' }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mb: 2 }}>
+            <TextField
+              size="small"
+              fullWidth
+              value={completeSearch}
+              onChange={(event) => setCompleteSearch(event.target.value)}
+              placeholder="Search component, section, system or defect"
+              slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> } }}
+            />
+            <TextField select size="small" label="Show" value={completeFilter} onChange={(event) => setCompleteFilter(event.target.value as typeof completeFilter)} sx={{ minWidth: { sm: 170 } }}>
+              <MenuItem value="all">All checks</MenuItem>
+              <MenuItem value="incomplete">Incomplete</MenuItem>
+              <MenuItem value="attention">Advisories</MenuItem>
+              <MenuItem value="failed">Failed</MenuItem>
+            </TextField>
+          </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            {completeChecks.length} of {checks.length} checks shown. Open any item to inspect its complete engineering section.
+          </Typography>
+          <Stack spacing={1}>
+            {completeChecks.map((check) => (
+              <Button
+                key={check.id}
+                variant="outlined"
+                onClick={() => openVisualArea(check.category as InspectionCategory)}
+                sx={{ justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', px: 1.5, py: 1.25 }}
+              >
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography sx={{ fontWeight: 750, fontSize: '0.82rem' }}>{check.label}</Typography>
+                  <Typography variant="caption" color="text.secondary">{check.category}{check.section ? ` · ${check.section}` : ''}</Typography>
+                </Box>
+                <Stack direction="row" spacing={0.75} sx={{ ml: 1 }}>
+                  {check.result && <Chip size="small" label={check.result} color={check.result === 'Fail' ? 'error' : check.result === 'Advisory' ? 'warning' : check.result === 'Pass' ? 'success' : 'default'} />}
+                  <Chip size="small" label={check.checked ? 'Inspected' : 'Pending'} color={check.checked ? 'success' : 'default'} />
+                </Stack>
+              </Button>
+            ))}
+          </Stack>
         </Box>
       )}
 
@@ -383,6 +372,13 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
                         src={check.photoUrl}
                         alt="Inspection photo"
                         sx={{ mt: 1, maxHeight: 120, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                      />
+                    )}
+                    {check.checked && (
+                      <EngineeringInspectionFields
+                        check={check}
+                        readonly={readonly}
+                        onChange={(patch) => updateCheck(check.id, { ...patch, inspectedAt: new Date().toISOString() })}
                       />
                     )}
                   </Box>
@@ -514,6 +510,13 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
                           src={check.photoUrl}
                           alt="Inspection photo"
                           sx={{ mt: 1, maxWidth: '100%', maxHeight: 140, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                        />
+                      )}
+                      {check.checked && (
+                        <EngineeringInspectionFields
+                          check={check}
+                          readonly={readonly}
+                          onChange={(patch) => updateCheck(check.id, { ...patch, inspectedAt: new Date().toISOString() })}
                         />
                       )}
                     </Box>

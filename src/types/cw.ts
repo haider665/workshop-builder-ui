@@ -404,6 +404,10 @@ export type CWWhatsappLog = {
 // ─── Inspection checklist (Health Check) ──────────────────────────────────────
 
 export type CWInspectionCondition = 'Good' | 'Warning' | 'Bad'
+export type CWInspectionResult = 'Pass' | 'Advisory' | 'Fail' | 'Not Applicable'
+export type CWInspectionGrade = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Critical'
+export type CWInspectionSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
+export type CWInspectionUrgency = 'Immediate' | 'Within 7 Days' | 'Within 30 Days' | 'Monitor'
 
 export type CWInspectionCheck = {
   id: string
@@ -415,6 +419,27 @@ export type CWInspectionCheck = {
   remark?: string
   photoUrl?: string       // base64 data URL for MVP
   note?: string
+  componentCode?: string
+  zoneId?: string
+  viewId?: string
+  result?: CWInspectionResult
+  conditionGrade?: CWInspectionGrade
+  defectType?: string
+  severity?: CWInspectionSeverity
+  measurementValue?: number
+  measurementUnit?: string
+  minimumAllowed?: number
+  maximumAllowed?: number
+  recommendedValue?: string
+  actionRequired?: string
+  repairRecommendation?: string
+  estimatedUrgency?: CWInspectionUrgency
+  notApplicableReason?: string
+  mediaUrls?: string[]
+  inspectedByUserId?: string
+  inspectedAt?: string
+  linkedConcernItemId?: string
+  linkedPartRequestIds?: string[]
 }
 
 // ─── Vehicle exterior/interior view checklists ────────────────────────────────
