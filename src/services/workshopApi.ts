@@ -254,6 +254,7 @@ export const workshopApi = {
     driverName?: string
     driverPhone?: string
     isPersonalUse?: boolean
+    customerDocuments?: import('../types/cw').CWCustomerDocument[]
   }): Promise<import('../types/cw').CWCustomer> {
     return request<import('../types/cw').CWCustomer>('/api/method/workshop.api.customers.create', {
       method: 'POST',
@@ -280,6 +281,7 @@ export const workshopApi = {
       driverName: string
       driverPhone: string
       isPersonalUse: boolean
+      customerDocuments: import('../types/cw').CWCustomerDocument[]
     }>,
   ): Promise<import('../types/cw').CWCustomer> {
     return request<import('../types/cw').CWCustomer>('/api/method/workshop.api.customers.update', {
@@ -291,6 +293,7 @@ export const workshopApi = {
   async listVehicles(params: {
     customerId?: string
     status?: import('../types/cw').CWVehicleStatus
+    vehicleDocuments?: import('../types/cw').CWGateVehicleDocument[]
     search?: string
     page?: number
     pageSize?: number
@@ -330,6 +333,7 @@ export const workshopApi = {
     tyreSize?: string
     additionalNotes?: string
     status?: import('../types/cw').CWVehicleStatus
+    vehicleDocuments?: import('../types/cw').CWGateVehicleDocument[]
   }): Promise<import('../types/cw').CWVehicle> {
     return request<import('../types/cw').CWVehicle>('/api/method/workshop.api.vehicles.create', {
       method: 'POST',
@@ -359,6 +363,7 @@ export const workshopApi = {
       tyreSize?: string
       additionalNotes?: string
       status?: import('../types/cw').CWVehicleStatus
+      vehicleDocuments: import('../types/cw').CWGateVehicleDocument[]
     }>,
   ): Promise<import('../types/cw').CWVehicle> {
     return request<import('../types/cw').CWVehicle>('/api/method/workshop.api.vehicles.update', {

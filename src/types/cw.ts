@@ -188,6 +188,7 @@ export type CWCustomer = {
   facebookLink?: string
   linkedinLink?: string
   googleLink?: string
+  customerDocuments?: CWCustomerDocument[]
   status: CWCustomerStatus
   createdAt: string
   updatedAt: string
@@ -227,6 +228,7 @@ export type CWPendingVehicleStatus = 'Pending' | 'Resolved' | 'Job Created'
 export type CWIntakerType = 'Owner' | 'Driver' | 'Technician' | 'Other'
 export type CWVehicleDocumentType = 'Registration Certificate' | 'Tax Token' | 'Fitness Certificate' | 'Insurance' | 'Route Permit' | 'Other'
 export type CWDocumentVerificationStatus = 'Pending' | 'Verified' | 'Rejected'
+export type CWCustomerDocumentType = 'National ID' | 'Driving License' | 'Passport' | 'Tax Identification' | 'Trade License' | 'Company Registration' | 'Other'
 
 export type CWGateVehicleDocument = {
   id?: string
@@ -238,6 +240,8 @@ export type CWGateVehicleDocument = {
   verifiedAt?: string
   verificationNote?: string
 }
+
+export type CWCustomerDocument = Omit<CWGateVehicleDocument, 'documentType'> & { documentType: CWCustomerDocumentType }
 
 export type CWPendingVehicle = {
   id: string

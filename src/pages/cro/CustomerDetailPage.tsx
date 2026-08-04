@@ -1,7 +1,12 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Stack,
   Switch,
@@ -11,6 +16,8 @@ import {
   TableHead,
   TableRow,
   Tooltip,
+  TextField,
+  MenuItem,
   Typography,
 } from '@mui/material'
 import {
@@ -27,11 +34,19 @@ import {
   Visibility,
   WhatsApp,
   Work,
+  DescriptionOutlined,
 } from '@mui/icons-material'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import { useCwStore } from '../../store/cwStore'
+import { useSessionStore } from '../../store/sessionStore'
+import { workshopApi } from '../../services/workshopApi'
+import { DocumentEvidenceEditor } from '../../components/DocumentEvidenceEditor'
 import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
+import type { CWCustomer, CWCustomerDocumentType, CWCustomerType } from '../../types/cw'
+
+const CUSTOMER_DOCUMENT_TYPES: CWCustomerDocumentType[] = ['National ID', 'Driving License', 'Passport', 'Tax Identification', 'Trade License', 'Company Registration', 'Other']
 
 /* ─────────────── Helpers (outside component) ─────────────── */
 
@@ -149,6 +164,11 @@ export function CustomerDetailPage() {
   const customers = useCwStore((s) => s.customers)
   const vehicles = useCwStore((s) => s.vehicles)
   const appointments = useCwStore((s) => s.appointments)
+  const sessionUser = useSessionStore((state) => state.user)
+  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE'))
+  const [editDraft, setEditDraft] = useState<CWCustomer | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const customer = customers.find((c) => c.id === customerId)
 
@@ -182,6 +202,18 @@ export function CustomerDetailPage() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
   const isCorporate = customer.type === 'Corporate'
+  const currentCustomerId = customer.id
+
+  async function saveCustomer() {
+    if (!editDraft) return
+    try {
+      setSaving(true); setEditError(null)
+      const updated = await workshopApi.updateCustomer(currentCustomerId, editDraft)
+      useCwStore.setState((state) => ({ customers: state.customers.map((item) => item.id === currentCustomerId ? updated : item) }))
+      setEditDraft(null)
+    } catch (error) { setEditError(error instanceof Error ? error.message : 'Unable to update customer') }
+    finally { setSaving(false) }
+  }
 
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -218,6 +250,8 @@ export function CustomerDetailPage() {
           </Stack>
           <Button
             variant="contained"
+            disabled={!canEdit}
+            onClick={() => setEditDraft({ ...customer, customerDocuments: [...(customer.customerDocuments ?? [])] })}
             startIcon={<Edit sx={{ fontSize: '1rem !important' }} />}
             sx={{
               bgcolor: colors.slate[900], fontWeight: 600,
@@ -229,6 +263,18 @@ export function CustomerDetailPage() {
             Edit Details
           </Button>
         </Stack>
+
+        <Dialog open={Boolean(editDraft)} onClose={() => !saving && setEditDraft(null)} fullWidth maxWidth="md">
+          <DialogTitle sx={{ fontWeight: 800 }}>Edit customer details</DialogTitle>
+          <DialogContent dividers>{editDraft ? <Stack spacing={2} sx={{ pt: 1 }}>
+            {editError ? <Alert severity="error">{editError}</Alert> : null}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField label="Full name" value={editDraft.fullName} onChange={(e) => setEditDraft({ ...editDraft, fullName: e.target.value })} required fullWidth /><TextField label="Phone" value={editDraft.phone} onChange={(e) => setEditDraft({ ...editDraft, phone: e.target.value })} required fullWidth /><TextField label="Email" value={editDraft.email ?? ''} onChange={(e) => setEditDraft({ ...editDraft, email: e.target.value })} fullWidth /></Stack>
+            <TextField select label="Customer type" value={editDraft.type ?? 'Individual'} onChange={(e) => setEditDraft({ ...editDraft, type: e.target.value as CWCustomerType })}><MenuItem value="Individual">Individual</MenuItem><MenuItem value="Corporate">Corporate</MenuItem></TextField>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField label="Driver name" value={editDraft.driverName ?? ''} onChange={(e) => setEditDraft({ ...editDraft, driverName: e.target.value })} fullWidth /><TextField label="Driver phone" value={editDraft.driverPhone ?? ''} onChange={(e) => setEditDraft({ ...editDraft, driverPhone: e.target.value })} fullWidth /></Stack>
+            <DocumentEvidenceEditor title="Customer identity and driving documents" documents={editDraft.customerDocuments ?? []} documentTypes={CUSTOMER_DOCUMENT_TYPES} onChange={(customerDocuments) => setEditDraft({ ...editDraft, customerDocuments })} />
+          </Stack> : null}</DialogContent>
+          <DialogActions><Button onClick={() => setEditDraft(null)} disabled={saving}>Cancel</Button><Button variant="contained" onClick={() => void saveCustomer()} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button></DialogActions>
+        </Dialog>
 
         {/* ── Info Grid — 2 columns on desktop ── */}
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3}>
@@ -310,6 +356,11 @@ export function CustomerDetailPage() {
             </SectionCard>
           </Stack>
         </Stack>
+
+        <Box sx={{ borderRadius: radii.lg, border: `1px solid ${colors.border.default}`, background: colors.bg.card, boxShadow: shadows.card, p: 2.5 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}><DescriptionOutlined /><Typography sx={{ fontWeight: 800 }}>Customer papers</Typography><Chip size="small" label={customer.customerDocuments?.length ?? 0} /></Stack>
+          {!customer.customerDocuments?.length ? <Alert severity="info">No identity or driving documents added.</Alert> : <Stack spacing={1}>{customer.customerDocuments.map((document) => <Stack key={document.id ?? document.fileUrl} direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ p: 1.25, border: `1px solid ${colors.border.subtle}`, borderRadius: radii.sm, alignItems: { sm: 'center' } }}><Typography sx={{ fontWeight: 700, flex: 1 }}>{document.documentType} {document.documentNumber ? `- ${document.documentNumber}` : ''}</Typography><Chip size="small" label={document.verificationStatus} color={document.verificationStatus === 'Verified' ? 'success' : document.verificationStatus === 'Rejected' ? 'error' : 'warning'} /><Button component="a" href={document.fileUrl} target="_blank" rel="noreferrer">View</Button></Stack>)}</Stack>}
+        </Box>
 
         {/* ── Vehicles Table ── */}
         <Box sx={{

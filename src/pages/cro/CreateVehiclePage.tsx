@@ -19,11 +19,12 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
+import { DocumentEvidenceEditor } from '../../components/DocumentEvidenceEditor'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, pageLayout } from '../../theme/tokens'
-import type { CWVehicleCategory, CWVehicleSize } from '../../types/cw'
+import type { CWGateVehicleDocument, CWVehicleCategory, CWVehicleDocumentType, CWVehicleSize } from '../../types/cw'
 
 const CATEGORIES: CWVehicleCategory[] = ['SUV', 'Sedan', 'Hatchback', 'Pickup', 'Van', 'Truck', 'Bus', 'Other']
 const SIZES: CWVehicleSize[] = ['Small', 'Medium', 'Large']
@@ -33,6 +34,7 @@ const TYRE_SIZES = ['165/70R14', '175/65R15', '185/75R15', '195/65R15', '205/55R
 const REG_CITIES = ['Dhaka', 'Chittagong', 'Rajshahi', 'Khulna', 'Sylhet', 'Rangpur', 'Barishal', 'Mymensingh', 'Comilla', 'Gazipur', 'Narayanganj']
 const REG_REGIONS = ['Metro', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L', 'M']
 const REG_CLASSES = ['Ga', 'Gha', 'Cha', 'Ja', 'Ka', 'Kha', 'Da', 'Tha', 'Ta', 'Pa', 'Ba', 'Ma', 'Ra', 'La', 'Sha', 'Sa', 'Ha']
+const VEHICLE_DOCUMENT_TYPES: CWVehicleDocumentType[] = ['Registration Certificate', 'Tax Token', 'Fitness Certificate', 'Insurance', 'Route Permit', 'Other']
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
@@ -97,6 +99,7 @@ export function CreateVehiclePage() {
   const [interiorColorCode, setInteriorColorCode] = useState('')
   const [tyreSize, setTyreSize] = useState('')
   const [additionalNotes, setAdditionalNotes] = useState('')
+  const [vehicleDocuments, setVehicleDocuments] = useState<CWGateVehicleDocument[]>([])
 
   const sortedCustomers = useMemo(
     () => customers.slice().sort((a, b) => a.fullName.localeCompare(b.fullName)),
@@ -130,6 +133,7 @@ export function CreateVehiclePage() {
         interiorColorCode: interiorColorCode.trim() || undefined,
         tyreSize: tyreSize || undefined,
         additionalNotes: additionalNotes.trim() || undefined,
+        vehicleDocuments,
       })
 
       // Push into store so list updates immediately
@@ -309,6 +313,10 @@ export function CreateVehiclePage() {
           <FormRow label="Additional Notes">
             <TextField size="small" fullWidth multiline rows={3} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} placeholder="Regular maintenance notes..." sx={fieldSx} />
           </FormRow>
+        </SectionCard>
+
+        <SectionCard title="Vehicle Papers" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />} defaultCollapsed>
+          <DocumentEvidenceEditor title="Registration and compliance papers" documents={vehicleDocuments} documentTypes={VEHICLE_DOCUMENT_TYPES} onChange={setVehicleDocuments} />
         </SectionCard>
 
         {/* Actions */}

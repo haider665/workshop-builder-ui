@@ -2,7 +2,12 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
+  MenuItem,
   Snackbar,
   Stack,
   Table,
@@ -10,6 +15,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material'
 import {
@@ -24,10 +30,18 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
+import { DocumentEvidenceEditor } from '../../components/DocumentEvidenceEditor'
+import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
+import { useSessionStore } from '../../store/sessionStore'
 import { useCREData } from '../../hooks/useCREData'
 import { colors, radii } from '../../theme/tokens'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
+import type { CWVehicle, CWVehicleCategory, CWVehicleDocumentType, CWVehicleSize } from '../../types/cw'
+
+const VEHICLE_DOCUMENT_TYPES: CWVehicleDocumentType[] = ['Registration Certificate', 'Tax Token', 'Fitness Certificate', 'Insurance', 'Route Permit', 'Other']
+const VEHICLE_CATEGORIES: CWVehicleCategory[] = ['SUV', 'Sedan', 'Hatchback', 'Pickup', 'Van', 'Truck', 'Bus', 'Other']
+const VEHICLE_SIZES: CWVehicleSize[] = ['Small', 'Medium', 'Large']
 
 /* ── InfoRow — key-value pair row inside SectionCard ────── */
 
@@ -58,6 +72,11 @@ export function VehicleDetailPage() {
   const users = useCwStore((s) => s.users)
 
   const [successOpen, setSuccessOpen] = useState(false)
+  const [editDraft, setEditDraft] = useState<CWVehicle | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const sessionUser = useSessionStore((state) => state.user)
+  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE'))
 
   const vehicle = vehicles.find((v) => v.id === vehicleId)
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c] as const)), [customers])
@@ -84,6 +103,18 @@ export function VehicleDetailPage() {
 
   const v = vehicle
   const customer = customerById.get(v.customerId)
+
+  async function saveVehicle() {
+    if (!editDraft) return
+    try {
+      setSaving(true); setEditError(null)
+      const updated = await workshopApi.updateVehicle(v.id, editDraft)
+      useCwStore.setState((state) => ({ vehicles: state.vehicles.map((item) => item.id === v.id ? updated : item) }))
+      setEditDraft(null); setSuccessOpen(true)
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : 'Unable to update vehicle')
+    } finally { setSaving(false) }
+  }
 
   // Service history from appointments
   const serviceHistory = useMemo(() => {
@@ -125,7 +156,7 @@ export function VehicleDetailPage() {
             </Box>
           </Stack>
           <Stack direction="row" spacing={1}>
-            <Button variant="contained" sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}>
+            <Button variant="contained" disabled={!canEdit} onClick={() => setEditDraft({ ...v, vehicleDocuments: [...(v.vehicleDocuments ?? [])] })} sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}>
               + Edit Details
             </Button>
             <Button variant="outlined" sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5, borderColor: colors.border.strong, color: colors.slate[700] }}>
@@ -144,6 +175,22 @@ export function VehicleDetailPage() {
             Updated successfully
           </Alert>
         </Snackbar>
+
+        <Dialog open={Boolean(editDraft)} onClose={() => !saving && setEditDraft(null)} fullWidth maxWidth="md">
+          <DialogTitle sx={{ fontWeight: 800 }}>Edit vehicle details</DialogTitle>
+          <DialogContent dividers>
+            {editDraft ? <Stack spacing={2} sx={{ pt: 1 }}>
+              {editError ? <Alert severity="error">{editError}</Alert> : null}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField label="Registration number" value={editDraft.registrationNo} onChange={(e) => setEditDraft({ ...editDraft, registrationNo: e.target.value })} required fullWidth /><TextField label="VIN" value={editDraft.vin ?? ''} onChange={(e) => setEditDraft({ ...editDraft, vin: e.target.value })} fullWidth /></Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField label="Brand" value={editDraft.make ?? ''} onChange={(e) => setEditDraft({ ...editDraft, make: e.target.value })} fullWidth /><TextField label="Model" value={editDraft.model ?? ''} onChange={(e) => setEditDraft({ ...editDraft, model: e.target.value })} fullWidth /><TextField label="Variant" value={editDraft.modelVariant ?? ''} onChange={(e) => setEditDraft({ ...editDraft, modelVariant: e.target.value })} fullWidth /></Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField select label="Category" value={editDraft.vehicleCategory ?? ''} onChange={(e) => setEditDraft({ ...editDraft, vehicleCategory: e.target.value as CWVehicleCategory })} fullWidth>{VEHICLE_CATEGORIES.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField><TextField select label="Size" value={editDraft.vehicleSize} onChange={(e) => setEditDraft({ ...editDraft, vehicleSize: e.target.value as CWVehicleSize })} fullWidth>{VEHICLE_SIZES.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField><TextField type="number" label="Odometer (km)" value={editDraft.odometerKm ?? ''} onChange={(e) => setEditDraft({ ...editDraft, odometerKm: Number(e.target.value) })} fullWidth /></Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField label="Exterior colour" value={editDraft.exteriorColor ?? ''} onChange={(e) => setEditDraft({ ...editDraft, exteriorColor: e.target.value })} fullWidth /><TextField label="Interior colour" value={editDraft.interiorColor ?? ''} onChange={(e) => setEditDraft({ ...editDraft, interiorColor: e.target.value })} fullWidth /><TextField label="Tyre size" value={editDraft.tyreSize ?? ''} onChange={(e) => setEditDraft({ ...editDraft, tyreSize: e.target.value })} fullWidth /></Stack>
+              <TextField label="Additional notes" value={editDraft.additionalNotes ?? ''} onChange={(e) => setEditDraft({ ...editDraft, additionalNotes: e.target.value })} multiline minRows={3} fullWidth />
+              <DocumentEvidenceEditor title="Vehicle papers and CRE/Admin review" documents={editDraft.vehicleDocuments ?? []} documentTypes={VEHICLE_DOCUMENT_TYPES} onChange={(vehicleDocuments) => setEditDraft({ ...editDraft, vehicleDocuments })} />
+            </Stack> : null}
+          </DialogContent>
+          <DialogActions><Button onClick={() => setEditDraft(null)} disabled={saving}>Cancel</Button><Button variant="contained" onClick={() => void saveVehicle()} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button></DialogActions>
+        </Dialog>
 
         {/* General Information + Customer — side by side */}
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3}>

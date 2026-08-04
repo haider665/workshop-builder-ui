@@ -10,6 +10,7 @@ import {
   Radio,
   RadioGroup,
   Select,
+  Switch,
   Stack,
   TextField,
   ToggleButton,
@@ -29,15 +30,17 @@ import {
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
+import { DocumentEvidenceEditor } from '../../components/DocumentEvidenceEditor'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
-import type { CWCustomerType } from '../../types/cw'
+import type { CWCustomerDocument, CWCustomerDocumentType, CWCustomerType } from '../../types/cw'
 import { colors, radii } from '../../theme/tokens'
 
 const DIVISIONS = ['Dhaka', 'Chattogram', 'Rajshahi', 'Khulna', 'Sylhet', 'Rangpur', 'Barishal', 'Mymensingh']
 const CITIES = ['Dhaka', 'Chattogram', 'Gazipur', 'Narayanganj', 'Comilla', 'Sylhet', 'Rajshahi', 'Khulna', 'Rangpur']
 const OCCUPATION_TYPES = ['Business', 'Service', 'Government', 'Student', 'Retired', 'Other']
+const CUSTOMER_DOCUMENT_TYPES: CWCustomerDocumentType[] = ['National ID', 'Driving License', 'Passport', 'Tax Identification', 'Trade License', 'Company Registration', 'Other']
 
 type ParentCompanyMode = 'none' | 'existing' | 'new'
 
@@ -65,6 +68,10 @@ export function CreateCustomerPage() {
   const [occupationType, setOccupationType] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [designation, setDesignation] = useState('')
+  const [isSelfDriven, setIsSelfDriven] = useState(true)
+  const [driverName, setDriverName] = useState('')
+  const [driverPhone, setDriverPhone] = useState('')
+  const [isPersonalUse, setIsPersonalUse] = useState(true)
 
   // Vehicle linking
   const [vehicleId, setVehicleId] = useState('')
@@ -74,6 +81,7 @@ export function CreateCustomerPage() {
   const [facebookLink, setFacebookLink] = useState('')
   const [linkedinLink, setLinkedinLink] = useState('')
   const [googleLink, setGoogleLink] = useState('')
+  const [customerDocuments, setCustomerDocuments] = useState<CWCustomerDocument[]>([])
 
   // Corporate fields
   const [corpNote, setCorpNote] = useState('')
@@ -109,6 +117,10 @@ export function CreateCustomerPage() {
         occupation: customerType === 'Individual' && (occupationType || companyName || designation)
           ? { type: occupationType, companyName, designation }
           : undefined,
+        isSelfDriven,
+        driverName: !isSelfDriven ? driverName.trim() || undefined : undefined,
+        driverPhone: !isSelfDriven ? driverPhone.trim() || undefined : undefined,
+        isPersonalUse,
         whatsappLink: whatsappLink.trim() || undefined,
         facebookLink: facebookLink.trim() || undefined,
         linkedinLink: linkedinLink.trim() || undefined,
@@ -129,6 +141,7 @@ export function CreateCustomerPage() {
               transportManagerEmail: transportManagerEmail.trim() || undefined,
             }
           : undefined,
+        customerDocuments,
       })
       // Push into store so list updates immediately
       useCwStore.setState((s) => ({ customers: [created, ...s.customers] }))
@@ -271,6 +284,14 @@ export function CreateCustomerPage() {
               </Stack>
             </SectionCard>
 
+            <SectionCard title="Driving and Usage" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />} defaultCollapsed>
+              <Stack spacing={2} sx={{ py: 1 }}>
+                <FormControlLabel control={<Switch checked={isSelfDriven} onChange={(e) => setIsSelfDriven(e.target.checked)} />} label={isSelfDriven ? 'Customer drives the vehicle' : 'A separate driver is used'} />
+                {!isSelfDriven ? <><TextField label="Driver full name" value={driverName} onChange={(e) => setDriverName(e.target.value)} fullWidth /><TextField label="Driver phone number" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} fullWidth /></> : null}
+                <FormControlLabel control={<Switch checked={isPersonalUse} onChange={(e) => setIsPersonalUse(e.target.checked)} />} label={isPersonalUse ? 'Personal use' : 'Corporate / commercial use'} />
+              </Stack>
+            </SectionCard>
+
             {/* Vehicle */}
             <SectionCard title="Vehicle" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />} defaultCollapsed>
               <Box sx={{ py: 1 }}>
@@ -401,6 +422,10 @@ export function CreateCustomerPage() {
             </SectionCard>
           </>
         )}
+
+        <SectionCard title="Customer Papers" icon={<ContactPhone sx={{ fontSize: '1rem' }} />} defaultCollapsed>
+          <DocumentEvidenceEditor title="Identity and compliance documents" documents={customerDocuments} documentTypes={CUSTOMER_DOCUMENT_TYPES} onChange={setCustomerDocuments} />
+        </SectionCard>
 
         {/* Actions */}
         <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end' }}>
