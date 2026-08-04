@@ -368,10 +368,10 @@ export function SAAppointmentDetailPage() {
 
         {/* ── Inspection Checklist ── */}
         {isInspection && inspChecks.length > 0 && (
-          <SAInspectionTabs checks={inspChecks} onChange={setInspChecks} defaultCollapsed />
+          <SAInspectionTabs checks={inspChecks} onChange={setInspChecks} vehicle={vehicle} defaultCollapsed />
         )}
         {!isInspection && appt.inspectionChecks.length > 0 && (
-          <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} readonly defaultCollapsed />
+          <SAInspectionTabs checks={appt.inspectionChecks} onChange={() => {}} vehicle={vehicle} readonly defaultCollapsed />
         )}
 
         {/* ── Concerns ── */}

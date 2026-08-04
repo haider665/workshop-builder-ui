@@ -16,10 +16,12 @@ import {
   Tabs,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import { CameraAlt, Close, DirectionsCarFilledOutlined, EditNoteOutlined, FactCheckOutlined, KeyboardArrowDown, Search, ThreeDRotationRounded } from '@mui/icons-material'
 import { lazy, Suspense, useMemo, useRef, useState } from 'react'
-import type { CWInspectionCheck, CWInspectionCondition } from '../types/cw'
+import type { CWInspectionCheck, CWInspectionCondition, CWVehicle } from '../types/cw'
 import { EngineeringInspectionFields } from './EngineeringInspectionFields'
 import { VehicleInspectionBlueprint } from './VehicleInspectionBlueprint'
 
@@ -68,9 +70,12 @@ type Props = {
   onChange: (checks: CWInspectionCheck[]) => void
   readonly?: boolean
   defaultCollapsed?: boolean
+  vehicle?: CWVehicle | null
 }
 
-export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed = false }: Props) {
+export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed = false, vehicle }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [sectionCollapsed, setSectionCollapsed] = useState(defaultCollapsed)
   const [mode, setMode] = useState<'blueprint' | 'threeDimensional' | 'manual' | 'complete'>('blueprint')
   const [activeTab, setActiveTab] = useState(0)
@@ -175,6 +180,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
         onChange={(_, value: 'blueprint' | 'threeDimensional' | 'manual' | 'complete') => setMode(value)}
         variant="scrollable"
         scrollButtons="auto"
+        allowScrollButtonsMobile
         sx={{
           px: { xs: 1, sm: 2 },
           borderBottom: '1px solid',
@@ -207,6 +213,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
           }>
             <EngineeringVehicleViews
               checks={checks}
+              vehicle={vehicle}
               onOpenCategory={(category) => openVisualArea(category as InspectionCategory)}
             />
           </Suspense>
@@ -405,7 +412,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
         onClose={() => setVisualDialogOpen(false)}
         fullWidth
         maxWidth="md"
-        fullScreen={false}
+        fullScreen={isMobile}
         slotProps={{
           paper: {
             sx: {

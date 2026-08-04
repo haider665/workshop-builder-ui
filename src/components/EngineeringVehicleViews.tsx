@@ -5,16 +5,19 @@ import {
   ReportProblemRounded,
   ThreeDRotationRounded,
 } from '@mui/icons-material'
-import { Box, Button, Chip, Paper, Stack, Typography } from '@mui/material'
+import { Box, Button, Chip, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import type { CWInspectionCheck } from '../types/cw'
+import type { CWInspectionCheck, CWVehicle, CWVehicleCategory } from '../types/cw'
 
 type Props = {
   checks: CWInspectionCheck[]
   onOpenCategory: (category: string) => void
+  vehicle?: CWVehicle | null
 }
+
+const BODY_TYPES: CWVehicleCategory[] = ['Sedan', 'SUV', 'Hatchback', 'Pickup', 'Van', 'Truck', 'Bus', 'Other']
 
 const CAMERA_VIEWS = [
   { id: 'perspective', label: '3D', position: [8, 5, 9] },
@@ -45,7 +48,7 @@ function statusFor(items: CWInspectionCheck[]) {
   return 'default' as const
 }
 
-export function EngineeringVehicleViews({ checks, onOpenCategory }: Props) {
+export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const controlsRef = useRef<OrbitControls | null>(null)
@@ -53,6 +56,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [hoveredPart, setHoveredPart] = useState<string | null>(null)
   const [activeCamera, setActiveCamera] = useState('perspective')
+  const [bodyType, setBodyType] = useState<CWVehicleCategory>(vehicle?.vehicleCategory ?? 'Sedan')
 
   useEffect(() => {
     callbackRef.current = onOpenCategory
@@ -121,6 +125,17 @@ export function EngineeringVehicleViews({ checks, onOpenCategory }: Props) {
 
     const car = new THREE.Group()
     car.rotation.y = -0.16
+    const bodyScale: Record<CWVehicleCategory, [number, number, number]> = {
+      Sedan: [1, 1, 1],
+      SUV: [1.04, 1.2, 1.08],
+      Hatchback: [.9, 1.06, 1],
+      Pickup: [1.12, 1.06, 1.04],
+      Van: [1.08, 1.3, 1.08],
+      Truck: [1.22, 1.38, 1.16],
+      Bus: [1.38, 1.52, 1.2],
+      Other: [1, 1, 1],
+    }
+    car.scale.set(...bodyScale[bodyType])
     scene.add(car)
     const selectable: THREE.Mesh[] = []
 
@@ -255,7 +270,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory }: Props) {
       cameraRef.current = null
       controlsRef.current = null
     }
-  }, [])
+  }, [bodyType])
 
   function moveCamera(view: (typeof CAMERA_VIEWS)[number]) {
     const camera = cameraRef.current
@@ -278,7 +293,28 @@ export function EngineeringVehicleViews({ checks, onOpenCategory }: Props) {
           <Typography sx={{ fontWeight: 850, fontSize: { xs: '.9rem', sm: '1rem' } }}>Interactive 3D vehicle</Typography>
           <Typography sx={{ color: '#94a3b8', fontSize: '.7rem' }}>Drag to rotate · pinch or scroll to zoom · tap a component</Typography>
         </Box>
-        <Chip label="LIVE 3D" size="small" sx={{ bgcolor: 'rgba(37,99,235,.22)', color: '#bfdbfe', fontWeight: 800, fontSize: '.62rem' }} />
+        <Chip label="LIVE 3D" size="small" sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'rgba(37,99,235,.22)', color: '#bfdbfe', fontWeight: 800, fontSize: '.62rem' }} />
+      </Box>
+
+      <Box sx={{ px: { xs: 1.25, sm: 2.5 }, py: 1.15, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: 1, borderBottom: '1px solid rgba(148,163,184,.12)' }}>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography sx={{ fontWeight: 750, fontSize: '.75rem' }}>
+            {[vehicle?.make, vehicle?.model, vehicle?.modelVariant].filter(Boolean).join(' ') || 'Generic vehicle'}
+          </Typography>
+          <Typography sx={{ color: '#64748b', fontSize: '.64rem' }}>
+            {[vehicle?.modelYear, vehicle?.registrationNo].filter(Boolean).join(' · ') || 'Choose the closest body type'}
+          </Typography>
+        </Box>
+        <TextField
+          select
+          size="small"
+          value={bodyType}
+          onChange={(event) => setBodyType(event.target.value as CWVehicleCategory)}
+          aria-label="Vehicle body type"
+          sx={{ width: { xs: '100%', sm: 150 }, '& .MuiInputBase-root': { bgcolor: 'rgba(255,255,255,.08)', color: '#fff' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(148,163,184,.3)' }, '& .MuiSvgIcon-root': { color: '#94a3b8' } }}
+        >
+          {BODY_TYPES.map((type) => <MenuItem key={type} value={type}>{type}</MenuItem>)}
+        </TextField>
       </Box>
 
       <Stack direction="row" sx={{ px: 1.25, py: 1, gap: 0.65, overflowX: 'auto', borderBottom: '1px solid rgba(148,163,184,.12)', scrollbarWidth: 'none' }}>
