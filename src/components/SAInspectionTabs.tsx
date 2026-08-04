@@ -21,7 +21,7 @@ import {
 } from '@mui/material'
 import { CameraAlt, Close, DirectionsCarFilledOutlined, EditNoteOutlined, FactCheckOutlined, KeyboardArrowDown, Search, ThreeDRotationRounded } from '@mui/icons-material'
 import { lazy, Suspense, useMemo, useRef, useState } from 'react'
-import type { CWInspectionCheck, CWInspectionCondition, CWVehicle } from '../types/cw'
+import type { CWInspectionCheck, CWInspectionCondition, CWVehicle, CWVehicleViewCheck } from '../types/cw'
 import { EngineeringInspectionFields } from './EngineeringInspectionFields'
 import { VehicleInspectionBlueprint } from './VehicleInspectionBlueprint'
 
@@ -71,9 +71,10 @@ type Props = {
   readonly?: boolean
   defaultCollapsed?: boolean
   vehicle?: CWVehicle | null
+  vehicleViewChecks?: CWVehicleViewCheck[]
 }
 
-export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed = false, vehicle }: Props) {
+export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed = false, vehicle, vehicleViewChecks = [] }: Props) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [sectionCollapsed, setSectionCollapsed] = useState(defaultCollapsed)
@@ -100,6 +101,19 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
     if (completeFilter === 'failed') return check.condition === 'Bad' || check.result === 'Fail'
     return true
   }), [checks, completeFilter, completeSearch])
+  const visualizationChecks = useMemo<CWInspectionCheck[]>(() => [
+    ...checks,
+    ...vehicleViewChecks.map((check) => ({
+      id: 'vehicle-view-' + check.id,
+      category: check.view === 'Interior' ? 'Interior View' : check.view + ' View',
+      section: 'Vehicle visual inspection',
+      label: check.label,
+      checked: check.checked,
+      condition: check.checked ? 'Good' : undefined,
+      remark: check.remark,
+      photoUrl: check.photoUrl,
+    } as CWInspectionCheck)),
+  ], [checks, vehicleViewChecks])
 
   function updateCheck(id: string, patch: Partial<CWInspectionCheck>) {
     onChange(checks.map((c) => (c.id === id ? { ...c, ...patch } : c)))
@@ -197,7 +211,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
       {mode === 'blueprint' && (
         <Box sx={{ bgcolor: '#f8fafc', p: { xs: 1.5, sm: 2.5 }, borderBottom: '1px solid', borderColor: 'divider' }}>
           <VehicleInspectionBlueprint
-            checks={checks}
+            checks={visualizationChecks}
             selectedCategory={selectedArea}
             onOpenCategory={(category) => openVisualArea(category as InspectionCategory)}
           />
@@ -212,7 +226,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
             </Paper>
           }>
             <EngineeringVehicleViews
-              checks={checks}
+              checks={visualizationChecks}
               vehicle={vehicle}
               onOpenCategory={(category) => openVisualArea(category as InspectionCategory)}
             />

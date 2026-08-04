@@ -28,7 +28,9 @@ type Props = {
 
 function areaColor(items: CWInspectionCheck[], selected: boolean) {
   const inspected = items.filter((item) => item.checked)
-  const findings = inspected.map((item) => (item.defectType ?? item.remark ?? '').toLowerCase())
+  const findings = inspected
+    .map((item) => (item.defectType ?? item.remark ?? '').toLowerCase().trim())
+    .filter((value) => value && !/^(ok|good|passed|no damage|no issue|normal|clear)$/.test(value))
   if (inspected.some((item) => item.condition === 'Bad' || item.result === 'Fail') || findings.some((value) => /body damage|broken|crack|collision|deform/.test(value))) return '#ef4444'
   if (findings.some((value) => /dent|dented/.test(value))) return '#f97316'
   if (findings.some((value) => /scratch|scrape|scuff|paint/.test(value))) return '#eab308'

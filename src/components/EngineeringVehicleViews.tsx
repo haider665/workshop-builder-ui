@@ -41,7 +41,9 @@ const FINDING_COLORS = {
 function findingColor(checks: CWInspectionCheck[], category: string) {
   const inspected = checks.filter((check) => check.category === category && check.checked)
   if (!inspected.length) return null
-  const findings = inspected.map((check) => (check.defectType ?? check.remark ?? '').toLowerCase())
+  const findings = inspected
+    .map((check) => (check.defectType ?? check.remark ?? '').toLowerCase().trim())
+    .filter((value) => value && !/^(ok|good|passed|no damage|no issue|normal|clear)$/.test(value))
   if (inspected.some((check) => check.condition === 'Bad' || check.result === 'Fail') || findings.some((value) => /body damage|broken|crack|collision|deform/.test(value))) return FINDING_COLORS.damage
   if (findings.some((value) => /dent|dented/.test(value))) return FINDING_COLORS.dent
   if (findings.some((value) => /scratch|scrape|scuff|paint/.test(value))) return FINDING_COLORS.scratch
@@ -98,10 +100,24 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
     visualMeshesRef.current.forEach((mesh) => {
       const color = findingColor(checks, String(mesh.userData.category ?? ''))
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-      materials.forEach((material) => {
+      if (!mesh.userData.inspectionOriginalColors) {
+        mesh.userData.inspectionOriginalColors = materials.map((material) =>
+          material instanceof THREE.MeshStandardMaterial ? material.color.getHex() : null,
+        )
+      }
+      materials.forEach((material, index) => {
+        if (material instanceof THREE.MeshBasicMaterial && mesh.userData.findingOverlay) {
+          material.color.setHex(color ?? 0xffffff)
+          material.opacity = color ? 0.52 : 0
+          material.needsUpdate = true
+          return
+        }
         if (!(material instanceof THREE.MeshStandardMaterial)) return
+        const originalColor = mesh.userData.inspectionOriginalColors[index]
+        if (typeof originalColor === 'number') material.color.setHex(originalColor)
+        if (color) material.color.lerp(new THREE.Color(color), 0.72)
         material.emissive.setHex(color ?? 0x000000)
-        material.emissiveIntensity = color ? 0.48 : 0
+        material.emissiveIntensity = color ? 0.62 : 0
         material.needsUpdate = true
       })
     })
@@ -116,6 +132,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    setModelState('loading')
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x07111f)
@@ -183,7 +200,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
     car.scale.set(...bodyScale[bodyType])
     scene.add(car)
     const selectable: THREE.Mesh[] = []
-    visualMeshesRef.current = selectable
+    visualMeshesRef.current = []
 
     function material(category: string, options?: { transparent?: boolean; opacity?: number }) {
       return new THREE.MeshPhysicalMaterial({
@@ -213,6 +230,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
       mesh.userData.label = label
       car.add(mesh)
       selectable.push(mesh)
+      visualMeshesRef.current.push(mesh)
       return mesh
     }
 
@@ -249,6 +267,43 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
     let disposed = false
     const realModel = new THREE.Group()
     scene.add(realModel)
+    const findingLayer = new THREE.Group()
+    findingLayer.renderOrder = 12
+    scene.add(findingLayer)
+
+    function findingOverlay(
+      category: string,
+      label: string,
+      size: [number, number, number],
+      position: [number, number, number],
+    ) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(...size),
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      )
+      mesh.position.set(...position)
+      mesh.userData.category = category
+      mesh.userData.label = label
+      mesh.userData.findingOverlay = true
+      findingLayer.add(mesh)
+      visualMeshesRef.current.push(mesh)
+    }
+
+    findingOverlay('Front View', 'Front body findings', [1.25, 1.25, 2.5], [2.85, 0.35, 0])
+    findingOverlay('Rear View', 'Rear body findings', [1.15, 1.25, 2.5], [-2.9, 0.35, 0])
+    findingOverlay('Left View', 'Left body findings', [3.9, 1.35, 0.22], [-0.1, 0.45, -1.18])
+    findingOverlay('Right View', 'Right body findings', [3.9, 1.35, 0.22], [-0.1, 0.45, 1.18])
+    findingOverlay('Interior View', 'Cabin findings', [2.8, 1.3, 1.75], [-0.25, 0.95, 0])
+    findingOverlay('System Component', 'Engine findings', [1.35, 0.7, 1.65], [1.65, 0.65, 0])
+    findingOverlay('Scheduled Maintenance', 'Maintenance findings', [0.7, 0.65, 0.75], [1.65, 1.1, -0.55])
+    findingOverlay('Tyre/Brake Wire', 'Wheel and brake findings', [4.9, 0.9, 2.7], [0, -0.35, 0])
+    findingOverlay('Underbody', 'Underbody findings', [5.4, 0.18, 2.15], [0, -0.72, 0])
 
     function categoryForMesh(mesh: THREE.Mesh) {
       const name = mesh.name.toLowerCase()
@@ -284,6 +339,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
         const center = bounds.getCenter(new THREE.Vector3())
         model.position.sub(center)
         model.position.y += 0.25
+        model.updateMatrixWorld(true)
         model.traverse((object) => {
           if (!(object instanceof THREE.Mesh)) return
           object.material = Array.isArray(object.material)
@@ -294,6 +350,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
           object.userData.category = categoryForMesh(object)
           object.userData.label = object.name || object.userData.category
           selectable.push(object)
+          visualMeshesRef.current.push(object)
         })
         realModel.add(model)
         car.visible = false
