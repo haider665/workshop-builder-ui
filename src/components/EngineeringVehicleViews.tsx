@@ -9,6 +9,7 @@ import { Box, Button, Chip, MenuItem, Paper, Stack, TextField, Typography } from
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { CWInspectionCheck, CWVehicle, CWVehicleCategory } from '../types/cw'
 
 type Props = {
@@ -18,6 +19,16 @@ type Props = {
 }
 
 const BODY_TYPES: CWVehicleCategory[] = ['Sedan', 'SUV', 'Hatchback', 'Pickup', 'Van', 'Truck', 'Bus', 'Other']
+const MODEL_URLS: Record<CWVehicleCategory, string> = {
+  Sedan: '/models/vehicle/sedan.glb',
+  SUV: '/models/vehicle/suv.glb',
+  Hatchback: '/models/vehicle/hatchback.glb',
+  Pickup: '/models/vehicle/pickup.glb',
+  Van: '/models/vehicle/van.glb',
+  Truck: '/models/vehicle/truck.glb',
+  Bus: '/models/vehicle/bus.glb',
+  Other: '/models/vehicle/khronos-toy-car.glb',
+}
 
 const CAMERA_VIEWS = [
   { id: 'perspective', label: '3D', position: [8, 5, 9] },
@@ -57,6 +68,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
   const [hoveredPart, setHoveredPart] = useState<string | null>(null)
   const [activeCamera, setActiveCamera] = useState('perspective')
   const [bodyType, setBodyType] = useState<CWVehicleCategory>(vehicle?.vehicleCategory ?? 'Sedan')
+  const [modelState, setModelState] = useState<'loading' | 'real' | 'fallback'>('loading')
 
   useEffect(() => {
     callbackRef.current = onOpenCategory
@@ -200,6 +212,62 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
       wheel.add(hub)
     })
 
+    let disposed = false
+    const realModel = new THREE.Group()
+    scene.add(realModel)
+
+    function categoryForMesh(mesh: THREE.Mesh) {
+      const name = mesh.name.toLowerCase()
+      if (/wheel|tire|tyre|brake|rim/.test(name)) return 'Tyre/Brake Wire'
+      if (/glass|window|seat|interior|dashboard|steer/.test(name)) return 'Interior View'
+      if (/engine|motor|battery|radiator/.test(name)) return 'System Component'
+      if (/lamp|light|head|front|hood|bonnet/.test(name)) return 'Front View'
+      if (/tail|rear|trunk|boot/.test(name)) return 'Rear View'
+      const center = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3())
+      if (center.y < -0.35) return 'Underbody'
+      if (center.x > 1.45) return 'Front View'
+      if (center.x < -1.45) return 'Rear View'
+      if (center.z > 0.48) return 'Right View'
+      if (center.z < -0.48) return 'Left View'
+      return 'Interior View'
+    }
+
+    new GLTFLoader().load(
+      MODEL_URLS[bodyType],
+      (gltf) => {
+        if (disposed) return
+        const model = gltf.scene
+        let bounds = new THREE.Box3().setFromObject(model)
+        const initialSize = bounds.getSize(new THREE.Vector3())
+        if (initialSize.z > initialSize.x) model.rotation.y = Math.PI / 2
+        model.updateMatrixWorld(true)
+        bounds = new THREE.Box3().setFromObject(model)
+        const size = bounds.getSize(new THREE.Vector3())
+        const scale = 7 / Math.max(size.x, size.z)
+        model.scale.multiplyScalar(scale)
+        model.updateMatrixWorld(true)
+        bounds = new THREE.Box3().setFromObject(model)
+        const center = bounds.getCenter(new THREE.Vector3())
+        model.position.sub(center)
+        model.position.y += 0.25
+        model.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return
+          object.castShadow = true
+          object.receiveShadow = true
+          object.userData.category = categoryForMesh(object)
+          object.userData.label = object.name || object.userData.category
+          selectable.push(object)
+        })
+        realModel.add(model)
+        car.visible = false
+        setModelState('real')
+      },
+      undefined,
+      () => {
+        if (!disposed) setModelState('fallback')
+      },
+    )
+
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
     let pointerStart = { x: 0, y: 0 }
@@ -252,6 +320,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
     animate()
 
     return () => {
+      disposed = true
       cancelAnimationFrame(animationFrame)
       resizeObserver.disconnect()
       renderer.domElement.removeEventListener('pointerdown', onPointerDown)
@@ -293,7 +362,12 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
           <Typography sx={{ fontWeight: 850, fontSize: { xs: '.9rem', sm: '1rem' } }}>Interactive 3D vehicle</Typography>
           <Typography sx={{ color: '#94a3b8', fontSize: '.7rem' }}>Drag to rotate · pinch or scroll to zoom · tap a component</Typography>
         </Box>
-        <Chip label="LIVE 3D" size="small" sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'rgba(37,99,235,.22)', color: '#bfdbfe', fontWeight: 800, fontSize: '.62rem' }} />
+        <Chip
+          label={modelState === 'real' ? 'REAL MODEL' : modelState === 'loading' ? 'LOADING MODEL' : 'SAFE FALLBACK'}
+          size="small"
+          color={modelState === 'real' ? 'success' : 'default'}
+          sx={{ display: { xs: 'none', sm: 'inline-flex' }, fontWeight: 800, fontSize: '.62rem' }}
+        />
       </Box>
 
       <Box sx={{ px: { xs: 1.25, sm: 2.5 }, py: 1.15, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: 1, borderBottom: '1px solid rgba(148,163,184,.12)' }}>
@@ -302,7 +376,7 @@ export function EngineeringVehicleViews({ checks, onOpenCategory, vehicle }: Pro
             {[vehicle?.make, vehicle?.model, vehicle?.modelVariant].filter(Boolean).join(' ') || 'Generic vehicle'}
           </Typography>
           <Typography sx={{ color: '#64748b', fontSize: '.64rem' }}>
-            {[vehicle?.modelYear, vehicle?.registrationNo].filter(Boolean).join(' · ') || 'Choose the closest body type'}
+            {[vehicle?.modelYear, vehicle?.registrationNo].filter(Boolean).join(' · ') || 'Choose the closest body type'} · {bodyType} model
           </Typography>
         </Box>
         <TextField
