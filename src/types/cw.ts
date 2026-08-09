@@ -224,6 +224,19 @@ export type CWVehicle = {
   updatedAt: string
 }
 
+export type CWVehicleOwnershipTransfer = {
+  id: string
+  vehicleId: string
+  previousCustomerId: string
+  newCustomerId: string
+  effectiveDate: string
+  reason: string
+  proofFileUrl?: string
+  notes?: string
+  transferredByUserId: string
+  transferredAt: string
+}
+
 export type CWPendingVehicleStatus = 'Pending' | 'Resolved' | 'Job Created'
 export type CWIntakerType = 'Owner' | 'Driver' | 'Technician' | 'Other'
 export type CWVehicleDocumentType = 'Registration Certificate' | 'Tax Token' | 'Fitness Certificate' | 'Insurance' | 'Route Permit' | 'Other'

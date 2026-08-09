@@ -26,8 +26,10 @@ import {
   Person,
   DescriptionOutlined,
   OpenInNewOutlined,
+  SwapHorizOutlined,
+  CloudUploadOutlined,
 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { DocumentEvidenceEditor } from '../../components/DocumentEvidenceEditor'
@@ -37,7 +39,7 @@ import { useSessionStore } from '../../store/sessionStore'
 import { useCREData } from '../../hooks/useCREData'
 import { colors, radii } from '../../theme/tokens'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
-import type { CWVehicle, CWVehicleCategory, CWVehicleDocumentType, CWVehicleSize } from '../../types/cw'
+import type { CWVehicle, CWVehicleCategory, CWVehicleDocumentType, CWVehicleOwnershipTransfer, CWVehicleSize } from '../../types/cw'
 
 const VEHICLE_DOCUMENT_TYPES: CWVehicleDocumentType[] = ['Registration Certificate', 'Tax Token', 'Fitness Certificate', 'Insurance', 'Route Permit', 'Other']
 const VEHICLE_CATEGORIES: CWVehicleCategory[] = ['SUV', 'Sedan', 'Hatchback', 'Pickup', 'Van', 'Truck', 'Bus', 'Other']
@@ -75,11 +77,24 @@ export function VehicleDetailPage() {
   const [editDraft, setEditDraft] = useState<CWVehicle | null>(null)
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [newCustomerId, setNewCustomerId] = useState('')
+  const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().slice(0, 10))
+  const [transferReason, setTransferReason] = useState('')
+  const [transferNotes, setTransferNotes] = useState('')
+  const [transferProofUrl, setTransferProofUrl] = useState('')
+  const [transferError, setTransferError] = useState<string | null>(null)
+  const [ownershipHistory, setOwnershipHistory] = useState<CWVehicleOwnershipTransfer[]>([])
   const sessionUser = useSessionStore((state) => state.user)
   const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE'))
 
   const vehicle = vehicles.find((v) => v.id === vehicleId)
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c] as const)), [customers])
+
+  useEffect(() => {
+    if (!vehicleId) return
+    workshopApi.vehicleOwnershipHistory(vehicleId).then((result) => setOwnershipHistory(result.data)).catch(() => setOwnershipHistory([]))
+  }, [vehicleId])
 
   if (!vehicle) {
     return (
@@ -114,6 +129,23 @@ export function VehicleDetailPage() {
     } catch (error) {
       setEditError(error instanceof Error ? error.message : 'Unable to update vehicle')
     } finally { setSaving(false) }
+  }
+
+  async function uploadTransferProof(file: File) {
+    try { setTransferError(null); const uploaded = await workshopApi.uploadFile(file, { folder: 'Home/Workshop/Ownership Transfers', isPrivate: true }); setTransferProofUrl(uploaded.fileUrl) }
+    catch (error) { setTransferError(error instanceof Error ? error.message : 'Proof upload failed') }
+  }
+
+  async function transferOwnership() {
+    if (!newCustomerId || !transferReason.trim() || !effectiveDate) { setTransferError('New owner, effective date, and transfer reason are required.'); return }
+    try {
+      setSaving(true); setTransferError(null)
+      const result = await workshopApi.transferVehicleOwnership({ vehicleId: v.id, newCustomerId, effectiveDate, reason: transferReason.trim(), proofFileUrl: transferProofUrl || undefined, notes: transferNotes.trim() || undefined })
+      useCwStore.setState((state) => ({ vehicles: state.vehicles.map((item) => item.id === v.id ? result.vehicle : item) }))
+      setOwnershipHistory((current) => [result.transfer, ...current])
+      setTransferOpen(false); setNewCustomerId(''); setTransferReason(''); setTransferNotes(''); setTransferProofUrl(''); setSuccessOpen(true)
+    } catch (error) { setTransferError(error instanceof Error ? error.message : 'Ownership transfer failed') }
+    finally { setSaving(false) }
   }
 
   // Service history from appointments
@@ -159,7 +191,7 @@ export function VehicleDetailPage() {
             <Button variant="contained" disabled={!canEdit} onClick={() => setEditDraft({ ...v, vehicleDocuments: [...(v.vehicleDocuments ?? [])] })} sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}>
               + Edit Details
             </Button>
-            <Button variant="outlined" sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5, borderColor: colors.border.strong, color: colors.slate[700] }}>
+            <Button variant="outlined" disabled={!canEdit} onClick={() => setTransferOpen(true)} startIcon={<SwapHorizOutlined />} sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5, borderColor: colors.border.strong, color: colors.slate[700] }}>
               Ownership Transfer
             </Button>
           </Stack>
@@ -190,6 +222,20 @@ export function VehicleDetailPage() {
             </Stack> : null}
           </DialogContent>
           <DialogActions><Button onClick={() => setEditDraft(null)} disabled={saving}>Cancel</Button><Button variant="contained" onClick={() => void saveVehicle()} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button></DialogActions>
+        </Dialog>
+
+        <Dialog open={transferOpen} onClose={() => !saving && setTransferOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle sx={{ fontWeight: 800 }}>Transfer vehicle ownership</DialogTitle>
+          <DialogContent dividers><Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="warning">This permanently changes the owner and creates an immutable transfer record. Active gate entries or appointments must be completed first.</Alert>
+            {transferError ? <Alert severity="error">{transferError}</Alert> : null}
+            <TextField select required label="New owner" value={newCustomerId} onChange={(e) => setNewCustomerId(e.target.value)} fullWidth>{customers.filter((item) => item.id !== v.customerId).map((item) => <MenuItem key={item.id} value={item.id}>{item.fullName} - {item.phone}</MenuItem>)}</TextField>
+            <TextField type="date" required label="Effective date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} fullWidth />
+            <TextField required label="Transfer reason" value={transferReason} onChange={(e) => setTransferReason(e.target.value)} multiline minRows={2} fullWidth />
+            <TextField label="Additional notes" value={transferNotes} onChange={(e) => setTransferNotes(e.target.value)} multiline minRows={2} fullWidth />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component="label" variant="outlined" startIcon={<CloudUploadOutlined />}>{transferProofUrl ? 'Replace transfer proof' : 'Upload transfer proof (optional)'}<input hidden type="file" accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadTransferProof(file) }} /></Button>{transferProofUrl ? <Button component="a" href={transferProofUrl} target="_blank" rel="noreferrer">View proof</Button> : null}</Stack>
+          </Stack></DialogContent>
+          <DialogActions><Button onClick={() => setTransferOpen(false)} disabled={saving}>Cancel</Button><Button color="warning" variant="contained" onClick={() => void transferOwnership()} disabled={saving}>{saving ? 'Transferring...' : 'Confirm transfer'}</Button></DialogActions>
         </Dialog>
 
         {/* General Information + Customer — side by side */}
@@ -250,6 +296,10 @@ export function VehicleDetailPage() {
               </Table>
             </Box>
           )}
+        </SectionCard>
+
+        <SectionCard title="OWNERSHIP HISTORY" icon={<SwapHorizOutlined sx={{ fontSize: '1rem' }} />} defaultCollapsed>
+          {!ownershipHistory.length ? <Alert severity="info">No ownership transfers recorded.</Alert> : <Stack spacing={1}>{ownershipHistory.map((transfer) => <Box key={transfer.id} sx={{ p: 1.5, border: `1px solid ${colors.border.subtle}`, borderRadius: radii.sm }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ justifyContent: 'space-between' }}><Box><Typography sx={{ fontWeight: 800 }}>{customerById.get(transfer.previousCustomerId)?.fullName ?? transfer.previousCustomerId} to {customerById.get(transfer.newCustomerId)?.fullName ?? transfer.newCustomerId}</Typography><Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>Effective {new Date(transfer.effectiveDate).toLocaleDateString()} - {transfer.reason}</Typography></Box><Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>By {transfer.transferredByUserId}<br />{new Date(transfer.transferredAt).toLocaleString()}</Typography></Stack>{transfer.notes ? <Typography sx={{ mt: 1, fontSize: '0.82rem' }}>{transfer.notes}</Typography> : null}{transfer.proofFileUrl ? <Button size="small" component="a" href={transfer.proofFileUrl} target="_blank" rel="noreferrer">Open proof</Button> : null}</Box>)}</Stack>}
         </SectionCard>
 
         {/* Service History */}

@@ -372,6 +372,14 @@ export const workshopApi = {
     })
   },
 
+  async transferVehicleOwnership(input: { vehicleId: string; newCustomerId: string; effectiveDate: string; reason: string; proofFileUrl?: string; notes?: string }): Promise<{ vehicle: import('../types/cw').CWVehicle; transfer: import('../types/cw').CWVehicleOwnershipTransfer }> {
+    return request<{ vehicle: import('../types/cw').CWVehicle; transfer: import('../types/cw').CWVehicleOwnershipTransfer }>('/api/method/workshop.api.vehicles.transfer_ownership', { method: 'POST', body: { data: input } })
+  },
+
+  async vehicleOwnershipHistory(vehicleId: string, pageSize = 50): Promise<ApiListResponse<import('../types/cw').CWVehicleOwnershipTransfer>> {
+    return request<ApiListResponse<import('../types/cw').CWVehicleOwnershipTransfer>>(`/api/method/workshop.api.vehicles.ownership_history${buildQuery({ vehicleId, pageSize })}`)
+  },
+
   async listShops(): Promise<ApiListResponse<import('../types/cw').CWShop>> {
     return request<ApiListResponse<import('../types/cw').CWShop>>('/api/method/workshop.api.shops.list')
   },
