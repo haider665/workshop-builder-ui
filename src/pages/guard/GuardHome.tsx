@@ -596,7 +596,7 @@ export function GuardHome() {
         </Dialog>
 
         {/* ── Entry confirm dialog ── */}
-        <Dialog open={step === 'entry-confirm'} onClose={() => setStep('idle')} fullWidth maxWidth="md" slotProps={{ paper: { sx: dialogPaperSx } }}>
+        <Dialog open={step === 'entry-confirm' && !cameraOpen} onClose={() => setStep('idle')} fullWidth maxWidth="md" slotProps={{ paper: { sx: dialogPaperSx } }}>
           <DialogTitle sx={{ fontWeight: 800, color: colors.slate[900] }}>Confirm Entry</DialogTitle>
           <DialogContent>
             <Stack spacing={2}>
