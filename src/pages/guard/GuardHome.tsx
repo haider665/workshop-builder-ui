@@ -56,6 +56,9 @@ type MatchResult = {
 type IntakeDocumentDraft = Omit<CWGateVehicleDocument, 'id' | 'verifiedByUserId' | 'verifiedAt'>
 
 const documentTypes: CWVehicleDocumentType[] = ['Registration Certificate', 'Tax Token', 'Fitness Certificate', 'Insurance', 'Route Permit', 'Other']
+const REG_CITIES = ['Dhaka', 'Chittagong', 'Rajshahi', 'Khulna', 'Sylhet', 'Rangpur', 'Barishal', 'Mymensingh', 'Comilla', 'Gazipur', 'Narayanganj']
+const REG_REGIONS = ['Metro', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L', 'M']
+const REG_CLASSES = ['Ga', 'Gha', 'Cha', 'Ja', 'Ka', 'Kha', 'Da', 'Tha', 'Ta', 'Pa', 'Ba', 'Ma', 'Ra', 'La', 'Sha', 'Sa', 'Ha']
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -124,6 +127,11 @@ export function GuardHome() {
 
   const [searchMode, setSearchMode] = useState<SearchMode>('registration')
   const [searchValue, setSearchValue] = useState('')
+  const [regCity, setRegCity] = useState('')
+  const [regRegion, setRegRegion] = useState('')
+  const [regClass, setRegClass] = useState('')
+  const [regSeries, setRegSeries] = useState('')
+  const [regNumber, setRegNumber] = useState('')
   const [step, setStep] = useState<Step>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -137,6 +145,7 @@ export function GuardHome() {
   const [intakerName, setIntakerName] = useState('')
   const [intakerPhone, setIntakerPhone] = useState('')
   const [intakerPhotoUrl, setIntakerPhotoUrl] = useState('')
+  const [intakerPhotoPreview, setIntakerPhotoPreview] = useState('')
   const [drivingLicensePhotoUrl, setDrivingLicensePhotoUrl] = useState('')
   const [vehicleDocuments, setVehicleDocuments] = useState<IntakeDocumentDraft[]>([])
   const [uploading, setUploading] = useState(false)
@@ -149,6 +158,11 @@ export function GuardHome() {
 
   const normalizedValue = useMemo(() => searchValue.trim(), [searchValue])
   const searchKey = useMemo(() => normalizeKey(searchValue), [searchValue])
+
+  useEffect(() => {
+    if (searchMode !== 'registration') return
+    setSearchValue([regCity, regRegion, regClass, regSeries.trim(), regNumber.trim()].filter(Boolean).join('-'))
+  }, [regCity, regRegion, regClass, regSeries, regNumber, searchMode])
 
   // Stats
   const pendingEntries = useMemo(() => pendingVehicles.filter((p) => p.status === 'Pending').length, [pendingVehicles])
@@ -192,6 +206,11 @@ export function GuardHome() {
     setError(null)
     setStep('idle')
     setSearchValue('')
+    setRegCity('')
+    setRegRegion('')
+    setRegClass('')
+    setRegSeries('')
+    setRegNumber('')
     setMatchResult(null)
     setEntryCreated(null)
     setExitResult(null)
@@ -205,6 +224,8 @@ export function GuardHome() {
     setIntakerName('')
     setIntakerPhone('')
     setIntakerPhotoUrl('')
+    if (intakerPhotoPreview) URL.revokeObjectURL(intakerPhotoPreview)
+    setIntakerPhotoPreview('')
     setDrivingLicensePhotoUrl('')
     setVehicleDocuments([])
   }
@@ -284,6 +305,9 @@ export function GuardHome() {
       return
     }
     const file = new File([blob], `gate-person-${Date.now()}.jpg`, { type: 'image/jpeg' })
+    if (intakerPhotoPreview) URL.revokeObjectURL(intakerPhotoPreview)
+    setIntakerPhotoPreview(URL.createObjectURL(file))
+    setIntakerPhotoUrl('')
     closeCamera()
     await uploadEvidence(file, setIntakerPhotoUrl)
   }
@@ -688,6 +712,7 @@ export function GuardHome() {
                     </Button>
                     <LiveCameraCapture label="Photograph license" disabled={uploading} filenamePrefix="driving-license" onCapture={(file) => uploadEvidence(file, setDrivingLicensePhotoUrl)} />
                   </Stack>
+                  {intakerPhotoPreview ? <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', p: 1.25, border: `1px solid ${intakerPhotoUrl ? colors.status.success : colors.status.warning}`, borderRadius: 2, bgcolor: intakerPhotoUrl ? 'rgba(16,185,129,.06)' : 'rgba(245,158,11,.06)' }}><Box component="img" src={intakerPhotoPreview} alt="Captured person" sx={{ width: 92, height: 72, objectFit: 'cover', borderRadius: 1.5 }} /><Box><Typography sx={{ fontWeight: 800 }}>{uploading ? 'Uploading captured photo…' : intakerPhotoUrl ? 'Person photo ready' : 'Photo upload failed'}</Typography><Typography sx={{ fontSize: '.78rem', color: colors.slate[500] }}>{intakerPhotoUrl ? 'You can now confirm entry.' : uploading ? 'Confirm will enable after the secure upload completes.' : 'Retake the person photo to try again.'}</Typography></Box></Box> : null}
                 </Stack>
               </Box>
 
@@ -767,7 +792,7 @@ export function GuardHome() {
               <ToggleButtonGroup
                 value={searchMode}
                 exclusive
-                onChange={(_, val) => { if (val) { setSearchMode(val); setSearchValue('') } }}
+                onChange={(_, val) => { if (val) { setSearchMode(val); setSearchValue(''); setRegCity(''); setRegRegion(''); setRegClass(''); setRegSeries(''); setRegNumber('') } }}
                 size="large"
                 sx={{ alignSelf: 'flex-start' }}
               >
@@ -786,19 +811,16 @@ export function GuardHome() {
               </ToggleButtonGroup>
 
               {/* Search input */}
-              <TextField
-                label={searchMode === 'registration' ? 'Registration No' : 'VIN'}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                placeholder={searchMode === 'registration' ? 'e.g. ঢাকা-মেট্রো-ঘ-১২-৩৪৫৬ / Dhaka-Metro-Gha-12-3456' : 'e.g. 1HGCM82633A004352'}
-                fullWidth
-                slotProps={{
-                  input: {
-                    sx: { fontSize: 28, fontWeight: 900, letterSpacing: 0.5 },
-                  },
-                  inputLabel: { sx: { fontSize: 18, fontWeight: 700 } },
-                }}
-              />
+              {searchMode === 'registration' ? <Box>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap sx={{ alignItems: { sm: 'center' }, flexWrap: 'wrap' }}>
+                  <TextField select value={regCity} onChange={(e) => setRegCity(e.target.value)} label="City" sx={{ minWidth: { xs: '100%', sm: 130 } }}><MenuItem value="">Select city</MenuItem>{REG_CITIES.map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
+                  <TextField select value={regRegion} onChange={(e) => setRegRegion(e.target.value)} label="Region" sx={{ minWidth: { xs: '100%', sm: 105 } }}><MenuItem value="">Select region</MenuItem>{REG_REGIONS.map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
+                  <TextField select value={regClass} onChange={(e) => setRegClass(e.target.value)} label="Class (optional)" sx={{ minWidth: { xs: '100%', sm: 115 } }}><MenuItem value="">No class</MenuItem>{REG_CLASSES.map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
+                  <TextField value={regSeries} onChange={(e) => setRegSeries(e.target.value.replace(/[^0-9A-Za-z]/g, '').slice(0, 3))} label="Series" placeholder="30" sx={{ width: { xs: '100%', sm: 100 } }} />
+                  <TextField value={regNumber} onChange={(e) => setRegNumber(e.target.value.replace(/[^0-9A-Za-z]/g, '').slice(0, 6))} label="Number" placeholder="4340" sx={{ width: { xs: '100%', sm: 120 } }} />
+                </Stack>
+                <Typography sx={{ mt: 1, fontSize: '0.82rem', color: colors.slate[500] }}>Entry: <strong>{searchValue || 'Dhaka-Metro-30-4340'}</strong></Typography>
+              </Box> : <TextField label="VIN" value={searchValue} onChange={(e) => setSearchValue(e.target.value)} placeholder="e.g. 1HGCM82633A004352" fullWidth slotProps={{ input: { sx: { fontSize: 28, fontWeight: 900, letterSpacing: 0.5 } }, inputLabel: { sx: { fontSize: 18, fontWeight: 700 } } }} />}
 
               <Divider sx={{ borderColor: colors.border.default }} />
 
