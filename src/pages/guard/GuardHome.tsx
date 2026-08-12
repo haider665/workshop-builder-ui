@@ -20,15 +20,18 @@ import {
 import {
   DoorFront,
   CloudUpload,
+  CameraAlt,
+  Cameraswitch,
   DeleteOutlined,
   ExitToApp,
   Login,
   Security,
   WavingHand,
 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCwStore } from '../../store/cwStore'
 import { colors, radii, shadows } from '../../theme/tokens'
+import { LiveCameraCapture } from '../../components/LiveCameraCapture'
 import { workshopApi } from '../../services/workshopApi'
 import type { CWAppointment, CWCustomer, CWGateVehicleDocument, CWIntakerType, CWJob, CWPendingVehicle, CWVehicle, CWVehicleDocumentType } from '../../types/cw'
 
@@ -137,6 +140,12 @@ export function GuardHome() {
   const [drivingLicensePhotoUrl, setDrivingLicensePhotoUrl] = useState('')
   const [vehicleDocuments, setVehicleDocuments] = useState<IntakeDocumentDraft[]>([])
   const [uploading, setUploading] = useState(false)
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [cameraReady, setCameraReady] = useState(false)
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user')
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const cameraStreamRef = useRef<MediaStream | null>(null)
 
   const normalizedValue = useMemo(() => searchValue.trim(), [searchValue])
   const searchKey = useMemo(() => normalizeKey(searchValue), [searchValue])
@@ -199,6 +208,87 @@ export function GuardHome() {
     setDrivingLicensePhotoUrl('')
     setVehicleDocuments([])
   }
+
+  function stopCamera() {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop())
+    cameraStreamRef.current = null
+    if (videoRef.current) videoRef.current.srcObject = null
+  }
+
+  function closeCamera() {
+    stopCamera()
+    setCameraReady(false)
+    setCameraOpen(false)
+  }
+
+  async function startCamera(facingMode: 'user' | 'environment' = cameraFacing) {
+    setCameraError(null)
+    setCameraReady(false)
+    stopCamera()
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera access is not supported by this browser. Use a secure HTTPS connection and a camera-enabled device.')
+      setCameraOpen(true)
+      return
+    }
+    setCameraOpen(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      })
+      cameraStreamRef.current = stream
+      let attempts = 0
+      const attach = () => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          void videoRef.current.play()
+          setCameraReady(true)
+        } else if (attempts++ < 20) {
+          window.setTimeout(attach, 25)
+        }
+      }
+      attach()
+    } catch (cameraAccessError) {
+      setCameraError(cameraAccessError instanceof Error ? cameraAccessError.message : 'Camera permission was denied or no camera is available.')
+    }
+  }
+
+  async function switchCamera() {
+    const next = cameraFacing === 'user' ? 'environment' : 'user'
+    setCameraFacing(next)
+    await startCamera(next)
+  }
+
+  async function capturePersonPhoto() {
+    const video = videoRef.current
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError('The camera is still starting. Wait for the live preview, then capture again.')
+      return
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const context = canvas.getContext('2d')
+    if (!context) {
+      setCameraError('Unable to capture the camera image.')
+      return
+    }
+    if (cameraFacing === 'user') {
+      context.translate(canvas.width, 0)
+      context.scale(-1, 1)
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+    if (!blob) {
+      setCameraError('Unable to prepare the captured photo.')
+      return
+    }
+    const file = new File([blob], `gate-person-${Date.now()}.jpg`, { type: 'image/jpeg' })
+    closeCamera()
+    await uploadEvidence(file, setIntakerPhotoUrl)
+  }
+
+  useEffect(() => () => stopCamera(), [])
 
   async function uploadEvidence(file: File, onUploaded: (url: string) => void) {
     try {
@@ -483,6 +573,28 @@ export function GuardHome() {
           </DialogActions>
         </Dialog>
 
+        {/* ── Live person camera ── */}
+        <Dialog open={cameraOpen} onClose={closeCamera} fullWidth maxWidth="sm" slotProps={{ paper: { sx: dialogPaperSx } }}>
+          <DialogTitle sx={{ fontWeight: 800, color: colors.slate[900] }}>Take person photo</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2}>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.86rem' }}>Position the person clearly inside the frame. This captures a new photo directly from the device camera.</Typography>
+              {cameraError ? <Alert severity="error">{cameraError}</Alert> : null}
+              <Box sx={{ position: 'relative', width: '100%', aspectRatio: '4 / 3', overflow: 'hidden', borderRadius: 2, bgcolor: '#0b0f0d', display: 'grid', placeItems: 'center' }}>
+                <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: cameraFacing === 'user' ? 'scaleX(-1)' : undefined }} />
+                {!cameraReady && !cameraError ? <Typography sx={{ position: 'absolute', color: 'white' }}>Starting camera…</Typography> : null}
+              </Box>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, pt: 0, justifyContent: 'space-between' }}>
+            <Button type="button" variant="outlined" startIcon={<Cameraswitch />} onClick={() => void switchCamera()}>Switch camera</Button>
+            <Stack direction="row" spacing={1}>
+              <Button type="button" variant="text" onClick={closeCamera}>Cancel</Button>
+              <Button type="button" variant="contained" startIcon={<CameraAlt />} onClick={() => void capturePersonPhoto()} disabled={!cameraReady || Boolean(cameraError)}>Capture</Button>
+            </Stack>
+          </DialogActions>
+        </Dialog>
+
         {/* ── Entry confirm dialog ── */}
         <Dialog open={step === 'entry-confirm'} onClose={() => setStep('idle')} fullWidth maxWidth="md" slotProps={{ paper: { sx: dialogPaperSx } }}>
           <DialogTitle sx={{ fontWeight: 800, color: colors.slate[900] }}>Confirm Entry</DialogTitle>
@@ -567,14 +679,14 @@ export function GuardHome() {
                     <TextField label="Phone number (optional)" value={intakerPhone} onChange={(event) => setIntakerPhone(event.target.value)} fullWidth inputMode="tel" />
                   </Stack>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                    <Button component="label" variant={intakerPhotoUrl ? 'outlined' : 'contained'} startIcon={<CloudUpload />} disabled={uploading} sx={{ minHeight: 46 }}>
-                      {intakerPhotoUrl ? 'Camera photo captured' : 'Take person photo *'}
-                      <input hidden type="file" accept="image/*" capture="user" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, setIntakerPhotoUrl); event.currentTarget.value = '' }} />
+                    <Button type="button" variant={intakerPhotoUrl ? 'outlined' : 'contained'} startIcon={<CameraAlt />} disabled={uploading} onClick={() => void startCamera()} sx={{ minHeight: 46 }}>
+                      {intakerPhotoUrl ? 'Retake person photo' : 'Take person photo *'}
                     </Button>
                     <Button component="label" variant="outlined" startIcon={<CloudUpload />} disabled={uploading} sx={{ minHeight: 46 }}>
-                      {drivingLicensePhotoUrl ? 'License photo added' : 'Driving license photo (optional)'}
+                      {drivingLicensePhotoUrl ? 'Replace license file' : 'Upload license file (optional)'}
                       <input hidden type="file" accept="image/*,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, setDrivingLicensePhotoUrl) }} />
                     </Button>
+                    <LiveCameraCapture label="Photograph license" disabled={uploading} filenamePrefix="driving-license" onCapture={(file) => uploadEvidence(file, setDrivingLicensePhotoUrl)} />
                   </Stack>
                 </Stack>
               </Box>
@@ -605,6 +717,7 @@ export function GuardHome() {
                             {document.fileUrl ? 'File added' : 'Upload paper *'}
                             <input hidden type="file" accept="image/*,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, (fileUrl) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, fileUrl } : row))) }} />
                           </Button>
+                          <LiveCameraCapture label="Photograph paper" disabled={uploading} filenamePrefix="vehicle-paper" onCapture={(file) => uploadEvidence(file, (fileUrl) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, fileUrl } : row)))} />
                           <FormControlLabel control={<input type="checkbox" checked={document.verificationStatus === 'Verified'} onChange={(event) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, verificationStatus: event.target.checked ? 'Verified' : 'Pending' } : row))} />} label="Original checked and verified" />
                         </Stack>
                         <TextField label="Verification note (optional)" value={document.verificationNote ?? ''} onChange={(event) => setVehicleDocuments((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, verificationNote: event.target.value } : row))} fullWidth multiline minRows={2} />

@@ -19,10 +19,11 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material'
-import { CameraAlt, Close, DirectionsCarFilledOutlined, EditNoteOutlined, FactCheckOutlined, KeyboardArrowDown, Search, ThreeDRotationRounded } from '@mui/icons-material'
-import { lazy, Suspense, useMemo, useRef, useState } from 'react'
+import { Close, DirectionsCarFilledOutlined, EditNoteOutlined, FactCheckOutlined, KeyboardArrowDown, Search, ThreeDRotationRounded } from '@mui/icons-material'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import type { CWInspectionCheck, CWInspectionCondition, CWVehicle, CWVehicleViewCheck } from '../types/cw'
 import { EngineeringInspectionFields } from './EngineeringInspectionFields'
+import { LiveCameraCapture } from './LiveCameraCapture'
 import { VehicleInspectionBlueprint } from './VehicleInspectionBlueprint'
 
 const EngineeringVehicleViews = lazy(() => import('./EngineeringVehicleViews').then((module) => ({
@@ -82,8 +83,6 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
   const [activeTab, setActiveTab] = useState(0)
   const [selectedArea, setSelectedArea] = useState<InspectionCategory>('Front View')
   const [visualDialogOpen, setVisualDialogOpen] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [photoTargetId, setPhotoTargetId] = useState<string | null>(null)
   const [completeSearch, setCompleteSearch] = useState('')
   const [completeFilter, setCompleteFilter] = useState<'all' | 'incomplete' | 'attention' | 'failed'>('all')
 
@@ -119,25 +118,16 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
     onChange(checks.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   }
 
-  function handlePhotoClick(checkId: string) {
-    setPhotoTargetId(checkId)
-    fileInputRef.current?.click()
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file || !photoTargetId) return
-
+  function applyPhoto(file: File, checkId: string) {
     const reader = new FileReader()
     reader.onload = () => {
       const mediaUrl = reader.result as string
-      const check = checks.find((item) => item.id === photoTargetId)
-      updateCheck(photoTargetId, { photoUrl: mediaUrl, mediaUrls: [...(check?.mediaUrls ?? []), mediaUrl] })
-      setPhotoTargetId(null)
+      const check = checks.find((item) => item.id === checkId)
+      updateCheck(checkId, { photoUrl: mediaUrl, mediaUrls: [...(check?.mediaUrls ?? []), mediaUrl] })
     }
     reader.readAsDataURL(file)
-    e.target.value = ''
   }
+
 
   // Count per tab
   const tabCounts = TABS.map((tab) => {
@@ -364,15 +354,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
                           sx={{ flex: 1 }}
                           placeholder="Add notes..."
                         />
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<CameraAlt />}
-                          onClick={() => handlePhotoClick(check.id)}
-                          sx={{ minWidth: 100 }}
-                        >
-                          {check.photoUrl ? 'Replace' : 'Photo'}
-                        </Button>
+                        <LiveCameraCapture label={check.photoUrl ? 'Retake' : 'Take photo'} filenamePrefix="inspection" onCapture={(file) => applyPhoto(file, check.id)} />
                       </Stack>
                     )}
 
@@ -411,14 +393,6 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
       </Box>
       )}
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
       </Collapse>
 
       <Dialog
@@ -505,14 +479,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
                             sx={{ flex: 1 }}
                             placeholder="Add notes..."
                           />
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<CameraAlt />}
-                            onClick={() => handlePhotoClick(check.id)}
-                          >
-                            {check.photoUrl ? 'Replace' : 'Photo'}
-                          </Button>
+                        <LiveCameraCapture label={check.photoUrl ? 'Retake' : 'Take photo'} filenamePrefix="inspection" onCapture={(file) => applyPhoto(file, check.id)} />
                         </Stack>
                       )}
                       {check.condition && (

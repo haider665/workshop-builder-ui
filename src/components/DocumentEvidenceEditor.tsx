@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { workshopApi } from '../services/workshopApi'
 import type { CWDocumentVerificationStatus } from '../types/cw'
 import { colors, radii } from '../theme/tokens'
+import { LiveCameraCapture } from './LiveCameraCapture'
 
 export type EvidenceDocument<T extends string> = {
   id?: string
@@ -59,6 +60,7 @@ export function DocumentEvidenceEditor<T extends string>({ title, documents, doc
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
           <Button component="label" variant={document.fileUrl ? 'outlined' : 'contained'} startIcon={<CloudUpload />} disabled={uploading}>{document.fileUrl ? 'Replace file' : 'Upload file *'}<input hidden type="file" accept="image/*,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(index, file) }} /></Button>
+          <LiveCameraCapture label="Take photo" disabled={uploading} filenamePrefix="document-evidence" onCapture={(file) => upload(index, file)} />
           {document.fileUrl ? <Button component="a" href={document.fileUrl} target="_blank" rel="noreferrer">View file</Button> : null}
           {canVerify ? <TextField select size="small" label="Review status" value={document.verificationStatus} onChange={(event) => update(index, { verificationStatus: event.target.value as CWDocumentVerificationStatus })} sx={{ minWidth: 170 }}><MenuItem value="Pending">Pending review</MenuItem><MenuItem value="Verified">Verified</MenuItem><MenuItem value="Rejected">Rejected</MenuItem></TextField> : null}
         </Stack>

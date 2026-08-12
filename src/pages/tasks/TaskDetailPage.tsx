@@ -17,6 +17,7 @@ import { ArrowBack, Assignment, AttachFile, ChatBubbleOutlined, Info, Pause, Pla
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { FieldRenderer } from '../../components/FieldRenderer'
+import { LiveCameraCapture } from '../../components/LiveCameraCapture'
 import { SectionCard } from '../../components/SectionCard'
 import { useToast } from '../../hooks/useToast'
 import { colors, radii } from '../../theme/tokens'
@@ -391,6 +392,7 @@ export function TaskDetailPage() {
                 }}
               />
             </Button>
+            <LiveCameraCapture label="Take photo" filenamePrefix="task-evidence" onCapture={(file) => uploadAttachment(file)} />
             <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500] }}>
               Files are tracked in-memory (name/type/size only).
             </Typography>

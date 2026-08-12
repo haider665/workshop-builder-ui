@@ -33,6 +33,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { DocumentEvidenceEditor } from '../../components/DocumentEvidenceEditor'
+import { LiveCameraCapture } from '../../components/LiveCameraCapture'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import { useSessionStore } from '../../store/sessionStore'
@@ -233,7 +234,7 @@ export function VehicleDetailPage() {
             <TextField type="date" required label="Effective date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} fullWidth />
             <TextField required label="Transfer reason" value={transferReason} onChange={(e) => setTransferReason(e.target.value)} multiline minRows={2} fullWidth />
             <TextField label="Additional notes" value={transferNotes} onChange={(e) => setTransferNotes(e.target.value)} multiline minRows={2} fullWidth />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component="label" variant="outlined" startIcon={<CloudUploadOutlined />}>{transferProofUrl ? 'Replace transfer proof' : 'Upload transfer proof (optional)'}<input hidden type="file" accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadTransferProof(file) }} /></Button>{transferProofUrl ? <Button component="a" href={transferProofUrl} target="_blank" rel="noreferrer">View proof</Button> : null}</Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component="label" variant="outlined" startIcon={<CloudUploadOutlined />}>{transferProofUrl ? 'Replace transfer proof' : 'Upload transfer proof (optional)'}<input hidden type="file" accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadTransferProof(file) }} /></Button><LiveCameraCapture label="Photograph proof" filenamePrefix="ownership-transfer" onCapture={uploadTransferProof} />{transferProofUrl ? <Button component="a" href={transferProofUrl} target="_blank" rel="noreferrer">View proof</Button> : null}</Stack>
           </Stack></DialogContent>
           <DialogActions><Button onClick={() => setTransferOpen(false)} disabled={saving}>Cancel</Button><Button color="warning" variant="contained" onClick={() => void transferOwnership()} disabled={saving}>{saving ? 'Transferring...' : 'Confirm transfer'}</Button></DialogActions>
         </Dialog>

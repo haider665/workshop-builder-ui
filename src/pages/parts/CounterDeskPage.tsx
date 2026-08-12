@@ -27,6 +27,7 @@ import { Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material
 import { colors, pageLayout, radii, shadows } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useSessionStore } from '../../store/sessionStore'
+import { LiveCameraCapture } from '../../components/LiveCameraCapture'
 import { useBackendData } from '../../hooks/useCREData'
 
 
@@ -829,17 +830,7 @@ export function CounterDeskPage() {
           <DialogTitle>Capture Handover Photo</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setPhotoFile(file);
-                    setPhotoPreview(URL.createObjectURL(file));
-                  }
-                }}
-              />
+              <LiveCameraCapture label="Take handover photo" filenamePrefix="parts-handover" onCapture={(file) => { setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file)) }} />
               {photoPreview && (
                 <Box
                   component="img"

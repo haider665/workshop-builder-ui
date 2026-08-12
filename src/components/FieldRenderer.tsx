@@ -14,6 +14,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { LiveCameraCapture } from './LiveCameraCapture'
 import type { CWTaskField, CWTaskFieldValue } from '../types/cw'
 
 export type FieldRendererProps = {
@@ -224,6 +225,7 @@ export function FieldRenderer(props: FieldRendererProps) {
               }}
             />
           </Button>
+          {f.type === 'Image Upload' ? <LiveCameraCapture label="Take photo" onCapture={(file) => { props.onUpload?.(file); props.onChange(file.name) }} filenamePrefix="task-image" /> : null}
           {props.value ? (
             <Chip label={asString(props.value)} size="small" variant="outlined" />
           ) : (
