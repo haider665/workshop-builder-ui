@@ -1141,9 +1141,9 @@ export const workshopApi = {
   async guardEntry(input: {
     registrationNo: string
     appointmentId?: string
-    intakerType: import('../types/cw').CWIntakerType
-    intakerName: string
-    intakerPhone: string
+    intakerType?: import('../types/cw').CWIntakerType
+    intakerName?: string
+    intakerPhone?: string
     intakerPhotoUrl: string
     drivingLicensePhotoUrl?: string
     vehicleDocuments?: Omit<import('../types/cw').CWGateVehicleDocument, 'id' | 'verifiedByUserId' | 'verifiedAt'>[]

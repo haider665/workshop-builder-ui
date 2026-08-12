@@ -4026,7 +4026,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       updatedAt: ts,
     }
     set({ pendingVehicles: [pending, ...get().pendingVehicles] })
-		if (input.intakerType && input.intakerName && input.intakerPhone && input.intakerPhotoUrl) syncBackend(workshopApi.guardEntry({
+		if (input.intakerPhotoUrl) syncBackend(workshopApi.guardEntry({
 			registrationNo,
 			appointmentId: input.appointmentId,
 			intakerType: input.intakerType,

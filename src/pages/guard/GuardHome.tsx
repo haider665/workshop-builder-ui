@@ -265,8 +265,8 @@ export function GuardHome() {
   function confirmEntry() {
     try {
       setError(null)
-      if (!intakerName.trim() || !intakerPhone.trim() || !intakerPhotoUrl) {
-        setError('Name, phone number, and a clear photo of the person bringing the vehicle are required.')
+      if (!intakerPhotoUrl) {
+        setError('Take a clear camera photo of the person bringing the vehicle before confirming entry.')
         return
       }
       if (vehicleDocuments.some((document) => !document.fileUrl)) {
@@ -557,19 +557,19 @@ export function GuardHome() {
               <Divider />
               <Box>
                 <Typography sx={{ fontWeight: 800, color: colors.slate[900], mb: 0.5 }}>Person handing over the vehicle</Typography>
-                <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem', mb: 2 }}>Record the person physically present at the gate. Fields marked * are required.</Typography>
+                <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem', mb: 2 }}>Take a live photo of the person at the gate. The remaining details are optional and can be completed later.</Typography>
                 <Stack spacing={2}>
-                  <TextField select required label="Person type" value={intakerType} onChange={(event) => setIntakerType(event.target.value as CWIntakerType)} fullWidth>
+                  <TextField select label="Person type (optional)" value={intakerType} onChange={(event) => setIntakerType(event.target.value as CWIntakerType)} fullWidth>
                     {(['Owner', 'Driver', 'Technician', 'Other'] as CWIntakerType[]).map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}
                   </TextField>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                    <TextField required label="Full name" value={intakerName} onChange={(event) => setIntakerName(event.target.value)} fullWidth />
-                    <TextField required label="Phone number" value={intakerPhone} onChange={(event) => setIntakerPhone(event.target.value)} fullWidth inputMode="tel" />
+                    <TextField label="Full name (optional)" value={intakerName} onChange={(event) => setIntakerName(event.target.value)} fullWidth />
+                    <TextField label="Phone number (optional)" value={intakerPhone} onChange={(event) => setIntakerPhone(event.target.value)} fullWidth inputMode="tel" />
                   </Stack>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                     <Button component="label" variant={intakerPhotoUrl ? 'outlined' : 'contained'} startIcon={<CloudUpload />} disabled={uploading} sx={{ minHeight: 46 }}>
-                      {intakerPhotoUrl ? 'Person photo added' : 'Add person photo *'}
-                      <input hidden type="file" accept="image/*" capture="environment" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, setIntakerPhotoUrl) }} />
+                      {intakerPhotoUrl ? 'Camera photo captured' : 'Take person photo *'}
+                      <input hidden type="file" accept="image/*" capture="user" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, setIntakerPhotoUrl); event.currentTarget.value = '' }} />
                     </Button>
                     <Button component="label" variant="outlined" startIcon={<CloudUpload />} disabled={uploading} sx={{ minHeight: 46 }}>
                       {drivingLicensePhotoUrl ? 'License photo added' : 'Driving license photo (optional)'}
@@ -620,7 +620,7 @@ export function GuardHome() {
               sx={{ fontWeight: 700, borderRadius: '10px', borderColor: colors.slate[300], color: colors.slate[700] }}>
               Cancel
             </Button>
-            <Button variant="contained" size="large" onClick={confirmEntry} disabled={uploading || !intakerName.trim() || !intakerPhone.trim() || !intakerPhotoUrl}
+            <Button variant="contained" size="large" onClick={confirmEntry} disabled={uploading || !intakerPhotoUrl}
               sx={{ fontWeight: 700, borderRadius: '10px', bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
               Confirm
             </Button>
