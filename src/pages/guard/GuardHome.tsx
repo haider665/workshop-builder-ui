@@ -318,7 +318,7 @@ export function GuardHome() {
     try {
       setUploading(true)
       setError(null)
-      const uploaded = await workshopApi.uploadFile(file, { folder: 'Home/Workshop/Gate Intake', isPrivate: true })
+      const uploaded = await workshopApi.uploadFile(file, { isPrivate: true })
       onUploaded(uploaded.fileUrl)
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Unable to upload file')
