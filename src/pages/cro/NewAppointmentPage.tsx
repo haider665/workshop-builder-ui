@@ -347,7 +347,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
         slotDate: slotDate || undefined,
         slotTime: slotTime || undefined,
         assignedSAUserId: saUserId || undefined,
-        gateEntryId: gateEntryId || undefined,
+        gateEntryId: linkedPendingVehicle?.gateEntryId || undefined,
         notes: notes.trim(),
         concernItems: [
           ...concernItems.map((i) => ({
@@ -382,7 +382,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
           })
           useCwStore.setState((state) => ({ pendingVehicles: state.pendingVehicles.map((item) => item.id === resolvedPending.id ? resolvedPending : item) }))
         } catch (cause) {
-          toast.warning(cause instanceof Error ? `Appointment saved, but Guard intake needs manual resolution: ` : "Appointment saved, but Guard intake needs manual resolution.")
+          toast.warning(cause instanceof Error ? `Appointment saved, but Guard intake needs manual resolution: ${cause.message}` : "Appointment saved, but Guard intake needs manual resolution.")
         }
       }
 

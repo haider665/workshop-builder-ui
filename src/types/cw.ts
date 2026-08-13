@@ -262,6 +262,7 @@ export type CWPendingVehicle = {
   customerId?: string
   vehicleId?: string
   appointmentId?: string
+  gateEntryId?: string
   intakerType?: CWIntakerType
   intakerName?: string
   intakerPhone?: string
