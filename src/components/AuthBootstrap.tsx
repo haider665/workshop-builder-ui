@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
+import { useCompanyStore } from '../store/companyStore'
 
 export function AuthBootstrap(props: { children: ReactNode }) {
   const status = useSessionStore((s) => s.status)
   const restore = useSessionStore((s) => s.restore)
   const hydrateFromBackend = useCwStore((s) => s.hydrateFromBackend)
+  const loadCompanies = useCompanyStore((s) => s.load)
   const [hydrating, setHydrating] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
@@ -18,7 +20,7 @@ export function AuthBootstrap(props: { children: ReactNode }) {
   useEffect(() => {
     if (status === 'authenticated' && !hydrated && !hydrating) {
       setHydrating(true)
-      void hydrateFromBackend()
+      void loadCompanies().then(() => hydrateFromBackend())
         .then(() => setHydrated(true))
         .catch((error) => {
           console.error('Failed to hydrate backend data', error)
@@ -27,7 +29,7 @@ export function AuthBootstrap(props: { children: ReactNode }) {
         })
         .finally(() => setHydrating(false))
     }
-  }, [hydrateFromBackend, status, hydrated, hydrating])
+  }, [hydrateFromBackend, loadCompanies, status, hydrated, hydrating])
 
   if (status === 'idle' || status === 'loading' || (status === 'authenticated' && !hydrated)) {
     return (

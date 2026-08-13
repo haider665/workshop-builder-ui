@@ -19,6 +19,7 @@ import {
   AdminPanelSettings,
   Assignment,
   Badge,
+  Business,
   CalendarMonth,
   Calculate,
   ChevronLeft,
@@ -50,6 +51,7 @@ import type { Role } from '../types/roles'
 import { supportedLocales, useLocalization } from '../i18n/LocalizationContext'
 import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
+import { useCompanyStore } from '../store/companyStore'
 import { UniversalTablePagination } from './UniversalTablePagination'
 import { workshopApi } from '../services/workshopApi'
 import type { CWNotification } from '../types/cw'
@@ -116,6 +118,10 @@ function NotificationBadge() {
 export function AppShell() {
   const user = useSessionStore((s) => s.user)
   const logout = useSessionStore((s) => s.logout)
+  const companies = useCompanyStore((s) => s.companies)
+  const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
+  const selectCompany = useCompanyStore((s) => s.select)
+  const hydrateFromBackend = useCwStore((s) => s.hydrateFromBackend)
   const location = useLocation()
   const { locale, setLocale, t } = useLocalization()
   const theme = useTheme()
@@ -447,6 +453,17 @@ export function AppShell() {
           </ListItemButton>
         </Tooltip>
         {!sidebarCollapsed || !mdUp ? <>
+        <Select
+          value={selectedCompanyId}
+          onChange={(event) => { selectCompany(String(event.target.value)); void hydrateFromBackend() }}
+          size="small"
+          fullWidth
+          aria-label="Company"
+          startAdornment={<Business sx={{ mr: 1, fontSize: 18, color: sb.textMuted }} />}
+          sx={{ mb: 1.25, color: sb.text, borderRadius: '10px', bgcolor: sb.bgSubtle, fontSize: '0.8rem', '& fieldset': { borderColor: sb.border }, '& .MuiSvgIcon-root': { color: sb.textMuted } }}
+        >
+          {companies.map((option) => <MenuItem key={option.id} value={option.id}>{option.name}</MenuItem>)}
+        </Select>
         <Select
           value={locale}
           onChange={(event) => setLocale(event.target.value as 'en' | 'bn-BD')}

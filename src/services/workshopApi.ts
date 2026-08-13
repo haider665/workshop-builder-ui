@@ -2,6 +2,7 @@ const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/
 const apiBaseUrl = configuredApiBaseUrl
 
 let csrfTokenCache: string | null = null
+let selectedCompanyContext = localStorage.getItem('cw.workshop.selectedCompany') || ''
 
 async function getCsrfToken(): Promise<string> {
   if (csrfTokenCache) return csrfTokenCache
@@ -56,6 +57,8 @@ export type AuthSessionDto = {
 type FrappeResponse<T> = {
   message: T
 }
+
+export type WorkshopNavigation = { companies: Array<{ id: string; name: string; currency?: string }>; shops: Array<{ id: string; name: string; companyId?: string; type: string; status: string }>; companyIds: string[]; shopIds: string[]; capabilities: string[] }
 
 export type ApiListResponse<T> = {
   data: T[]
@@ -122,6 +125,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers: {
       ...csrfHeaders,
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(selectedCompanyContext ? { 'X-CW-Company': selectedCompanyContext } : {}),
       ...(options.headers ?? {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
@@ -165,6 +169,8 @@ async function uploadFile(input: { file: File; folder?: string; isPrivate?: bool
 }
 
 export const workshopApi = {
+  setCompanyContext(companyId: string) { selectedCompanyContext = companyId },
+  async navigation(): Promise<WorkshopNavigation> { return request<WorkshopNavigation>('/api/method/workshop.api.portal.navigation') },
   async login(username: string, password: string): Promise<AuthSessionDto> {
     const csrfToken = await getCsrfToken()
     const body = new URLSearchParams()
