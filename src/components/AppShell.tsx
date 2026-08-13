@@ -5,6 +5,8 @@ import {
   IconButton,
   List,
   ListItemButton,
+  MenuItem,
+  Select,
   ListItemIcon,
   ListItemText,
   Typography,
@@ -17,6 +19,7 @@ import {
   Badge,
   CalendarMonth,
   Calculate,
+  Language,
   ChevronRight,
   DirectionsCar,
   DoorFront,
@@ -37,6 +40,7 @@ import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Role } from '../types/roles'
+import { supportedLocales, useLocalization } from '../i18n/LocalizationContext'
 import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
 
@@ -102,6 +106,7 @@ export function AppShell() {
   const user = useSessionStore((s) => s.user)
   const logout = useSessionStore((s) => s.logout)
   const location = useLocation()
+  const { locale, setLocale, t } = useLocalization()
   const theme = useTheme()
   const mdUp = useMediaQuery(theme.breakpoints.up('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -282,7 +287,7 @@ export function AppShell() {
                     textTransform: 'uppercase',
                   }}
                 >
-                  {item.label}
+                  {t(item.label)}
                 </Typography>
               </Box>
             )
@@ -352,11 +357,11 @@ export function AppShell() {
                 primary={
                   item.label === 'Notifications' ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {item.label}
+                      {t(item.label)}
                       <NotificationBadge />
                     </Box>
                   ) : (
-                    item.label
+                    t(item.label)
                   )
                 }
                 sx={{
@@ -376,6 +381,18 @@ export function AppShell() {
 
       {/* ── User Footer ── */}
       <Box sx={{ p: 1.5 }}>
+        <Select
+          value={locale}
+          onChange={(event) => setLocale(event.target.value as 'en' | 'bn-BD')}
+          size="small"
+          fullWidth
+          aria-label={t('Language')}
+          startAdornment={<Language sx={{ mr: 1, fontSize: 18, color: sb.textMuted }} />}
+          sx={{ mb: 1.25, color: sb.text, borderRadius: '10px', bgcolor: sb.bgSubtle, fontSize: '0.8rem', '& fieldset': { borderColor: sb.border }, '& .MuiSvgIcon-root': { color: sb.textMuted } }}
+        >
+          {supportedLocales.map((option) => <MenuItem key={option.id} value={option.id}>{option.nativeLabel}</MenuItem>)}
+        </Select>
+
         <Box
           sx={{
             display: 'flex',
@@ -508,7 +525,7 @@ export function AppShell() {
                 <Menu />
               </IconButton>
               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', ml: 1, color: '#fff' }}>
-                Continental Works
+                {t('Continental Works')}
               </Typography>
             </Box>
             <Drawer
@@ -569,17 +586,17 @@ export function AppShell() {
               whiteSpace: 'nowrap',
             }}
           >
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 650 }}>Workshop</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 650 }}>{t('Workshop')}</Typography>
             <ChevronRight sx={{ fontSize: 15, color: 'text.disabled' }} />
-            <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 800 }}>{currentLink.label}</Typography>
+            <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 800 }}>{t(currentLink.label)}</Typography>
             {isDetailRoute && (
               <>
                 <ChevronRight sx={{ fontSize: 15, color: 'text.disabled' }} />
-                <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 750 }}>Details</Typography>
+                <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 750 }}>{t('Details')}</Typography>
               </>
             )}
             <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary', display: { xs: 'none', lg: 'block' } }}>
-              Expand a section to continue; completed information stays available without crowding the page.
+              {t('Expand a section to continue; completed information stays available without crowding the page.')}
             </Typography>
           </Box>
         )}

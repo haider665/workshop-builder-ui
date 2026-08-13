@@ -7,3 +7,10 @@ body,
 body {
   margin: 0;
 }
+html[lang='bn-BD'] body,
+html[lang='bn-BD'] button,
+html[lang='bn-BD'] input,
+html[lang='bn-BD'] select,
+html[lang='bn-BD'] textarea {
+  font-family: 'Noto Sans Bengali', 'Hind Siliguri', 'Nirmala UI', system-ui, sans-serif;
+}

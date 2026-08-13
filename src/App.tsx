@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom'
 import { AuthBootstrap } from './components/AuthBootstrap'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './components/ToastProvider'
+import { LocalizationProvider } from './i18n/LocalizationContext'
+import { LocalizedDocument } from './i18n/LocalizedDocument'
 import { AppRouter } from './routes/AppRouter'
 import { appTheme } from './theme/theme'
 
@@ -12,13 +14,16 @@ export default function App() {
     <ErrorBoundary>
       <ThemeProvider theme={appTheme}>
         <CssBaseline />
-        <ToastProvider>
+        <LocalizationProvider>
+          <LocalizedDocument />
+          <ToastProvider>
           <BrowserRouter>
             <AuthBootstrap>
               <AppRouter />
             </AuthBootstrap>
           </BrowserRouter>
-        </ToastProvider>
+          </ToastProvider>
+        </LocalizationProvider>
       </ThemeProvider>
     </ErrorBoundary>
   )

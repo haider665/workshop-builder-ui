@@ -673,6 +673,9 @@ export type CWPartStockUnit = {
   sellPrice: number
   poId?: string
   poNumber?: string
+  standardPurchaseOrderId?: string
+  purchaseReceiptId?: string
+  purchaseReceiptItemId?: string
   grnId?: string
   grnNumber?: string
   vendorId?: string
@@ -774,6 +777,12 @@ export type CWEstimateLine = {
   approvedAt?: string
   approvedByUserId?: string
   declinedAt?: string
+  materialRequestId?: string
+  procurementCaseId?: string
+  reservedQuantity?: number
+  procureQuantity?: number
+  fulfillmentStatus?: 'In Stock' | 'Partially Available' | 'Procurement Required' | 'Procurement Open' | 'Parts Available' | 'Operationally Fulfilled' | 'Integration Attention'
+  integrationError?: string
   declinedByUserId?: string
   remarks?: string
   substitutedByLineId?: string
