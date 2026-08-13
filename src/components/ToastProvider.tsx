@@ -44,8 +44,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const detail = (event as CustomEvent<{ message?: string }>).detail
       showToast(getUiErrorMessage(detail?.message), { severity: 'error', duration: 6500 })
     }
+    const notificationListener = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail
+      showToast(detail?.message || "New workshop notification", { severity: "info", duration: 5000 })
+    }
     window.addEventListener('cw:api-error-toast', listener)
-    return () => window.removeEventListener('cw:api-error-toast', listener)
+    window.addEventListener('cw:notification-toast', notificationListener)
+    return () => { window.removeEventListener('cw:api-error-toast', listener); window.removeEventListener('cw:notification-toast', notificationListener) }
   }, [showToast])
 
   return (

@@ -44,13 +44,15 @@ import {
   UploadFile,
 } from '@mui/icons-material'
 import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Role } from '../types/roles'
 import { supportedLocales, useLocalization } from '../i18n/LocalizationContext'
 import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
 import { UniversalTablePagination } from './UniversalTablePagination'
+import { workshopApi } from '../services/workshopApi'
+import type { CWNotification } from '../types/cw'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -128,6 +130,29 @@ export function AppShell() {
   const mainSystemUrl = useMemo(() => {
     try { return new URL(apiBaseUrl, window.location.origin).origin } catch { return window.location.origin }
   }, [apiBaseUrl])
+  const knownNotificationIds = useRef(new Set<string>())
+
+  useEffect(() => {
+    let active = true
+    const syncNotifications = async () => {
+      try {
+        const response = await workshopApi.listNotifications({ pageSize: 100 })
+        if (!active) return
+        const notifications = response.data as CWNotification[]
+        const known = knownNotificationIds.current
+        const newest = notifications.find((item) => !item.read && known.size > 0 && !known.has(item.id))
+        knownNotificationIds.current = new Set(notifications.map((item) => item.id))
+        useCwStore.setState({ notifications })
+        if (newest) window.dispatchEvent(new CustomEvent("cw:notification-toast", { detail: { message: newest.message || newest.title } }))
+      } catch { }
+    }
+    void syncNotifications()
+    const timer = window.setInterval(() => void syncNotifications(), 10000)
+    const onVisible = () => { if (document.visibilityState === "visible") void syncNotifications() }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => { active = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible) }
+  }, [])
+
 
   useEffect(() => { localStorage.setItem('cw.workshop.sidebar.collapsed', String(sidebarCollapsed)) }, [sidebarCollapsed])
   useEffect(() => { localStorage.setItem('cw.workshop.sidebar.sections', JSON.stringify(collapsedSections)) }, [collapsedSections])
