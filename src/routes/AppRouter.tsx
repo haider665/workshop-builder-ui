@@ -64,6 +64,7 @@ import { VendorManagementPage } from '../pages/parts/VendorManagementPage'
 import { CounterDeskPage } from '../pages/parts/CounterDeskPage'
 import { EstimatorPage } from '../pages/parts/EstimatorPage'
 import { TestDrivesPage } from '../pages/test-drives/TestDrivesPage'
+import { ServiceOrdersPage } from "../pages/service-orders/ServiceOrdersPage"
 
 export function AppRouter() {
   return (
@@ -163,6 +164,9 @@ export function AppRouter() {
 
           <Route element={<RequireRole anyOf={['Admin', 'Job Creation', 'Guard', 'CRE', 'Service Advisor', 'Service Engineer']} />}>
             <Route path="/test-drives" element={<TestDrivesPage />} />
+          </Route>
+          <Route element={<RequireRole anyOf={["Admin", "Job Creation", "CRE", "Service Advisor", "Service Engineer"]} />}>
+            <Route path="/service-orders" element={<ServiceOrdersPage />} />
           </Route>
 
           <Route

@@ -10,6 +10,7 @@ export type CWShopStatus = 'Active' | 'Inactive'
 
 export type CWShop = {
   id: string
+  companyId?: string
   name: string
   type: CWShopType
   description: string
@@ -535,6 +536,8 @@ export type CWAppointmentPhoto = {
 
 export type CWAppointment = {
   id: string
+  companyId?: string
+  shopId?: string
   customerId: string
   vehicleId: string
   /** Legacy free-text concerns (kept for backward compat) */
