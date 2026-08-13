@@ -1,5 +1,5 @@
 import { Alert, Snackbar, useMediaQuery, useTheme, type AlertColor } from '@mui/material'
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ToastContext, getUiErrorMessage, type ToastContextValue, type ToastOptions } from '../hooks/useToast'
 
 type ToastState = {
@@ -38,6 +38,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     warning: (message) => showToast(message, { severity: 'warning' }),
     info: (message) => showToast(message, { severity: 'info' }),
   }), [showToast])
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail
+      showToast(getUiErrorMessage(detail?.message), { severity: 'error', duration: 6500 })
+    }
+    window.addEventListener('cw:api-error-toast', listener)
+    return () => window.removeEventListener('cw:api-error-toast', listener)
+  }, [showToast])
 
   return (
     <ToastContext.Provider value={value}>

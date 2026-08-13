@@ -107,7 +107,9 @@ async function ensureOk(response: Response, fallbackMessage: string) {
     // Response was not JSON; keep the fallback message.
   }
 
-  throw new Error(message)
+  const error = new Error(message)
+  window.dispatchEvent(new CustomEvent('cw:api-error-toast', { detail: { message } }))
+  throw error
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {

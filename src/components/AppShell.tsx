@@ -1,5 +1,6 @@
 import {
   Box,
+  Collapse,
   Divider,
   Drawer,
   IconButton,
@@ -10,6 +11,7 @@ import {
   ListItemIcon,
   ListItemText,
   Typography,
+  Tooltip,
   useMediaQuery,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
@@ -19,6 +21,10 @@ import {
   Badge,
   CalendarMonth,
   Calculate,
+  ChevronLeft,
+  ExpandLess,
+  ExpandMore,
+  Home,
   Language,
   ChevronRight,
   DirectionsCar,
@@ -37,7 +43,7 @@ import {
   Storefront,
 } from '@mui/icons-material'
 import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Role } from '../types/roles'
 import { supportedLocales, useLocalization } from '../i18n/LocalizationContext'
@@ -47,6 +53,7 @@ import { useCwStore } from '../store/cwStore'
 /* ─────────────────────── Constants ─────────────────────────── */
 
 const drawerWidth = 264
+const collapsedDrawerWidth = 76
 const SPRING_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 
 /* ─────────────────── Dark Sidebar Palette ─────────────────── */
@@ -110,6 +117,18 @@ export function AppShell() {
   const theme = useTheme()
   const mdUp = useMediaQuery(theme.breakpoints.up('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('cw.workshop.sidebar.collapsed') === 'true')
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('cw.workshop.sidebar.sections') ?? '{}') as Record<string, boolean> } catch { return {} }
+  })
+  const activeDrawerWidth = sidebarCollapsed && mdUp ? collapsedDrawerWidth : drawerWidth
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? window.location.origin).replace(/\/$/, '')
+  const mainSystemUrl = useMemo(() => {
+    try { return new URL(apiBaseUrl, window.location.origin).origin } catch { return window.location.origin }
+  }, [apiBaseUrl])
+
+  useEffect(() => { localStorage.setItem('cw.workshop.sidebar.collapsed', String(sidebarCollapsed)) }, [sidebarCollapsed])
+  useEffect(() => { localStorage.setItem('cw.workshop.sidebar.sections', JSON.stringify(collapsedSections)) }, [collapsedSections])
 
   const navItems = useMemo<NavItem[]>(
     () => [
@@ -206,6 +225,14 @@ export function AppShell() {
   )
 
   const allowedItems = navItems.filter((item) => user && item.anyOfRoles.some((r) => user.roles.includes(r)))
+  const navigationGroups = useMemo(() => {
+    const groups: Array<{ label: string; items: NavItem[] }> = [{ label: 'Workspace', items: [] }]
+    for (const item of allowedItems) {
+      if (item.kind === 'section') groups.push({ label: item.label, items: [] })
+      else groups[groups.length - 1].items.push(item)
+    }
+    return groups.filter((group) => group.items.length)
+  }, [allowedItems])
   const currentLink = [...allowedItems]
     .filter((item) => item.kind === 'link' && item.to && (
       location.pathname === item.to || location.pathname.startsWith(item.to + '/')
@@ -244,7 +271,7 @@ export function AppShell() {
               CW
             </Typography>
           </Box>
-          <Box>
+          {!sidebarCollapsed || !mdUp ? <Box>
             <Typography
               sx={{
                 fontSize: '0.65rem',
@@ -260,7 +287,8 @@ export function AppShell() {
             <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: sb.text, lineHeight: 1.3 }}>
               Workshop
             </Typography>
-          </Box>
+          </Box> : null}
+          {mdUp ? <Tooltip title={sidebarCollapsed ? t('Expand navigation') : t('Collapse navigation')} placement="right"><IconButton onClick={() => setSidebarCollapsed((value) => !value)} size="small" sx={{ ml: 'auto', color: sb.textMuted }}>{sidebarCollapsed ? <Menu /> : <ChevronLeft />}</IconButton></Tooltip> : null}
         </Box>
       </Box>
 
@@ -272,35 +300,23 @@ export function AppShell() {
         aria-label="Main navigation"
         sx={{ px: 1.25, py: 1.5, overflowY: 'auto', flexGrow: 1 }}
       >
-        {allowedItems.map((item) => {
-          if (item.kind === 'section') {
-
-            return (
-              <Box key={`section:${item.label}`} sx={{ px: 1, pt: 2.5, pb: 0.75 }}>
-                <Typography
-                  component="h3"
-                  sx={{
-                    fontSize: '0.65rem',
-                    color: sb.textFaint,
-                    fontWeight: 700,
-                    letterSpacing: '0.15em',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {t(item.label)}
-                </Typography>
-              </Box>
-            )
-          }
-
+        {navigationGroups.map((group) => {
+          const sectionCollapsed = collapsedSections[group.label] === true
+          return <Box key={group.label}>
+            {!sidebarCollapsed || !mdUp ? <ListItemButton onClick={() => setCollapsedSections((current) => ({ ...current, [group.label]: !sectionCollapsed }))} aria-expanded={!sectionCollapsed} sx={{ px: 1.25, pt: 2, pb: 0.5, color: sb.textFaint, '&:hover': { color: sb.text, bgcolor: 'transparent' } }}>
+              <ListItemText primary={<Typography component="h3" sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>{t(group.label)}</Typography>} />
+              {sectionCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}
+            </ListItemButton> : null}
+            <Collapse in={!sectionCollapsed || (sidebarCollapsed && mdUp)} timeout="auto">
+            {group.items.map((item) => {
           const to = item.to ?? '#'
           const selected = item.exactMatch
             ? location.pathname === to
             : location.pathname === to || location.pathname.startsWith(to + '/')
 
           return (
+            <Tooltip title={sidebarCollapsed && mdUp ? t(item.label) : ''} placement="right" key={to}>
             <ListItemButton
-              key={to}
               component={RouterLink}
               to={to}
               selected={selected}
@@ -308,10 +324,11 @@ export function AppShell() {
               aria-current={selected ? 'page' : undefined}
               sx={{
                 borderRadius: '10px',
-                mx: 0.25,
+                mx: sidebarCollapsed && mdUp ? 0 : 0.25,
                 my: '2px',
                 py: 0.85,
-                px: 1.5,
+                px: sidebarCollapsed && mdUp ? 1.15 : 1.5,
+                justifyContent: sidebarCollapsed && mdUp ? 'center' : 'flex-start',
                 color: selected ? sb.accent : sb.textMuted,
                 transition: `all 200ms ${SPRING_EASE}`,
                 '&.Mui-selected': {
@@ -345,7 +362,7 @@ export function AppShell() {
             >
               <ListItemIcon
                 sx={{
-                  minWidth: 34,
+                  minWidth: sidebarCollapsed && mdUp ? 0 : 34,
                   color: selected ? sb.iconSelected : sb.iconDefault,
                   transition: `color 200ms ${SPRING_EASE}`,
                   '& .MuiSvgIcon-root': { fontSize: 20 },
@@ -353,7 +370,7 @@ export function AppShell() {
               >
                 {item.icon}
               </ListItemIcon>
-              <ListItemText
+              {!sidebarCollapsed || !mdUp ? <ListItemText
                 primary={
                   item.label === 'Notifications' ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -371,9 +388,13 @@ export function AppShell() {
                     letterSpacing: '-0.01em',
                   },
                 }}
-              />
+              /> : null}
             </ListItemButton>
+            </Tooltip>
           )
+            })}
+            </Collapse>
+          </Box>
         })}
       </List>
 
@@ -381,6 +402,13 @@ export function AppShell() {
 
       {/* ── User Footer ── */}
       <Box sx={{ p: 1.5 }}>
+        <Tooltip title={t('Main system')} placement="right">
+          <ListItemButton component="a" href={mainSystemUrl} sx={{ mb: 1, borderRadius: '10px', minHeight: 40, color: sb.text, justifyContent: sidebarCollapsed && mdUp ? 'center' : 'flex-start', px: sidebarCollapsed && mdUp ? 1 : 1.5 }}>
+            <Home sx={{ fontSize: 19 }} />
+            {!sidebarCollapsed || !mdUp ? <ListItemText primary={t('Main system')} sx={{ ml: 1.25, '& .MuiListItemText-primary': { fontSize: '0.8rem', fontWeight: 700 } }} /> : null}
+          </ListItemButton>
+        </Tooltip>
+        {!sidebarCollapsed || !mdUp ? <>
         <Select
           value={locale}
           onChange={(event) => setLocale(event.target.value as 'en' | 'bn-BD')}
@@ -478,12 +506,13 @@ export function AppShell() {
             <Logout sx={{ fontSize: 18 }} />
           </IconButton>
         </Box>
+        </> : null}
       </Box>
     </Box>
   )
 
   const drawerPaper = {
-    width: drawerWidth,
+    width: activeDrawerWidth,
     boxSizing: 'border-box' as const,
     backgroundColor: sb.bg,
     borderRight: `1px solid ${sb.border}`,
@@ -491,8 +520,8 @@ export function AppShell() {
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <Box component="nav" sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', '--cw-workshop-sidebar-width': `${activeDrawerWidth}px` }}>
+      <Box component="nav" sx={{ width: { md: activeDrawerWidth }, flexShrink: { md: 0 }, transition: 'width 180ms ease' }}>
         {!mdUp ? (
           <>
             <Box
@@ -559,7 +588,9 @@ export function AppShell() {
         component="main"
         sx={{
           flexGrow: 1,
-          width: { md: `calc(100% - ${drawerWidth}px)` },
+          width: { md: `calc(100% - ${activeDrawerWidth}px)` },
+          minWidth: 0,
+          transition: 'width 180ms ease',
           mt: { xs: '56px', md: 0 },
           backgroundColor: '#F8F9FC',
           minHeight: '100vh',
