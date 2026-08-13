@@ -33,6 +33,7 @@ import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
 import { useListPagination } from '../../components/ListPagination'
+import { AppointmentDrilldownDialog } from '../../components/AppointmentDrilldownDialog'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -196,13 +197,11 @@ export function AppointmentsPage() {
 
   const [query, setQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<CWAppointmentStatus | ''>('')
-  const [completionScope, setCompletionScope] = useState<'all' | 'active' | 'completed'>('all')
+  const [statView, setStatView] = useState<'all' | 'active' | 'completed' | null>(null)
 
   const filtered = useMemo(() => {
     const q = query.trim()
     return appointments.filter((appt) => {
-      if (completionScope === 'active' && (appt.status === 'Released' || appt.status === 'Payment Done')) return false
-      if (completionScope === 'completed' && appt.status !== 'Released' && appt.status !== 'Payment Done') return false
       if (filterStatus && appt.status !== filterStatus) return false
       if (q) {
         const cust = customers.find((c) => c.id === appt.customerId)
@@ -221,18 +220,14 @@ export function AppointmentsPage() {
       }
       return true
     })
-  }, [appointments, completionScope, customers, vehicles, query, filterStatus])
-
-  function drillInto(scope: 'all' | 'active' | 'completed') {
-    setCompletionScope(scope); setFilterStatus(''); setQuery('')
-    window.requestAnimationFrame(() => document.getElementById('appointment-records')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-  }
+  }, [appointments, customers, vehicles, query, filterStatus])
   const { pageRows, pagination } = useListPagination(filtered)
 
   // Stats
   const totalCount = appointments.length
   const activeCount = appointments.filter((a) => a.status !== 'Released' && a.status !== 'Payment Done').length
   const completedCount = appointments.filter((a) => a.status === 'Released' || a.status === 'Payment Done').length
+  const statRows = statView === 'active' ? appointments.filter((a) => a.status !== 'Released' && a.status !== 'Payment Done') : statView === 'completed' ? appointments.filter((a) => a.status === 'Released' || a.status === 'Payment Done') : appointments
 
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -274,24 +269,25 @@ export function AppointmentsPage() {
             icon={<CalendarMonth fontSize="small" />}
             title="Total"
             value={totalCount}
-            onClick={() => drillInto('all')}
+            onClick={() => setStatView('all')}
             gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
           />
           <StatCard
             icon={<HourglassTop fontSize="small" />}
             title="Active"
             value={activeCount}
-            onClick={() => drillInto('active')}
+            onClick={() => setStatView('active')}
             gradient="linear-gradient(135deg, #0F766E 0%, #14B8A6 100%)"
           />
           <StatCard
             icon={<CheckCircle fontSize="small" />}
             title="Completed"
             value={completedCount}
-            onClick={() => drillInto('completed')}
+            onClick={() => setStatView('completed')}
             gradient="linear-gradient(135deg, #047857 0%, #10B981 100%)"
           />
         </Stack>
+        <AppointmentDrilldownDialog open={Boolean(statView)} onClose={() => setStatView(null)} title={statView === 'active' ? 'Active Appointments' : statView === 'completed' ? 'Completed Appointments' : 'All Appointments'} rows={statRows} routeBase="/cre/appointments" />
 
         {/* ── Table Section ── */}
         <Box id="appointment-records" sx={sectionSx}>

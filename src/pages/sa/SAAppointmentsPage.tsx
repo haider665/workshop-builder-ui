@@ -31,6 +31,7 @@ import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
 import { useListPagination } from '../../components/ListPagination'
+import { AppointmentDrilldownDialog } from '../../components/AppointmentDrilldownDialog'
 
 import type { CWAppointmentStatus } from '../../types/cw'
 
@@ -154,6 +155,7 @@ export function SAAppointmentsPage() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CWAppointmentStatus | 'All'>('All')
+  const [statView, setStatView] = useState<'inspection' | 'review' | 'all' | 'parts' | null>(null)
 
   // All SA-relevant appointments (assigned to an SA at appointment level)
   const relevant = useMemo(
@@ -201,6 +203,8 @@ export function SAAppointmentsPage() {
     return readyApptIds.size
   }, [relevant, partRequests])
   const { pageRows, pagination } = useListPagination(filtered)
+  const statRows = statView === 'inspection' ? relevant.filter((a) => a.status === 'SA Inspection') : statView === 'review' ? relevant.filter((a) => a.status === 'SA Reviewed') : statView === 'parts' ? relevant.filter((a) => partRequests.some((part) => part.appointmentId === a.id && (part.status === 'Labeled' || part.status === 'Fulfilled'))) : relevant
+  const statTitle = statView === 'inspection' ? 'Pending Inspection' : statView === 'review' ? 'Under Review' : statView === 'parts' ? 'Parts Ready' : 'Total Assigned'
 
   return (
     <Box sx={{ px: pageLayout.px, py: pageLayout.py, minHeight: '100vh', bgcolor: colors.bg.page }}>
@@ -222,7 +226,7 @@ export function SAAppointmentsPage() {
 
         {/* ── Stat Cards ── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Box sx={statCardSx('linear-gradient(135deg, #0F172A 0%, #1E293B 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('inspection')} sx={{ ...statCardSx('linear-gradient(135deg, #0F172A 0%, #1E293B 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <PendingActions sx={{ fontSize: '1.2rem' }} />
@@ -232,7 +236,7 @@ export function SAAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{pendingInspection}</Typography>
           </Box>
 
-          <Box sx={statCardSx('linear-gradient(135deg, #B45309 0%, #F59E0B 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('review')} sx={{ ...statCardSx('linear-gradient(135deg, #B45309 0%, #F59E0B 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <RateReview sx={{ fontSize: '1.2rem' }} />
@@ -242,7 +246,7 @@ export function SAAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{underReview}</Typography>
           </Box>
 
-          <Box sx={statCardSx('linear-gradient(135deg, #047857 0%, #10B981 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('all')} sx={{ ...statCardSx('linear-gradient(135deg, #047857 0%, #10B981 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <DirectionsCar sx={{ fontSize: '1.2rem' }} />
@@ -252,7 +256,7 @@ export function SAAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{totalAssigned}</Typography>
           </Box>
 
-          <Box sx={statCardSx('linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('parts')} sx={{ ...statCardSx('linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Inventory sx={{ fontSize: '1.2rem' }} />
@@ -262,6 +266,7 @@ export function SAAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{partsReadyCount}</Typography>
           </Box>
         </Stack>
+        <AppointmentDrilldownDialog open={Boolean(statView)} onClose={() => setStatView(null)} title={statTitle} rows={statRows} routeBase="/sa/appointments" />
 
         {/* ── Table Section ── */}
         <Box sx={sectionSx}>

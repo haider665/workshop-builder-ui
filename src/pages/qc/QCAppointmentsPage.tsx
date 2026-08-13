@@ -25,6 +25,7 @@ import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
 import { useListPagination } from '../../components/ListPagination'
+import { AppointmentDrilldownDialog } from '../../components/AppointmentDrilldownDialog'
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
@@ -97,6 +98,7 @@ export function QCAppointmentsPage() {
   const customers = useCwStore((s) => s.customers)
 
   const [search, setSearch] = useState('')
+  const [statView, setStatView] = useState<'pending' | 'value' | null>(null)
 
   // QC sees only appointments assigned to QC that are in QC Assigned status
   const relevant = useMemo(
@@ -153,7 +155,7 @@ export function QCAppointmentsPage() {
 
         {/* ── Stat Cards ── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Box sx={statCardSx('linear-gradient(135deg, #334155 0%, #475569 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('pending')} sx={{ ...statCardSx('linear-gradient(135deg, #334155 0%, #475569 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <PendingActions sx={{ fontSize: '1.2rem' }} />
@@ -163,7 +165,7 @@ export function QCAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{pendingQC}</Typography>
           </Box>
 
-          <Box sx={statCardSx('linear-gradient(135deg, #B45309 0%, #F59E0B 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('value')} sx={{ ...statCardSx('linear-gradient(135deg, #B45309 0%, #F59E0B 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <AttachMoney sx={{ fontSize: '1.2rem' }} />
@@ -173,6 +175,7 @@ export function QCAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{fmtBDT(totalServicesValue)}</Typography>
           </Box>
         </Stack>
+        <AppointmentDrilldownDialog open={Boolean(statView)} onClose={() => setStatView(null)} title={statView === 'value' ? 'Appointments By Service Value' : 'Pending Quality Control'} rows={relevant} routeBase="/qc/appointments" />
 
         {/* ── Table Section ── */}
         <Box sx={sectionSx}>

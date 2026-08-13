@@ -1283,6 +1283,14 @@ export const workshopApi = {
     return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.reject', { method: 'POST', body: { id, reason } })
   },
 
+  async cancelTestDrive(id: string, reason: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.cancel', { method: 'POST', body: { id, reason } })
+  },
+
+  async closeTestDrive(id: string, notes?: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.close', { method: 'POST', body: { id, data: { notes } } })
+  },
+
   async verifyTemporaryGatePass(input: { gatePassId?: string; verificationToken?: string; registrationNo: string }): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.verify_pass', { method: 'POST', body: { data: input } })
   },

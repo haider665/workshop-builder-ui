@@ -31,6 +31,7 @@ import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
 import { useListPagination } from '../../components/ListPagination'
+import { AppointmentDrilldownDialog } from '../../components/AppointmentDrilldownDialog'
 
 const SE_STATUSES: CWAppointmentStatus[] = [
   'Diagnosis Assigned',
@@ -120,6 +121,7 @@ export function SEAppointmentsPage() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CWAppointmentStatus | 'All'>('All')
+  const [statView, setStatView] = useState<'assigned' | 'progress' | 'completed' | null>(null)
 
   const relevant = useMemo(
     () =>
@@ -153,6 +155,8 @@ export function SEAppointmentsPage() {
   const diagnosisAssigned = relevant.filter((a) => a.status === 'Diagnosis Assigned' || a.status === 'Service Assigned').length
   const inProgress = relevant.filter((a) => a.status === 'Diagnosis In Progress' || a.status === 'Service In Progress').length
   const completed = relevant.filter((a) => a.status === 'Diagnosis Complete' || a.status === 'Service Complete').length
+  const statRows = statView === 'assigned' ? relevant.filter((a) => a.status === 'Diagnosis Assigned' || a.status === 'Service Assigned') : statView === 'progress' ? relevant.filter((a) => a.status === 'Diagnosis In Progress' || a.status === 'Service In Progress') : relevant.filter((a) => a.status === 'Diagnosis Complete' || a.status === 'Service Complete')
+  const statTitle = statView === 'assigned' ? 'Assigned Work' : statView === 'progress' ? 'Work In Progress' : 'Completed Work'
   const { pageRows, pagination } = useListPagination(filtered)
 
   return (
@@ -175,7 +179,7 @@ export function SEAppointmentsPage() {
 
         {/* ── Stat Cards ── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Box sx={statCardSx('linear-gradient(135deg, #1D4ED8 0%, #3B82F6 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('assigned')} sx={{ ...statCardSx('linear-gradient(135deg, #1D4ED8 0%, #3B82F6 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <BugReport sx={{ fontSize: '1.2rem' }} />
@@ -185,7 +189,7 @@ export function SEAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{diagnosisAssigned}</Typography>
           </Box>
 
-          <Box sx={statCardSx('linear-gradient(135deg, #9333EA 0%, #A855F7 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('progress')} sx={{ ...statCardSx('linear-gradient(135deg, #9333EA 0%, #A855F7 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <HourglassTop sx={{ fontSize: '1.2rem' }} />
@@ -195,7 +199,7 @@ export function SEAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{inProgress}</Typography>
           </Box>
 
-          <Box sx={statCardSx('linear-gradient(135deg, #0F766E 0%, #14B8A6 100%)')}>
+          <Box role="button" tabIndex={0} onClick={() => setStatView('completed')} sx={{ ...statCardSx('linear-gradient(135deg, #0F766E 0%, #14B8A6 100%)'), cursor: 'pointer' }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '10px', p: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CheckCircle sx={{ fontSize: '1.2rem' }} />
@@ -205,6 +209,7 @@ export function SEAppointmentsPage() {
             <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>{completed}</Typography>
           </Box>
         </Stack>
+        <AppointmentDrilldownDialog open={Boolean(statView)} onClose={() => setStatView(null)} title={statTitle} rows={statRows} routeBase="/se/appointments" />
 
         {/* ── Table Section ── */}
         <Box sx={sectionSx}>
