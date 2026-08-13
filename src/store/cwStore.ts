@@ -422,6 +422,9 @@ export type CreatePendingVehicleInput = {
   intakerName?: string
   intakerPhone?: string
   intakerPhotoUrl?: string
+  odometerKm?: number
+  meterPhotoUrl?: string
+  fuelLevel?: string
   drivingLicensePhotoUrl?: string
   vehicleDocuments?: import('../types/cw').CWGateVehicleDocument[]
 }
@@ -4033,6 +4036,9 @@ export const useCwStore = create<CWState>((set, get) => ({
 			intakerName: input.intakerName,
 			intakerPhone: input.intakerPhone,
 			intakerPhotoUrl: input.intakerPhotoUrl,
+			odometerKm: input.odometerKm!,
+			meterPhotoUrl: input.meterPhotoUrl!,
+			fuelLevel: input.fuelLevel,
 			drivingLicensePhotoUrl: input.drivingLicensePhotoUrl,
 			vehicleDocuments: input.vehicleDocuments,
 		}), 'pending vehicle entry')

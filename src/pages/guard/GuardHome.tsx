@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -23,9 +24,11 @@ import {
   CameraAlt,
   Cameraswitch,
   DeleteOutlined,
+  DirectionsCar,
   ExitToApp,
   Login,
   Security,
+  Search,
   WavingHand,
 } from '@mui/icons-material'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -88,17 +91,19 @@ function getGreeting() {
 /* ── Stat Card ── */
 
 function DashStatCard({
-  icon, title, value, gradient,
+  icon, title, value, gradient, onClick,
 }: {
-  icon: React.ReactNode; title: string; value: number; gradient: string
+  icon: React.ReactNode; title: string; value: number; gradient: string; onClick?: () => void
 }) {
   return (
-    <Box sx={{
+    <Box role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && onClick) { event.preventDefault(); onClick() } }} aria-label={`View ${title} details`} sx={{
       flex: 1, minWidth: 160, borderRadius: radii.lg, background: gradient,
       color: '#fff', p: 2.5, position: 'relative', overflow: 'hidden',
       boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+      cursor: onClick ? 'pointer' : 'default',
       '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 8px 28px rgba(0,0,0,0.2)' },
+      '&:focus-visible': { outline: '3px solid rgba(59,130,246,.55)', outlineOffset: 3 },
       '&::after': { content: '""', position: 'absolute', top: -20, right: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' },
     }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
@@ -141,11 +146,16 @@ export function GuardHome() {
   const [reentryInfo, setReentryInfo] = useState<{ vehicle: CWVehicle; customer: CWCustomer | null; exitedMinsAgo: number; appointment: CWAppointment } | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [statDetails, setStatDetails] = useState<'today' | 'pending' | 'released' | null>(null)
+  const [statSearch, setStatSearch] = useState('')
   const [intakerType, setIntakerType] = useState<CWIntakerType>('Owner')
   const [intakerName, setIntakerName] = useState('')
   const [intakerPhone, setIntakerPhone] = useState('')
   const [intakerPhotoUrl, setIntakerPhotoUrl] = useState('')
   const [intakerPhotoPreview, setIntakerPhotoPreview] = useState('')
+  const [odometerKm, setOdometerKm] = useState('')
+  const [meterPhotoUrl, setMeterPhotoUrl] = useState('')
+  const [fuelLevel, setFuelLevel] = useState('')
   const [drivingLicensePhotoUrl, setDrivingLicensePhotoUrl] = useState('')
   const [vehicleDocuments, setVehicleDocuments] = useState<IntakeDocumentDraft[]>([])
   const [uploading, setUploading] = useState(false)
@@ -174,6 +184,31 @@ export function GuardHome() {
     const todayStr = new Date().toISOString().slice(0, 10)
     return appointments.filter((a) => a.status === 'Released' && a.releasedAt?.startsWith(todayStr)).length
   }, [appointments])
+
+  const statRows = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const pendingByAppointment = new Map(pendingVehicles.filter((item) => item.appointmentId).map((item) => [item.appointmentId!, item]))
+    const base = statDetails === 'released'
+      ? appointments.filter((appointment) => appointment.status === 'Released' && appointment.releasedAt?.startsWith(todayStr)).map((appointment) => {
+          const vehicle = vehicles.find((item) => item.id === appointment.vehicleId)
+          const customer = customers.find((item) => item.id === appointment.customerId)
+          const pending = pendingByAppointment.get(appointment.id)
+          return { id: appointment.id, registrationNo: vehicle?.registrationNo ?? 'Unknown vehicle', vehicle, customer, appointment, pending, eventAt: appointment.releasedAt ?? appointment.updatedAt, status: 'Released' }
+        })
+      : pendingVehicles
+          .filter((pending) => statDetails === 'today' ? pending.arrivedAt.startsWith(todayStr) : pending.status === 'Pending')
+          .map((pending) => {
+            const vehicle = vehicles.find((item) => item.id === pending.vehicleId)
+            const customer = customers.find((item) => item.id === (pending.customerId ?? vehicle?.customerId))
+            const appointment = appointments.find((item) => item.id === pending.appointmentId)
+            return { id: pending.id, registrationNo: pending.registrationNo, vehicle, customer, appointment, pending, eventAt: pending.arrivedAt, status: pending.status }
+          })
+    const query = normalizeKey(statSearch)
+    if (!query) return base
+    return base.filter((row) => normalizeKey([row.registrationNo, row.customer?.fullName, row.customer?.phone, row.vehicle?.make, row.vehicle?.model, row.appointment?.status, row.status].filter(Boolean).join(' ')).includes(query))
+  }, [appointments, customers, pendingVehicles, statDetails, statSearch, vehicles])
+
+  const statTitle = statDetails === 'today' ? "Today's Entries" : statDetails === 'pending' ? 'Pending In Yard' : 'Released Today'
 
   // Find vehicle by current search mode
   function findVehicle(): CWVehicle | undefined {
@@ -224,6 +259,9 @@ export function GuardHome() {
     setIntakerName('')
     setIntakerPhone('')
     setIntakerPhotoUrl('')
+    setOdometerKm('')
+    setMeterPhotoUrl('')
+    setFuelLevel('')
     if (intakerPhotoPreview) URL.revokeObjectURL(intakerPhotoPreview)
     setIntakerPhotoPreview('')
     setDrivingLicensePhotoUrl('')
@@ -383,6 +421,15 @@ export function GuardHome() {
         setError('Take a clear camera photo of the person bringing the vehicle before confirming entry.')
         return
       }
+      const parsedOdometer = Number(odometerKm)
+      if (!Number.isInteger(parsedOdometer) || parsedOdometer < 0) {
+        setError('Enter the current odometer reading in kilometres.')
+        return
+      }
+      if (!meterPhotoUrl) {
+        setError('Take a live photo of the vehicle meter before confirming entry.')
+        return
+      }
       if (vehicleDocuments.some((document) => !document.fileUrl)) {
         setError('Upload a file for every vehicle document row, or remove the incomplete row.')
         return
@@ -400,6 +447,9 @@ export function GuardHome() {
         intakerName: intakerName.trim(),
         intakerPhone: intakerPhone.trim(),
         intakerPhotoUrl,
+        odometerKm: parsedOdometer,
+        meterPhotoUrl,
+        fuelLevel: fuelLevel || undefined,
         drivingLicensePhotoUrl: drivingLicensePhotoUrl || undefined,
         vehicleDocuments,
         isTemporary: !vehicle,
@@ -538,10 +588,44 @@ export function GuardHome() {
 
         {/* ── Stat Cards ── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <DashStatCard icon={<Login fontSize="small" />} title="Today's Entries" value={todayEntries} gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)" />
-          <DashStatCard icon={<Security fontSize="small" />} title="Pending In Yard" value={pendingEntries} gradient="linear-gradient(135deg, #B45309 0%, #F59E0B 100%)" />
-          <DashStatCard icon={<ExitToApp fontSize="small" />} title="Released Today" value={releasedToday} gradient="linear-gradient(135deg, #047857 0%, #10B981 100%)" />
+          <DashStatCard icon={<Login fontSize="small" />} title="Today's Entries" value={todayEntries} onClick={() => { setStatSearch(''); setStatDetails('today') }} gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)" />
+          <DashStatCard icon={<Security fontSize="small" />} title="Pending In Yard" value={pendingEntries} onClick={() => { setStatSearch(''); setStatDetails('pending') }} gradient="linear-gradient(135deg, #B45309 0%, #F59E0B 100%)" />
+          <DashStatCard icon={<ExitToApp fontSize="small" />} title="Released Today" value={releasedToday} onClick={() => { setStatSearch(''); setStatDetails('released') }} gradient="linear-gradient(135deg, #047857 0%, #10B981 100%)" />
         </Stack>
+
+        <Dialog open={Boolean(statDetails)} onClose={() => setStatDetails(null)} fullWidth maxWidth="md" fullScreen={false} slotProps={{ paper: { sx: { ...dialogPaperSx, maxHeight: { xs: '92dvh', sm: '86vh' }, m: { xs: 1, sm: 3 } } } }}>
+          <DialogTitle sx={{ pb: 1 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
+              <Box><Typography sx={{ fontWeight: 850, fontSize: '1.2rem', color: colors.slate[900] }}>{statTitle}</Typography><Typography sx={{ color: colors.slate[500], fontSize: '.8rem' }}>{statRows.length} visible record{statRows.length === 1 ? '' : 's'} · click a record’s action to continue working.</Typography></Box>
+              <Chip label={statDetails === 'released' ? 'Completed exits' : statDetails === 'pending' ? 'Vehicles on premises' : 'Gate activity today'} color={statDetails === 'released' ? 'success' : statDetails === 'pending' ? 'warning' : 'default'} sx={{ alignSelf: { xs: 'flex-start', sm: 'center' }, fontWeight: 700 }} />
+            </Stack>
+          </DialogTitle>
+          <DialogContent dividers sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: colors.bg.subtle }}>
+            <TextField value={statSearch} onChange={(event) => setStatSearch(event.target.value)} placeholder="Search registration, customer, phone, vehicle or status" fullWidth size="small" slotProps={{ input: { startAdornment: <Search sx={{ mr: 1, color: colors.slate[400] }} /> } }} sx={{ mb: 2, bgcolor: colors.bg.card, '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+            <Stack spacing={1.25}>
+              {statRows.map((row) => (
+                <Box key={row.id} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2.5, border: `1px solid ${colors.border.default}`, bgcolor: colors.bg.card, boxShadow: '0 1px 3px rgba(15,23,42,.05)' }}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
+                    <Stack direction="row" spacing={1.5} sx={{ minWidth: 0, alignItems: 'center' }}>
+                      <Box sx={{ width: 46, height: 46, borderRadius: 2, display: 'grid', placeItems: 'center', flexShrink: 0, bgcolor: statDetails === 'released' ? 'rgba(16,185,129,.1)' : 'rgba(15,23,42,.07)', color: statDetails === 'released' ? colors.status.success : colors.slate[700] }}><DirectionsCar /></Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 850, color: colors.slate[900], wordBreak: 'break-word' }}>{row.registrationNo}</Typography>
+                        <Typography sx={{ color: colors.slate[600], fontSize: '.82rem' }}>{[row.vehicle?.make, row.vehicle?.model].filter(Boolean).join(' ') || 'Vehicle details pending'} · {row.customer?.fullName || row.pending?.intakerName || 'Customer pending'}</Typography>
+                        <Typography sx={{ color: colors.slate[500], fontSize: '.75rem' }}>{new Date(row.eventAt).toLocaleString()} {row.customer?.phone ? `· ${row.customer.phone}` : ''}</Typography>
+                      </Box>
+                    </Stack>
+                    <Stack direction={{ xs: 'row', sm: 'column' }} spacing={.75} sx={{ alignItems: { sm: 'flex-end' }, justifyContent: 'space-between' }}>
+                      <Chip size="small" label={row.appointment?.status ?? row.status} color={row.status === 'Released' ? 'success' : row.appointment ? 'info' : 'warning'} sx={{ fontWeight: 700 }} />
+                      {row.appointment ? <Button size="small" onClick={() => { setStatDetails(null); setSearchMode('registration'); setSearchValue(row.registrationNo) }} sx={{ fontWeight: 750 }}>Use at gate</Button> : <Typography sx={{ color: colors.slate[500], fontSize: '.72rem' }}>CRE resolution pending</Typography>}
+                    </Stack>
+                  </Stack>
+                </Box>
+              ))}
+              {!statRows.length ? <Box sx={{ py: 6, textAlign: 'center' }}><Security sx={{ fontSize: 42, color: colors.slate[300], mb: 1 }} /><Typography sx={{ fontWeight: 800, color: colors.slate[700] }}>No matching records</Typography><Typography sx={{ color: colors.slate[500], fontSize: '.82rem' }}>Try another search or close this view.</Typography></Box> : null}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 2.5, py: 1.5 }}><Button onClick={() => setStatDetails(null)} variant="contained" sx={{ borderRadius: 2, bgcolor: colors.slate[900], fontWeight: 750 }}>Close</Button></DialogActions>
+        </Dialog>
 
         {/* ── Snackbar ── */}
         <Snackbar open={successOpen} onClose={() => setSuccessOpen(false)} autoHideDuration={2500} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
@@ -692,6 +776,20 @@ export function GuardHome() {
 
               <Divider />
               <Box>
+                <Typography sx={{ fontWeight: 800, color: colors.slate[900], mb: 0.5 }}>Vehicle meter at entry</Typography>
+                <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem', mb: 2 }}>Record the live odometer and photograph the dashboard meter. This becomes the verified custody baseline.</Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
+                  <TextField label="Odometer (km) *" type="number" value={odometerKm} onChange={(event) => setOdometerKm(event.target.value)} slotProps={{ htmlInput: { min: 0, step: 1 } }} fullWidth />
+                  <TextField select label="Fuel level (optional)" value={fuelLevel} onChange={(event) => setFuelLevel(event.target.value)} fullWidth>
+                    {['', 'Empty', 'Quarter', 'Half', 'Three Quarter', 'Full'].map((value) => <MenuItem key={value || 'none'} value={value}>{value || 'Not recorded'}</MenuItem>)}
+                  </TextField>
+                  <LiveCameraCapture label={meterPhotoUrl ? 'Retake meter photo' : 'Take meter photo *'} disabled={uploading} filenamePrefix="gate-meter" onCapture={(file) => uploadEvidence(file, setMeterPhotoUrl)} />
+                </Stack>
+                {meterPhotoUrl ? <Alert severity="success" sx={{ mt: 1.5 }}>Meter photo captured and ready.</Alert> : null}
+              </Box>
+
+              <Divider />
+              <Box>
                 <Typography sx={{ fontWeight: 800, color: colors.slate[900], mb: 0.5 }}>Person handing over the vehicle</Typography>
                 <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem', mb: 2 }}>Take a live photo of the person at the gate. The remaining details are optional and can be completed later.</Typography>
                 <Stack spacing={2}>
@@ -758,7 +856,7 @@ export function GuardHome() {
               sx={{ fontWeight: 700, borderRadius: '10px', borderColor: colors.slate[300], color: colors.slate[700] }}>
               Cancel
             </Button>
-            <Button variant="contained" size="large" onClick={confirmEntry} disabled={uploading || !intakerPhotoUrl}
+            <Button variant="contained" size="large" onClick={confirmEntry} disabled={uploading || !intakerPhotoUrl || !meterPhotoUrl || !odometerKm}
               sx={{ fontWeight: 700, borderRadius: '10px', bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
               Confirm
             </Button>

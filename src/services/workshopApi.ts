@@ -1147,6 +1147,9 @@ export const workshopApi = {
     intakerName?: string
     intakerPhone?: string
     intakerPhotoUrl: string
+    odometerKm: number
+    meterPhotoUrl: string
+    fuelLevel?: string
     drivingLicensePhotoUrl?: string
     vehicleDocuments?: Omit<import('../types/cw').CWGateVehicleDocument, 'id' | 'verifiedByUserId' | 'verifiedAt'>[]
   }): Promise<{ gateEvent: unknown; pendingVehicle: import('../types/cw').CWPendingVehicle }> {
@@ -1262,6 +1265,34 @@ export const workshopApi = {
       method: 'POST',
       body: { id: jobId, ...input },
     })
+  },
+
+  async requestTestDrive(input: { appointmentId: string; jobId?: string; reason: string; plannedRoute?: string; driverName: string; driverNid: string; driverPhotoUrl?: string; expectedReturnAt: string }): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.request', { method: 'POST', body: { data: input } })
+  },
+
+  async listTestDrives(params: { appointmentId?: string; jobId?: string; status?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<Record<string, unknown>>> {
+    return request<ApiListResponse<Record<string, unknown>>>(`/api/method/workshop.api.test_drives.list${buildQuery(params)}`)
+  },
+
+  async approveTestDrive(id: string, note?: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.approve', { method: 'POST', body: { id, data: { note } } })
+  },
+
+  async rejectTestDrive(id: string, reason: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.reject', { method: 'POST', body: { id, reason } })
+  },
+
+  async verifyTemporaryGatePass(input: { gatePassId?: string; verificationToken?: string; registrationNo: string }): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.verify_pass', { method: 'POST', body: { data: input } })
+  },
+
+  async departTestDrive(input: { gatePassId: string; odometerKm: number; meterPhotoUrl: string; fuelLevel?: string; evidenceUrls?: string[] }): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.depart', { method: 'POST', body: { data: input } })
+  },
+
+  async returnTestDrive(input: { gatePassId: string; odometerKm: number; meterPhotoUrl: string; fuelLevel?: string; evidenceUrls?: string[]; notes?: string }): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.return_vehicle', { method: 'POST', body: { data: input } })
   },
 
   async logTestDriveReturn(jobId: string, data: { returnedAt: string; notes?: string }): Promise<import('../types/cw').CWJob> {
