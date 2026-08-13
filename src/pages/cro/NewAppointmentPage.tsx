@@ -5,6 +5,10 @@ import {
   Button,
   Chip,
   Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   IconButton,
   InputLabel,
@@ -27,6 +31,8 @@ import {
   MiscellaneousServices,
   CalendarMonth,
   ArrowBack,
+  AddCircleOutlined,
+  PersonAdd,
 } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -37,6 +43,8 @@ import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import type { CWConcern, CWService } from '../../types/cw'
+import type { CWVehicleSize } from '../../types/cw'
+import { useToast } from '../../hooks/useToast'
 
 const HOURS = [
   '08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
@@ -81,6 +89,7 @@ const fieldSx = {
 
 export function NewAppointmentPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   useCREData()
   const [searchParams] = useSearchParams()
 
@@ -146,6 +155,13 @@ export function NewAppointmentPage() {
   const [notes, setNotes] = useState('')
   const [gateEntryId, setGateEntryId] = useState(searchParams.get('pendingVehicleId') ?? '')
   const [saUserId, setSaUserId] = useState('')
+  const linkedPendingVehicle = useMemo(() => pendingVehicles.find((item) => item.id === gateEntryId) ?? null, [pendingVehicles, gateEntryId])
+
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false)
+  const [customerDraft, setCustomerDraft] = useState({ fullName: '', phone: '', email: '' })
+  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false)
+  const [vehicleDraft, setVehicleDraft] = useState<{ registrationNo: string; make: string; model: string; vin: string; vehicleSize: CWVehicleSize }>({ registrationNo: '', make: '', model: '', vin: '', vehicleSize: 'Medium' })
+  const [modalSaving, setModalSaving] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
   const [concernShopFilter, setConcernShopFilter] = useState('')
@@ -249,6 +265,40 @@ export function NewAppointmentPage() {
     setServiceItems((prev) => prev.filter((i) => i.id !== id))
   }
 
+  async function createCustomerInline() {
+    try {
+      setModalSaving(true)
+      if (!customerDraft.fullName.trim()) throw new Error('Customer name is required')
+      if (!customerDraft.phone.trim()) throw new Error('Customer phone is required')
+      const created = await workshopApi.createCustomer({ fullName: customerDraft.fullName.trim(), phone: customerDraft.phone.trim(), email: customerDraft.email.trim() || undefined, type: 'Individual' })
+      useCwStore.setState((state) => ({ customers: [created, ...state.customers.filter((item) => item.id !== created.id)] }))
+      setSelectedCustomer(created)
+      setSelectedVehicle(null)
+      setCustomerDialogOpen(false)
+      setCustomerDraft({ fullName: '', phone: '', email: '' })
+      toast.success('Customer created and selected.')
+    } catch (cause) { toast.error(cause, 'Unable to create customer') } finally { setModalSaving(false) }
+  }
+
+  function openVehicleDialog() {
+    if (!selectedCustomer) { toast.warning('Select or create a customer first.'); return }
+    setVehicleDraft((current) => ({ ...current, registrationNo: linkedPendingVehicle?.registrationNo || current.registrationNo }))
+    setVehicleDialogOpen(true)
+  }
+
+  async function createVehicleInline() {
+    try {
+      setModalSaving(true)
+      if (!selectedCustomer) throw new Error('Select a customer first')
+      if (!vehicleDraft.registrationNo.trim()) throw new Error('Registration number is required')
+      const created = await workshopApi.createVehicle({ customerId: selectedCustomer.id, registrationNo: vehicleDraft.registrationNo.trim(), make: vehicleDraft.make.trim() || undefined, model: vehicleDraft.model.trim() || undefined, vin: vehicleDraft.vin.trim() || undefined, vehicleSize: vehicleDraft.vehicleSize, vehicleDocuments: linkedPendingVehicle?.vehicleDocuments })
+      useCwStore.setState((state) => ({ vehicles: [created, ...state.vehicles.filter((item) => item.id !== created.id)] }))
+      setSelectedVehicle(created)
+      setVehicleDialogOpen(false)
+      toast.success('Vehicle created from the Guard intake and selected.')
+    } catch (cause) { toast.error(cause, 'Unable to create vehicle') } finally { setModalSaving(false) }
+  }
+
   async function submit() {
     try {
       setError(null)
@@ -278,6 +328,7 @@ export function NewAppointmentPage() {
         slotDate: slotDate || undefined,
         slotTime: slotTime || undefined,
         assignedSAUserId: saUserId || undefined,
+        gateEntryId: gateEntryId || undefined,
         notes: notes.trim(),
         concernItems: [
           ...concernItems.map((i) => ({
@@ -315,6 +366,7 @@ export function NewAppointmentPage() {
       }
 
       navigate('/cre/appointments')
+      toast.success('Appointment created successfully.')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -346,7 +398,8 @@ export function NewAppointmentPage() {
             <Button
               variant="outlined"
               size="small"
-              onClick={() => navigate('/cre/vehicles/new')}
+              onClick={openVehicleDialog}
+              startIcon={<AddCircleOutlined />}
               sx={{ borderColor: colors.border.strong, color: colors.slate[700], borderRadius: '10px', fontWeight: 600, '&:hover': { borderColor: colors.slate[400] } }}
             >
               Add new vehicle
@@ -354,7 +407,8 @@ export function NewAppointmentPage() {
             <Button
               variant="outlined"
               size="small"
-              onClick={() => navigate('/cre/customers/new')}
+              onClick={() => setCustomerDialogOpen(true)}
+              startIcon={<PersonAdd />}
               sx={{ borderColor: colors.border.strong, color: colors.slate[700], borderRadius: '10px', fontWeight: 600, '&:hover': { borderColor: colors.slate[400] } }}
             >
               Add new customer
@@ -363,6 +417,11 @@ export function NewAppointmentPage() {
         </Stack>
 
         {error && <Alert severity="error" sx={{ borderRadius: radii.sm }}>{error}</Alert>}
+
+        {linkedPendingVehicle ? <Alert severity="info" sx={{ borderRadius: radii.sm }}>
+          <Typography component="div" sx={{ fontWeight: 800 }}>Guard intake linked: {linkedPendingVehicle.registrationNo}</Typography>
+          <Typography component="div" variant="body2">Handed over by {linkedPendingVehicle.intakerName || 'Not recorded'} ({linkedPendingVehicle.intakerType || 'Other'}){linkedPendingVehicle.intakerPhone ? ` · ${linkedPendingVehicle.intakerPhone}` : ''}. Evidence: {linkedPendingVehicle.vehicleDocuments?.length ?? 0} vehicle document(s){linkedPendingVehicle.intakerPhotoUrl ? ' and live person photo' : ''}. CRE/Admin verification remains required.</Typography>
+        </Alert> : null}
 
         {/* ── Customer & Vehicle ── */}
         <SectionCard title="Customer & Vehicle" icon={<DirectionsCar sx={{ fontSize: '1rem' }} />}>
@@ -431,6 +490,10 @@ export function NewAppointmentPage() {
               Select a customer first to see their vehicles.
             </Typography>
           )}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.5 }}>
+            <Button size="small" variant="text" startIcon={<PersonAdd />} onClick={() => setCustomerDialogOpen(true)}>Create customer here</Button>
+            <Button size="small" variant="text" startIcon={<AddCircleOutlined />} onClick={openVehicleDialog} disabled={!selectedCustomer}>Create vehicle here</Button>
+          </Stack>
 
           {selectedVehicle && (
             <>
@@ -488,6 +551,29 @@ export function NewAppointmentPage() {
             </>
           )}
         </SectionCard>
+
+        <Dialog open={customerDialogOpen} onClose={() => !modalSaving && setCustomerDialogOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle>Create customer without leaving appointment</DialogTitle>
+          <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Full name" required value={customerDraft.fullName} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, fullName: event.target.value }))} autoFocus />
+            <TextField label="Phone" required value={customerDraft.phone} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, phone: event.target.value }))} inputMode="tel" />
+            <TextField label="Email (optional)" type="email" value={customerDraft.email} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, email: event.target.value }))} />
+            <Alert severity="info">Use the full customer form later to add address, occupation, identity papers and corporate information.</Alert>
+          </Stack></DialogContent>
+          <DialogActions><Button onClick={() => setCustomerDialogOpen(false)} disabled={modalSaving}>Cancel</Button><Button variant="contained" onClick={() => void createCustomerInline()} disabled={modalSaving}>{modalSaving ? 'Creating…' : 'Create and select'}</Button></DialogActions>
+        </Dialog>
+
+        <Dialog open={vehicleDialogOpen} onClose={() => !modalSaving && setVehicleDialogOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle>Create vehicle without leaving appointment</DialogTitle>
+          <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Registration number" required value={vehicleDraft.registrationNo} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, registrationNo: event.target.value }))} helperText={linkedPendingVehicle ? 'Prefilled from the linked Guard intake. Confirm before saving.' : undefined} autoFocus />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Manufacturer" value={vehicleDraft.make} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, make: event.target.value }))} /><TextField fullWidth label="Model" value={vehicleDraft.model} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, model: event.target.value }))} /></Stack>
+            <TextField label="VIN (optional)" value={vehicleDraft.vin} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, vin: event.target.value }))} />
+            <TextField select label="Vehicle size" required value={vehicleDraft.vehicleSize} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, vehicleSize: event.target.value as CWVehicleSize }))}>{(['Small', 'Medium', 'Large'] as CWVehicleSize[]).map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
+            {linkedPendingVehicle?.vehicleDocuments?.length ? <Alert severity="success">{linkedPendingVehicle.vehicleDocuments.length} Guard-uploaded vehicle document(s) will be copied for CRE/Admin verification.</Alert> : null}
+          </Stack></DialogContent>
+          <DialogActions><Button onClick={() => setVehicleDialogOpen(false)} disabled={modalSaving}>Cancel</Button><Button variant="contained" onClick={() => void createVehicleInline()} disabled={modalSaving || !selectedCustomer}>{modalSaving ? 'Creating…' : 'Create and select'}</Button></DialogActions>
+        </Dialog>
 
         {/* ── Concerns ── */}
         <SectionCard title="Concerns" icon={<Build sx={{ fontSize: '1rem' }} />} defaultCollapsed>

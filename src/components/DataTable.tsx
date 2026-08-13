@@ -1,5 +1,9 @@
 import {
   Box,
+  Button,
+  InputAdornment,
+  Menu,
+  MenuItem,
   Table,
   TableBody,
   TableCell,
@@ -11,8 +15,11 @@ import {
   Typography,
   Skeleton,
   Stack,
+  TextField,
 } from '@mui/material'
+import { Download, Search } from '@mui/icons-material'
 import { useState, useMemo } from 'react'
+import * as XLSX from 'xlsx'
 import type { ReactNode } from 'react'
 import { colors, shadows, radii, motion } from '../theme/tokens'
 
@@ -33,6 +40,9 @@ export type Column<T> = {
   sortable?: boolean
   /** Custom sort value extractor — preferred over render-based fallback */
   sortValue?: (row: T) => string | number | Date
+  /** Plain value used for table search and CSV export. */
+  searchValue?: (row: T) => string | number | null | undefined
+  exportValue?: (row: T) => string | number | null | undefined
 }
 
 type DataTableProps<T> = {
@@ -49,6 +59,12 @@ type DataTableProps<T> = {
   pageSize?: number
   /** Page-size dropdown options (default [5, 10, 25, 50]) */
   pageSizeOptions?: number[]
+  searchable?: boolean
+  searchPlaceholder?: string
+  enableExport?: boolean
+  exportFilename?: string
+  onRowClick?: (row: T) => void
+  toolbarActions?: ReactNode
 }
 
 /* ─────────────────────── Component ─────────────────────── */
@@ -65,6 +81,12 @@ export function DataTable<T>({
   emptyAction,
   pageSize: initialPageSize = 10,
   pageSizeOptions = [5, 10, 25, 50],
+  searchable = true,
+  searchPlaceholder = 'Search records…',
+  enableExport = true,
+  exportFilename = 'records.csv',
+  onRowClick,
+  toolbarActions,
 }: DataTableProps<T>) {
   /* ── Sort state ── */
   const [sortKey, setSortKey] = useState<string | null>(null)
@@ -73,6 +95,21 @@ export function DataTable<T>({
   /* ── Pagination state ── */
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(initialPageSize)
+  const [query, setQuery] = useState('')
+  const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null)
+
+  const filteredRows = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase()
+    if (!needle) return rows
+    return rows.filter((row) => {
+      const explicit = columns.flatMap((column) => {
+        const value = column.searchValue?.(row) ?? column.sortValue?.(row)
+        return value == null ? [] : [String(value)]
+      })
+      const fallback = (() => { try { return JSON.stringify(row) } catch { return '' } })()
+      return [...explicit, fallback].some((value) => value.toLocaleLowerCase().includes(needle))
+    })
+  }, [columns, query, rows])
 
   /* ── Handle sort toggle ── */
   const handleSort = (colKey: string) => {
@@ -91,12 +128,12 @@ export function DataTable<T>({
 
   /* ── Sorted + paginated rows ── */
   const sortedRows = useMemo(() => {
-    if (!sortKey) return rows
+    if (!sortKey) return filteredRows
 
     const col = columns.find((c) => c.key === sortKey)
-    if (!col) return rows
+    if (!col) return filteredRows
 
-    return [...rows].sort((a, b) => {
+    return [...filteredRows].sort((a, b) => {
       const aVal = col.sortValue
         ? col.sortValue(a)
         : String(col.render(a, 0))
@@ -110,7 +147,7 @@ export function DataTable<T>({
 
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [rows, sortKey, sortDir, columns])
+  }, [filteredRows, sortKey, sortDir, columns])
 
   const safePage = Math.min(page, Math.max(0, Math.ceil(sortedRows.length / rowsPerPage) - 1))
   const paginatedRows = useMemo(
@@ -118,7 +155,40 @@ export function DataTable<T>({
     [sortedRows, safePage, rowsPerPage],
   )
 
-  const isEmpty = !loading && rows.length === 0
+  const isEmpty = !loading && filteredRows.length === 0
+
+  function exportCsv() {
+    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const lines = [columns.map((column) => escape(column.header)).join(',')]
+    for (const row of sortedRows) {
+      lines.push(columns.map((column) => {
+        const value = column.exportValue?.(row) ?? column.searchValue?.(row) ?? column.sortValue?.(row) ?? ((row as Record<string, unknown>)[column.key])
+        return escape(value)
+      }).join(','))
+    }
+    const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = exportFilename; anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportRows = () => sortedRows.map((row) => Object.fromEntries(columns.map((column) => [column.header, column.exportValue?.(row) ?? column.searchValue?.(row) ?? column.sortValue?.(row) ?? ((row as Record<string, unknown>)[column.key]) ?? ''])))
+
+  function exportExcel() {
+    const sheet = XLSX.utils.json_to_sheet(exportRows())
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Records')
+    XLSX.writeFile(workbook, exportFilename.replace(/\.csv$/i, '.xlsx'))
+  }
+
+  function exportPdf() {
+    const popup = window.open('', '_blank', 'noopener,noreferrer')
+    if (!popup) return
+    const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character] ?? character)
+    const rowsHtml = exportRows().map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml(row[column.header])}</td>`).join('')}</tr>`).join('')
+    popup.document.write(`<!doctype html><html><head><title>${escapeHtml(exportFilename)}</title><style>@page{size:A4 landscape;margin:12mm}body{font:12px Arial,sans-serif;color:#172033}h1{font-size:20px;margin:0 0 14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:7px;text-align:left;vertical-align:top}th{background:#eef2f7;font-weight:700}footer{margin-top:14px;color:#667085}</style></head><body><h1>${escapeHtml(exportFilename.replace(/\.csv$/i, ''))}</h1><table><thead><tr>${columns.map((column) => `<th>${escapeHtml(column.header)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table><footer>Generated ${escapeHtml(new Date().toLocaleString())}</footer><script>window.onload=()=>window.print()</script></body></html>`)
+    popup.document.close()
+  }
 
   return (
     <Box
@@ -130,6 +200,10 @@ export function DataTable<T>({
         overflow: 'hidden',
       }}
     >
+      {(searchable || enableExport || toolbarActions) ? <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ p: { xs: 1.25, sm: 1.5 }, alignItems: { sm: 'center' }, justifyContent: 'space-between', borderBottom: `1px solid ${colors.border.subtle}` }}>
+        {searchable ? <TextField size="small" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder={searchPlaceholder} sx={{ width: { xs: '100%', sm: 300 }, '& .MuiOutlinedInput-root': { borderRadius: 2 } }} slotProps={{ htmlInput: { 'aria-label': searchPlaceholder }, input: { startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> } }} /> : <Box />}
+        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>{toolbarActions}{enableExport ? <><Button size="small" variant="outlined" startIcon={<Download />} onClick={(event) => setExportAnchor(event.currentTarget)} disabled={!sortedRows.length}>Export</Button><Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}><MenuItem onClick={() => { exportCsv(); setExportAnchor(null) }}>CSV file</MenuItem><MenuItem onClick={() => { exportExcel(); setExportAnchor(null) }}>Excel workbook</MenuItem><MenuItem onClick={() => { exportPdf(); setExportAnchor(null) }}>Print / PDF</MenuItem></Menu></> : null}</Stack>
+      </Stack> : null}
       <TableContainer sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <Table
           size="small"
@@ -215,7 +289,13 @@ export function DataTable<T>({
               : paginatedRows.map((row, index) => (
                   <TableRow
                     key={keyExtractor(row)}
+                    hover={Boolean(onRowClick)}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    role={onRowClick ? 'button' : undefined}
+                    onClick={() => onRowClick?.(row)}
+                    onKeyDown={(event) => { if (onRowClick && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onRowClick(row) } }}
                     sx={{
+                      cursor: onRowClick ? 'pointer' : undefined,
                       transition: `background ${motion.fast} ${motion.springEase}`,
                       '&:hover': {
                         background: colors.bg.cardHover,
@@ -248,7 +328,7 @@ export function DataTable<T>({
       {!isEmpty && !loading && (
         <TablePagination
           component="div"
-          count={rows.length}
+          count={filteredRows.length}
           page={safePage}
           onPageChange={(_e, newPage) => setPage(newPage)}
           rowsPerPage={rowsPerPage}

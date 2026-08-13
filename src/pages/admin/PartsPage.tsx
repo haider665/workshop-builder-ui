@@ -24,9 +24,10 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Add, Close, Edit, History, Inventory, ToggleOff, ToggleOn, Visibility } from '@mui/icons-material'
+import { Add, Close, Edit, History, Inventory, ToggleOff, ToggleOn, Visibility, UploadFile } from '@mui/icons-material'
 import { useEffect, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
+import { BulkImportDialog, type BulkImportMode } from '../../components/BulkImportDialog'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
 import { workshopApi } from '../../services/workshopApi'
@@ -170,6 +171,7 @@ export function PartsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   /* Stock lots dialog */
   const [lotsDialogOpen, setLotsDialogOpen] = useState(false)
@@ -309,6 +311,25 @@ export function PartsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update part status')
     }
+  }
+
+  async function importParts(rows: Record<string, unknown>[], mode: BulkImportMode) {
+    let created = 0, updated = 0, skipped = 0
+    const existing = new Map(parts.map(part => [part.partNumber.trim().toLowerCase(), part]))
+    const text = (row:Record<string,unknown>,key:string) => String(row[key] ?? '').trim()
+    const number = (row:Record<string,unknown>,key:string) => text(row,key) === '' ? undefined : Number(row[key])
+    const bool = (row:Record<string,unknown>,key:string, fallback:boolean) => text(row,key) === '' ? fallback : ['1','true','yes','y'].includes(text(row,key).toLowerCase())
+    for (const row of rows) {
+      const partNumber = text(row,'partNumber'), name = text(row,'name')
+      if (!partNumber || !name) { skipped += 1; continue }
+      const current = existing.get(partNumber.toLowerCase())
+      if (current && mode === 'skip') { skipped += 1; continue }
+      const value: Partial<CWPart> & {name:string;partNumber:string} = { name, itemName:name, partNumber, description:text(row,'description')||undefined, category:text(row,'category')||undefined, brand:text(row,'brand')||undefined, manufacturer:text(row,'manufacturer')||undefined, modelVariant:text(row,'modelVariant')||undefined, modelYear:text(row,'modelYear')||undefined, rackLocation:text(row,'rackLocation')||undefined, binNumber:text(row,'binNumber')||undefined, uom:text(row,'uom')||undefined, purchaseCategory:text(row,'purchaseCategory')||undefined, defaultSellPrice:number(row,'defaultSellPrice'), reorderLevel:number(row,'reorderLevel'), stockCount:number(row,'stockCount'), isReturnable:bool(row,'isReturnable',false), isSalesItem:bool(row,'isSalesItem',true), isPurchaseItem:bool(row,'isPurchaseItem',true), status:text(row,'status') === 'Inactive' ? 'Inactive' : 'Active' }
+      if (current) { await workshopApi.updatePart(current.id, value); updated += 1 }
+      else { const next = await workshopApi.createPart(value); existing.set(partNumber.toLowerCase(), next); created += 1 }
+    }
+    setSuccess(`Import complete: ${created} created, ${updated} updated, ${skipped} skipped.`)
+    await loadParts()
   }
 
   const isDialogOpen = createOpen || !!editPart
@@ -487,6 +508,8 @@ export function PartsPage() {
             </Typography>
             <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Manage the part catalog for service and repair.</Typography>
           </Box>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+          <Button variant="outlined" startIcon={<UploadFile />} onClick={() => setImportOpen(true)}>Import</Button>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -494,7 +517,7 @@ export function PartsPage() {
             sx={btnSx}
           >
             New Part
-          </Button>
+          </Button></Stack>
         </Stack>
 
         {error ? <Typography sx={{ color: colors.status.error, fontSize: '0.875rem' }}>{error}</Typography> : null}
@@ -796,6 +819,9 @@ export function PartsPage() {
         </Dialog>
       </Stack>
     </Box>
+    <BulkImportDialog open={importOpen} onClose={() => setImportOpen(false)} title="Import parts catalog" fields={[
+      {key:'name',label:'Item Name',required:true,aliases:['Part Name','Name']},{key:'partNumber',label:'Part Number',required:true,aliases:['Part No','Item Code']},{key:'description',label:'Description'},{key:'category',label:'Category'},{key:'brand',label:'Brand'},{key:'manufacturer',label:'Manufacturer'},{key:'modelVariant',label:'Model Variant'},{key:'modelYear',label:'Model Year'},{key:'rackLocation',label:'Rack Location'},{key:'binNumber',label:'Bin Number'},{key:'uom',label:'UOM'},{key:'purchaseCategory',label:'Purchase Category'},{key:'defaultSellPrice',label:'Default Sell Price'},{key:'reorderLevel',label:'Reorder Level'},{key:'stockCount',label:'Stock Count'},{key:'isReturnable',label:'Returnable'},{key:'isSalesItem',label:'Sales Item'},{key:'isPurchaseItem',label:'Purchase Item'},{key:'status',label:'Status'},
+    ]} onApply={importParts} />
 
       {/* Success Snackbar */}
       <Snackbar

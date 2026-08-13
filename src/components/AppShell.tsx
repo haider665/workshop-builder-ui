@@ -252,8 +252,9 @@ export function AppShell() {
       }}
     >
       {/* ── Brand Header ── */}
-      <Box sx={{ p: 2.5, pb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Box sx={{ p: sidebarCollapsed && mdUp ? 1.25 : 2.5, pb: sidebarCollapsed && mdUp ? 1.25 : 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed && mdUp ? 'center' : 'flex-start', gap: 1.5 }}>
+          {!sidebarCollapsed || !mdUp ? <>
           <Box
             sx={{
               width: 38,
@@ -287,8 +288,8 @@ export function AppShell() {
             <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: sb.text, lineHeight: 1.3 }}>
               Workshop
             </Typography>
-          </Box> : null}
-          {mdUp ? <Tooltip title={sidebarCollapsed ? t('Expand navigation') : t('Collapse navigation')} placement="right"><IconButton onClick={() => setSidebarCollapsed((value) => !value)} size="small" sx={{ ml: 'auto', color: sb.textMuted }}>{sidebarCollapsed ? <Menu /> : <ChevronLeft />}</IconButton></Tooltip> : null}
+          </Box> : null}</> : null}
+          {mdUp ? <Tooltip title={sidebarCollapsed ? t('Expand navigation') : t('Collapse navigation')} placement="right"><IconButton onClick={() => setSidebarCollapsed((value) => !value)} size="small" sx={{ ml: sidebarCollapsed ? 0 : 'auto', color: sidebarCollapsed ? '#fff' : sb.textMuted, bgcolor: sidebarCollapsed ? 'rgba(255,255,255,.12)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,.18)' } }}>{sidebarCollapsed ? <Menu /> : <ChevronLeft />}</IconButton></Tooltip> : null}
         </Box>
       </Box>
 
