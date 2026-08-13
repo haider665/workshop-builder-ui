@@ -3,6 +3,9 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -30,6 +33,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
+import { NewAppointmentPage } from './NewAppointmentPage'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -271,6 +275,8 @@ export function CroHome() {
   const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [appointmentComposerOpen, setAppointmentComposerOpen] = useState(false)
+  const [appointmentComposerAction, setAppointmentComposerAction] = useState<'customer' | 'vehicle' | undefined>(undefined)
 
   // Stats
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -319,8 +325,9 @@ export function CroHome() {
   }
 
   function submitExistingWalkIn() {
-    if (!selectedGateEntry || !selectedKnownVehicle) return
-    navigate(`/cre/appointments/new?vehicleId=${selectedKnownVehicle.id}&pendingVehicleId=${selectedGateEntry.id}`)
+    if (!selectedGateEntry) return
+    setAppointmentComposerAction(undefined)
+    setAppointmentComposerOpen(true)
   }
 
   // All appointments sorted + filtered
@@ -557,7 +564,7 @@ export function CroHome() {
                     </TextField>
                     <Button
                       variant="outlined" size="small" sx={{ mt: 1.5, fontWeight: 600, borderColor: colors.slate[300], color: colors.slate[700] }}
-                      onClick={() => navigate('/cre/customers/new')}
+                      onClick={() => { setAppointmentComposerAction('customer'); setAppointmentComposerOpen(true) }}
                     >
                       + Create New Customer
                     </Button>
@@ -596,7 +603,7 @@ export function CroHome() {
                         <Stack direction="row" spacing={1.5}>
                           <Button
                             variant="outlined" size="small" sx={{ fontWeight: 600, borderColor: colors.slate[300], color: colors.slate[700] }}
-                            onClick={() => navigate('/cre/vehicles/new')}
+                            onClick={() => { setAppointmentComposerAction('vehicle'); setAppointmentComposerOpen(true) }}
                           >
                             + Create New Vehicle
                           </Button>
@@ -608,7 +615,7 @@ export function CroHome() {
                                 if (!createdCustomerId) throw new Error('Select customer first')
                                 const vehicleId = make
                                 if (!vehicleId) throw new Error('Select a vehicle')
-                                navigate(`/cre/appointments/new?vehicleId=${vehicleId}&pendingVehicleId=${selectedGateEntry!.id}`)
+                                setAppointmentComposerOpen(true)
                               } catch (e) {
                                 setError(e instanceof Error ? e.message : String(e))
                               }
@@ -630,6 +637,13 @@ export function CroHome() {
             </Stack>
           </Box>
         )}
+
+        <Dialog open={appointmentComposerOpen && Boolean(selectedGateEntry)} onClose={() => setAppointmentComposerOpen(false)} fullWidth maxWidth="xl" slotProps={{ paper: { sx: { height: { xs: "calc(100dvh - 12px)", sm: "calc(100dvh - 48px)" }, m: { xs: .75, sm: 3 }, borderRadius: { xs: 2, sm: 3 }, overflow: "hidden" } } }}>
+          <DialogTitle sx={{ fontWeight: 850, borderBottom: "1px solid", borderColor: "divider", py: 1.5 }}>Resolve walk-in and create appointment</DialogTitle>
+          <DialogContent sx={{ p: { xs: 1, sm: 2 }, overflowY: "auto" }}>
+            {selectedGateEntry ? <NewAppointmentPage key={`-`} embedded initialPendingVehicleId={selectedGateEntry.id} initialVehicleId={selectedKnownVehicle?.id || make || undefined} initialCustomerId={createdCustomerId || selectedKnownCustomer?.id || undefined} initialAction={appointmentComposerAction} onCancel={() => setAppointmentComposerOpen(false)} onComplete={() => { setAppointmentComposerOpen(false); resetForm() }} /> : null}
+          </DialogContent>
+        </Dialog>
 
         {/* ── Appointments Section ── */}
         <Box sx={sectionSx}>

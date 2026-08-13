@@ -34,7 +34,7 @@ import {
   AddCircleOutlined,
   PersonAdd,
 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
@@ -87,7 +87,9 @@ const fieldSx = {
   },
 }
 
-export function NewAppointmentPage() {
+type NewAppointmentPageProps = { initialPendingVehicleId?: string; initialVehicleId?: string; initialCustomerId?: string; initialAction?: 'customer' | 'vehicle'; embedded?: boolean; onComplete?: (appointmentId?: string) => void; onCancel?: () => void }
+
+export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, initialCustomerId, initialAction, embedded = false, onComplete, onCancel }: NewAppointmentPageProps = {}) {
   const navigate = useNavigate()
   const toast = useToast()
   useCREData()
@@ -124,7 +126,7 @@ export function NewAppointmentPage() {
   }, [users, saRoleId])
 
   // Customer → Vehicle selection (customer-first flow)
-  const initVehicleId = searchParams.get('vehicleId') ?? ''
+  const initVehicleId = initialVehicleId ?? searchParams.get('vehicleId') ?? ''
   const initVehicle = useMemo(() => vehicles.find((v) => v.id === initVehicleId) ?? null, [vehicles, initVehicleId])
   const initCustomer = useMemo(() => (initVehicle ? customers.find((c) => c.id === initVehicle.customerId) ?? null : null), [customers, initVehicle])
 
@@ -153,15 +155,32 @@ export function NewAppointmentPage() {
   const [slotDate, setSlotDate] = useState(localDateToday())
   const [slotTime, setSlotTime] = useState('')
   const [notes, setNotes] = useState('')
-  const [gateEntryId, setGateEntryId] = useState(searchParams.get('pendingVehicleId') ?? '')
+  const [gateEntryId, setGateEntryId] = useState(initialPendingVehicleId ?? searchParams.get('pendingVehicleId') ?? '')
   const [saUserId, setSaUserId] = useState('')
   const linkedPendingVehicle = useMemo(() => pendingVehicles.find((item) => item.id === gateEntryId) ?? null, [pendingVehicles, gateEntryId])
 
-  const [customerDialogOpen, setCustomerDialogOpen] = useState(false)
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(initialAction === 'customer')
   const [customerDraft, setCustomerDraft] = useState({ fullName: '', phone: '', email: '' })
-  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false)
+  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(initialAction === 'vehicle')
   const [vehicleDraft, setVehicleDraft] = useState<{ registrationNo: string; make: string; model: string; vin: string; vehicleSize: CWVehicleSize }>({ registrationNo: '', make: '', model: '', vin: '', vehicleSize: 'Medium' })
   const [modalSaving, setModalSaving] = useState(false)
+
+  useEffect(() => {
+    const pending = pendingVehicles.find((item) => item.id === gateEntryId) ?? null
+    const knownVehicle = vehicles.find((item) => item.id === (initialVehicleId || pending?.vehicleId))
+      ?? (pending ? vehicles.find((item) => item.registrationNo.trim().replace(/\s+/g, " ").toUpperCase() === pending.registrationNo.trim().replace(/\s+/g, " ").toUpperCase()) : null)
+      ?? null
+    if (knownVehicle) {
+      setSelectedVehicle(knownVehicle)
+      setSelectedCustomer(customers.find((item) => item.id === knownVehicle.customerId) ?? null)
+    } else if (initialCustomerId) {
+      setSelectedCustomer(customers.find((item) => item.id === initialCustomerId) ?? null)
+    }
+    if (pending) {
+      setVehicleDraft((current) => ({ ...current, registrationNo: pending.registrationNo || current.registrationNo }))
+      if (initialAction === "customer" && !knownVehicle) setCustomerDraft((current) => ({ ...current, fullName: current.fullName || pending.intakerName || "", phone: current.phone || pending.intakerPhone || "" }))
+    }
+  }, [gateEntryId, initialVehicleId, initialCustomerId, initialAction, pendingVehicles, vehicles, customers])
 
   const [error, setError] = useState<string | null>(null)
   const [concernShopFilter, setConcernShopFilter] = useState('')
@@ -322,7 +341,7 @@ export function NewAppointmentPage() {
         addedBySA: false as const,
       }))
 
-      await workshopApi.createAppointment({
+      const createdAppointment = await workshopApi.createAppointment({
         customerId: selectedCustomer.id,
         vehicleId: selectedVehicle.id,
         slotDate: slotDate || undefined,
@@ -352,21 +371,24 @@ export function NewAppointmentPage() {
           ...pendingServiceItems,
         ],
       })
+      useCwStore.setState((state) => ({ appointments: [createdAppointment, ...state.appointments.filter((item) => item.id !== createdAppointment.id)] }))
 
       // Resolve pending vehicle if linked
       if (gateEntryId) {
         try {
-          await workshopApi.resolvePendingVehicle(gateEntryId, {
+          const resolvedPending = await workshopApi.resolvePendingVehicle(gateEntryId, {
             customerId: selectedCustomer.id,
             vehicleId: selectedVehicle.id,
           })
-        } catch {
-          // Non-fatal: gate entry may not match perfectly
+          useCwStore.setState((state) => ({ pendingVehicles: state.pendingVehicles.map((item) => item.id === resolvedPending.id ? resolvedPending : item) }))
+        } catch (cause) {
+          toast.warning(cause instanceof Error ? `Appointment saved, but Guard intake needs manual resolution: ` : "Appointment saved, but Guard intake needs manual resolution.")
         }
       }
 
-      navigate('/cre/appointments')
       toast.success('Appointment created successfully.')
+      if (onComplete) onComplete(createdAppointment.id)
+      else navigate('/cre/appointments')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -379,12 +401,12 @@ export function NewAppointmentPage() {
   )
 
   return (
-    <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
+    <Box sx={{ py: embedded ? 1 : { xs: 3, md: 4 }, px: embedded ? { xs: 0, sm: 1 } : { xs: 2, sm: 3, md: 4 } }}>
       <Stack spacing={3.5}>
         {/* ── Header ── */}
         <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-            <IconButton onClick={() => navigate('/cre/appointments')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+            <IconButton onClick={() => onCancel ? onCancel() : navigate('/cre/appointments')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
               <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
             </IconButton>
             <Box>
@@ -924,7 +946,7 @@ export function NewAppointmentPage() {
         <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
           <Button
             variant="outlined"
-            onClick={() => navigate('/cre/appointments')}
+            onClick={() => onCancel ? onCancel() : navigate('/cre/appointments')}
             sx={{ borderColor: colors.border.strong, color: colors.slate[700], borderRadius: '10px', fontWeight: 600, px: 2.5, '&:hover': { borderColor: colors.slate[400] } }}
           >
             Cancel
