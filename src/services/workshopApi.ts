@@ -1275,6 +1275,22 @@ export const workshopApi = {
     return request<ApiListResponse<Record<string, unknown>>>(`/api/method/workshop.api.test_drives.list${buildQuery(params)}`)
   },
 
+  async listServiceOrders(params: { company: string; shopId?: string; appointmentId?: string; status?: string; page?: number; pageSize?: number }): Promise<ApiListResponse<Record<string, unknown>>> {
+    return request<ApiListResponse<Record<string, unknown>>>(`/api/method/workshop.api.service_orders.list${buildQuery(params)}`)
+  },
+
+  async createServiceOrder(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.create_from_appointment', { method: 'POST', body: { data: input } })
+  },
+
+  async updateServiceOrder(id: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.update', { method: 'POST', body: { id, data: input } })
+  },
+
+  async submitServiceOrder(id: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.submit', { method: 'POST', body: { id } })
+  },
+
   async approveTestDrive(id: string, note?: string): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.test_drives.approve', { method: 'POST', body: { id, data: { note } } })
   },
