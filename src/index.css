@@ -14,3 +14,29 @@ html[lang='bn-BD'] select,
 html[lang='bn-BD'] textarea {
   font-family: 'Noto Sans Bengali', 'Hind Siliguri', 'Nirmala UI', system-ui, sans-serif;
 }
+.cw-auto-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-height: 52px;
+  padding: 0.65rem 1rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  font: 600 0.78rem/1.2 system-ui, sans-serif;
+}
+.cw-auto-pagination button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #dbe2ea;
+  border-radius: 9px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+.cw-auto-pagination button:disabled { opacity: 0.35; cursor: default; }
+@media (max-width: 600px) {
+  .cw-auto-pagination { justify-content: space-between; position: sticky; left: 0; }
+}

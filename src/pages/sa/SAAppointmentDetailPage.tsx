@@ -45,6 +45,7 @@ import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { WhatsAppHistory } from '../../components/WhatsAppHistory'
 import { useToast } from '../../hooks/useToast'
+import { workshopApi } from '../../services/workshopApi'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWInspectionCheck } from '../../types/cw'
@@ -100,6 +101,7 @@ export function SAAppointmentDetailPage() {
   const assignQC = useCwStore((s) => s.assignQC)
   const removeAppointmentConcern = useCwStore((s) => s.removeAppointmentConcern)
   const partRequests = useCwStore((s) => s.partRequests)
+  const estimateLines = useCwStore((s) => s.estimateLines)
   const shops = useCwStore((s) => s.shops)
   const concernCategories = useCwStore((s) => s.concernCategories)
   const roles = useCwStore((s) => s.roles)
@@ -143,6 +145,16 @@ export function SAAppointmentDetailPage() {
   const [addServiceRemark, setAddServiceRemark] = useState('')
   const [concernShopFilter, setConcernShopFilter] = useState('')
   const [serviceShopFilter, setServiceShopFilter] = useState('')
+
+  async function resolvePart(lineId: string, decision: 'accept' | 'reject' | 'return') {
+    const reason = decision === 'accept' ? '' : window.prompt(`Reason for ${decision}ing this part`)?.trim()
+    if (decision !== 'accept' && !reason) return
+    try {
+      const updated = await workshopApi.resolveEstimateFulfillment(lineId, decision, reason)
+      useCwStore.setState((state) => ({ estimateLines: state.estimateLines.map((line) => line.id === updated.id ? updated : line) }))
+      toast.success(decision === 'accept' ? 'Part accepted for workshop use.' : decision === 'return' ? 'Return request recorded for Parts.' : 'Part rejected and returned to procurement review.')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to update part fulfillment') }
+  }
 
 
   const activeShops = useMemo(() => shops.filter((s) => s.status === 'Active'), [shops])
@@ -622,6 +634,8 @@ export function SAAppointmentDetailPage() {
         })()}
 
         {/* ── Submit Inspection ── */}
+        {estimateLines.some((line) => line.appointmentId === appointmentId && ['In Stock', 'Partially Available', 'Parts Available'].includes(line.fulfillmentStatus ?? '') && line.status === 'Approved') ? <SectionCard title="Parts received from procurement" icon={<Build sx={{ fontSize: '1rem' }} />}><Stack spacing={1.25}>{estimateLines.filter((line) => line.appointmentId === appointmentId && ['In Stock', 'Partially Available', 'Parts Available'].includes(line.fulfillmentStatus ?? '') && line.status === 'Approved').map((line) => <Box key={line.id} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ alignItems: { md: 'center' } }}><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800 }}>{line.partName || line.description}</Typography><Typography sx={{ fontSize: '.78rem', color: colors.slate[500] }}>{line.partNumber || line.id} · Qty {line.quantity} · {line.fulfillmentStatus}</Typography></Box><Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}><Button size="small" variant="contained" color="success" onClick={() => void resolvePart(line.id, 'accept')}>Accept</Button><Button size="small" variant="outlined" color="warning" onClick={() => void resolvePart(line.id, 'reject')}>Reject</Button><Button size="small" variant="outlined" onClick={() => void resolvePart(line.id, 'return')}>Return</Button></Stack></Stack></Box>)}</Stack></SectionCard> : null}
+
         {isInspection && (
           <Button variant="contained" color="info" size="large" fullWidth
             sx={{ fontWeight: 900, py: 1.5, borderRadius: radii.md }} onClick={handleSubmitInspection}>

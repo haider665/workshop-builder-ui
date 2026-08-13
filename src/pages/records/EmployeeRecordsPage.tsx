@@ -20,6 +20,7 @@ import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIco
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
+import { useListPagination } from '../../components/ListPagination'
 
 export function EmployeeRecordsPage() {
   const navigate = useNavigate()
@@ -42,6 +43,7 @@ export function EmployeeRecordsPage() {
     if (!q) return base
     return base.filter((u) => u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
   }, [users, query])
+  const { pageRows, pagination } = useListPagination(filteredUsers)
 
   function tasksAssignedTo(userFullName: string) {
     return tasks.filter((t) => {
@@ -119,7 +121,7 @@ export function EmployeeRecordsPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredUsers.map((u) => {
+                {pageRows.map((u) => {
                   const roleNames = (u.roleIds ?? []).map((id) => roleNameById.get(id)).filter(Boolean)
                   const assignedCount = tasksAssignedTo(u.fullName).length
                   return (
@@ -161,6 +163,7 @@ export function EmployeeRecordsPage() {
               <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No users match.</Typography>
             </Box>
           )}
+          {filteredUsers.length ? pagination : null}
         </Box>
       </Stack>
     </Box>

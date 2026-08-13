@@ -1698,6 +1698,10 @@ export const workshopApi = {
     return request<Record<string, unknown>>('/api/method/workshop.api.reports.admin_summary')
   },
 
+  async getTechnicianPerformance(params: { fromDate?: string; toDate?: string; userId?: string } = {}): Promise<{ data: Array<{ userId: string; fullName: string; completed: number; standardMinutes: number; activeMinutes: number; varianceMinutes: number; efficiencyPercent: number | null; unstandardized: number }>; policy: { informationalOnly: boolean } }> {
+    return request(`/api/method/workshop.api.reports.technician_performance${buildQuery(params)}`)
+  },
+
   async getF1Report(params: {
     shopId?: string
     userId?: string
@@ -1832,6 +1836,10 @@ export const workshopApi = {
 
   async submitEstimateLines(appointmentId: string, lineIds: string[]): Promise<{ submitted: number; lockedAt: string; lines: Array<{ id: string; status: import('../types/cw').CWEstimateLineStatus; sellPrice?: number }> }> {
     return request('/api/method/workshop.api.estimate_lines.submit', { method: 'POST', body: { data: { appointmentId, lineIds } } })
+  },
+
+  async resolveEstimateFulfillment(id: string, decision: 'accept' | 'reject' | 'return', reason = '', evidenceUrls: string[] = []): Promise<import('../types/cw').CWEstimateLine> {
+    return request('/api/method/workshop.api.estimate_lines.resolve_fulfillment', { method: 'POST', body: { data: { id, decision, reason, evidenceUrls } } })
   },
 
   async listPurchaseOrders(params: { status?: import('../types/cw').CWPurchaseOrderStatus; vendorId?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWPurchaseOrder>> {

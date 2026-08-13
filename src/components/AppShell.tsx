@@ -41,6 +41,7 @@ import {
   ShoppingCart,
   Store,
   Storefront,
+  UploadFile,
 } from '@mui/icons-material'
 import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
@@ -49,6 +50,7 @@ import type { Role } from '../types/roles'
 import { supportedLocales, useLocalization } from '../i18n/LocalizationContext'
 import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
+import { UniversalTablePagination } from './UniversalTablePagination'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -403,6 +405,14 @@ export function AppShell() {
 
       {/* ── User Footer ── */}
       <Box sx={{ p: 1.5 }}>
+        {user?.roles.includes('Admin') ? (
+          <Tooltip title={t('Data Operations')} placement="right">
+            <ListItemButton component="a" href={`${mainSystemUrl}/data-operations`} sx={{ mb: 1, borderRadius: '10px', minHeight: 40, color: sb.text, justifyContent: sidebarCollapsed && mdUp ? 'center' : 'flex-start', px: sidebarCollapsed && mdUp ? 1 : 1.5 }}>
+              <UploadFile sx={{ fontSize: 19 }} />
+              {!sidebarCollapsed || !mdUp ? <ListItemText primary={t('Data Operations')} sx={{ ml: 1.25, '& .MuiListItemText-primary': { fontSize: '0.8rem', fontWeight: 700 } }} /> : null}
+            </ListItemButton>
+          </Tooltip>
+        ) : null}
         <Tooltip title={t('Main system')} placement="right">
           <ListItemButton component="a" href={mainSystemUrl} sx={{ mb: 1, borderRadius: '10px', minHeight: 40, color: sb.text, justifyContent: sidebarCollapsed && mdUp ? 'center' : 'flex-start', px: sidebarCollapsed && mdUp ? 1 : 1.5 }}>
             <Home sx={{ fontSize: 19 }} />
@@ -633,6 +643,7 @@ export function AppShell() {
           </Box>
         )}
         <Outlet />
+        <UniversalTablePagination />
       </Box>
     </Box>
   )

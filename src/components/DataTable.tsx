@@ -192,6 +192,7 @@ export function DataTable<T>({
 
   return (
     <Box
+      data-cw-data-table
       sx={{
         borderRadius: radii.lg,
         border: `1px solid ${colors.border.default}`,

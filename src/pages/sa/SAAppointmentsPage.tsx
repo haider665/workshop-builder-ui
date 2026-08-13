@@ -30,6 +30,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
+import { useListPagination } from '../../components/ListPagination'
 
 import type { CWAppointmentStatus } from '../../types/cw'
 
@@ -199,6 +200,7 @@ export function SAAppointmentsPage() {
     }
     return readyApptIds.size
   }, [relevant, partRequests])
+  const { pageRows, pagination } = useListPagination(filtered)
 
   return (
     <Box sx={{ px: pageLayout.px, py: pageLayout.py, minHeight: '100vh', bgcolor: colors.bg.page }}>
@@ -346,7 +348,7 @@ export function SAAppointmentsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filtered.map((appt) => {
+                  {pageRows.map((appt) => {
                     const v = vehicles.find((x) => x.id === appt.vehicleId)
                     const c = customers.find((x) => x.id === appt.customerId)
                     const total = appt.serviceItems.reduce((s, i) => s + i.price, 0)
@@ -421,6 +423,7 @@ export function SAAppointmentsPage() {
               </Table>
             </TableContainer>
           )}
+          {filtered.length ? pagination : null}
         </Box>
       </Stack>
     </Box>

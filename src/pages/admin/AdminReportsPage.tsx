@@ -19,16 +19,19 @@ import {
   Store,
   TrendingUp,
 } from '@mui/icons-material'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SectionCard } from '../../components/SectionCard'
 import { StatCard } from '../../components/StatCard'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { useCwStore } from '../../store/cwStore'
 import { colors } from '../../theme/tokens'
+import { workshopApi } from '../../services/workshopApi'
 
 /* ─────────────────── Main Component ─────────────────────── */
 
 export function AdminReportsPage() {
+	const [performance, setPerformance] = useState<Array<{ userId: string; fullName: string; completed: number; standardMinutes: number; activeMinutes: number; varianceMinutes: number; efficiencyPercent: number | null; unstandardized: number }>>([])
+	const [performanceError, setPerformanceError] = useState('')
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
@@ -37,6 +40,8 @@ export function AdminReportsPage() {
   const teams = useCwStore((s) => s.teams)
   const bays = useCwStore((s) => s.bays)
   const users = useCwStore((s) => s.users)
+
+	useEffect(() => { let active = true; workshopApi.getTechnicianPerformance().then((result) => { if (active) setPerformance(result.data) }).catch((error) => { if (active) setPerformanceError(error instanceof Error ? error.message : 'Unable to load technician performance') }); return () => { active = false } }, [])
 
   // ── Computed Metrics ──
   const activeAppts = useMemo(
@@ -292,6 +297,13 @@ export function AdminReportsPage() {
             </TableBody>
           </Table>
         </SectionCard>
+
+		<SectionCard title="Labour Standard & Technician Performance" icon={<TrendingUp sx={{ fontSize: '1rem' }} />}>
+		  <Typography sx={{ mb: 2, color: colors.slate[500], fontSize: '.8rem' }}>Active time excludes recorded pauses. Results are operational guidance until HR approves the performance policy.</Typography>
+		  {performanceError ? <Typography color="error" sx={{ mb: 1 }}>{performanceError}</Typography> : null}
+		  <Table size="small"><TableHead><TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}><TableCell>Technician</TableCell><TableCell align="right">Completed</TableCell><TableCell align="right">LTS</TableCell><TableCell align="right">Active</TableCell><TableCell align="right">Variance</TableCell><TableCell align="right">Efficiency</TableCell></TableRow></TableHead><TableBody>{performance.map((row) => <TableRow key={row.userId} sx={{ '& .MuiTableCell-body': bodyCellSx }}><TableCell><Typography sx={{ fontWeight: 700 }}>{row.fullName}</Typography><Typography sx={{ fontSize: '.72rem', color: colors.slate[500] }}>{row.unstandardized ? `${row.unstandardized} without standard` : 'All work standardized'}</Typography></TableCell><TableCell align="right">{row.completed}</TableCell><TableCell align="right">{Math.round(row.standardMinutes)} min</TableCell><TableCell align="right">{Math.round(row.activeMinutes)} min</TableCell><TableCell align="right">{Math.round(row.varianceMinutes)} min</TableCell><TableCell align="right"><Chip size="small" label={row.efficiencyPercent == null ? '—' : `${row.efficiencyPercent}%`} color={row.efficiencyPercent != null && row.efficiencyPercent >= 90 ? 'success' : 'default'} /></TableCell></TableRow>)}</TableBody></Table>
+		  {!performance.length && !performanceError ? <Typography sx={{ py: 2, color: colors.slate[500] }}>Complete technician timer assignments to populate this report.</Typography> : null}
+		</SectionCard>
       </Stack>
     </Box>
   )

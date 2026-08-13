@@ -23,17 +23,21 @@ type StatCardProps = {
   /** @deprecated Use `gradient` instead — auto-mapped to gradient */
   color?: string
   details?: { label: string; value: number | string }[]
+  onClick?: () => void
+  drilldownLabel?: string
 }
 
-export function StatCard({ icon, title, label, value, gradient, color, details }: StatCardProps) {
+export function StatCard({ icon, title, label, value, gradient, color, details, onClick, drilldownLabel }: StatCardProps) {
   const displayTitle = title ?? label ?? ''
   const displayGradient = gradient ?? (color ? `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)` : 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)')
+  const drilldown = onClick ?? (() => document.querySelector('main table, main [data-record-list]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   return (
-    <Box sx={{
+    <Box role="button" tabIndex={0} aria-label={drilldownLabel ?? `View ${displayTitle} details`} onClick={drilldown} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); drilldown() } }} sx={{
       flex: 1, minWidth: 180, borderRadius: radii.lg, background: displayGradient,
       color: '#fff', p: 2.5, position: 'relative', overflow: 'hidden',
       boxShadow: '0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.1)',
       transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1), box-shadow 0.3s cubic-bezier(0.32,0.72,0,1)',
+      cursor: 'pointer',
       '&:hover': {
         transform: 'translateY(-4px)',
         boxShadow: '0 12px 36px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.12)',
@@ -49,6 +53,7 @@ export function StatCard({ icon, title, label, value, gradient, color, details }
         width: 100, height: 100, borderRadius: '50%',
         background: 'rgba(255,255,255,0.04)', pointerEvents: 'none',
       },
+      '&:focus-visible': { outline: '3px solid rgba(59,130,246,.55)', outlineOffset: 3 },
       ...cardShine,
     }}>
       {/* Shine sweep overlay */}

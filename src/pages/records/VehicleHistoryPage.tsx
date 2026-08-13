@@ -20,6 +20,7 @@ import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import type { CWJob, CWTask } from '../../types/cw'
+import { useListPagination } from '../../components/ListPagination'
 
 function lastActivityIsoForRegistration(reg: string, tasks: CWTask[], jobs: CWJob[]) {
   const taskLatest = tasks
@@ -57,6 +58,7 @@ export function VehicleHistoryPage() {
     if (!q) return allRegs
     return allRegs.filter((r) => r.toLowerCase().includes(q))
   }, [allRegs, query])
+  const { pageRows, pagination } = useListPagination(filteredRegs)
 
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -126,7 +128,7 @@ export function VehicleHistoryPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredRegs.map((reg) => {
+                {pageRows.map((reg) => {
                   const lastIso = lastActivityIsoForRegistration(reg, tasks, jobs)
                   return (
                     <TableRow key={reg} hover sx={{ '& .MuiTableCell-body': bodyCellSx }}>
@@ -158,6 +160,7 @@ export function VehicleHistoryPage() {
               <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>No vehicles match.</Typography>
             </Box>
           )}
+          {filteredRegs.length ? pagination : null}
         </Box>
       </Stack>
     </Box>

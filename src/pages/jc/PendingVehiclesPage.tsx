@@ -22,6 +22,7 @@ import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIco
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
+import { useListPagination } from '../../components/ListPagination'
 
 /* ─── chip helpers (defined outside component to prevent focus-loss) ─── */
 
@@ -69,6 +70,7 @@ export function PendingVehiclesPage() {
 
   const pendingCount = useMemo(() => pendingVehicles.filter((p) => p.status === 'Pending').length, [pendingVehicles])
   const completedCount = useMemo(() => pendingVehicles.filter((p) => p.status !== 'Pending').length, [pendingVehicles])
+  const { pageRows, pagination } = useListPagination(filtered)
 
   function labelCustomer(customerId?: string) {
     if (!customerId) return '—'
@@ -238,7 +240,7 @@ export function PendingVehiclesPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filtered.map((p) => {
+              {pageRows.map((p) => {
                 const appt = p.appointmentId ? appointmentById.get(p.appointmentId) : undefined
                 return (
                   <TableRow
@@ -309,6 +311,7 @@ export function PendingVehiclesPage() {
               )}
             </TableBody>
           </Table>
+          {filtered.length ? pagination : null}
         </Box>
       </Stack>
     </Box>

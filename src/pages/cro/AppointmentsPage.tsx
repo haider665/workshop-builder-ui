@@ -32,6 +32,7 @@ import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
+import { useListPagination } from '../../components/ListPagination'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -217,6 +218,7 @@ export function AppointmentsPage() {
       return true
     })
   }, [appointments, customers, vehicles, query, filterStatus])
+  const { pageRows, pagination } = useListPagination(filtered)
 
   // Stats
   const totalCount = appointments.length
@@ -352,7 +354,7 @@ export function AppointmentsPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filtered.map((appt) => {
+                {pageRows.map((appt) => {
                   const cust = customers.find((c) => c.id === appt.customerId)
                   const veh = vehicles.find((v) => v.id === appt.vehicleId)
                   const totalBDT = appt.serviceItems?.reduce((s, i) => s + i.price, 0) ?? 0
@@ -443,6 +445,7 @@ export function AppointmentsPage() {
               </TableBody>
             </Table>
           )}
+          {filtered.length ? pagination : null}
         </Box>
       </Stack>
     </Box>

@@ -30,6 +30,7 @@ import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
+import { useListPagination } from '../../components/ListPagination'
 
 const SE_STATUSES: CWAppointmentStatus[] = [
   'Diagnosis Assigned',
@@ -152,6 +153,7 @@ export function SEAppointmentsPage() {
   const diagnosisAssigned = relevant.filter((a) => a.status === 'Diagnosis Assigned' || a.status === 'Service Assigned').length
   const inProgress = relevant.filter((a) => a.status === 'Diagnosis In Progress' || a.status === 'Service In Progress').length
   const completed = relevant.filter((a) => a.status === 'Diagnosis Complete' || a.status === 'Service Complete').length
+  const { pageRows, pagination } = useListPagination(filtered)
 
   return (
     <Box sx={{ px: pageLayout.px, py: pageLayout.py, minHeight: '100vh', bgcolor: colors.bg.page }}>
@@ -289,7 +291,7 @@ export function SEAppointmentsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filtered.map((a) => {
+                  {pageRows.map((a) => {
                     const v = vehicles.find((v) => v.id === a.vehicleId)
                     const c = customers.find((c) => c.id === a.customerId)
                     return (
@@ -344,6 +346,7 @@ export function SEAppointmentsPage() {
               </Table>
             </TableContainer>
           )}
+          {filtered.length ? pagination : null}
         </Box>
       </Stack>
     </Box>
