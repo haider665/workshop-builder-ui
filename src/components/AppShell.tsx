@@ -128,6 +128,7 @@ export function AppShell() {
   const mdUp = useMediaQuery(theme.breakpoints.up('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('cw.workshop.sidebar.collapsed') === 'true')
+  const [footerCollapsed, setFooterCollapsed] = useState(() => localStorage.getItem('cw.workshop.sidebar.footer.collapsed') === 'true')
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem('cw.workshop.sidebar.sections') ?? '{}') as Record<string, boolean> } catch { return {} }
   })
@@ -161,6 +162,7 @@ export function AppShell() {
 
 
   useEffect(() => { localStorage.setItem('cw.workshop.sidebar.collapsed', String(sidebarCollapsed)) }, [sidebarCollapsed])
+  useEffect(() => { localStorage.setItem('cw.workshop.sidebar.footer.collapsed', String(footerCollapsed)) }, [footerCollapsed])
   useEffect(() => { localStorage.setItem('cw.workshop.sidebar.sections', JSON.stringify(collapsedSections)) }, [collapsedSections])
 
   const navItems = useMemo<NavItem[]>(
@@ -438,6 +440,20 @@ export function AppShell() {
 
       {/* ── User Footer ── */}
       <Box sx={{ p: 1.5 }}>
+        {(!sidebarCollapsed || !mdUp) ? (
+          <ListItemButton onClick={() => setFooterCollapsed((value) => !value)} aria-expanded={!footerCollapsed} sx={{ mb: footerCollapsed ? 0 : 0.75, borderRadius: '10px', minHeight: 38, color: sb.textMuted, px: 1.5, '&:hover': { color: sb.text, bgcolor: sb.bgHover } }}>
+            <Settings sx={{ fontSize: 18 }} />
+            <ListItemText primary={t('Settings')} sx={{ ml: 1.25, '& .MuiListItemText-primary': { fontSize: '0.72rem', fontWeight: 750, letterSpacing: '0.04em', textTransform: 'uppercase' } }} />
+            {footerCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}
+          </ListItemButton>
+        ) : (
+          <Tooltip title={footerCollapsed ? t('Show settings') : t('Hide settings')} placement="right">
+            <IconButton onClick={() => setFooterCollapsed((value) => !value)} size="small" sx={{ width: '100%', mb: footerCollapsed ? 0 : 0.75, borderRadius: '10px', color: sb.textMuted }}>
+              {footerCollapsed ? <ExpandMore /> : <ExpandLess />}
+            </IconButton>
+          </Tooltip>
+        )}
+        <Collapse in={!footerCollapsed} timeout="auto" unmountOnExit>
         {user?.roles.includes('Admin') ? (
           <Tooltip title={t('Data Operations')} placement="right">
             <ListItemButton component="a" href={`${mainSystemUrl}/data-operations`} sx={{ mb: 1, borderRadius: '10px', minHeight: 40, color: sb.text, justifyContent: sidebarCollapsed && mdUp ? 'center' : 'flex-start', px: sidebarCollapsed && mdUp ? 1 : 1.5 }}>
@@ -562,6 +578,7 @@ export function AppShell() {
           </IconButton>
         </Box>
         </> : null}
+        </Collapse>
       </Box>
     </Box>
   )
@@ -611,6 +628,11 @@ export function AppShell() {
               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', ml: 1, color: '#fff' }}>
                 {t('Continental Works')}
               </Typography>
+              <Tooltip title={t('Logout')}>
+                <IconButton onClick={logout} aria-label={t('Logout')} sx={{ ml: 'auto', color: '#fff', '&:hover': { bgcolor: 'rgba(239,68,68,0.2)' } }}>
+                  <Logout />
+                </IconButton>
+              </Tooltip>
             </Box>
             <Drawer
               variant="temporary"
@@ -684,6 +706,11 @@ export function AppShell() {
             <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary', display: { xs: 'none', lg: 'block' } }}>
               {t('Expand a section to continue; completed information stays available without crowding the page.')}
             </Typography>
+            <Tooltip title={t('Logout')}>
+              <IconButton onClick={logout} aria-label={t('Logout')} size="small" sx={{ ml: { xs: 'auto', lg: 0 }, color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'error.50' } }}>
+                <Logout sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
           </Box>
         )}
         <Outlet />
