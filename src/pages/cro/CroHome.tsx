@@ -115,15 +115,18 @@ function DashStatCard({
   value,
   gradient,
   details,
+  onClick,
 }: {
   icon: React.ReactNode
   title: string
   value: number
   gradient: string
   details?: { label: string; value: number }[]
+  onClick?: () => void
 }) {
   return (
     <Box
+      role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && onClick) { event.preventDefault(); onClick() } }}
       sx={{
         flex: 1,
         minWidth: 200,
@@ -135,6 +138,8 @@ function DashStatCard({
         overflow: 'hidden',
         boxShadow: '0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.1)',
         transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1), box-shadow 0.3s cubic-bezier(0.32,0.72,0,1)',
+        cursor: onClick ? 'pointer' : 'default',
+        '&:focus-visible': { outline: '3px solid rgba(59,130,246,.55)', outlineOffset: 3 },
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: '0 12px 36px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.12)',
@@ -397,6 +402,7 @@ export function CroHome() {
             icon={<CalendarMonth fontSize="small" />}
             title="Orders"
             value={todayAppointments.length}
+            onClick={() => navigate('/cre/appointments')}
             gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
             details={[
               { label: 'Walk-in orders', value: walkinOrders },
@@ -407,6 +413,7 @@ export function CroHome() {
             icon={<Schedule fontSize="small" />}
             title="Active / In Progress"
             value={activeAppointments.length}
+            onClick={() => navigate('/cre/appointments')}
             gradient="linear-gradient(135deg, #0F766E 0%, #14B8A6 100%)"
             details={[
               { label: 'Individual', value: customers.filter((c) => c.type === 'Individual').length },
@@ -417,19 +424,21 @@ export function CroHome() {
             icon={<People fontSize="small" />}
             title="Total Customers"
             value={customers.length}
+            onClick={() => navigate('/cre/customers')}
             gradient="linear-gradient(135deg, #334155 0%, #475569 100%)"
           />
           <DashStatCard
             icon={<DirectionsCar fontSize="small" />}
             title="Walk-ins Pending"
             value={walkIns.length}
+            onClick={() => window.requestAnimationFrame(() => document.getElementById('cre-walkins')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))}
             gradient={walkIns.length > 0 ? 'linear-gradient(135deg, #9333EA 0%, #A855F7 100%)' : 'linear-gradient(135deg, #334155 0%, #475569 100%)'}
           />
         </Stack>
 
         {/* ── Walk-ins Section ── */}
         {walkIns.length > 0 && (
-          <Box sx={sectionSx}>
+          <Box id="cre-walkins" sx={sectionSx}>
             <Box sx={{ px: 3, pt: 2.5, pb: 2 }}>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>

@@ -104,16 +104,17 @@ const cardShine = {
 } as const
 
 function StatCard({
-  icon, title, value, gradient,
+  icon, title, value, gradient, onClick,
 }: {
-  icon: React.ReactNode; title: string; value: number; gradient: string
+  icon: React.ReactNode; title: string; value: number; gradient: string; onClick?: () => void
 }) {
   return (
-    <Box sx={{
+    <Box role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && onClick) { event.preventDefault(); onClick() } }} sx={{
       flex: 1, minWidth: 180, borderRadius: radii.lg, background: gradient,
       color: '#fff', p: 2.5, position: 'relative', overflow: 'hidden',
       boxShadow: '0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.1)',
       transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1), box-shadow 0.3s cubic-bezier(0.32,0.72,0,1)',
+      cursor: onClick ? 'pointer' : 'default', '&:focus-visible': { outline: '3px solid rgba(59,130,246,.55)', outlineOffset: 3 },
       '&:hover': {
         transform: 'translateY(-4px)',
         boxShadow: '0 12px 36px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.12)',
@@ -195,10 +196,13 @@ export function AppointmentsPage() {
 
   const [query, setQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<CWAppointmentStatus | ''>('')
+  const [completionScope, setCompletionScope] = useState<'all' | 'active' | 'completed'>('all')
 
   const filtered = useMemo(() => {
     const q = query.trim()
     return appointments.filter((appt) => {
+      if (completionScope === 'active' && (appt.status === 'Released' || appt.status === 'Payment Done')) return false
+      if (completionScope === 'completed' && appt.status !== 'Released' && appt.status !== 'Payment Done') return false
       if (filterStatus && appt.status !== filterStatus) return false
       if (q) {
         const cust = customers.find((c) => c.id === appt.customerId)
@@ -217,7 +221,12 @@ export function AppointmentsPage() {
       }
       return true
     })
-  }, [appointments, customers, vehicles, query, filterStatus])
+  }, [appointments, completionScope, customers, vehicles, query, filterStatus])
+
+  function drillInto(scope: 'all' | 'active' | 'completed') {
+    setCompletionScope(scope); setFilterStatus(''); setQuery('')
+    window.requestAnimationFrame(() => document.getElementById('appointment-records')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   const { pageRows, pagination } = useListPagination(filtered)
 
   // Stats
@@ -265,24 +274,27 @@ export function AppointmentsPage() {
             icon={<CalendarMonth fontSize="small" />}
             title="Total"
             value={totalCount}
+            onClick={() => drillInto('all')}
             gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
           />
           <StatCard
             icon={<HourglassTop fontSize="small" />}
             title="Active"
             value={activeCount}
+            onClick={() => drillInto('active')}
             gradient="linear-gradient(135deg, #0F766E 0%, #14B8A6 100%)"
           />
           <StatCard
             icon={<CheckCircle fontSize="small" />}
             title="Completed"
             value={completedCount}
+            onClick={() => drillInto('completed')}
             gradient="linear-gradient(135deg, #047857 0%, #10B981 100%)"
           />
         </Stack>
 
         {/* ── Table Section ── */}
-        <Box sx={sectionSx}>
+        <Box id="appointment-records" sx={sectionSx}>
           {/* Header with search + filter */}
           <Box sx={{ px: 3, pt: 2.5, pb: 2, borderBottom: `1px solid ${colors.border.default}` }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>

@@ -79,15 +79,18 @@ function DashStatCard({
   value,
   gradient,
   details,
+  onClick,
 }: {
   icon: React.ReactNode
   title: string
   value: number
   gradient: string
   details?: { label: string; value: number }[]
+  onClick?: () => void
 }) {
   return (
     <Box
+      role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && onClick) { event.preventDefault(); onClick() } }}
       sx={{
         flex: 1,
         minWidth: 200,
@@ -99,6 +102,8 @@ function DashStatCard({
         overflow: 'hidden',
         boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        cursor: onClick ? 'pointer' : 'default',
+        '&:focus-visible': { outline: '3px solid rgba(59,130,246,.55)', outlineOffset: 3 },
         '&:hover': {
           transform: 'translateY(-2px)',
           boxShadow: '0 8px 28px rgba(0,0,0,0.2)',
@@ -322,6 +327,11 @@ export function TechnicianDashboardPage() {
     year: 'numeric',
   })
 
+  function drillInto(scope: 'active' | 'completed' | 'all') {
+    setSearchQuery('')
+    window.requestAnimationFrame(() => document.getElementById(scope === 'completed' ? 'technician-completed' : 'technician-active')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
       <Stack spacing={3.5}>
@@ -360,6 +370,7 @@ export function TechnicianDashboardPage() {
             icon={<Engineering fontSize="small" />}
             title="Active Tasks"
             value={active.length}
+            onClick={() => drillInto('active')}
             gradient="linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
             details={[
               { label: 'Diagnosis', value: concernCount },
@@ -371,12 +382,14 @@ export function TechnicianDashboardPage() {
             icon={<CheckCircle fontSize="small" />}
             title="Completed"
             value={completed.length}
+            onClick={() => drillInto('completed')}
             gradient="linear-gradient(135deg, #047857 0%, #10B981 100%)"
           />
           <DashStatCard
             icon={<Assignment fontSize="small" />}
             title="Total Assigned"
             value={myTasks.length}
+            onClick={() => drillInto('all')}
             gradient="linear-gradient(135deg, #334155 0%, #475569 100%)"
           />
         </Stack>
@@ -425,7 +438,7 @@ export function TechnicianDashboardPage() {
         </Box>
 
         {/* ── Active Tasks ── */}
-        <Box sx={sectionSx}>
+        <Box id="technician-active" sx={sectionSx}>
           <Box sx={{ px: 3, pt: 2.5, pb: 2 }}>
             <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
               <Box>
@@ -531,7 +544,7 @@ export function TechnicianDashboardPage() {
 
         {/* ── Completed Tasks ── */}
         {completed.length > 0 && (
-          <Box sx={sectionSx}>
+          <Box id="technician-completed" sx={sectionSx}>
             <Box sx={{ px: 3, pt: 2.5, pb: 2 }}>
               <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: '1.05rem', color: colors.slate[900] }}>
