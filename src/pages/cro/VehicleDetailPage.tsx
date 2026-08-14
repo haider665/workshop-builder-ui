@@ -97,6 +97,14 @@ export function VehicleDetailPage() {
     workshopApi.vehicleOwnershipHistory(vehicleId).then((result) => setOwnershipHistory(result.data)).catch(() => setOwnershipHistory([]))
   }, [vehicleId])
 
+  const serviceHistory = useMemo(() => {
+    if (!vehicle) return []
+    return appointments.filter((a) => a.vehicleId === vehicle.id).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((a, idx) => {
+      const sa = a.assignedSAUserId ? users.find((u) => u.id === a.assignedSAUserId) : null
+      return { id:a.id, jobId:`AP-${String(idx + 1).padStart(3, '0')}`, vehicle:`${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim() || vehicle.registrationNo, regNo:vehicle.registrationNo, serviceAdvisor:sa?.fullName ?? '—', date:a.slotDate ? `${a.slotTime ?? ''}\n${a.slotDate}` : '—', deliveryDate:a.slotDate ? `${a.slotTime ?? ''}\n${a.slotDate}` : 'N/A', mileage:typeof vehicle.odometerKm === 'number' ? `${vehicle.odometerKm.toLocaleString()}km` : '—' }
+    })
+  }, [appointments, vehicle, users])
+
   if (!vehicle) {
     return (
       <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -148,27 +156,6 @@ export function VehicleDetailPage() {
     } catch (error) { setTransferError(error instanceof Error ? error.message : 'Ownership transfer failed') }
     finally { setSaving(false) }
   }
-
-  // Service history from appointments
-  const serviceHistory = useMemo(() => {
-    return appointments
-      .filter((a) => a.vehicleId === v.id)
-      .slice()
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((a, idx) => {
-        const sa = a.assignedSAUserId ? users.find((u) => u.id === a.assignedSAUserId) : null
-        return {
-          id: a.id,
-          jobId: `AP-${String(idx + 1).padStart(3, '0')}`,
-          vehicle: `${v.make ?? ''} ${v.model ?? ''}`.trim() || v.registrationNo,
-          regNo: v.registrationNo,
-          serviceAdvisor: sa?.fullName ?? '—',
-          date: a.slotDate ? `${a.slotTime ?? ''}\n${a.slotDate}` : '—',
-          deliveryDate: a.slotDate ? `${a.slotTime ?? ''}\n${a.slotDate}` : 'N/A',
-          mileage: typeof v.odometerKm === 'number' ? `${v.odometerKm.toLocaleString()}km` : '—',
-        }
-      })
-  }, [appointments, v, users])
 
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>

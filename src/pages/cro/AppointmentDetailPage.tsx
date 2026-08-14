@@ -176,6 +176,18 @@ export function AppointmentDetailPage() {
     }
   }, [catalogServices, shopById])
 
+  const [waDialogOpen, setWaDialogOpen] = useState(false)
+  const [waMessage, setWaMessage] = useState('')
+  const [waDialogPurpose, setWaDialogPurpose] = useState<'concern-approval' | 'service-approval' | 'payment' | 'reply'>('concern-approval')
+  const [approvalNote, setApprovalNote] = useState('')
+  const qcRoleId = useMemo(() => roles.find((r) => r.name === 'QC')?.id, [roles])
+  const activeQCUsers = useMemo(() => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)), [users, qcRoleId])
+  const [selectedQCUserId, setSelectedQCUserId] = useState('')
+  const [selectedSAUserId, setSelectedSAUserId] = useState('')
+  const saRoleId = useMemo(() => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id, [roles])
+  const activeSAUsers = useMemo(() => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)), [users, saRoleId])
+  const assignedSA = useMemo(() => (appt ? users.find((u) => u.id === appt.assignedSAUserId) : null), [users, appt])
+
   if (!appt) {
     return (
       <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -201,35 +213,6 @@ export function AppointmentDetailPage() {
   const canAssignQC = isServiceComplete
   const canSendPaymentWA = isQCApproved
   const canConfirmPayment = isPaymentPending
-
-  // WhatsApp dialog state
-  const [waDialogOpen, setWaDialogOpen] = useState(false)
-  const [waMessage, setWaMessage] = useState('')
-  const [waDialogPurpose, setWaDialogPurpose] = useState<'concern-approval' | 'service-approval' | 'payment' | 'reply'>('concern-approval')
-  const [approvalNote, setApprovalNote] = useState('')
-
-  // QC user selection
-  const qcRoleId = useMemo(() => roles.find((r) => r.name === 'QC')?.id, [roles])
-  const activeQCUsers = useMemo(
-    () => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)),
-    [users, qcRoleId],
-  )
-  const [selectedQCUserId, setSelectedQCUserId] = useState('')
-  const [selectedSAUserId, setSelectedSAUserId] = useState('')
-
-  // SA user list
-  const saRoleId = useMemo(
-    () => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id,
-    [roles],
-  )
-  const activeSAUsers = useMemo(
-    () => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)),
-    [users, saRoleId],
-  )
-  const assignedSA = useMemo(
-    () => (appt ? users.find((u) => u.id === appt.assignedSAUserId) : null),
-    [users, appt],
-  )
 
   function openWhatsApp(purpose: 'concern-approval' | 'service-approval' | 'payment') {
     setWaDialogPurpose(purpose)

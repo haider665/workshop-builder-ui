@@ -36,6 +36,7 @@ import { useCwStore } from '../../store/cwStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import { LiveCameraCapture } from '../../components/LiveCameraCapture'
 import { workshopApi } from '../../services/workshopApi'
+import type { RegistrationOcrResult } from '../../services/workshopApi'
 import type { CWAppointment, CWCustomer, CWGateVehicleDocument, CWIntakerType, CWJob, CWPendingVehicle, CWVehicle, CWVehicleDocumentType } from '../../types/cw'
 
 /* ─────────────────────── Types ─────────────────────────── */
@@ -158,6 +159,9 @@ export function GuardHome() {
   const [fuelLevel, setFuelLevel] = useState('')
   const [drivingLicensePhotoUrl, setDrivingLicensePhotoUrl] = useState('')
   const [vehicleDocuments, setVehicleDocuments] = useState<IntakeDocumentDraft[]>([])
+  const [platePhotoPreview, setPlatePhotoPreview] = useState('')
+  const [plateOcr, setPlateOcr] = useState<RegistrationOcrResult | null>(null)
+  const [plateOcrBusy, setPlateOcrBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [cameraOpen, setCameraOpen] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -266,6 +270,9 @@ export function GuardHome() {
     setIntakerPhotoPreview('')
     setDrivingLicensePhotoUrl('')
     setVehicleDocuments([])
+	if (platePhotoPreview) URL.revokeObjectURL(platePhotoPreview)
+	setPlatePhotoPreview('')
+	setPlateOcr(null)
   }
 
   function stopCamera() {
@@ -363,6 +370,35 @@ export function GuardHome() {
     } finally {
       setUploading(false)
     }
+  }
+
+  async function scanRegistrationPlate(file: File) {
+    if (platePhotoPreview) URL.revokeObjectURL(platePhotoPreview)
+    setPlatePhotoPreview(URL.createObjectURL(file))
+    setPlateOcr(null)
+    setPlateOcrBusy(true)
+    setError(null)
+    try {
+      const uploaded = await workshopApi.uploadFile(file, { isPrivate: true })
+      setPlateOcr(await workshopApi.readRegistrationPlate(uploaded.fileUrl))
+    } catch (scanError) {
+      setError(scanError instanceof Error ? scanError.message : 'Unable to read the registration plate.')
+    } finally {
+      setPlateOcrBusy(false)
+    }
+  }
+
+  function confirmDetectedRegistration() {
+    if (!plateOcr?.formatValid) return
+    const { city, region, vehicleClass, series, number } = plateOcr.components
+    setSearchMode('registration')
+    setRegCity(REG_CITIES.includes(city) ? city : '')
+    setRegRegion(REG_REGIONS.includes(region) ? region : '')
+    setRegClass(REG_CLASSES.includes(vehicleClass) ? vehicleClass : '')
+    setRegSeries(series)
+    setRegNumber(number)
+    setSuccessMessage(`Registration confirmed from camera: ${plateOcr.registrationNo}`)
+    setSuccessOpen(true)
   }
 
   function addVehicleDocument() {
@@ -918,6 +954,17 @@ export function GuardHome() {
                   <TextField value={regNumber} onChange={(e) => setRegNumber(e.target.value.replace(/[^0-9A-Za-z]/g, '').slice(0, 6))} label="Number" placeholder="4340" sx={{ width: { xs: '100%', sm: 120 } }} />
                 </Stack>
                 <Typography sx={{ mt: 1, fontSize: '0.82rem', color: colors.slate[500] }}>Entry: <strong>{searchValue || 'Dhaka-Metro-30-4340'}</strong></Typography>
+				<Box sx={{ mt: 2, p: { xs: 1.5, sm: 2 }, border: `1px solid ${colors.border.default}`, borderRadius: 2.5, bgcolor: colors.slate[50] }}>
+				  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
+				    <Box><Typography sx={{ fontWeight: 800, color: colors.slate[900] }}>Scan registration plate</Typography><Typography sx={{ fontSize: '.78rem', color: colors.slate[500] }}>Take a live rear-camera photo. Detection only prefills the form; the guard must confirm it.</Typography></Box>
+				    <LiveCameraCapture label={plateOcrBusy ? 'Reading plate…' : 'Take plate photo'} disabled={plateOcrBusy} filenamePrefix="registration-plate" onCapture={(file) => void scanRegistrationPlate(file)} />
+				  </Stack>
+				  {platePhotoPreview ? <Box component="img" src={platePhotoPreview} alt="Captured registration plate" sx={{ display: 'block', mt: 1.5, width: '100%', maxHeight: 210, objectFit: 'contain', borderRadius: 2, bgcolor: '#0f172a' }} /> : null}
+				  {plateOcrBusy ? <Alert severity="info" sx={{ mt: 1.5 }}>Reading the plate locally. Keep this screen open…</Alert> : null}
+				  {plateOcr ? <Alert severity={plateOcr.needsRetake ? 'warning' : 'success'} sx={{ mt: 1.5 }} action={!plateOcr.needsRetake ? <Button color="inherit" size="small" onClick={confirmDetectedRegistration}>Use this</Button> : undefined}>
+				    {plateOcr.needsRetake ? `Could not confidently validate “${plateOcr.rawText || 'no text'}”. Retake closer and straight-on, or enter it manually.` : `Detected ${plateOcr.registrationNo} · ${Math.round(plateOcr.confidence * 100)}% OCR confidence. Confirm before use.`}
+				  </Alert> : null}
+				</Box>
               </Box> : <TextField label="VIN" value={searchValue} onChange={(e) => setSearchValue(e.target.value)} placeholder="e.g. 1HGCM82633A004352" fullWidth slotProps={{ input: { sx: { fontSize: 28, fontWeight: 900, letterSpacing: 0.5 } }, inputLabel: { sx: { fontSize: 18, fontWeight: 700 } } }} />}
 
               <Divider sx={{ borderColor: colors.border.default }} />

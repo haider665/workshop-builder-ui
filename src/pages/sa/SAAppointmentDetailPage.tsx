@@ -164,6 +164,13 @@ export function SAAppointmentDetailPage() {
     return (cId: string) => catMap.get(cMap.get(cId)?.categoryId ?? '')?.shopId ?? ''
   }, [concerns, concernCategories])
 
+  const qcRoleId = useMemo(() => roles.find((r) => r.name === 'QC')?.id, [roles])
+  const activeQCUsers = useMemo(
+    () => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)),
+    [users, qcRoleId],
+  )
+  const [selectedQCUserId, setSelectedQCUserId] = useState('')
+
   if (!appt) {
     return (
       <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -195,14 +202,6 @@ export function SAAppointmentDetailPage() {
   const canSendPaymentWA = isQCApproved
   // SA can confirm payment
   const canConfirmPayment = isPaymentPending
-
-  // QC user selection
-  const qcRoleId = useMemo(() => roles.find((r) => r.name === 'QC')?.id, [roles])
-  const activeQCUsers = useMemo(
-    () => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)),
-    [users, qcRoleId],
-  )
-  const [selectedQCUserId, setSelectedQCUserId] = useState('')
 
   function handleSubmitInspection() {
     const invalidNotApplicable = inspChecks.find((check) => check.result === 'Not Applicable' && !check.notApplicableReason?.trim())

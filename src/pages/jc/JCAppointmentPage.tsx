@@ -178,6 +178,11 @@ export function JCAppointmentPage() {
     endLocal: string
   }>({ open: false, itemType: 'concern', itemId: '', itemName: '', bayId: '', seUserId: '', startLocal: '', endLocal: '' })
 
+  const failedServices = useMemo(
+    () => appt?.status === 'QC Rejected' ? appt.serviceItems.filter((s) => s.qcStatus === 'Failed') : [],
+    [appt],
+  )
+
   if (!appt) {
     return (
       <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -192,12 +197,6 @@ export function JCAppointmentPage() {
   const isServicePhase = appt.status === 'Service Approved'
   // Phase 3: QC Rejected → reassign SE for FAILED items only → Service Assigned
   const isQCRejectedPhase = appt.status === 'QC Rejected'
-
-  // Get QC-failed services for rework assignment (QC only verifies services)
-  const failedServices = useMemo(
-    () => isQCRejectedPhase ? appt.serviceItems.filter((s) => s.qcStatus === 'Failed') : [],
-    [isQCRejectedPhase, appt.serviceItems],
-  )
 
   function toIso(local: string) {
     if (!local) return ''

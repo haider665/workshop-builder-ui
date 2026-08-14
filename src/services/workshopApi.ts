@@ -70,6 +70,19 @@ export type ApiListResponse<T> = {
   }
 }
 
+export type RegistrationOcrResult = {
+  fileId: string
+  fileUrl: string
+  rawText: string
+  registrationNo: string
+  components: { city: string; region: string; vehicleClass: string; series: string; number: string }
+  confidence: number
+  engine: string
+  formatValid: boolean
+  requiresConfirmation: boolean
+  needsRetake: boolean
+}
+
 async function readMessage<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as FrappeResponse<T>
   return payload.message
@@ -223,6 +236,13 @@ export const workshopApi = {
 
   async uploadFile(file: File, opts: { folder?: string; isPrivate?: boolean } = {}) {
     return uploadFile({ file, ...opts })
+  },
+
+  async readRegistrationPlate(fileUrl: string): Promise<RegistrationOcrResult> {
+    return request<RegistrationOcrResult>('/api/method/workshop.api.ocr.registration_plate', {
+      method: 'POST',
+      body: { data: { fileUrl } },
+    })
   },
 
   async listCustomers(params: {

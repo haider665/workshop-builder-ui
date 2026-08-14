@@ -151,7 +151,7 @@ export function AppShell() {
         knownNotificationIds.current = new Set(notifications.map((item) => item.id))
         useCwStore.setState({ notifications })
         if (newest) window.dispatchEvent(new CustomEvent("cw:notification-toast", { detail: { message: newest.message || newest.title } }))
-      } catch { }
+      } catch { /* Realtime notification polling is best-effort. */ }
     }
     void syncNotifications()
     const timer = window.setInterval(() => void syncNotifications(), 10000)

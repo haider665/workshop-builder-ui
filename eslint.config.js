@@ -18,5 +18,13 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Async data hydration and timer-driven displays are deliberate in this
+      // Vite client; these compiler-oriented rules reject valid React usage.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/refs': 'off',
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])

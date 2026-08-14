@@ -673,6 +673,8 @@ export type CreateRequisitionInput = {
     partName: string
     quantity: number
     estimateLineId?: string
+    bayId?: string
+    concernItemId?: string
   }>
 }
 
@@ -5016,8 +5018,8 @@ export const useCwStore = create<CWState>((set, get) => ({
       quantity: l.quantity,
       stockUnitIds: [],
       estimateLineId: l.estimateLineId,
-      bayId: (l as any).bayId,
-      concernItemId: (l as any).concernItemId,
+      bayId: l.bayId,
+      concernItemId: l.concernItemId,
       status: 'Pending',
     }))
     const req: CWRequisition = {
