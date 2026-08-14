@@ -53,6 +53,7 @@ import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
 import { useCompanyStore } from '../store/companyStore'
 import { UniversalTablePagination } from './UniversalTablePagination'
+import { GuidedTour } from './GuidedTour'
 import { workshopApi } from '../services/workshopApi'
 import type { CWNotification } from '../types/cw'
 
@@ -714,6 +715,7 @@ export function AppShell() {
           </Box>
         )}
         <Outlet />
+        <GuidedTour />
         <UniversalTablePagination />
       </Box>
     </Box>
