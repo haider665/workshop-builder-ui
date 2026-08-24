@@ -1317,6 +1317,10 @@ export const workshopApi = {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.submit', { method: 'POST', body: { id } })
   },
 
+  async createServiceOrderJobScope(id: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.create_job_scope', { method: 'POST', body: { id } })
+  },
+
   async requestFinancialClearance(input: { appointmentId: string; serviceOrderId?: string; type: string; requestedAmount?: number; outstandingAmount?: number; note?: string; idempotencyKey?: string }): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.financial_clearances.request', { method: 'POST', body: { data: input } })
   },
