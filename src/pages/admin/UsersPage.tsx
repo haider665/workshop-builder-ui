@@ -21,6 +21,7 @@ import {
 } from '@mui/material'
 import { Add, Block, Edit, LockReset, PersonAdd, ToggleOff, ToggleOn, Visibility, VisibilityOff } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
+import { useCompanyStore } from '../../store/companyStore'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import { useToast } from '../../hooks/useToast'
@@ -65,6 +66,8 @@ function statusChip(status: CWUserStatus) {
 
 export function UsersPage() {
   const toast = useToast()
+  const companies = useCompanyStore((state) => state.companies)
+  const selectedCompanyId = useCompanyStore((state) => state.selectedCompanyId)
   const [shops, setShops] = useState<CWShop[]>([])
   const [roles, setRoles] = useState<CWRole[]>([])
   const [users, setUsers] = useState<CWUser[]>([])
@@ -129,6 +132,7 @@ export function UsersPage() {
 
   const activeRoles = roles.filter((r) => r.status === 'Active')
 
+  const selectedCompanyName = companies.find((company) => company.id === selectedCompanyId)?.name ?? selectedCompanyId
   function preferredRoleLabel(roleIds: string[]) {
     const roleId = roleIds[0]
     return roleId ? roleNameById.get(roleId) ?? 'Unknown' : '—'
@@ -165,6 +169,10 @@ export function UsersPage() {
       toast.warning('Assign at least one workshop role.')
       return
     }
+    if (createDraft.shopIds.length === 0) {
+      toast.warning('Assign at least one workshop for the selected company.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -196,6 +204,10 @@ export function UsersPage() {
     }
     if (editDraft.roleIds.length === 0) {
       toast.warning('Assign at least one workshop role.')
+      return
+    }
+    if (editDraft.shopIds.length === 0) {
+      toast.warning('Assign at least one workshop for the selected company.')
       return
     }
     setSaving(true)
@@ -283,6 +295,12 @@ export function UsersPage() {
           </Typography>
         </Box>
       ),
+    },
+    {
+      key: 'company',
+      header: 'Company',
+      minWidth: 160,
+      render: () => <Chip size="small" color="primary" variant="outlined" label={selectedCompanyName || 'No company'} />,
     },
     {
       key: 'roles',
@@ -425,10 +443,13 @@ export function UsersPage() {
               </MenuItem>
             ))}
           </Select>
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.72rem', mt: 0.75 }}>
+            Required. Only workshops belonging to {selectedCompanyName || 'the selected company'} are available.
+          </Typography>
         </FormControl>
 
         <FormControl fullWidth>
-          <InputLabel id={`${mode}-shops-label`}>Shops</InputLabel>
+          <InputLabel id={`${mode}-shops-label`}>Workshops</InputLabel>
           <Select
             labelId={`${mode}-shops-label`}
             multiple
@@ -436,7 +457,7 @@ export function UsersPage() {
             onChange={(e) =>
               setDraft((d) => ({ ...d, shopIds: e.target.value as string[] }))
             }
-            input={<OutlinedInput label="Shops" />}
+            input={<OutlinedInput label="Workshops" />}
             renderValue={(selected) =>
               (selected as string[])
                 .map((id) => shopNameById.get(id) ?? 'Unknown')
@@ -510,7 +531,7 @@ export function UsersPage() {
               Admin / Users
             </Typography>
             <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
-              Create users, assign roles and shops from the backend.
+              Create users and assign one role and workshops within {selectedCompanyName || 'the selected company'}.
             </Typography>
           </Box>
           <Button
@@ -535,6 +556,10 @@ export function UsersPage() {
             {error}
           </Alert>
         ) : null}
+
+        <Alert severity="info" sx={{ borderRadius: '10px' }}>
+          Showing company-scoped users for <strong>{selectedCompanyName || 'the selected company'}</strong>. Switching company reloads this list and its available workshops.
+        </Alert>
 
         <DataTable
           columns={columns}
@@ -575,6 +600,7 @@ export function UsersPage() {
             !createDraft.email.trim() ||
             !createDraft.mobile.trim() ||
             !createDraft.roleIds.length ||
+            !createDraft.shopIds.length ||
             saving
           }
         >
@@ -599,6 +625,7 @@ export function UsersPage() {
             !editDraft.email.trim() ||
             !editDraft.mobile.trim() ||
             !editDraft.roleIds.length ||
+            !editDraft.shopIds.length ||
             saving
           }
         >
