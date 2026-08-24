@@ -20,7 +20,7 @@ export function RequireRole(props: { anyOf: Role[] }) {
     return <Navigate to="/login" replace />
   }
 
-  const allowed = props.anyOf.some((role) => user.roles.includes(role))
+  const allowed = user.roles.includes('Admin') || props.anyOf.some((role) => user.roles.includes(role))
   if (!allowed) {
     return <Navigate to="/" replace />
   }

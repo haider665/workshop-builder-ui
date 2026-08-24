@@ -262,7 +262,9 @@ export function AppShell() {
     [],
   )
 
-  const allowedItems = navItems.filter((item) => user && item.anyOfRoles.some((r) => user.roles.includes(r)))
+  const allowedItems = navItems.filter(
+    (item) => user && (user.roles.includes('Admin') || item.anyOfRoles.some((r) => user.roles.includes(r))),
+  )
   const navigationGroups = useMemo(() => {
     const groups: Array<{ label: string; items: NavItem[] }> = [{ label: 'Workspace', items: [] }]
     for (const item of allowedItems) {
