@@ -716,7 +716,7 @@ export function AppShell() {
             </Tooltip>
           </Box>
         )}
-        <Outlet />
+        <Outlet key={selectedCompanyId || 'no-company'} />
         <GuidedTour />
         <UniversalTablePagination />
       </Box>
