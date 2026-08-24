@@ -1321,6 +1321,14 @@ export const workshopApi = {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.submit', { method: 'POST', body: { id } })
   },
 
+  async amendServiceOrder(id: string, reason: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.amend', { method: 'POST', body: { id, data: { reason } } })
+  },
+
+  async cancelServiceOrder(id: string, reason: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.cancel', { method: 'POST', body: { id, data: { reason } } })
+  },
+
   async createServiceOrderJobScope(id: string): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.create_job_scope', { method: 'POST', body: { id } })
   },
