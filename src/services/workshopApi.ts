@@ -1305,6 +1305,10 @@ export const workshopApi = {
     return request<ApiListResponse<Record<string, unknown>>>(`/api/method/workshop.api.service_orders.list${buildQuery(params)}`)
   },
 
+  async syncAppointmentServiceOrder(appointmentId: string, approve = false): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.sync_from_appointment', { method: 'POST', body: { appointmentId, approve } })
+  },
+
   async createServiceOrder(input: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.create_from_appointment', { method: 'POST', body: { data: input } })
   },
