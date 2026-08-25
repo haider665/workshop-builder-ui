@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { workshopApi } from '../services/workshopApi'
 import { useCwStore } from '../store/cwStore'
+import { useCompanyStore } from '../store/companyStore'
 
 /**
  * Hook to ensure app data is loaded from backend.
@@ -9,16 +10,35 @@ import { useCwStore } from '../store/cwStore'
  */
 export function useBackendData() {
   const loaded = useRef(false)
+  const selectedCompanyId = useCompanyStore((state) => state.selectedCompanyId)
 
   useEffect(() => {
     if (loaded.current) return
     loaded.current = true
+    let cancelled = false
 
     async function load() {
-      const safe = async <T,>(label: string, fn: () => Promise<{ data: T[]; meta: { total: number } }>): Promise<T[]> => {
+      const safe = async <T,>(
+        label: string,
+        loader: (page: number, pageSize: number) => Promise<{
+          data: T[]
+          meta: { total: number; pageSize?: number }
+        }>,
+      ): Promise<T[]> => {
         try {
-          const res = await fn()
-          return res.data
+          const requestedPageSize = 100
+          const first = await loader(1, requestedPageSize)
+          const total = first.meta.total ?? first.data.length
+          const effectivePageSize = Math.max(1, first.meta.pageSize ?? requestedPageSize)
+          const pages = [first.data]
+
+          for (let page = 2; page <= Math.ceil(total / effectivePageSize); page += 1) {
+            const next = await loader(page, requestedPageSize)
+            pages.push(next.data)
+            if (!next.data.length) break
+          }
+
+          return pages.flat().slice(0, total)
         } catch (err) {
           console.warn(`[useBackendData] ${label} failed:`, err)
           return []
@@ -54,26 +74,27 @@ export function useBackendData() {
         requisitions,
         estimateLines,
       ] = await Promise.all([
-        safe('customers', () => workshopApi.listCustomers({ pageSize: 500 })),
-        safe('vehicles', () => workshopApi.listVehicles({ pageSize: 500 })),
-        safe('appointments', () => workshopApi.listAppointments({ pageSize: 500 })),
-        safe('users', () => workshopApi.listUsers({ pageSize: 500 })),
-        safe('concerns', () => workshopApi.listConcerns({ pageSize: 500 })),
-        safe('concernCategories', () => workshopApi.listConcernCategories({ pageSize: 500 })),
-        safe('services', () => workshopApi.listServices({ pageSize: 500 })),
+        safe('customers', (page, pageSize) => workshopApi.listCustomers({ page, pageSize })),
+        safe('vehicles', (page, pageSize) => workshopApi.listVehicles({ page, pageSize })),
+        safe('appointments', (page, pageSize) => workshopApi.listAppointments({ page, pageSize })),
+        safe('users', (page, pageSize) => workshopApi.listUsers({ page, pageSize })),
+        safe('concerns', (page, pageSize) => workshopApi.listConcerns({ page, pageSize })),
+        safe('concernCategories', (page, pageSize) => workshopApi.listConcernCategories({ page, pageSize })),
+        safe('services', (page, pageSize) => workshopApi.listServices({ page, pageSize })),
         safeRaw('roles', async () => (await workshopApi.listRoles(false)).data),
-        safe('pendingVehicles', () => workshopApi.listPendingVehicles({ pageSize: 500 })),
+        safe('pendingVehicles', (page, pageSize) => workshopApi.listPendingVehicles({ page, pageSize })),
         safeRaw('shops', async () => (await workshopApi.listShops()).data),
-        safe('bays', () => workshopApi.listBays({ pageSize: 500 })),
-        safe('teams', () => workshopApi.listTeams({ pageSize: 500 })),
-        safe('jobs', () => workshopApi.listJobs({ pageSize: 500 })),
-        safe('tasks', () => workshopApi.listTasks({ pageSize: 500 })),
-        safe('taskTemplates', () => workshopApi.listTaskTemplates({ pageSize: 500 })),
-        safe('partRequests', () => workshopApi.listPartRequests({ pageSize: 500 })),
-        safe('requisitions', () => workshopApi.listRequisitions({ pageSize: 500 })),
-        safe('estimateLines', () => workshopApi.listEstimateLines({ pageSize: 500 })),
+        safe('bays', (page, pageSize) => workshopApi.listBays({ page, pageSize })),
+        safe('teams', (page, pageSize) => workshopApi.listTeams({ page, pageSize })),
+        safe('jobs', (page, pageSize) => workshopApi.listJobs({ page, pageSize })),
+        safe('tasks', (page, pageSize) => workshopApi.listTasks({ page, pageSize })),
+        safe('taskTemplates', (page, pageSize) => workshopApi.listTaskTemplates({ page, pageSize })),
+        safe('partRequests', (page, pageSize) => workshopApi.listPartRequests({ page, pageSize })),
+        safe('requisitions', (page, pageSize) => workshopApi.listRequisitions({ page, pageSize })),
+        safe('estimateLines', (page, pageSize) => workshopApi.listEstimateLines({ page, pageSize })),
       ])
 
+      if (cancelled) return
       useCwStore.setState({
         customers,
         vehicles,
@@ -97,7 +118,8 @@ export function useBackendData() {
     }
 
     void load()
-  }, [])
+    return () => { cancelled = true }
+  }, [selectedCompanyId])
 }
 
 /** @deprecated Use useBackendData instead */

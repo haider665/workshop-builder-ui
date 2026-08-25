@@ -25,6 +25,7 @@ import type { CWPartRequest, CWPartRequestStatus, CWPart } from '../../types/cw'
 import { colors, pageLayout } from '../../theme/tokens'
 import { useSessionStore } from '../../store/sessionStore'
 import { workshopApi } from '../../services/workshopApi'
+import { fetchAllPages } from '../../services/pagination'
 import { useToast } from '../../hooks/useToast'
 
 /* ─────────────────────── Constants ─────────────────────────── */
@@ -66,8 +67,8 @@ export function PartRequestsPage() {
   // Load parts from API (store may be empty)
   const [apiParts, setApiParts] = useState<CWPart[]>([])
   useEffect(() => {
-    workshopApi.listParts({ status: 'Active', pageSize: 500 })
-      .then((res) => setApiParts(res.data))
+    fetchAllPages((page, pageSize) => workshopApi.listParts({ status: 'Active', page, pageSize }))
+      .then(setApiParts)
       .catch(() => { /* fallback to store */ })
   }, [])
 

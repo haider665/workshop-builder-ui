@@ -16,6 +16,7 @@ import {
 import {Send} from '@mui/icons-material'
 import {colors, pageLayout, radii, shadows} from '../../theme/tokens'
 import {workshopApi} from '../../services/workshopApi'
+import {fetchAllPages} from '../../services/pagination'
 import {useCwStore} from '../../store/cwStore'
 import type {CWEstimateLine, CWEstimateLineStatus, CWPart} from '../../types/cw'
 import {useToast} from '../../hooks/useToast'
@@ -93,12 +94,12 @@ export function EstimatorPage() {
     setError(null)
     try {
       const [linesRes, partsRes] = await Promise.all([
-        workshopApi.listEstimateLines({ pageSize: 200 }),
-        workshopApi.listParts({ status: 'Active', pageSize: 200 }),
+        fetchAllPages((page, pageSize) => workshopApi.listEstimateLines({page, pageSize})),
+        fetchAllPages((page, pageSize) => workshopApi.listParts({status: 'Active', page, pageSize})),
       ])
-      setLines(linesRes.data)
+      setLines(linesRes)
       const map = new Map<string, CWPart>()
-      for (const p of partsRes.data) map.set(p.id, p)
+      for (const p of partsRes) map.set(p.id, p)
       partsMapRef.current = map
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load estimate lines')

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { workshopApi } from '../services/workshopApi'
+import { fetchAllPages } from '../services/pagination'
 import type {
   CWF1Config,
   CWAppointment,
@@ -1800,6 +1801,8 @@ function reindexFields(fields: CWTaskField[]) {
 }
 
 // MVP rule: in-memory only. No persistence.
+let hydrationGeneration = 0
+
 export const useCwStore = create<CWState>((set, get) => ({
   ...DEMO_SEED,
   // Override seed data — backend provides via hydrateFromBackend
@@ -1838,6 +1841,7 @@ export const useCwStore = create<CWState>((set, get) => ({
   invoices: [],
 
   hydrateFromBackend: async () => {
+    const generation = ++hydrationGeneration
     const fetchAll = async <T,>(
       loader: (page: number, pageSize: number) => Promise<{ data: T[]; meta: { total: number } }>,
     ) => {
@@ -1906,6 +1910,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       safe('partRequests', () => fetchAll((page, pageSize) => workshopApi.listPartRequests({ page, pageSize }))),
     ])
 
+    if (generation != hydrationGeneration) return
     set({
       shops,
       bays,
@@ -2491,8 +2496,8 @@ export const useCwStore = create<CWState>((set, get) => ({
 
     // After Service Assigned, backend auto-creates requisition — re-fetch to sync local state
     if (status === 'Service Assigned') {
-      workshopApi.listRequisitions({ pageSize: 500 }).then((res) => {
-        set({ requisitions: res.data })
+      fetchAllPages((page, pageSize) => workshopApi.listRequisitions({ page, pageSize })).then((requisitions) => {
+        set({ requisitions })
       }).catch((err) => console.warn('[setAppointmentStatus] Failed to refresh requisitions:', err))
     }
   },

@@ -14,6 +14,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
@@ -28,7 +29,7 @@ import {
   Visibility,
   WavingHand,
 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
@@ -36,6 +37,13 @@ import { colors, radii, shadows } from '../../theme/tokens'
 import { NewAppointmentPage } from './NewAppointmentPage'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
@@ -280,11 +288,13 @@ export function CroHome() {
   const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [appointmentPage, setAppointmentPage] = useState(0)
+  const [appointmentRowsPerPage, setAppointmentRowsPerPage] = useState(25)
   const [appointmentComposerOpen, setAppointmentComposerOpen] = useState(false)
   const [appointmentComposerAction, setAppointmentComposerAction] = useState<'customer' | 'vehicle' | undefined>(undefined)
 
   // Stats
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = localDateKey()
   const todayAppointments = useMemo(
     () => appointments.filter((a) => a.slotDate === todayStr),
     [appointments, todayStr],
@@ -352,6 +362,15 @@ export function CroHome() {
     }
     return list
   }, [appointments, vehicles, customers, searchQuery])
+
+  useEffect(() => {
+    setAppointmentPage(0)
+  }, [searchQuery])
+
+  useEffect(() => {
+    const lastPage = Math.max(0, Math.ceil(allAppointmentsSorted.length / appointmentRowsPerPage) - 1)
+    if (appointmentPage > lastPage) setAppointmentPage(lastPage)
+  }, [allAppointmentsSorted.length, appointmentPage, appointmentRowsPerPage])
 
   // Sub-stats for cards
   const walkinOrders = todayAppointments.filter((a) => pendingVehicles.some((p) => p.appointmentId === a.id)).length
@@ -703,6 +722,7 @@ export function CroHome() {
           </Box>
 
           {allAppointmentsSorted.length ? (
+            <>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
@@ -717,7 +737,9 @@ export function CroHome() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {allAppointmentsSorted.slice(0, 50).map((a) => {
+                {allAppointmentsSorted
+                  .slice(appointmentPage * appointmentRowsPerPage, appointmentPage * appointmentRowsPerPage + appointmentRowsPerPage)
+                  .map((a) => {
                   const veh = vehicles.find((v) => v.id === a.vehicleId)
                   const cust = customers.find((c) => c.id === a.customerId)
                   const sa = a.assignedSAUserId ? users.find((u) => u.id === a.assignedSAUserId) : null
@@ -792,6 +814,21 @@ export function CroHome() {
                 })}
               </TableBody>
             </Table>
+            <TablePagination
+              component="div"
+              count={allAppointmentsSorted.length}
+              page={appointmentPage}
+              onPageChange={(_, nextPage) => setAppointmentPage(nextPage)}
+              rowsPerPage={appointmentRowsPerPage}
+              onRowsPerPageChange={(event) => {
+                setAppointmentRowsPerPage(Number(event.target.value))
+                setAppointmentPage(0)
+              }}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              labelDisplayedRows={({ from, to, count }) => `${from}–${to} of ${count}`}
+              sx={{ borderTop: `1px solid ${colors.border.subtle}` }}
+            />
+            </>
           ) : (
             <Box sx={{ p: 4, textAlign: 'center' }}>
               <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
