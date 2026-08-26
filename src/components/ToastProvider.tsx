@@ -1,4 +1,4 @@
-import { Alert, Snackbar, useMediaQuery, useTheme, type AlertColor } from '@mui/material'
+import { Alert, Box, Snackbar, useMediaQuery, useTheme, type AlertColor } from '@mui/material'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ToastContext, getUiErrorMessage, type ToastContextValue, type ToastOptions } from '../hooks/useToast'
 
@@ -8,6 +8,7 @@ type ToastState = {
   message: string
   severity: AlertColor
   duration: number
+  actionUrl?: string
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -19,15 +20,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     message: '',
     severity: 'info',
     duration: 3500,
+    actionUrl: undefined,
   })
 
-  const showToast = useCallback((message: string, options: ToastOptions = {}) => {
+  const showToast = useCallback((message: string, options: ToastOptions & { actionUrl?: string } = {}) => {
     setToast({
       key: Date.now(),
       open: true,
       message,
       severity: options.severity ?? 'info',
       duration: options.duration ?? (options.severity === 'error' ? 6000 : 3500),
+      actionUrl: options.actionUrl,
     })
   }, [])
 
@@ -45,8 +48,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       showToast(getUiErrorMessage(detail?.message), { severity: 'error', duration: 6500 })
     }
     const notificationListener = (event: Event) => {
-      const detail = (event as CustomEvent<{ message?: string }>).detail
-      showToast(detail?.message || "New workshop notification", { severity: "info", duration: 5000 })
+      const detail = (event as CustomEvent<{ message?: string; actionUrl?: string }>).detail
+      showToast(detail?.message || "New workshop notification", { severity: "info", duration: 5000, actionUrl: detail?.actionUrl })
     }
     window.addEventListener('cw:api-error-toast', listener)
     window.addEventListener('cw:notification-toast', notificationListener)
@@ -76,7 +79,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           onClose={() => setToast((current) => ({ ...current, open: false }))}
           sx={{ borderRadius: 2.5, boxShadow: 8, alignItems: 'center', overflowWrap: 'anywhere' }}
         >
-          {toast.message}
+          <Box onClick={() => { if (toast.actionUrl) window.location.assign(toast.actionUrl) }} sx={{ cursor: toast.actionUrl ? 'pointer' : 'default' }}>{toast.message}{toast.actionUrl ? <Box component="span" sx={{ display:'block',fontSize:11,fontWeight:800,mt:.25 }}>Open details</Box> : null}</Box>
         </Alert>
       </Snackbar>
     </ToastContext.Provider>

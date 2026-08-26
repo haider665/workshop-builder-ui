@@ -90,7 +90,13 @@ export function NotificationsPage() {
   function handleClick(id: string, actionUrl?: string) {
     markNotificationRead(id)
     if (actionUrl) {
-      navigate(actionUrl)
+      try {
+        const target = new URL(actionUrl, window.location.origin)
+        if (target.origin !== window.location.origin) window.location.assign(target.toString())
+        else navigate(`${target.pathname}${target.search}${target.hash}`)
+      } catch {
+        navigate(actionUrl)
+      }
     }
   }
 

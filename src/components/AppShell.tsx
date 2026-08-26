@@ -20,6 +20,8 @@ import {
   Assignment,
   Badge,
   Business,
+  ChatBubbleOutlined,
+  HelpOutlined,
   CalendarMonth,
   Calculate,
   ChevronLeft,
@@ -35,7 +37,9 @@ import {
   Logout,
   Menu,
   NotificationsActive,
+  NotificationsNone,
   People,
+  PersonOutlined,
   Phone,
   ReceiptLong,
   Settings,
@@ -45,7 +49,7 @@ import {
   UploadFile,
 } from '@mui/icons-material'
 import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Role } from '../types/roles'
 import { supportedLocales, useLocalization } from '../i18n/LocalizationContext'
@@ -54,8 +58,6 @@ import { useCwStore } from '../store/cwStore'
 import { useCompanyStore } from '../store/companyStore'
 import { UniversalTablePagination } from './UniversalTablePagination'
 import { GuidedTour } from './GuidedTour'
-import { workshopApi } from '../services/workshopApi'
-import type { CWNotification } from '../types/cw'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -123,11 +125,14 @@ export function AppShell() {
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
   const selectCompany = useCompanyStore((s) => s.select)
   const hydrateFromBackend = useCwStore((s) => s.hydrateFromBackend)
+  const notifications = useCwStore((s) => s.notifications)
+  const markNotificationRead = useCwStore((s) => s.markNotificationRead)
   const location = useLocation()
   const { locale, setLocale, t } = useLocalization()
   const theme = useTheme()
   const mdUp = useMediaQuery(theme.breakpoints.up('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('cw.workshop.sidebar.collapsed') === 'true')
   const [footerCollapsed, setFooterCollapsed] = useState(() => localStorage.getItem('cw.workshop.sidebar.footer.collapsed') === 'true')
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -138,28 +143,7 @@ export function AppShell() {
   const mainSystemUrl = useMemo(() => {
     try { return new URL(apiBaseUrl, window.location.origin).origin } catch { return window.location.origin }
   }, [apiBaseUrl])
-  const knownNotificationIds = useRef(new Set<string>())
 
-  useEffect(() => {
-    let active = true
-    const syncNotifications = async () => {
-      try {
-        const response = await workshopApi.listNotifications({ pageSize: 100 })
-        if (!active) return
-        const notifications = response.data as CWNotification[]
-        const known = knownNotificationIds.current
-        const newest = notifications.find((item) => !item.read && known.size > 0 && !known.has(item.id))
-        knownNotificationIds.current = new Set(notifications.map((item) => item.id))
-        useCwStore.setState({ notifications })
-        if (newest) window.dispatchEvent(new CustomEvent("cw:notification-toast", { detail: { message: newest.message || newest.title } }))
-      } catch { /* Realtime notification polling is best-effort. */ }
-    }
-    void syncNotifications()
-    const timer = window.setInterval(() => void syncNotifications(), 10000)
-    const onVisible = () => { if (document.visibilityState === "visible") void syncNotifications() }
-    document.addEventListener("visibilitychange", onVisible)
-    return () => { active = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible) }
-  }, [])
 
 
   useEffect(() => { localStorage.setItem('cw.workshop.sidebar.collapsed', String(sidebarCollapsed)) }, [sidebarCollapsed])
@@ -279,6 +263,14 @@ export function AppShell() {
     ))
     .sort((a, b) => (b.to?.length ?? 0) - (a.to?.length ?? 0))[0]
   const isDetailRoute = currentLink?.to ? location.pathname !== currentLink.to : false
+  const recentNotifications = notifications.slice(0, 6)
+  const unreadCount = notifications.filter((item) => !item.read).length
+  const openNotification = (notification: (typeof notifications)[number]) => {
+    if (!notification.read) markNotificationRead(notification.id)
+    setNotificationMenuOpen(false)
+    window.location.assign(notification.actionUrl || '/notifications')
+  }
+  const startGuide = () => window.dispatchEvent(new CustomEvent('cw:start-guide'))
 
 
 
@@ -631,11 +623,16 @@ export function AppShell() {
               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', ml: 1, color: '#fff' }}>
                 {t('Continental Works')}
               </Typography>
-              <Tooltip title={t('Logout')}>
-                <IconButton onClick={logout} aria-label={t('Logout')} sx={{ ml: 'auto', color: '#fff', '&:hover': { bgcolor: 'rgba(239,68,68,0.2)' } }}>
-                  <Logout />
-                </IconButton>
-              </Tooltip>
+              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
+                <Tooltip title={t('Notifications')}>
+                  <IconButton component={RouterLink} to="/notifications" aria-label={t('Notifications')} sx={{ color: '#fff', position: 'relative' }}>
+                    <NotificationsNone />
+                    {unreadCount > 0 ? <Box sx={{ position: 'absolute', top: 5, right: 4, minWidth: 16, height: 16, px: .35, borderRadius: 8, bgcolor: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 900, display: 'grid', placeItems: 'center' }}>{unreadCount > 9 ? '9+' : unreadCount}</Box> : null}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={t('Messages')}><IconButton component="a" href={mainSystemUrl} aria-label={t('Messages')} sx={{ color: '#fff' }}><ChatBubbleOutlined /></IconButton></Tooltip>
+                <Tooltip title={t('Logout')}><IconButton onClick={logout} aria-label={t('Logout')} sx={{ color: '#fff', '&:hover': { bgcolor: 'rgba(239,68,68,0.2)' } }}><Logout /></IconButton></Tooltip>
+              </Box>
             </Box>
             <Drawer
               variant="temporary"
@@ -706,14 +703,28 @@ export function AppShell() {
                 <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 750 }}>{t('Details')}</Typography>
               </>
             )}
-            <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary', display: { xs: 'none', lg: 'block' } }}>
+            <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary', display: { xs: 'none', xl: 'block' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {t('Expand a section to continue; completed information stays available without crowding the page.')}
             </Typography>
-            <Tooltip title={t('Logout')}>
-              <IconButton onClick={logout} aria-label={t('Logout')} size="small" sx={{ ml: { xs: 'auto', lg: 0 }, color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'error.50' } }}>
-                <Logout sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
+            <Box sx={{ display: 'flex', alignItems: 'center', position: 'relative', ml: { xs: 'auto', xl: 0 }, flexShrink: 0 }}>
+              <Tooltip title={t('Messages')}><IconButton component="a" href={mainSystemUrl} aria-label={t('Messages')} size="small" sx={{ color: 'text.secondary' }}><ChatBubbleOutlined sx={{ fontSize: 19 }} /></IconButton></Tooltip>
+              <Tooltip title={t('Page guidance')}><IconButton onClick={startGuide} aria-label={t('Page guidance')} size="small" sx={{ color: 'text.secondary' }}><HelpOutlined sx={{ fontSize: 19 }} /></IconButton></Tooltip>
+              <Tooltip title={t('Notifications')}>
+                <IconButton onClick={() => setNotificationMenuOpen((open) => !open)} aria-label={t('Notifications')} size="small" sx={{ color: 'text.secondary', position: 'relative' }}>
+                  <NotificationsNone sx={{ fontSize: 20 }} />
+                  {unreadCount > 0 ? <Box sx={{ position: 'absolute', top: 0, right: -1, minWidth: 15, height: 15, px: .3, borderRadius: 8, bgcolor: 'error.main', color: '#fff', fontSize: 8.5, fontWeight: 900, display: 'grid', placeItems: 'center' }}>{unreadCount > 9 ? '9+' : unreadCount}</Box> : null}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={t('My profile')}><IconButton component="a" href={`${mainSystemUrl}/my-profile`} aria-label={t('My profile')} size="small" sx={{ color: 'text.secondary' }}><PersonOutlined sx={{ fontSize: 20 }} /></IconButton></Tooltip>
+              <Tooltip title={t('Logout')}><IconButton onClick={logout} aria-label={t('Logout')} size="small" sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'error.50' } }}><Logout sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+              {notificationMenuOpen ? <Box role="dialog" aria-label={t('Recent notifications')} sx={{ position: 'absolute', top: 38, right: 0, width: { xs: 'calc(100vw - 24px)', sm: 370 }, maxWidth: 370, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', borderRadius: 3, boxShadow: '0 22px 60px rgba(15,23,42,.18)', overflow: 'hidden', zIndex: 1400, whiteSpace: 'normal' }}>
+                <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}><Typography sx={{ fontSize: 14, fontWeight: 900 }}>{t('Notifications')}</Typography><Typography sx={{ ml: 'auto', fontSize: 11, color: 'text.secondary' }}>{unreadCount} {t('unread')}</Typography></Box>
+                <Box sx={{ maxHeight: 360, overflowY: 'auto' }}>
+                  {recentNotifications.length ? recentNotifications.map((notification) => <Box key={notification.id} component="button" type="button" onClick={() => openNotification(notification)} sx={{ width: '100%', border: 0, borderBottom: '1px solid', borderColor: 'divider', bgcolor: notification.read ? '#fff' : 'rgba(37,99,235,.045)', p: 1.5, display: 'block', textAlign: 'left', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}><Typography sx={{ fontSize: 12.5, fontWeight: notification.read ? 700 : 900, color: 'text.primary' }}>{notification.title}</Typography><Typography sx={{ mt: .35, fontSize: 11.5, lineHeight: 1.45, color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{notification.message}</Typography></Box>) : <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary', fontSize: 12 }}>{t('No notifications yet')}</Typography>}
+                </Box>
+                <Box component={RouterLink} to="/notifications" onClick={() => setNotificationMenuOpen(false)} sx={{ display: 'block', p: 1.25, textAlign: 'center', color: 'primary.main', textDecoration: 'none', fontSize: 12, fontWeight: 900 }}>{t('View all notifications')}</Box>
+              </Box> : null}
+            </Box>
           </Box>
         )}
         <Outlet key={selectedCompanyId || 'no-company'} />

@@ -5,6 +5,7 @@ import { AuthBootstrap } from './components/AuthBootstrap'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './components/ToastProvider'
 import { GlobalUiFeedback } from './components/GlobalUiFeedback'
+import { RealtimeNotifications } from './components/RealtimeNotifications'
 import { LocalizationProvider } from './i18n/LocalizationContext'
 import { LocalizedDocument } from './i18n/LocalizedDocument'
 import { AppRouter } from './routes/AppRouter'
@@ -19,6 +20,7 @@ export default function App() {
           <LocalizedDocument />
           <ToastProvider>
           <GlobalUiFeedback />
+          <RealtimeNotifications />
           <BrowserRouter>
             <AuthBootstrap>
               <AppRouter />
