@@ -1,6 +1,8 @@
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const apiBaseUrl = configuredApiBaseUrl
 
+function apiActivity(delta: 1 | -1) { window.dispatchEvent(new CustomEvent('cw:api-activity', { detail: { delta } })) }
+
 let csrfTokenCache: string | null = null
 let selectedCompanyContext = localStorage.getItem('cw.workshop.selectedCompany') || ''
 
@@ -32,6 +34,7 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   body?: unknown
   headers?: Record<string, string>
+  silent?: boolean
 }
 
 type QueryValue = string | number | boolean | null | undefined
@@ -132,20 +135,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const method = options.method ?? 'GET'
   const csrfHeaders: Record<string, string> = method !== 'GET' ? { 'X-Frappe-CSRF-Token': await getCsrfToken() } : {}
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    method,
-    credentials: 'include',
-    headers: {
-      ...csrfHeaders,
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(selectedCompanyContext ? { 'X-CW-Company': selectedCompanyContext } : {}),
-      ...(options.headers ?? {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  })
-
-  await ensureOk(response, 'Request failed')
-  return readMessage<T>(response)
+  if (!options.silent) apiActivity(1)
+  try {
+    const response = await fetch(`${apiBaseUrl}${path}`, {
+      method,
+      credentials: 'include',
+      headers: {
+        ...csrfHeaders,
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(selectedCompanyContext ? { 'X-CW-Company': selectedCompanyContext } : {}),
+        ...(options.headers ?? {}),
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    })
+    await ensureOk(response, 'Request failed')
+    return readMessage<T>(response)
+  } finally { if (!options.silent) apiActivity(-1) }
 }
 
 function buildQuery(params: Record<string, QueryValue>) {
@@ -161,24 +166,18 @@ async function uploadFile(input: { file: File; folder?: string; isPrivate?: bool
   const csrfToken = await getCsrfToken()
   const form = new FormData()
   form.set('file', input.file)
-  if (input.folder) form.set('folder', input.folder)
+  // Do not depend on a pre-created Frappe folder; records are linked after upload.
   if (input.isPrivate !== undefined) form.set('is_private', input.isPrivate ? '1' : '0')
 
-  const response = await fetch(`${apiBaseUrl}/api/method/upload_file`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'X-Frappe-CSRF-Token': csrfToken,
-    },
-    body: form,
-  })
-
-  await ensureOk(response, 'File upload failed')
-  return readMessage<{ file_url: string; file_name: string; name: string }>(response).then((message) => ({
-    fileUrl: message.file_url,
-    fileName: message.file_name,
-    name: message.name,
-  }))
+  if (input.file.size > 25 * 1024 * 1024) throw new Error('The selected file exceeds the 25 MB upload limit.')
+  apiActivity(1)
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/method/upload_file`, {
+      method: 'POST', credentials: 'include', headers: { 'X-Frappe-CSRF-Token': csrfToken }, body: form,
+    })
+    await ensureOk(response, 'File upload failed')
+    return readMessage<{ file_url: string; file_name: string; name: string }>(response).then((message) => ({ fileUrl: message.file_url, fileName: message.file_name, name: message.name }))
+  } finally { apiActivity(-1) }
 }
 
 export const workshopApi = {
@@ -1833,6 +1832,7 @@ export const workshopApi = {
   } = {}): Promise<ApiListResponse<unknown>> {
     return request<ApiListResponse<unknown>>(
       `/api/method/workshop.api.notifications.list${buildQuery(params)}`,
+      { silent: true },
     )
   },
 

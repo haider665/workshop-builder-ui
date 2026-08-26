@@ -29,6 +29,8 @@ import { useCwStore } from '../../store/cwStore'
 import { useSessionStore } from '../../store/sessionStore'
 import { LiveCameraCapture } from '../../components/LiveCameraCapture'
 import { useBackendData } from '../../hooks/useCREData'
+import { workshopApi } from '../../services/workshopApi'
+import { useToast } from '../../hooks/useToast'
 
 
 /* ─────────────────────── Helpers ─────────────────────────────── */
@@ -122,14 +124,15 @@ export function CounterDeskPage() {
   const [search, setSearch] = useState('')
   const [selectedReqId, setSelectedReqId] = useState<string | null>(null)
   const [photoDialogReqId, setPhotoDialogReqId] = useState<string | null>(null)
+  const [photoDialogAction, setPhotoDialogAction] = useState<'collect' | 'receive'>('collect')
+  const [photoUploading, setPhotoUploading] = useState(false)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string>('')
   
   const sessionUser = useSessionStore((s) => s.user)
+  const toast = useToast()
   const acknowledgeRequisition = useCwStore((s) => s.acknowledgeRequisition)
   const pickRequisitionLine = useCwStore((s) => s.pickRequisitionLine)
-  const collectRequisition = useCwStore((s) => s.collectRequisition)
-  const receiveRequisition = useCwStore((s) => s.receiveRequisition)
   const bays = useCwStore((s) => s.bays)
 
   useBackendData()
@@ -685,7 +688,7 @@ export function CounterDeskPage() {
                                 size="small"
                                 variant="contained"
                                 color="warning"
-                                onClick={(e) => { e.stopPropagation(); setPhotoDialogReqId(req.id); }}
+                                onClick={(e) => { e.stopPropagation(); setPhotoDialogAction('collect'); setPhotoDialogReqId(req.id); }}
                               >
                                 Hand Over
                               </Button>
@@ -696,9 +699,7 @@ export function CounterDeskPage() {
                                 variant="contained"
                                 color="success"
                                 onClick={(e) => {
-                                  e.stopPropagation();
-                                  const fakePhoto = 'photo://receive/' + Date.now();
-                                  receiveRequisition(req.id, fakePhoto);
+                                  e.stopPropagation(); setPhotoDialogAction('receive'); setPhotoDialogReqId(req.id)
                                 }}
                               >
                                 Confirm Received
@@ -807,14 +808,13 @@ export function CounterDeskPage() {
                     </Button>
                   )}
                   {req.status === 'Picked' && !req.pickProofUrl && (
-                    <Button variant="contained" color="warning" onClick={() => { setSelectedReqId(null); setPhotoDialogReqId(req.id); }}>
+                    <Button variant="contained" color="warning" onClick={() => { setSelectedReqId(null); setPhotoDialogAction('collect'); setPhotoDialogReqId(req.id); }}>
                       Hand Over
                     </Button>
                   )}
                   {req.status === 'Picked' && req.pickProofUrl && (
                     <Button variant="contained" color="success" onClick={() => {
-                      receiveRequisition(req.id, 'photo://receive/' + Date.now());
-                      setSelectedReqId(null);
+                      setSelectedReqId(null); setPhotoDialogAction('receive'); setPhotoDialogReqId(req.id)
                     }}>
                       Confirm Received
                     </Button>
@@ -827,10 +827,10 @@ export function CounterDeskPage() {
 
         {/* Photo Capture Dialog */}
         <Dialog open={!!photoDialogReqId} onClose={() => { setPhotoDialogReqId(null); setPhotoFile(null); setPhotoPreview(''); }} maxWidth="sm" fullWidth>
-          <DialogTitle>Capture Handover Photo</DialogTitle>
+          <DialogTitle>{photoDialogAction === 'collect' ? 'Capture Handover Photo' : 'Capture Receipt Photo'}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
-              <LiveCameraCapture label="Take handover photo" filenamePrefix="parts-handover" onCapture={(file) => { setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file)) }} />
+              <LiveCameraCapture label={photoDialogAction === 'collect' ? 'Take handover photo' : 'Take receipt photo'} filenamePrefix={photoDialogAction === 'collect' ? 'parts-handover' : 'parts-receipt'} onCapture={(file) => { setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file)) }} />
               {photoPreview && (
                 <Box
                   component="img"
@@ -844,10 +844,19 @@ export function CounterDeskPage() {
             <Button onClick={() => { setPhotoDialogReqId(null); setPhotoFile(null); setPhotoPreview(''); }}>Cancel</Button>
             <Button
               variant="contained"
-              disabled={!photoFile && !photoPreview}
-              onClick={() => {
-                if (photoDialogReqId) {
-                  collectRequisition(photoDialogReqId, 'photo://handover/' + Date.now());
+              disabled={!photoFile || photoUploading}
+              onClick={async () => {
+                if (photoDialogReqId && photoFile) {
+                  setPhotoUploading(true)
+                  try {
+                    const uploaded = await workshopApi.uploadFile(photoFile, { isPrivate: true })
+                    const updated = photoDialogAction === 'collect'
+                      ? await workshopApi.collectRequisition(photoDialogReqId, { photoUrls: [uploaded.fileUrl] })
+                      : await workshopApi.receiveRequisition(photoDialogReqId, { photoUrls: [uploaded.fileUrl] })
+                    useCwStore.setState((state) => ({ requisitions: state.requisitions.map((row) => row.id === updated.id ? updated : row) }))
+                    toast.success(photoDialogAction === 'collect' ? 'Parts handover recorded.' : 'Parts receipt confirmed.')
+                  } catch (cause) { toast.error(cause, 'Evidence upload failed. Please retake the photo.') }
+                  finally { setPhotoUploading(false) }
                 }
                 setPhotoDialogReqId(null);
                 setPhotoFile(null);

@@ -25,6 +25,8 @@ import type { CWInspectionCheck, CWInspectionCondition, CWVehicle, CWVehicleView
 import { EngineeringInspectionFields } from './EngineeringInspectionFields'
 import { LiveCameraCapture } from './LiveCameraCapture'
 import { VehicleInspectionBlueprint } from './VehicleInspectionBlueprint'
+import { workshopApi } from '../services/workshopApi'
+import { useToast } from '../hooks/useToast'
 
 const EngineeringVehicleViews = lazy(() => import('./EngineeringVehicleViews').then((module) => ({
   default: module.EngineeringVehicleViews,
@@ -78,6 +80,8 @@ type Props = {
 export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed = false, vehicle, vehicleViewChecks = [] }: Props) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const toast = useToast()
+  const [uploadingCheckId, setUploadingCheckId] = useState<string | null>(null)
   const [sectionCollapsed, setSectionCollapsed] = useState(defaultCollapsed)
   const [mode, setMode] = useState<'blueprint' | 'threeDimensional' | 'manual' | 'complete'>('blueprint')
   const [activeTab, setActiveTab] = useState(0)
@@ -118,14 +122,16 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
     onChange(checks.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   }
 
-  function applyPhoto(file: File, checkId: string) {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const mediaUrl = reader.result as string
+  async function applyPhoto(file: File, checkId: string) {
+    setUploadingCheckId(checkId)
+    try {
+      const uploaded = await workshopApi.uploadFile(file, { isPrivate: true })
       const check = checks.find((item) => item.id === checkId)
-      updateCheck(checkId, { photoUrl: mediaUrl, mediaUrls: [...(check?.mediaUrls ?? []), mediaUrl] })
-    }
-    reader.readAsDataURL(file)
+      updateCheck(checkId, { photoUrl: uploaded.fileUrl, mediaUrls: [...(check?.mediaUrls ?? []).filter((url) => !url.startsWith('data:')), uploaded.fileUrl] })
+      toast.success('Inspection photo uploaded.')
+    } catch (cause) {
+      toast.error(cause, 'Inspection photo upload failed. Please retake it.')
+    } finally { setUploadingCheckId(null) }
   }
 
 
@@ -354,7 +360,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
                           sx={{ flex: 1 }}
                           placeholder="Add notes..."
                         />
-                        <LiveCameraCapture label={check.photoUrl ? 'Retake' : 'Take photo'} filenamePrefix="inspection" onCapture={(file) => applyPhoto(file, check.id)} />
+                        <LiveCameraCapture label={uploadingCheckId === check.id ? 'Uploading…' : check.photoUrl ? 'Retake' : 'Take photo'} disabled={uploadingCheckId === check.id} filenamePrefix="inspection" onCapture={(file) => applyPhoto(file, check.id)} />
                       </Stack>
                     )}
 
@@ -479,7 +485,7 @@ export function SAInspectionTabs({ checks, onChange, readonly, defaultCollapsed 
                             sx={{ flex: 1 }}
                             placeholder="Add notes..."
                           />
-                        <LiveCameraCapture label={check.photoUrl ? 'Retake' : 'Take photo'} filenamePrefix="inspection" onCapture={(file) => applyPhoto(file, check.id)} />
+                        <LiveCameraCapture label={uploadingCheckId === check.id ? 'Uploading…' : check.photoUrl ? 'Retake' : 'Take photo'} disabled={uploadingCheckId === check.id} filenamePrefix="inspection" onCapture={(file) => applyPhoto(file, check.id)} />
                         </Stack>
                       )}
                       {check.condition && (
