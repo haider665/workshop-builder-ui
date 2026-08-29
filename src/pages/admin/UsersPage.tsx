@@ -62,6 +62,20 @@ function statusChip(status: CWUserStatus) {
   return <Chip size="small" color="default" label="Inactive" sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
 }
 
+function CompactValues({ values, empty = '—' }: { values: string[]; empty?: string }) {
+  const clean = [...new Set(values.filter(Boolean))]
+  if (!clean.length) return <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem' }}>{empty}</Typography>
+  if (clean.length <= 2) return <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', minWidth: 0 }}>{clean.map((value) => <Chip key={value} size="small" label={value} sx={{ maxWidth: 190, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }} />)}</Stack>
+  return (
+    <Box component="details" sx={{ maxWidth: 280, '& summary': { display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', listStyle: 'none' }, '& summary::-webkit-details-marker': { display: 'none' } }}>
+      <Box component="summary"><Chip size="small" label={clean[0]} sx={{ maxWidth: 155, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }} /><Chip size="small" color="primary" variant="outlined" label={`+${clean.length - 1} more`} /></Box>
+      <Stack spacing={0.5} sx={{ maxHeight: 210, overflowY: 'auto', mt: 0.75, p: 0.75, border: `1px solid ${colors.border.subtle}`, borderRadius: 2, bgcolor: colors.slate[50] }}>
+        {clean.map((value) => <Typography key={value} sx={{ overflowWrap: 'anywhere', fontSize: '0.75rem', color: colors.slate[700] }}>{value}</Typography>)}
+      </Stack>
+    </Box>
+  )
+}
+
 /* ─────────────────────── Component ─────────────────────────── */
 
 export function UsersPage() {
@@ -133,11 +147,6 @@ export function UsersPage() {
   const activeRoles = roles.filter((r) => r.status === 'Active')
 
   const selectedCompanyName = companies.find((company) => company.id === selectedCompanyId)?.name ?? selectedCompanyId
-  function preferredRoleLabel(roleIds: string[]) {
-    const roleId = roleIds[0]
-    return roleId ? roleNameById.get(roleId) ?? 'Unknown' : '—'
-  }
-
   /* ── CRUD Operations ── */
 
   function openCreate() {
@@ -305,30 +314,12 @@ export function UsersPage() {
     {
       key: 'roles',
       header: 'Roles',
-      render: (u) => (
-        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
-          {preferredRoleLabel(u.roleIds) !== '—' ? (
-            <Chip size="small" label={preferredRoleLabel(u.roleIds)} />
-          ) : (
-            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>—</Typography>
-          )}
-        </Stack>
-      ),
+      render: (u) => <CompactValues values={u.roleIds.map((id) => roleNameById.get(id) ?? 'Unknown')} />,
     },
     {
       key: 'shops',
       header: 'Shops',
-      render: (u) => (
-        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
-          {u.shopIds.length ? (
-            u.shopIds.map((id) => (
-              <Chip key={id} size="small" label={shopNameById.get(id) ?? 'Unknown'} />
-            ))
-          ) : (
-            <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>—</Typography>
-          )}
-        </Stack>
-      ),
+      render: (u) => <CompactValues values={u.shopIds.map((id) => shopNameById.get(id) ?? 'Unknown')} />,
     },
     {
       key: 'status',
