@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom'
 
 type Step={title:string;description:string;selector?:string}
 type Position={top:number;left:number;width:number;target?:DOMRect}
+const GUIDE_DISABLED_KEY='cw-workshop-guide-disabled:v1'
 const routeKey=(path:string)=>path.split('/').map(part=>(/^\d+$/.test(part)||/^[a-z0-9]{8,}$/i.test(part)?':record':part)).join('/')||'/'
 const visible=(node:Element|null):node is HTMLElement=>node instanceof HTMLElement&&node.getClientRects().length>0
 
@@ -24,11 +25,12 @@ function stepsFor(path:string):Step[]{const name=screenName(path);const candidat
 
 export function GuidedTour(){const location=useLocation(),key=useMemo(()=>routeKey(location.pathname),[location.pathname]);const[steps,setSteps]=useState<Step[]>([]),[index,setIndex]=useState(0),[open,setOpen]=useState(false),[position,setPosition]=useState<Position>({top:120,left:20,width:370})
   const start=useCallback((automatic=false)=>{setSteps(stepsFor(location.pathname));setIndex(0);setOpen(true);if(automatic)localStorage.setItem(`cw-workshop-guide-seen:v1:${key}`,'true')},[key,location.pathname])
-  useEffect(()=>{setOpen(false);const timer=window.setTimeout(()=>{if(localStorage.getItem(`cw-workshop-guide-seen:v1:${key}`)!=='true')start(true)},650);return()=>window.clearTimeout(timer)},[key,start])
+  useEffect(()=>{setOpen(false);const timer=window.setTimeout(()=>{if(localStorage.getItem(GUIDE_DISABLED_KEY)!=='true'&&localStorage.getItem(`cw-workshop-guide-seen:v1:${key}`)!=='true')start(true)},650);return()=>window.clearTimeout(timer)},[key,start])
   useEffect(()=>{const listener=()=>start(false);window.addEventListener('cw:start-guide',listener);return()=>window.removeEventListener('cw:start-guide',listener)},[start])
   const current=steps[index]
   useEffect(()=>{if(!open||!current)return;const update=()=>{const element=current.selector?Array.from(document.querySelectorAll(current.selector)).find(visible):null;element?.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});window.setTimeout(()=>{const rect=element?.getBoundingClientRect(),width=Math.min(390,window.innerWidth-24);if(!rect){setPosition({top:Math.max(18,(window.innerHeight-260)/2),left:Math.max(12,(window.innerWidth-width)/2),width});return}const below=rect.bottom+16,top=below+245<window.innerHeight?below:Math.max(12,rect.top-260);setPosition({top,left:Math.min(Math.max(12,rect.left),window.innerWidth-width-12),width,target:rect})},120)};update();window.addEventListener('resize',update);window.addEventListener('scroll',update,true);return()=>{window.removeEventListener('resize',update);window.removeEventListener('scroll',update,true)}},[current,open])
   const close=()=>{setOpen(false);localStorage.setItem(`cw-workshop-guide-seen:v1:${key}`,'true')}
+  const neverShowAgain=()=>{localStorage.setItem(GUIDE_DISABLED_KEY,'true');close()}
   return <>
     <Button onClick={()=>start(false)} startIcon={<HelpOutlined/>} aria-label="Start screen guide" sx={{position:'fixed',zIndex:1200,top:{xs:'auto',md:58},bottom:{xs:72,md:'auto'},right:{xs:12,md:18},minWidth:{xs:42,sm:90},borderRadius:99,bgcolor:'rgba(255,255,255,.96)',color:'#16392d',border:'1px solid rgba(15,23,42,.12)',boxShadow:'0 10px 30px rgba(15,23,42,.14)',backdropFilter:'blur(12px)','&:hover':{bgcolor:'#fff',transform:'translateY(-1px)'},'& .MuiButton-startIcon':{mr:{xs:0,sm:1}}}}><Box component="span" sx={{display:{xs:'none',sm:'inline'}}}>Guide</Box></Button>
     {open&&current?<Box role="dialog" aria-modal="true" aria-label="Screen guidance" sx={{position:'fixed',inset:0,zIndex:20000,pointerEvents:'none'}}>
@@ -37,7 +39,7 @@ export function GuidedTour(){const location=useLocation(),key=useMemo(()=>routeK
       <Paper elevation={24} sx={{position:'fixed',zIndex:3,pointerEvents:'auto',top:{xs:'auto',sm:position.top},bottom:{xs:12,sm:'auto'},left:{xs:12,sm:position.left},right:{xs:12,sm:'auto'},width:{xs:'auto',sm:position.width},p:2.25,borderRadius:4,border:'1px solid rgba(255,255,255,.68)',background:'rgba(255,255,255,.98)'}}>
         <Box sx={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:2}}><Box><Typography sx={{fontSize:10,fontWeight:850,letterSpacing:'.12em',color:'#39735a'}}>SCREEN GUIDE · {index+1} OF {steps.length}</Typography><Typography component="h2" sx={{mt:.35,fontSize:19,fontWeight:850,letterSpacing:'-.02em'}}>{current.title}</Typography></Box><IconButton onClick={close} size="small" aria-label="Close guide"><Close fontSize="small"/></IconButton></Box>
         <Typography sx={{my:1.6,color:'text.secondary',fontSize:13,lineHeight:1.65}}>{current.description}</Typography>
-        <Box sx={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:1}}><Button size="small" color="inherit" onClick={close}>End tour</Button><Box sx={{display:'flex',gap:1}}><Button size="small" variant="outlined" disabled={index===0} startIcon={<ArrowBack/>} onClick={()=>setIndex(value=>value-1)}>Back</Button><Button size="small" variant="contained" endIcon={<ArrowForward/>} onClick={()=>index===steps.length-1?close():setIndex(value=>value+1)}>{index===steps.length-1?'Finish':'Next'}</Button></Box></Box>
+        <Box sx={{display:'flex',alignItems:{xs:'stretch',sm:'center'},justifyContent:'space-between',gap:1,flexDirection:{xs:'column',sm:'row'}}}><Box sx={{display:'flex',gap:.5,flexWrap:'wrap'}}><Button size="small" color="inherit" onClick={close}>End tour</Button><Button size="small" color="error" onClick={neverShowAgain}>Never show again</Button></Box><Box sx={{display:'flex',gap:1,justifyContent:'flex-end'}}><Button size="small" variant="outlined" disabled={index===0} startIcon={<ArrowBack/>} onClick={()=>setIndex(value=>value-1)}>Back</Button><Button size="small" variant="contained" endIcon={<ArrowForward/>} onClick={()=>index===steps.length-1?close():setIndex(value=>value+1)}>{index===steps.length-1?'Finish':'Next'}</Button></Box></Box>
       </Paper>
     </Box>:null}
   </>
