@@ -34,8 +34,9 @@ import {
   AssignmentTurnedIn,
   ErrorOutlined,
   VerifiedUser,
+  Print,
 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { useCwStore, buildDefaultInspectionChecks } from '../../store/cwStore'
@@ -170,6 +171,51 @@ export function SAAppointmentDetailPage() {
     [users, qcRoleId],
   )
   const [selectedQCUserId, setSelectedQCUserId] = useState('')
+
+  // Billing documents are created by the backend as the service order moves
+  // through approval/completion. Keep the appointment screen linked to those
+  // documents so the SA never has to create accounting records manually.
+  const [billingOrder, setBillingOrder] = useState<{
+    id: string
+    salesOrderId?: string
+    salesInvoiceId?: string
+    billingStatus?: string
+    billingError?: string
+  } | null>(null)
+
+  useEffect(() => {
+    if (!appt?.companyId || !appt.id) return
+    let cancelled = false
+    workshopApi.listServiceOrders({ company: appt.companyId, appointmentId: appt.id, pageSize: 10 })
+      .then((response) => {
+        if (cancelled) return
+        const row = response.data?.[0] as Record<string, unknown> | undefined
+        if (!row) {
+          setBillingOrder(null)
+          return
+        }
+        setBillingOrder({
+          id: String(row.id ?? row.name ?? ''),
+          salesOrderId: row.salesOrderId ? String(row.salesOrderId) : undefined,
+          salesInvoiceId: row.salesInvoiceId ? String(row.salesInvoiceId) : undefined,
+          billingStatus: row.billingStatus ? String(row.billingStatus) : undefined,
+          billingError: row.billingError ? String(row.billingError) : undefined,
+        })
+      })
+      .catch(() => {
+        // The appointment remains usable when billing is not yet available.
+        if (!cancelled) setBillingOrder(null)
+      })
+    return () => { cancelled = true }
+  }, [appt?.companyId, appt?.id])
+
+  function printBillingDocument(doctype: 'Sales Order' | 'Sales Invoice', name?: string) {
+    if (!name) {
+      toast.warning(`${doctype} is not ready yet. It will appear automatically after the relevant workflow step.`)
+      return
+    }
+    window.open(workshopApi.workshopDocumentPrintUrl(doctype, name), '_blank', 'noopener,noreferrer')
+  }
 
   if (!appt) {
     return (
@@ -751,6 +797,43 @@ export function SAAppointmentDetailPage() {
               sx={{ fontWeight: 900, borderRadius: radii.md }}>
               Payment Received — Issue Gate Pass
             </Button>
+          </SectionCard>
+        )}
+
+        {/* ── Accounting documents ── */}
+        {billingOrder && (
+          <SectionCard title="Accounting Documents" icon={<Print sx={{ fontSize: '1rem' }} />}>
+            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 1.5 }}>
+              Sales documents are generated from this appointment and remain linked to the service order. Printing is available before or after payment; posting and payment remain controlled by Accounts.
+            </Typography>
+            {billingOrder.billingStatus === 'Error' && billingOrder.billingError && (
+              <Alert severity="warning" sx={{ mb: 1.5, borderRadius: radii.md, fontSize: '0.82rem' }}>
+                Invoice generation needs attention: {billingOrder.billingError}
+              </Alert>
+            )}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ flexWrap: 'wrap' }}>
+              <Button
+                variant="outlined"
+                startIcon={<Print />}
+                disabled={!billingOrder.salesOrderId}
+                onClick={() => printBillingDocument('Sales Order', billingOrder.salesOrderId)}
+                sx={{ borderRadius: radii.sm, fontWeight: 700 }}
+              >
+                Print Sales Order
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<Print />}
+                disabled={!billingOrder.salesInvoiceId}
+                onClick={() => printBillingDocument('Sales Invoice', billingOrder.salesInvoiceId)}
+                sx={{ borderRadius: radii.sm, fontWeight: 700 }}
+              >
+                Print Sales Invoice
+              </Button>
+            </Stack>
+            <Typography sx={{ mt: 1.25, fontSize: '0.75rem', color: colors.slate[500] }}>
+              {billingOrder.salesInvoiceId ? `Invoice: ${billingOrder.salesInvoiceId}` : billingOrder.billingStatus === 'Draft Ready' ? 'Invoice draft is being prepared.' : 'Invoice will be created automatically after service completion.'}
+            </Typography>
           </SectionCard>
         )}
 

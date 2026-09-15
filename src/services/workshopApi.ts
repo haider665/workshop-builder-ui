@@ -1311,6 +1311,9 @@ export const workshopApi = {
   async createServiceOrder(input: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.create_from_appointment', { method: 'POST', body: { data: input } })
   },
+  workshopDocumentPrintUrl(doctype: 'Sales Order' | 'Sales Invoice', name: string): string {
+    return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.workshop_document?doctype=${encodeURIComponent(doctype)}&name=${encodeURIComponent(name)}`
+  },
 
   async updateServiceOrder(id: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.update', { method: 'POST', body: { id, data: input } })
