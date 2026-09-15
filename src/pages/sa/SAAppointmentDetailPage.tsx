@@ -111,6 +111,7 @@ export function SAAppointmentDetailPage() {
     () => appointments.find((a) => a.id === appointmentId) ?? null,
     [appointments, appointmentId],
   )
+  const linkedAppointment = appt as (typeof appt & { serviceOrderId?: string; salesOrderId?: string; salesInvoiceId?: string })
 
   const vehicle = useMemo(() => (appt ? vehicles.find((v) => v.id === appt.vehicleId) : null), [vehicles, appt])
   const customer = useMemo(() => (appt ? customers.find((c) => c.id === appt.customerId) : null), [customers, appt])
@@ -191,7 +192,11 @@ export function SAAppointmentDetailPage() {
         if (cancelled) return
         const row = response.data?.[0] as Record<string, unknown> | undefined
         if (!row) {
-          setBillingOrder(null)
+          if (linkedAppointment?.serviceOrderId) {
+            setBillingOrder({ id: linkedAppointment.serviceOrderId, salesOrderId: linkedAppointment.salesOrderId, salesInvoiceId: linkedAppointment.salesInvoiceId })
+          } else {
+            setBillingOrder(null)
+          }
           return
         }
         setBillingOrder({
@@ -248,6 +253,14 @@ export function SAAppointmentDetailPage() {
   const canSendPaymentWA = isQCApproved
   // SA can confirm payment
   const canConfirmPayment = isPaymentPending
+
+  const currentBillingOrder = billingOrder ?? {
+    id: linkedAppointment?.serviceOrderId ?? '',
+    salesOrderId: linkedAppointment?.salesOrderId,
+    salesInvoiceId: linkedAppointment?.salesInvoiceId,
+    billingStatus: undefined,
+    billingError: undefined,
+  }
 
   function handleSubmitInspection() {
     const invalidNotApplicable = inspChecks.find((check) => check.result === 'Not Applicable' && !check.notApplicableReason?.trim())
@@ -801,22 +814,22 @@ export function SAAppointmentDetailPage() {
         )}
 
         {/* ── Accounting documents ── */}
-        {billingOrder && (
+        {(
           <SectionCard title="Accounting Documents" icon={<Print sx={{ fontSize: '1rem' }} />}>
             <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 1.5 }}>
               Sales documents are generated from this appointment and remain linked to the service order. Printing is available before or after payment; posting and payment remain controlled by Accounts.
             </Typography>
-            {billingOrder.billingStatus === 'Error' && billingOrder.billingError && (
+            {currentBillingOrder.billingStatus === 'Error' && currentBillingOrder.billingError && (
               <Alert severity="warning" sx={{ mb: 1.5, borderRadius: radii.md, fontSize: '0.82rem' }}>
-                Invoice generation needs attention: {billingOrder.billingError}
+                Invoice generation needs attention: {currentBillingOrder.billingError}
               </Alert>
             )}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ flexWrap: 'wrap' }}>
               <Button
                 variant="outlined"
                 startIcon={<Print />}
-                disabled={!billingOrder.salesOrderId}
-                onClick={() => printBillingDocument('Sales Order', billingOrder.salesOrderId)}
+                disabled={!currentBillingOrder.salesOrderId}
+                onClick={() => printBillingDocument('Sales Order', currentBillingOrder.salesOrderId)}
                 sx={{ borderRadius: radii.sm, fontWeight: 700 }}
               >
                 Print Sales Order
@@ -824,15 +837,15 @@ export function SAAppointmentDetailPage() {
               <Button
                 variant="contained"
                 startIcon={<Print />}
-                disabled={!billingOrder.salesInvoiceId}
-                onClick={() => printBillingDocument('Sales Invoice', billingOrder.salesInvoiceId)}
+                disabled={!currentBillingOrder.salesInvoiceId}
+                onClick={() => printBillingDocument('Sales Invoice', currentBillingOrder.salesInvoiceId)}
                 sx={{ borderRadius: radii.sm, fontWeight: 700 }}
               >
                 Print Sales Invoice
               </Button>
             </Stack>
             <Typography sx={{ mt: 1.25, fontSize: '0.75rem', color: colors.slate[500] }}>
-              {billingOrder.salesInvoiceId ? `Invoice: ${billingOrder.salesInvoiceId}` : billingOrder.billingStatus === 'Draft Ready' ? 'Invoice draft is being prepared.' : 'Invoice will be created automatically after service completion.'}
+              {currentBillingOrder.salesInvoiceId ? `Invoice: ${currentBillingOrder.salesInvoiceId}` : currentBillingOrder.billingStatus === 'Draft Ready' ? 'Invoice draft is being prepared.' : 'Invoice will be created automatically after service completion.'}
             </Typography>
           </SectionCard>
         )}
