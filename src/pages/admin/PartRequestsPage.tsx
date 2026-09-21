@@ -27,6 +27,7 @@ import { useSessionStore } from '../../store/sessionStore'
 import { workshopApi } from '../../services/workshopApi'
 import { fetchAllPages } from '../../services/pagination'
 import { useToast } from '../../hooks/useToast'
+import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -142,15 +143,13 @@ export function PartRequestsPage() {
     toast.success(`Labeled as ${selectedPart.name} (${selectedPart.partNumber}).`)
   }
 
-  function rejectRequest(prId: string) {
-    labelPartRequest(prId, {
-      partNumber: '',
-      price: 0,
-      quantity: 0,
-      labeledBy: sessionUser?.name || 'Admin',
-      status: 'Rejected',
-    })
-    toast.success('Part request rejected.')
+  async function rejectRequest(prId: string) {
+    try {
+      await useCwStore.getState().setPartRequestStatus(prId, 'Rejected')
+      toast.success('Part request rejected. You can label and send it to the estimator individually.')
+    } catch (error) {
+      toast.error(error, 'Failed to reject the part request.')
+    }
   }
 
   async function sendToEstimator(pr: CWPartRequest) {
@@ -374,6 +373,12 @@ export function PartRequestsPage() {
                                         </Box>
                                       )}
                                       sx={{ minWidth: 200 }}
+                                      noOptionsText={(
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
+                                          <Typography variant="body2" color="text.secondary">No matching catalog part.</Typography>
+                                          <RequestMasterDataButton targetDoctype="CW Part" targetField="Item Name / Part" requestedValue={pr.partName} compact context={{ partRequestId: pr.id, appointmentId: pr.appointmentId }} />
+                                        </Box>
+                                      )}
                                       renderInput={(params) => <TextField {...params} placeholder="Search parts..." />}
                                     />
                                   ) : pr.partNumber ? (
@@ -398,21 +403,34 @@ export function PartRequestsPage() {
                                   <Chip size="small" label={pr.status} color={STATUS_COLORS[pr.status]} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                                 </TableCell>
                                 <TableCell align="right" sx={{ pr: 3 }}>
-                                  {pr.status === 'Requested' && !isEditing && (
+                                  {(pr.status === 'Requested' || (pr.status === 'Rejected' && !pr.partNumber)) && !isEditing && (
                                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                                       <Button size="small" variant="contained" onClick={() => startEdit(pr.id)} sx={btnSx}>
                                         Label
                                       </Button>
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        color="error"
-                                        onClick={() => rejectRequest(pr.id)}
-                                        sx={{ fontWeight: 700, borderRadius: '10px' }}
-                                      >
-                                        Reject
-                                      </Button>
+                                      {pr.status === 'Requested' && (
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          color="error"
+                                          onClick={() => void rejectRequest(pr.id)}
+                                          sx={{ fontWeight: 700, borderRadius: '10px' }}
+                                        >
+                                          Reject
+                                        </Button>
+                                      )}
                                     </Stack>
+                                  )}
+                                  {pr.status === 'Rejected' && pr.partNumber && !isEditing && (
+                                    <Button
+                                      size="small"
+                                      variant="contained"
+                                      startIcon={<Send />}
+                                      onClick={() => void sendToEstimator(pr).then(() => toast.success('Rejected part sent to the estimator.')).catch((error) => toast.error(error, 'Failed to send the part to the estimator.'))}
+                                      sx={{ ...btnSx, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}
+                                    >
+                                      Send to Estimator
+                                    </Button>
                                   )}
                                   {isEditing && (
                                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>

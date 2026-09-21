@@ -45,6 +45,7 @@ import { useCREData } from '../../hooks/useCREData'
 import type { CWConcern, CWService } from '../../types/cw'
 import type { CWVehicleSize } from '../../types/cw'
 import { useToast } from '../../hooks/useToast'
+import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 
 const HOURS = [
   '08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
@@ -457,6 +458,12 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
               setSelectedCustomer(val)
               setSelectedVehicle(null) // reset vehicle when customer changes
             }}
+            noOptionsText={(
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <Typography variant="body2" color="text.secondary">No matching customer.</Typography>
+                <RequestMasterDataButton targetDoctype="Customer" targetField="Customer Name" compact />
+              </Box>
+            )}
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -504,7 +511,12 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
                 )
               }}
               isOptionEqualToValue={(opt, val) => opt.id === val.id}
-              noOptionsText={customerVehicles.length === 0 ? 'No vehicles for this customer' : 'No match'}
+              noOptionsText={(
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <Typography variant="body2" color="text.secondary">{customerVehicles.length === 0 ? 'No vehicles for this customer.' : 'No matching vehicle.'}</Typography>
+                  <RequestMasterDataButton targetDoctype="CW Vehicle" targetField="Registration Number" requestedValue={linkedPendingVehicle?.registrationNo ?? ''} compact context={{ customerId: selectedCustomer.id }} />
+                </Box>
+              )}
             />
           )}
           {!selectedCustomer && (
@@ -666,6 +678,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
               onChange={(_, val) => setSelConcerns(val)}
               disableCloseOnSelect
               sx={{ flex: '1 1 280px' }}
+              noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching concern.</Typography><RequestMasterDataButton targetDoctype="CW Concern" targetField="Concern" compact /></Box>}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -796,6 +809,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
               onChange={(_, val) => setSelServices(val)}
               disableCloseOnSelect
               sx={{ flex: '2 1 320px' }}
+              noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching service.</Typography><RequestMasterDataButton targetDoctype="CW Service" targetField="Service" compact /></Box>}
               renderInput={(params) => (
                 <TextField
                   {...params}

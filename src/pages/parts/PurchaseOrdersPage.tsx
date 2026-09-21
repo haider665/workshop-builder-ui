@@ -30,6 +30,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
+import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import type { Column } from '../../components/DataTable'
 import { workshopApi } from '../../services/workshopApi'
 import type { CWPurchaseOrder, CWPurchaseOrderStatus, CWGRNLineCondition } from '../../types/cw'
@@ -915,6 +916,7 @@ export function PurchaseOrdersPage() {
                         value={selectedPart}
                         onChange={(_, val) => updateLine(idx, { partId: val?.id ?? '' })}
                         getOptionLabel={(p) => `${p.partNumber} — ${p.name}`}
+                        noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching part.</Typography><RequestMasterDataButton targetDoctype="CW Part" targetField="Item Name / Part" requestedValue={line.partId} compact /></Box>}
                         renderInput={(params) => <TextField {...params} label="Part" size="small" required />}
                         size="small"
                         isOptionEqualToValue={(opt, val) => opt.id === val.id}
