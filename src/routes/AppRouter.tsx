@@ -14,6 +14,7 @@ import { PartRequestsPage } from '../pages/admin/PartRequestsPage'
 import { RolesPage } from '../pages/admin/RolesPage'
 import { ShopsPage } from '../pages/admin/ShopsPage'
 import { AdminReportsPage } from '../pages/admin/AdminReportsPage'
+import { AdminDataRequestsPage } from '../pages/admin/AdminDataRequestsPage'
 import { TaskTemplatesPage } from '../pages/admin/TaskTemplatesPage'
 import { TeamsPage } from '../pages/admin/TeamsPage'
 import { UsersPage } from '../pages/admin/UsersPage'
@@ -89,6 +90,7 @@ export function AppRouter() {
             <Route path="/admin/parts" element={<PartsPage />} />
             <Route path="/admin/part-requests" element={<PartRequestsPage />} />
             <Route path="/admin/reports" element={<AdminReportsPage />} />
+            <Route path="/admin/data-requests" element={<AdminDataRequestsPage />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Parts', 'Admin']} />}>

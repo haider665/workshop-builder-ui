@@ -13,6 +13,7 @@ import {
   Inventory,
   ArrowForward,
   Search,
+  AssignmentTurnedIn,
 } from '@mui/icons-material'
 import { Link as RouterLink } from 'react-router-dom'
 import { useState } from 'react'
@@ -67,6 +68,7 @@ const sections: Section[] = [
       { title: 'Roles', desc: 'Role permissions', to: '/admin/roles', icon: <AdminPanelSettings /> },
       { title: 'F1 Config', desc: 'F1 configuration', to: '/admin/f1', icon: <Settings /> },
       { title: 'Reports', desc: 'Reports & analytics', to: '/admin/reports', icon: <Assessment /> },
+      { title: 'Data Requests', desc: 'Review missing master-data requests', to: '/admin/data-requests', icon: <AssignmentTurnedIn /> },
     ],
   },
 ]
