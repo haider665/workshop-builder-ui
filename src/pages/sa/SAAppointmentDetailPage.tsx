@@ -43,6 +43,7 @@ import { useCwStore, buildDefaultInspectionChecks } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
+import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { WhatsAppHistory } from '../../components/WhatsAppHistory'
 import { useToast } from '../../hooks/useToast'
@@ -540,6 +541,7 @@ export function SAAppointmentDetailPage() {
                 value={activeConcerns.find((c) => c.id === addConcernId) ?? null}
                 onChange={(_, val) => setAddConcernId(val?.id ?? '')}
                 sx={{ minWidth: 280 }}
+                noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching concern.</Typography><RequestMasterDataButton targetDoctype="CW Concern" targetField="Concern" compact context={{ appointmentId }} /></Box>}
                 renderInput={(params) => <TextField {...params} label="Add Concern" placeholder="Type to search…" />}
               />
               <TextField size="small" label="Remark" value={addConcernRemark}
@@ -604,6 +606,7 @@ export function SAAppointmentDetailPage() {
                   onChange={(_, val) => setAddServiceId(val?.id ?? '')}
                   disabled={!serviceShopFilter}
                   sx={{ minWidth: 300 }}
+                  noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching service.</Typography><RequestMasterDataButton targetDoctype="CW Service" targetField="Service" compact context={{ appointmentId }} /></Box>}
                   renderInput={(params) => (
                     <TextField {...params} label="Add Service" placeholder="Type to search…"
                       helperText={!serviceShopFilter ? 'Select shop first' : undefined} />

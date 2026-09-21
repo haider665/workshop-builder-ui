@@ -24,6 +24,7 @@ import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
+import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWConcernWorkStatus, CWServiceWorkStatus } from '../../types/cw'
@@ -436,6 +437,7 @@ export function SEAppointmentDetailPage() {
                           onChange={(_, val) => setConcernAddServiceId((prev) => ({ ...prev, [c.id]: val?.id ?? '' }))}
                           disabled={!(concernServiceShopFilter[c.id] ?? '')}
                           sx={{ minWidth: 280, flex: 1 }}
+                          noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching service.</Typography><RequestMasterDataButton targetDoctype="CW Service" targetField="Service" compact context={{ appointmentId: appt.id, concernId: c.id }} /></Box>}
                           renderInput={(params) => (
                             <TextField {...params} label="Service" placeholder={!(concernServiceShopFilter[c.id] ?? '') ? 'Select shop first' : 'Type to search…'}
                               sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }} />
