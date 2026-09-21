@@ -23,7 +23,7 @@ export function RequestMasterDataButton({ targetDoctype, targetField, requestedV
     } catch (error) { toast.error(error, 'The request could not be sent.') } finally { setSaving(false) }
   }
   return <>
-    <Button size={compact ? 'small' : 'medium'} variant="text" startIcon={<Add fontSize="small" />} onClick={() => { setValue(requestedValue); setOpen(true) }} sx={{ textTransform: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</Button>
+    <Button size={compact ? 'small' : 'medium'} variant="text" startIcon={<Add fontSize="small" />} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setValue(requestedValue); setOpen(true) }} sx={{ textTransform: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</Button>
     <Dialog open={open} onClose={() => !saving && setOpen(false)} fullWidth maxWidth="xs">
       <DialogTitle>Request missing master data</DialogTitle>
       <DialogContent>
