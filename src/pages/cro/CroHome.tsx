@@ -434,10 +434,6 @@ export function CroHome() {
             value={activeAppointments.length}
             onClick={() => navigate('/cre/appointments')}
             gradient="linear-gradient(135deg, #0F766E 0%, #14B8A6 100%)"
-            details={[
-              { label: 'Individual', value: customers.filter((c) => c.type === 'Individual').length },
-              { label: 'Corporate', value: customers.filter((c) => c.type === 'Corporate').length },
-            ]}
           />
           <DashStatCard
             icon={<People fontSize="small" />}
@@ -445,6 +441,10 @@ export function CroHome() {
             value={customers.length}
             onClick={() => navigate('/cre/customers')}
             gradient="linear-gradient(135deg, #334155 0%, #475569 100%)"
+            details={[
+              { label: 'Individual', value: customers.filter((c) => (c.type ?? 'Individual') === 'Individual').length },
+              { label: 'Corporate', value: customers.filter((c) => c.type === 'Corporate').length },
+            ]}
           />
           <DashStatCard
             icon={<DirectionsCar fontSize="small" />}
