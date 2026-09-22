@@ -166,12 +166,12 @@ export function CustomerDetailPage() {
   const vehicles = useCwStore((s) => s.vehicles)
   const appointments = useCwStore((s) => s.appointments)
   const sessionUser = useSessionStore((state) => state.user)
-  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE')) && !customer?.profileVerified
   const [editDraft, setEditDraft] = useState<CWCustomer | null>(null)
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
   const customer = customers.find((c) => c.id === customerId)
+  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE')) && !customer?.profileVerified
 
   if (!customer) {
     return (

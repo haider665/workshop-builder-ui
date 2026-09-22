@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -88,9 +89,9 @@ export function VehicleDetailPage() {
   const [transferError, setTransferError] = useState<string | null>(null)
   const [ownershipHistory, setOwnershipHistory] = useState<CWVehicleOwnershipTransfer[]>([])
   const sessionUser = useSessionStore((state) => state.user)
-  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE')) && !vehicle?.profileVerified
 
   const vehicle = vehicles.find((v) => v.id === vehicleId)
+  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE')) && !vehicle?.profileVerified
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c] as const)), [customers])
 
   useEffect(() => {
