@@ -544,6 +544,7 @@ export function SAAppointmentDetailPage() {
                 noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching concern.</Typography><RequestMasterDataButton targetDoctype="CW Concern" targetField="Concern" compact context={{ appointmentId }} /></Box>}
                 renderInput={(params) => <TextField {...params} label="Add Concern" placeholder="Type to search…" />}
               />
+              <RequestMasterDataButton targetDoctype="CW Concern" targetField="Concern" compact context={{ appointmentId }} />
               <TextField size="small" label="Remark" value={addConcernRemark}
                 onChange={(e) => setAddConcernRemark(e.target.value)} />
               <Button variant="contained" size="small" onClick={handleAddConcern} disabled={!addConcernId}
@@ -612,6 +613,7 @@ export function SAAppointmentDetailPage() {
                       helperText={!serviceShopFilter ? 'Select shop first' : undefined} />
                   )}
                 />
+                <RequestMasterDataButton targetDoctype="CW Service" targetField="Service" compact context={{ appointmentId }} />
                 <TextField size="small" label="Remark" value={addServiceRemark}
                   onChange={(e) => setAddServiceRemark(e.target.value)} />
                 <Button variant="contained" size="small" onClick={handleAddService} disabled={!addServiceId}

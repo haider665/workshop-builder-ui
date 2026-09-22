@@ -333,6 +333,10 @@ export const workshopApi = {
     })
   },
 
+  async verifyCustomer(customerId: string): Promise<import('../types/cw').CWCustomer> {
+    return request<import('../types/cw').CWCustomer>('/api/method/workshop.api.customers.verify', { method: 'POST', body: { data: { id: customerId } } })
+  },
+
   async listVehicles(params: {
     customerId?: string
     status?: import('../types/cw').CWVehicleStatus
@@ -413,6 +417,10 @@ export const workshopApi = {
       method: 'POST',
       body: { id: vehicleId, data: input },
     })
+  },
+
+  async verifyVehicle(vehicleId: string): Promise<import('../types/cw').CWVehicle> {
+    return request<import('../types/cw').CWVehicle>('/api/method/workshop.api.vehicles.verify', { method: 'POST', body: { data: { id: vehicleId } } })
   },
 
   async transferVehicleOwnership(input: { vehicleId: string; newCustomerId: string; effectiveDate: string; reason: string; proofFileUrl?: string; notes?: string }): Promise<{ vehicle: import('../types/cw').CWVehicle; transfer: import('../types/cw').CWVehicleOwnershipTransfer }> {

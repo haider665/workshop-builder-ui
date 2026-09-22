@@ -191,6 +191,9 @@ export type CWCustomer = {
   googleLink?: string
   customerDocuments?: CWCustomerDocument[]
   status: CWCustomerStatus
+  profileVerified?: boolean
+  verifiedBy?: string
+  verifiedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -221,6 +224,9 @@ export type CWVehicle = {
   additionalNotes?: string
   vehicleDocuments?: CWGateVehicleDocument[]
   status: CWVehicleStatus
+  profileVerified?: boolean
+  verifiedBy?: string
+  verifiedAt?: string
   createdAt: string
   updatedAt: string
 }

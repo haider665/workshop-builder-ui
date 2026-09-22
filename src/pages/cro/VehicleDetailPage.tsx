@@ -28,6 +28,7 @@ import {
   OpenInNewOutlined,
   SwapHorizOutlined,
   CloudUploadOutlined,
+  VerifiedUser,
 } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -87,7 +88,7 @@ export function VehicleDetailPage() {
   const [transferError, setTransferError] = useState<string | null>(null)
   const [ownershipHistory, setOwnershipHistory] = useState<CWVehicleOwnershipTransfer[]>([])
   const sessionUser = useSessionStore((state) => state.user)
-  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE'))
+  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE')) && !vehicle?.profileVerified
 
   const vehicle = vehicles.find((v) => v.id === vehicleId)
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c] as const)), [customers])
@@ -127,6 +128,14 @@ export function VehicleDetailPage() {
 
   const v = vehicle
   const customer = customerById.get(v.customerId)
+
+  async function verifyVehicle() {
+    if (!window.confirm('Verify this vehicle profile? No one will be able to edit it afterward.')) return
+    try {
+      const updated = await workshopApi.verifyVehicle(v.id)
+      useCwStore.setState((state) => ({ vehicles: state.vehicles.map((item) => item.id === v.id ? updated : item) }))
+    } catch (error) { setEditError(error instanceof Error ? error.message : 'Unable to verify vehicle') }
+  }
 
   async function saveVehicle() {
     if (!editDraft) return
@@ -176,6 +185,7 @@ export function VehicleDetailPage() {
             </Box>
           </Stack>
           <Stack direction="row" spacing={1}>
+            {v.profileVerified ? <Chip color="success" icon={<VerifiedUser />} label="Verified · Locked" /> : <Button variant="outlined" color="success" startIcon={<VerifiedUser />} disabled={!canEdit} onClick={() => void verifyVehicle()}>Verify profile</Button>}
             <Button variant="contained" disabled={!canEdit} onClick={() => setEditDraft({ ...v, vehicleDocuments: [...(v.vehicleDocuments ?? [])] })} sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}>
               + Edit Details
             </Button>

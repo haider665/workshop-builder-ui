@@ -443,6 +443,7 @@ export function SEAppointmentDetailPage() {
                               sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }} />
                           )}
                         />
+                        <RequestMasterDataButton targetDoctype="CW Service" targetField="Service" compact context={{ appointmentId: appt.id, concernId: c.id }} />
                         <Button
                           variant="contained" size="small" sx={{ ...actionBtnSx, height: 40, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}
                           disabled={!(concernAddServiceId[c.id] ?? '')}

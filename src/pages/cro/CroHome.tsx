@@ -28,6 +28,7 @@ import {
   Search,
   Visibility,
   WavingHand,
+  Download,
 } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
@@ -35,6 +36,7 @@ import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
 import { NewAppointmentPage } from './NewAppointmentPage'
+import * as XLSX from 'xlsx'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
 
@@ -290,6 +292,8 @@ export function CroHome() {
   const [searchQuery, setSearchQuery] = useState('')
   const [appointmentPage, setAppointmentPage] = useState(0)
   const [appointmentRowsPerPage, setAppointmentRowsPerPage] = useState(25)
+  const [exportFrom, setExportFrom] = useState('')
+  const [exportTo, setExportTo] = useState('')
   const [appointmentComposerOpen, setAppointmentComposerOpen] = useState(false)
   const [appointmentComposerAction, setAppointmentComposerAction] = useState<'customer' | 'vehicle' | undefined>(undefined)
 
@@ -348,6 +352,8 @@ export function CroHome() {
   // All appointments sorted + filtered
   const allAppointmentsSorted = useMemo(() => {
     let list = appointments.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    if (exportFrom) list = list.filter((a) => (a.slotDate ?? a.scheduledAt?.slice(0, 10) ?? '') >= exportFrom)
+    if (exportTo) list = list.filter((a) => (a.slotDate ?? a.scheduledAt?.slice(0, 10) ?? '') <= exportTo)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
       list = list.filter((a) => {
@@ -361,7 +367,35 @@ export function CroHome() {
       })
     }
     return list
-  }, [appointments, vehicles, customers, searchQuery])
+  }, [appointments, vehicles, customers, searchQuery, exportFrom, exportTo])
+
+  function exportDailyClientVisit() {
+    if (!exportFrom || !exportTo) { window.dispatchEvent(new CustomEvent('cw:api-error-toast', { detail: { message: 'Select both From date and To date before exporting.' } })); return }
+    if (exportFrom > exportTo) { window.dispatchEvent(new CustomEvent('cw:api-error-toast', { detail: { message: 'From date cannot be after To date.' } })); return }
+    const rows = allAppointmentsSorted.map((a, index) => {
+      const vehicle = vehicles.find((v) => v.id === a.vehicleId)
+      const customer = customers.find((c) => c.id === a.customerId)
+      const advisor = a.assignedSAUserId ? users.find((u) => u.id === a.assignedSAUserId) : undefined
+      const reasons = a.concernItems?.map((item) => item.concernName).filter(Boolean).join(', ') || a.concerns || a.notes || ''
+      return {
+        SL: index + 1,
+        Date: a.slotDate ?? a.scheduledAt?.slice(0, 10) ?? '',
+        'Customer name': customer?.fullName ?? '',
+        Contact: customer?.phone ?? '',
+        Model: [vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || '',
+        VIN: vehicle?.vin ?? '',
+        'Reg No.': vehicle?.registrationNo ?? '',
+        'Mileage on arrival (KM)': a.currentMileage ?? vehicle?.odometerKm ?? '',
+        'Service Eng./Advisor': advisor?.fullName ?? '',
+        'Reason for visit': reasons,
+        'Source of Client': a.gateEntryId ? 'WALK IN' : 'BOOKED',
+      }
+    })
+    const sheet = XLSX.utils.json_to_sheet(rows)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Daily Client Visit')
+    XLSX.writeFile(workbook, `daily-client-visit-${exportFrom}-to-${exportTo}.xlsx`)
+  }
 
   useEffect(() => {
     setAppointmentPage(0)
@@ -702,6 +736,9 @@ export function CroHome() {
                   }}
                   sx={{ minWidth: 220 }}
                 />
+                <TextField size="small" type="date" label="From" value={exportFrom} onChange={(e) => { setExportFrom(e.target.value); setAppointmentPage(0) }} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 145 }} />
+                <TextField size="small" type="date" label="To" value={exportTo} onChange={(e) => { setExportTo(e.target.value); setAppointmentPage(0) }} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 145 }} />
+                <Button variant="outlined" startIcon={<Download />} onClick={exportDailyClientVisit} sx={{ whiteSpace: 'nowrap' }}>Export visit list</Button>
                 <Button
                   variant="contained"
                   component={RouterLink}

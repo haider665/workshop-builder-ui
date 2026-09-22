@@ -34,6 +34,7 @@ import {
   Visibility,
   WhatsApp,
   Work,
+  VerifiedUser,
   DescriptionOutlined,
 } from '@mui/icons-material'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
@@ -165,7 +166,7 @@ export function CustomerDetailPage() {
   const vehicles = useCwStore((s) => s.vehicles)
   const appointments = useCwStore((s) => s.appointments)
   const sessionUser = useSessionStore((state) => state.user)
-  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE'))
+  const canEdit = Boolean(sessionUser?.roles.some((role) => role === 'Admin' || role === 'CRE')) && !customer?.profileVerified
   const [editDraft, setEditDraft] = useState<CWCustomer | null>(null)
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
@@ -215,6 +216,14 @@ export function CustomerDetailPage() {
     finally { setSaving(false) }
   }
 
+  async function verifyCustomer() {
+    if (!window.confirm('Verify this customer profile? No one will be able to edit it afterward.')) return
+    try {
+      const updated = await workshopApi.verifyCustomer(currentCustomerId)
+      useCwStore.setState((state) => ({ customers: state.customers.map((item) => item.id === currentCustomerId ? updated : item) }))
+    } catch (error) { setEditError(error instanceof Error ? error.message : 'Unable to verify customer') }
+  }
+
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
       <Stack spacing={3}>
@@ -248,6 +257,8 @@ export function CustomerDetailPage() {
               </Typography>
             </Box>
           </Stack>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          {customer.profileVerified ? <Chip color="success" icon={<VerifiedUser />} label="Verified · Locked" /> : <Button variant="outlined" color="success" startIcon={<VerifiedUser />} disabled={!canEdit} onClick={() => void verifyCustomer()}>Verify profile</Button>}
           <Button
             variant="contained"
             disabled={!canEdit}
@@ -262,6 +273,7 @@ export function CustomerDetailPage() {
           >
             Edit Details
           </Button>
+          </Stack>
         </Stack>
 
         <Dialog open={Boolean(editDraft)} onClose={() => !saving && setEditDraft(null)} fullWidth maxWidth="md">
