@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { workshopApi } from '../services/workshopApi'
 import { useToast } from '../hooks/useToast'
 
-type Props = { targetDoctype: string; targetField: string; requestedValue?: string; company?: string; sourceRoute?: string; context?: Record<string, unknown>; label?: string; compact?: boolean; onRequested?: (requestId: string) => void }
+type Props = { targetDoctype: string; targetField: string; requestedValue?: string; company?: string; sourceRoute?: string; context?: Record<string, unknown>; label?: string; compact?: boolean; onRequested?: (requestId: string, requestedValue?: string) => void }
 
 /** Request a missing master value without navigating away or clearing the parent form. */
 export function RequestMasterDataButton({ targetDoctype, targetField, requestedValue = '', company, sourceRoute, context, label = 'Request admin to add', compact, onRequested }: Props) {
@@ -19,7 +19,7 @@ export function RequestMasterDataButton({ targetDoctype, targetField, requestedV
     try {
       const created = await workshopApi.createMasterDataRequest({ targetDoctype, targetField, requestedValue: value.trim(), company, sourceRoute: sourceRoute ?? window.location.pathname, context: { ...context, requesterNote: note } })
       toast.success(`Request sent to an administrator (${created.id}).`)
-      setOpen(false); onRequested?.(created.id)
+      setOpen(false); onRequested?.(created.id, value.trim())
     } catch (error) { toast.error(error, 'The request could not be sent.') } finally { setSaving(false) }
   }
   return <>

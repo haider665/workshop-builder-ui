@@ -144,6 +144,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
   const [concernItems, setConcernItems] = useState<{ id: string; concernId: string; concernName: string; processTimeMins?: number; remark: string }[]>([])
   const [selConcerns, setSelConcerns] = useState<CWConcern[]>([])
   const [concernRemark, setConcernRemark] = useState('')
+  const [pendingMasterRequests, setPendingMasterRequests] = useState<Array<{ requestId: string; requestedValue: string }>>([])
 
   // Services state
   const [serviceItems, setServiceItems] = useState<
@@ -373,7 +374,15 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
           ...pendingServiceItems,
         ],
       })
-      useCwStore.setState((state) => ({ appointments: [createdAppointment, ...state.appointments.filter((item) => item.id !== createdAppointment.id)] }))
+      let latestAppointment = createdAppointment
+      for (const pendingRequest of pendingMasterRequests) {
+        try {
+          latestAppointment = await workshopApi.linkMasterDataRequestToAppointment(pendingRequest.requestId, createdAppointment.id)
+        } catch (cause) {
+          toast.warning(cause instanceof Error ? ('Appointment saved, but concern request  + pendingRequest.requestedValue +  could not be attached: ' + cause.message) : ('Appointment saved, but concern request  + pendingRequest.requestedValue +  could not be attached.'))
+        }
+      }
+      useCwStore.setState((state) => ({ appointments: [latestAppointment, ...state.appointments.filter((item) => item.id !== latestAppointment.id)] }))
 
       // Resolve pending vehicle if linked
       if (gateEntryId) {
@@ -388,8 +397,9 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
         }
       }
 
+      if (pendingMasterRequests.length) setPendingMasterRequests([])
       toast.success(status === 'Draft' ? 'Appointment saved as draft.' : 'Appointment submitted successfully.')
-      if (onComplete) onComplete(createdAppointment.id)
+      if (onComplete) onComplete(latestAppointment.id)
       else navigate('/cre/appointments')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -445,6 +455,11 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
         {linkedPendingVehicle ? <Alert severity="info" sx={{ borderRadius: radii.sm }}>
           <Typography component="div" sx={{ fontWeight: 800 }}>Guard intake linked: {linkedPendingVehicle.registrationNo}</Typography>
           <Typography component="div" variant="body2">Handed over by {linkedPendingVehicle.intakerName || 'Not recorded'} ({linkedPendingVehicle.intakerType || 'Other'}){linkedPendingVehicle.intakerPhone ? ` · ${linkedPendingVehicle.intakerPhone}` : ''}. Evidence: {linkedPendingVehicle.vehicleDocuments?.length ?? 0} vehicle document(s){linkedPendingVehicle.intakerPhotoUrl ? ' and live person photo' : ''}. CRE/Admin verification remains required.</Typography>
+        </Alert> : null}
+
+        {pendingMasterRequests.length ? <Alert severity="warning" sx={{ borderRadius: radii.sm }}>
+          <Typography component="div" sx={{ fontWeight: 800 }}>Pending administrator requests</Typography>
+          <Typography component="div" variant="body2">{pendingMasterRequests.map((item) => item.requestedValue).join(', ')} will be attached to this appointment when you save it. Admin approval will activate the concern and rejection will remove it.</Typography>
         </Alert> : null}
 
         {/* ── Customer & Vehicle ── */}
@@ -679,7 +694,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
               onChange={(_, val) => setSelConcerns(val)}
               disableCloseOnSelect
               sx={{ flex: '1 1 280px' }}
-              noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching concern.</Typography><RequestMasterDataButton targetDoctype="CW Concern" targetField="Concern" compact /></Box>}
+              noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching concern.</Typography><RequestMasterDataButton targetDoctype="CW Concern" targetField="Concern" compact onRequested={(requestId, requestedValue) => setPendingMasterRequests((current) => [...current, { requestId, requestedValue: requestedValue || 'Requested concern' }])} /></Box>}
               renderInput={(params) => (
                 <TextField
                   {...params}

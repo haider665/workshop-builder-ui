@@ -2129,11 +2129,14 @@ export const workshopApi = {
   async listMasterDataRequests(params: { status?: string; mine?: boolean; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
     return request<ApiListResponse<CWMasterDataRequest>>(`/api/method/workshop.api.master_data_requests.list${buildQuery(params)}`)
   },
-  async approveMasterDataRequest(id: string, note?: string): Promise<CWMasterDataRequest> {
-    return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.approve', { method: 'POST', body: { data: { id, note } } })
+  async approveMasterDataRequest(id: string, note?: string, categoryId?: string): Promise<CWMasterDataRequest> {
+    return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.approve', { method: 'POST', body: { data: { id, note, categoryId } } })
   },
   async rejectMasterDataRequest(id: string, note?: string): Promise<CWMasterDataRequest> {
     return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.reject', { method: 'POST', body: { data: { id, note } } })
+  },
+  async linkMasterDataRequestToAppointment(requestId: string, appointmentId: string): Promise<import('../types/cw').CWAppointment> {
+    return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.master_data_requests.link_to_appointment', { method: 'POST', body: { data: { id: requestId, appointmentId } } })
   },
 
 }
