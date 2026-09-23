@@ -694,7 +694,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
               onChange={(_, val) => setSelConcerns(val)}
               disableCloseOnSelect
               sx={{ flex: '1 1 280px' }}
-              noOptionsText={<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}><Typography variant="body2" color="text.secondary">No matching concern.</Typography><RequestMasterDataButton targetDoctype="CW Concern" targetField="Concern" compact onRequested={(requestId, requestedValue) => setPendingMasterRequests((current) => [...current, { requestId, requestedValue: requestedValue || 'Requested concern' }])} /></Box>}
+              noOptionsText={<Typography variant="body2" color="text.secondary">No matching concern.</Typography>}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -703,6 +703,13 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
                   sx={fieldSx}
                 />
               )}
+            />
+            <RequestMasterDataButton
+              targetDoctype="CW Concern"
+              targetField="Concern"
+              label="Request new concern"
+              compact
+              onRequested={(requestId, requestedValue) => setPendingMasterRequests((current) => [...current, { requestId, requestedValue: requestedValue || 'Requested concern' }])}
             />
             <TextField
               size="small"
