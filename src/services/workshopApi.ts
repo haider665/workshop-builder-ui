@@ -1335,6 +1335,9 @@ export const workshopApi = {
   async createServiceOrder(input: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.create_from_appointment', { method: 'POST', body: { data: input } })
   },
+  jobCardPrintUrl(name: string): string {
+    return apiBaseUrl + '/api/method/workshop.api.accounting.printing.job_card?doctype=CW%20Job&name=' + encodeURIComponent(name)
+  },
   workshopDocumentPrintUrl(doctype: 'Sales Order' | 'Sales Invoice', name: string): string {
     return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.workshop_document?doctype=${encodeURIComponent(doctype)}&name=${encodeURIComponent(name)}`
   },

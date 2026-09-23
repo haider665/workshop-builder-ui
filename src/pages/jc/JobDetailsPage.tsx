@@ -28,6 +28,7 @@ import {
   DirectionsCar,
   Info,
   ListAlt,
+  Print,
 } from '@mui/icons-material'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { useMemo, useState } from 'react'
@@ -39,6 +40,7 @@ import { colors, radii, pageLayout } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import type { CWJobStatus, CWTaskStatus } from '../../types/cw'
+import { workshopApi } from '../../services/workshopApi'
 
 function toIsoFromLocal(value: string) {
   if (!value) return ''
@@ -215,6 +217,11 @@ export function JobDetailsPage() {
     }
   }
 
+  function printJobCard() {
+    if (!job) return
+    window.open(workshopApi.jobCardPrintUrl(job.id), '_blank', 'noopener,noreferrer')
+  }
+
   function submitTestDrive() {
     if (!job) return
     try {
@@ -271,6 +278,9 @@ export function JobDetailsPage() {
           </Stack>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             {jobStatusChip(job.status)}
+            <Button variant="outlined" startIcon={<Print />} onClick={printJobCard} sx={{ fontWeight: 700, borderRadius: '10px' }}>
+              Print Job Card
+            </Button>
             <Button component={RouterLink} to="/jc/pending-vehicles" variant="contained" sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}>
               Pending Vehicles
             </Button>

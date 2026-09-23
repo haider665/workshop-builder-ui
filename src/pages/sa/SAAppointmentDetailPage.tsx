@@ -181,6 +181,7 @@ export function SAAppointmentDetailPage() {
     id: string
     salesOrderId?: string
     salesInvoiceId?: string
+    jobIds?: string[]
     billingStatus?: string
     billingError?: string
   } | null>(null)
@@ -194,7 +195,7 @@ export function SAAppointmentDetailPage() {
         const row = response.data?.[0] as Record<string, unknown> | undefined
         if (!row) {
           if (linkedAppointment?.serviceOrderId) {
-            setBillingOrder({ id: linkedAppointment.serviceOrderId, salesOrderId: linkedAppointment.salesOrderId, salesInvoiceId: linkedAppointment.salesInvoiceId })
+            setBillingOrder({ id: linkedAppointment.serviceOrderId, salesOrderId: linkedAppointment.salesOrderId, salesInvoiceId: linkedAppointment.salesInvoiceId, jobIds: [] })
           } else {
             setBillingOrder(null)
           }
@@ -204,6 +205,7 @@ export function SAAppointmentDetailPage() {
           id: String(row.id ?? row.name ?? ''),
           salesOrderId: row.salesOrderId ? String(row.salesOrderId) : undefined,
           salesInvoiceId: row.salesInvoiceId ? String(row.salesInvoiceId) : undefined,
+          jobIds: Array.isArray(row.jobIds) ? row.jobIds.map((id) => String(id)) : [],
           billingStatus: row.billingStatus ? String(row.billingStatus) : undefined,
           billingError: row.billingError ? String(row.billingError) : undefined,
         })
@@ -221,6 +223,10 @@ export function SAAppointmentDetailPage() {
       return
     }
     window.open(workshopApi.workshopDocumentPrintUrl(doctype, name), '_blank', 'noopener,noreferrer')
+  }
+
+  function printJobCard(name: string) {
+    window.open(workshopApi.jobCardPrintUrl(name), '_blank', 'noopener,noreferrer')
   }
 
   if (!appt) {
@@ -849,6 +855,9 @@ export function SAAppointmentDetailPage() {
                 Print Sales Invoice
               </Button>
             </Stack>
+            {currentBillingOrder.jobIds?.length ? <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mt: 1.25, flexWrap: 'wrap' }}>
+              {currentBillingOrder.jobIds.map((jobId) => <Button key={jobId} variant="outlined" startIcon={<Print />} onClick={() => printJobCard(jobId)} sx={{ borderRadius: radii.sm, fontWeight: 700 }}>Print Job Card {jobId}</Button>)}
+            </Stack> : null}
             <Typography sx={{ mt: 1.25, fontSize: '0.75rem', color: colors.slate[500] }}>
               {currentBillingOrder.salesInvoiceId ? `Invoice: ${currentBillingOrder.salesInvoiceId}` : currentBillingOrder.billingStatus === 'Draft Ready' ? 'Invoice draft is being prepared.' : 'Invoice will be created automatically after service completion.'}
             </Typography>
