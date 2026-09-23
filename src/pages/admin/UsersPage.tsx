@@ -106,7 +106,7 @@ export function UsersPage() {
         const [shopData, roleData, userData] = await Promise.all([
           shopsService.list(),
           rolesService.list(false),
-          usersService.list(),
+          usersService.listAll(),
         ])
         if (!active) return
         setShops(shopData)
@@ -549,12 +549,14 @@ export function UsersPage() {
         ) : null}
 
         <Alert severity="info" sx={{ borderRadius: '10px' }}>
-          Showing company-scoped users for <strong>{selectedCompanyName || 'the selected company'}</strong>. Switching company reloads this list and its available workshops.
+          Showing <strong>{users.length}</strong> company-scoped user accounts for <strong>{selectedCompanyName || 'the selected company'}</strong>. Switching company reloads this list and its available workshops. Employee profiles without a login account are managed from HR and will appear here after an account is created.
         </Alert>
 
         <DataTable
           columns={columns}
           rows={sortedUsers}
+          pageSize={25}
+          pageSizeOptions={[10, 25, 50, 100]}
           keyExtractor={(u) => u.id}
           loading={loading}
           emptyIcon={<PersonAdd />}
