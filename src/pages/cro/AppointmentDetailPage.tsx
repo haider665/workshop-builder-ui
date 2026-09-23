@@ -35,6 +35,7 @@ import { StatCard } from '../../components/StatCard'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { WhatsAppHistory } from '../../components/WhatsAppHistory'
+import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
@@ -59,6 +60,7 @@ function fmtDateTime(iso?: string) {
 
 function statusColor(status: string): 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error' {
   const map: Record<string, 'default' | 'info' | 'warning' | 'success' | 'primary' | 'error'> = {
+    'Draft': 'default',
     'New': 'info',
     'SA Inspection': 'primary',
     'SA Reviewed': 'warning',
@@ -320,6 +322,11 @@ export function AppointmentDetailPage() {
                 </Typography>
               </Stack>
               <Chip label={appt.status} color={statusColor(appt.status)} size="small" sx={{ fontWeight: 700, fontSize: '0.72rem', mt: 0.5 }} />
+              {appt.status === 'Draft' && (
+                <Button size="small" variant="contained" onClick={() => void setAppointmentStatus(appt.id, 'New')} sx={{ mt: 1, fontWeight: 800, borderRadius: radii.sm }}>
+                  Submit Appointment
+                </Button>
+              )}
             </Box>
           </Stack>
         </Stack>
@@ -393,9 +400,12 @@ export function AppointmentDetailPage() {
         {/* ── Concerns ── */}
         <SectionCard title="Concerns" icon={<ReportProblem sx={{ fontSize: '1rem' }} />} defaultCollapsed
           actions={
-            <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
-              {(appt.concernItems ?? []).length}
-            </Box>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <RequestMasterDataButton targetDoctype="CW Concern" targetField="Concern" compact context={{ appointmentId: appt.id }} />
+              <Box sx={{ bgcolor: colors.slate[100], borderRadius: radii.full, px: 1.2, py: 0.15, fontSize: '0.72rem', fontWeight: 700, color: colors.slate[600] }}>
+                {(appt.concernItems ?? []).length}
+              </Box>
+            </Stack>
           }>
           {(appt.concernItems ?? []).length === 0 ? (
             <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No concerns listed.</Typography>
@@ -413,6 +423,7 @@ export function AppointmentDetailPage() {
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                       <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: colors.slate[900] }}>
                         {c.concernName}
+                        {c.isDraft && <Chip size="small" label="Pending admin approval" color="warning" sx={{ ml: 1, fontSize: '0.68rem', fontWeight: 700 }} />}
                         {typeof c.processTimeMins === 'number' && (
                           <Typography component="span" sx={{ ml: 1, px: 1, py: 0.25, bgcolor: colors.status.info, color: 'white', borderRadius: radii.sm, fontWeight: 700, fontSize: '0.7rem' }}>
                             {c.processTimeMins}m

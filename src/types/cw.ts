@@ -365,6 +365,8 @@ export type CWQCItemStatus = 'Passed' | 'Failed'
 
 export type CWAppointmentConcernItem = {
   id: string
+  isDraft?: boolean
+  masterDataRequestId?: string
   concernId: string
   concernName: string
   remark: string
@@ -514,6 +516,7 @@ export type CWTimelineEvent = {
 // ─── 16-status workflow ───────────────────────────────────────────────────────
 
 export type CWAppointmentStatus =
+  | 'Draft'
   | 'New'
   | 'SA Inspection'
   | 'SA Reviewed'

@@ -319,7 +319,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
     } catch (cause) { toast.error(cause, 'Unable to create vehicle') } finally { setModalSaving(false) }
   }
 
-  async function submit() {
+  async function submit(status: 'Draft' | 'New' = 'New') {
     try {
       setError(null)
       if (!selectedVehicle) throw new Error('Select a vehicle')
@@ -343,6 +343,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
       }))
 
       const createdAppointment = await workshopApi.createAppointment({
+        status,
         customerId: selectedCustomer.id,
         vehicleId: selectedVehicle.id,
         slotDate: slotDate || undefined,
@@ -387,7 +388,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
         }
       }
 
-      toast.success('Appointment created successfully.')
+      toast.success(status === 'Draft' ? 'Appointment saved as draft.' : 'Appointment submitted successfully.')
       if (onComplete) onComplete(createdAppointment.id)
       else navigate('/cre/appointments')
     } catch (e) {
@@ -966,12 +967,20 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
             Cancel
           </Button>
           <Button
+            variant="outlined"
+            onClick={() => void submit('Draft')}
+            disabled={!selectedVehicle}
+            sx={{ borderColor: colors.border.strong, color: colors.slate[700], fontWeight: 700, borderRadius: '10px', px: 2.5 }}
+          >
+            Save Draft
+          </Button>
+          <Button
             variant="contained"
-            onClick={() => void submit()}
+            onClick={() => void submit('New')}
             disabled={!selectedVehicle}
             sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
           >
-            Create Appointment
+            Submit Appointment
           </Button>
         </Stack>
       </Stack>
