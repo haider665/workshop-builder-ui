@@ -1,6 +1,7 @@
-import { Backdrop, Box, CircularProgress, Paper, Typography } from '@mui/material'
+import { Box, LinearProgress, Paper, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
 
+/** Non-blocking background activity indicator. It never captures pointer/keyboard input. */
 export function GlobalUiFeedback() {
   const [pending, setPending] = useState(0)
   const [visible, setVisible] = useState(false)
@@ -16,16 +17,20 @@ export function GlobalUiFeedback() {
 
   useEffect(() => {
     if (!pending) { setVisible(false); return }
-    const timer = window.setTimeout(() => setVisible(true), 280)
+    const timer = window.setTimeout(() => setVisible(true), 180)
     return () => window.clearTimeout(timer)
   }, [pending])
 
-
-
-  return <Backdrop open={visible && pending > 0} sx={{ zIndex: (theme) => theme.zIndex.modal + 200, bgcolor: 'rgba(15,23,42,.22)', backdropFilter: 'blur(2px)' }}>
-    <Paper elevation={12} sx={{ px: 2.5, py: 1.75, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-      <CircularProgress size={24} thickness={4.5} />
-      <Box><Typography sx={{ fontWeight: 800, lineHeight: 1.25 }}>Working on it…</Typography><Typography variant="caption" color="text.secondary">Please keep this window open.</Typography></Box>
+  if (!visible || pending === 0) return null
+  return (
+    <Paper elevation={4} role="status" aria-live="polite" sx={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: (theme) => theme.zIndex.tooltip + 20,
+      borderRadius: 0, pointerEvents: 'none', overflow: 'hidden', bgcolor: 'background.paper',
+    }}>
+      <LinearProgress sx={{ height: 2 }} />
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: .75, py: .35 }}>
+        <Typography sx={{ fontSize: '.72rem', fontWeight: 700, color: 'text.secondary' }}>Updating data in the background…</Typography>
+      </Box>
     </Paper>
-  </Backdrop>
+  )
 }

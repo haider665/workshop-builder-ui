@@ -1,75 +1,78 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { Box, CircularProgress } from '@mui/material'
 import { RequireAuth, RequireRole } from './ProtectedRoute'
 import { AppShell } from '../components/AppShell'
-import { LoginPage } from '../pages/LoginPage'
-import { LandingRedirect } from '../pages/LandingRedirect'
-import { NotFoundPage } from '../pages/NotFoundPage'
-import { AdminHome } from '../pages/admin/AdminHome'
-import { ConcernsPage } from '../pages/admin/ConcernsPage'
-import { ServicesPage } from '../pages/admin/ServicesPage'
-import { BaysPage } from '../pages/admin/BaysPage'
-import { F1Page } from '../pages/admin/F1Page'
-import { PartsPage } from '../pages/admin/PartsPage'
-import { PartRequestsPage } from '../pages/admin/PartRequestsPage'
-import { RolesPage } from '../pages/admin/RolesPage'
-import { ShopsPage } from '../pages/admin/ShopsPage'
-import { AdminReportsPage } from '../pages/admin/AdminReportsPage'
-import { AdminDataRequestsPage } from '../pages/admin/AdminDataRequestsPage'
-import { TaskTemplatesPage } from '../pages/admin/TaskTemplatesPage'
-import { TeamsPage } from '../pages/admin/TeamsPage'
-import { UsersPage } from '../pages/admin/UsersPage'
-import { GuardHome } from '../pages/guard/GuardHome'
-import { JobControllerHome } from '../pages/jc/JobControllerHome'
-import { JCCalendarPage } from '../pages/jc/JCCalendarPage'
-import { JobDetailsPage } from '../pages/jc/JobDetailsPage'
-import { NewJobPage } from '../pages/jc/NewJobPage'
-import { PendingVehiclesPage } from '../pages/jc/PendingVehiclesPage'
-import { JCGanttFullPage } from '../pages/jc/JCGanttFullPage'
-import { JCBayManagementPage } from '../pages/jc/JCBayManagementPage'
-import { CroHome } from '../pages/cro/CroHome'
-import { AppointmentsPage } from '../pages/cro/AppointmentsPage'
-import { NewAppointmentPage } from '../pages/cro/NewAppointmentPage'
-import { AppointmentDetailPage } from '../pages/cro/AppointmentDetailPage'
-import { CustomersPage } from '../pages/cro/CustomersPage'
-import { CustomerDetailPage } from '../pages/cro/CustomerDetailPage'
-import { VehiclesPage } from '../pages/cro/VehiclesPage'
-import { VehicleDetailPage } from '../pages/cro/VehicleDetailPage'
-import { CreateVehiclePage } from '../pages/cro/CreateVehiclePage'
-import { CreateCustomerPage } from '../pages/cro/CreateCustomerPage'
-import { WhatsappPage } from '../pages/cro/WhatsappPage'
-import { CRECalendarPage } from '../pages/cro/CRECalendarPage'
-import { CRECallPage } from '../pages/cro/CRECallPage'
-import { CRERemindersPage } from '../pages/cro/CRERemindersPage'
-import { SAAppointmentsPage } from '../pages/sa/SAAppointmentsPage'
-import { SAAppointmentDetailPage } from '../pages/sa/SAAppointmentDetailPage'
-import { SACalendarPage } from '../pages/sa/SACalendarPage'
-import { SEAppointmentsPage } from '../pages/se/SEAppointmentsPage'
-import { SECalendarPage } from '../pages/se/SECalendarPage'
-import { SEAppointmentDetailPage } from '../pages/se/SEAppointmentDetailPage'
-import { JCAppointmentPage } from '../pages/jc/JCAppointmentPage'
-import { TasksHome } from '../pages/tasks/TasksHome'
-import { CalendarPage } from '../pages/tasks/CalendarPage'
-import { TaskDetailPage } from '../pages/tasks/TaskDetailPage'
-import { NotificationsPage } from '../pages/NotificationsPage'
-import { EmployeeRecordDetailPage } from '../pages/records/EmployeeRecordDetailPage'
-import { EmployeeRecordsPage } from '../pages/records/EmployeeRecordsPage'
-import { VehicleHistoryDetailPage } from '../pages/records/VehicleHistoryDetailPage'
-import { VehicleHistoryPage } from '../pages/records/VehicleHistoryPage'
-import { TechnicianDashboardPage } from '../pages/technician/TechnicianDashboardPage'
-import { TechnicianTaskPage } from '../pages/technician/TechnicianTaskPage'
-import { QCAppointmentsPage } from '../pages/qc/QCAppointmentsPage'
-import { QCAppointmentDetailPage } from '../pages/qc/QCAppointmentDetailPage'
-import { InventoryTrackerPage } from '../pages/parts/InventoryTrackerPage'
-import { PurchaseOrdersPage } from '../pages/parts/PurchaseOrdersPage'
-import { VendorManagementPage } from '../pages/parts/VendorManagementPage'
-import { CounterDeskPage } from '../pages/parts/CounterDeskPage'
-import { EstimatorPage } from '../pages/parts/EstimatorPage'
-import { TestDrivesPage } from '../pages/test-drives/TestDrivesPage'
-import { ServiceOrdersPage } from "../pages/service-orders/ServiceOrdersPage"
+const LoginPage = lazy(() => import('../pages/LoginPage').then((module) => ({ default: module.LoginPage })))
+const LandingRedirect = lazy(() => import('../pages/LandingRedirect').then((module) => ({ default: module.LandingRedirect })))
+const NotFoundPage = lazy(() => import('../pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage })))
+const AdminHome = lazy(() => import('../pages/admin/AdminHome').then((module) => ({ default: module.AdminHome })))
+const ConcernsPage = lazy(() => import('../pages/admin/ConcernsPage').then((module) => ({ default: module.ConcernsPage })))
+const ServicesPage = lazy(() => import('../pages/admin/ServicesPage').then((module) => ({ default: module.ServicesPage })))
+const BaysPage = lazy(() => import('../pages/admin/BaysPage').then((module) => ({ default: module.BaysPage })))
+const F1Page = lazy(() => import('../pages/admin/F1Page').then((module) => ({ default: module.F1Page })))
+const PartsPage = lazy(() => import('../pages/admin/PartsPage').then((module) => ({ default: module.PartsPage })))
+const PartRequestsPage = lazy(() => import('../pages/admin/PartRequestsPage').then((module) => ({ default: module.PartRequestsPage })))
+const RolesPage = lazy(() => import('../pages/admin/RolesPage').then((module) => ({ default: module.RolesPage })))
+const ShopsPage = lazy(() => import('../pages/admin/ShopsPage').then((module) => ({ default: module.ShopsPage })))
+const AdminReportsPage = lazy(() => import('../pages/admin/AdminReportsPage').then((module) => ({ default: module.AdminReportsPage })))
+const AdminDataRequestsPage = lazy(() => import('../pages/admin/AdminDataRequestsPage').then((module) => ({ default: module.AdminDataRequestsPage })))
+const TaskTemplatesPage = lazy(() => import('../pages/admin/TaskTemplatesPage').then((module) => ({ default: module.TaskTemplatesPage })))
+const TeamsPage = lazy(() => import('../pages/admin/TeamsPage').then((module) => ({ default: module.TeamsPage })))
+const UsersPage = lazy(() => import('../pages/admin/UsersPage').then((module) => ({ default: module.UsersPage })))
+const GuardHome = lazy(() => import('../pages/guard/GuardHome').then((module) => ({ default: module.GuardHome })))
+const JobControllerHome = lazy(() => import('../pages/jc/JobControllerHome').then((module) => ({ default: module.JobControllerHome })))
+const JCCalendarPage = lazy(() => import('../pages/jc/JCCalendarPage').then((module) => ({ default: module.JCCalendarPage })))
+const JobDetailsPage = lazy(() => import('../pages/jc/JobDetailsPage').then((module) => ({ default: module.JobDetailsPage })))
+const NewJobPage = lazy(() => import('../pages/jc/NewJobPage').then((module) => ({ default: module.NewJobPage })))
+const PendingVehiclesPage = lazy(() => import('../pages/jc/PendingVehiclesPage').then((module) => ({ default: module.PendingVehiclesPage })))
+const JCGanttFullPage = lazy(() => import('../pages/jc/JCGanttFullPage').then((module) => ({ default: module.JCGanttFullPage })))
+const JCBayManagementPage = lazy(() => import('../pages/jc/JCBayManagementPage').then((module) => ({ default: module.JCBayManagementPage })))
+const CroHome = lazy(() => import('../pages/cro/CroHome').then((module) => ({ default: module.CroHome })))
+const AppointmentsPage = lazy(() => import('../pages/cro/AppointmentsPage').then((module) => ({ default: module.AppointmentsPage })))
+const NewAppointmentPage = lazy(() => import('../pages/cro/NewAppointmentPage').then((module) => ({ default: module.NewAppointmentPage })))
+const AppointmentDetailPage = lazy(() => import('../pages/cro/AppointmentDetailPage').then((module) => ({ default: module.AppointmentDetailPage })))
+const CustomersPage = lazy(() => import('../pages/cro/CustomersPage').then((module) => ({ default: module.CustomersPage })))
+const CustomerDetailPage = lazy(() => import('../pages/cro/CustomerDetailPage').then((module) => ({ default: module.CustomerDetailPage })))
+const VehiclesPage = lazy(() => import('../pages/cro/VehiclesPage').then((module) => ({ default: module.VehiclesPage })))
+const VehicleDetailPage = lazy(() => import('../pages/cro/VehicleDetailPage').then((module) => ({ default: module.VehicleDetailPage })))
+const CreateVehiclePage = lazy(() => import('../pages/cro/CreateVehiclePage').then((module) => ({ default: module.CreateVehiclePage })))
+const CreateCustomerPage = lazy(() => import('../pages/cro/CreateCustomerPage').then((module) => ({ default: module.CreateCustomerPage })))
+const WhatsappPage = lazy(() => import('../pages/cro/WhatsappPage').then((module) => ({ default: module.WhatsappPage })))
+const CRECalendarPage = lazy(() => import('../pages/cro/CRECalendarPage').then((module) => ({ default: module.CRECalendarPage })))
+const CRECallPage = lazy(() => import('../pages/cro/CRECallPage').then((module) => ({ default: module.CRECallPage })))
+const CRERemindersPage = lazy(() => import('../pages/cro/CRERemindersPage').then((module) => ({ default: module.CRERemindersPage })))
+const SAAppointmentsPage = lazy(() => import('../pages/sa/SAAppointmentsPage').then((module) => ({ default: module.SAAppointmentsPage })))
+const SAAppointmentDetailPage = lazy(() => import('../pages/sa/SAAppointmentDetailPage').then((module) => ({ default: module.SAAppointmentDetailPage })))
+const SACalendarPage = lazy(() => import('../pages/sa/SACalendarPage').then((module) => ({ default: module.SACalendarPage })))
+const SEAppointmentsPage = lazy(() => import('../pages/se/SEAppointmentsPage').then((module) => ({ default: module.SEAppointmentsPage })))
+const SECalendarPage = lazy(() => import('../pages/se/SECalendarPage').then((module) => ({ default: module.SECalendarPage })))
+const SEAppointmentDetailPage = lazy(() => import('../pages/se/SEAppointmentDetailPage').then((module) => ({ default: module.SEAppointmentDetailPage })))
+const JCAppointmentPage = lazy(() => import('../pages/jc/JCAppointmentPage').then((module) => ({ default: module.JCAppointmentPage })))
+const TasksHome = lazy(() => import('../pages/tasks/TasksHome').then((module) => ({ default: module.TasksHome })))
+const CalendarPage = lazy(() => import('../pages/tasks/CalendarPage').then((module) => ({ default: module.CalendarPage })))
+const TaskDetailPage = lazy(() => import('../pages/tasks/TaskDetailPage').then((module) => ({ default: module.TaskDetailPage })))
+const NotificationsPage = lazy(() => import('../pages/NotificationsPage').then((module) => ({ default: module.NotificationsPage })))
+const EmployeeRecordDetailPage = lazy(() => import('../pages/records/EmployeeRecordDetailPage').then((module) => ({ default: module.EmployeeRecordDetailPage })))
+const EmployeeRecordsPage = lazy(() => import('../pages/records/EmployeeRecordsPage').then((module) => ({ default: module.EmployeeRecordsPage })))
+const VehicleHistoryDetailPage = lazy(() => import('../pages/records/VehicleHistoryDetailPage').then((module) => ({ default: module.VehicleHistoryDetailPage })))
+const VehicleHistoryPage = lazy(() => import('../pages/records/VehicleHistoryPage').then((module) => ({ default: module.VehicleHistoryPage })))
+const TechnicianDashboardPage = lazy(() => import('../pages/technician/TechnicianDashboardPage').then((module) => ({ default: module.TechnicianDashboardPage })))
+const TechnicianTaskPage = lazy(() => import('../pages/technician/TechnicianTaskPage').then((module) => ({ default: module.TechnicianTaskPage })))
+const QCAppointmentsPage = lazy(() => import('../pages/qc/QCAppointmentsPage').then((module) => ({ default: module.QCAppointmentsPage })))
+const QCAppointmentDetailPage = lazy(() => import('../pages/qc/QCAppointmentDetailPage').then((module) => ({ default: module.QCAppointmentDetailPage })))
+const InventoryTrackerPage = lazy(() => import('../pages/parts/InventoryTrackerPage').then((module) => ({ default: module.InventoryTrackerPage })))
+const PurchaseOrdersPage = lazy(() => import('../pages/parts/PurchaseOrdersPage').then((module) => ({ default: module.PurchaseOrdersPage })))
+const VendorManagementPage = lazy(() => import('../pages/parts/VendorManagementPage').then((module) => ({ default: module.VendorManagementPage })))
+const CounterDeskPage = lazy(() => import('../pages/parts/CounterDeskPage').then((module) => ({ default: module.CounterDeskPage })))
+const EstimatorPage = lazy(() => import('../pages/parts/EstimatorPage').then((module) => ({ default: module.EstimatorPage })))
+const TestDrivesPage = lazy(() => import('../pages/test-drives/TestDrivesPage').then((module) => ({ default: module.TestDrivesPage })))
+const ServiceOrdersPage = lazy(() => import('../pages/service-orders/ServiceOrdersPage').then((module) => ({ default: module.ServiceOrdersPage })))
 
 export function AppRouter() {
   return (
-    <Routes>
+    <Suspense fallback={<Box sx={{ minHeight: '40vh', display: 'grid', placeItems: 'center' }}><CircularProgress size={28} /></Box>}>
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
 
       <Route element={<RequireAuth />}>
@@ -206,6 +209,7 @@ export function AppRouter() {
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   )
 }

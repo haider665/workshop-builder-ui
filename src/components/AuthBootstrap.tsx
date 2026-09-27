@@ -31,13 +31,16 @@ export function AuthBootstrap(props: { children: ReactNode }) {
     }
   }, [hydrateFromBackend, loadCompanies, status, hydrated, hydrating])
 
-  if (status === 'idle' || status === 'loading' || (status === 'authenticated' && !hydrated)) {
+  // Authentication/session discovery is page-blocking; the initial data hydrate is not.
+  // Render the shell as soon as the session is known so routes can show their own
+  // table/card skeletons while the canonical data arrives in the background.
+  if (status === 'idle' || status === 'loading') {
     return (
       <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
         <Box sx={{ textAlign: 'center' }}>
           <CircularProgress size={28} />
           <Typography color="text.secondary" sx={{ mt: 2 }}>
-            {status === 'authenticated' ? 'Loading data...' : 'Checking session...'}
+            {status === 'loading' ? 'Checking session...' : 'Starting workspace...'}
           </Typography>
         </Box>
       </Box>

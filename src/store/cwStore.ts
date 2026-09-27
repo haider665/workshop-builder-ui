@@ -1115,6 +1115,7 @@ type CWState = {
 
   // Bay availability check
   checkBayAvailability: (bayId: string, startTime: string, endTime: string, excludeAppointmentId?: string) => boolean
+  hydrationStatus: 'idle' | 'loading' | 'ready'
   hydrateFromBackend: () => Promise<void>
 
   // Call records (CRE CDR)
@@ -1839,9 +1840,11 @@ export const useCwStore = create<CWState>((set, get) => ({
   reminders: [],
   notifications: DEMO_SEED.notifications,
   invoices: [],
+  hydrationStatus: 'idle',
 
   hydrateFromBackend: async () => {
     const generation = ++hydrationGeneration
+    set({ hydrationStatus: 'loading' })
     const fetchAll = async <T,>(
       loader: (page: number, pageSize: number) => Promise<{ data: T[]; meta: { total: number } }>,
     ) => {
@@ -1849,15 +1852,11 @@ export const useCwStore = create<CWState>((set, get) => ({
       const first = await loader(1, pageSize)
       const total = first.meta.total ?? first.data.length
       if (first.data.length >= total) return first.data
-      const pages = [first.data]
-      let page = 2
-      while ((page - 1) * pageSize < total) {
-        const next = await loader(page, pageSize)
-        pages.push(next.data)
-        if (!next.data.length) break
-        page += 1
-      }
-      return pages.flat()
+      const pageCount = Math.ceil(total / pageSize)
+      const remaining = await Promise.all(
+        Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) => loader(index + 2, pageSize)),
+      )
+      return [first.data, ...remaining.map((page) => page.data)].flat().slice(0, total)
     }
 
     // Safe wrapper — one failing endpoint won't kill the rest
@@ -1889,6 +1888,8 @@ export const useCwStore = create<CWState>((set, get) => ({
       callRecords,
       reminders,
       partRequests,
+      requisitions,
+      estimateLines,
     ] = await Promise.all([
       safe('shops', async () => (await workshopApi.listShops()).data),
       safe('bays', () => fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize }))),
@@ -1908,6 +1909,8 @@ export const useCwStore = create<CWState>((set, get) => ({
       safe('callRecords', () => fetchAll((page, pageSize) => workshopApi.listCallRecords({ page, pageSize }))),
       safe('reminders', () => fetchAll((page, pageSize) => workshopApi.listReminders({ page, pageSize }))),
       safe('partRequests', () => fetchAll((page, pageSize) => workshopApi.listPartRequests({ page, pageSize }))),
+      safe('requisitions', () => fetchAll((page, pageSize) => workshopApi.listRequisitions({ page, pageSize }))),
+      safe('estimateLines', () => fetchAll((page, pageSize) => workshopApi.listEstimateLines({ page, pageSize }))),
     ])
 
     if (generation != hydrationGeneration) return
@@ -1930,6 +1933,9 @@ export const useCwStore = create<CWState>((set, get) => ({
       callRecords,
       reminders,
       partRequests,
+      requisitions,
+      estimateLines,
+      hydrationStatus: 'ready',
     })
   },
 
