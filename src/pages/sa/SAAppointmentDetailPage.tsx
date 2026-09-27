@@ -181,7 +181,6 @@ export function SAAppointmentDetailPage() {
     id: string
     salesOrderId?: string
     salesInvoiceId?: string
-    jobIds?: string[]
     billingStatus?: string
     billingError?: string
   } | null>(null)
@@ -195,7 +194,7 @@ export function SAAppointmentDetailPage() {
         const row = response.data?.[0] as Record<string, unknown> | undefined
         if (!row) {
           if (linkedAppointment?.serviceOrderId) {
-            setBillingOrder({ id: linkedAppointment.serviceOrderId, salesOrderId: linkedAppointment.salesOrderId, salesInvoiceId: linkedAppointment.salesInvoiceId, jobIds: [] })
+            setBillingOrder({ id: linkedAppointment.serviceOrderId, salesOrderId: linkedAppointment.salesOrderId, salesInvoiceId: linkedAppointment.salesInvoiceId })
           } else {
             setBillingOrder(null)
           }
@@ -205,7 +204,6 @@ export function SAAppointmentDetailPage() {
           id: String(row.id ?? row.name ?? ''),
           salesOrderId: row.salesOrderId ? String(row.salesOrderId) : undefined,
           salesInvoiceId: row.salesInvoiceId ? String(row.salesInvoiceId) : undefined,
-          jobIds: Array.isArray(row.jobIds) ? row.jobIds.map((id) => String(id)) : [],
           billingStatus: row.billingStatus ? String(row.billingStatus) : undefined,
           billingError: row.billingError ? String(row.billingError) : undefined,
         })
@@ -225,8 +223,34 @@ export function SAAppointmentDetailPage() {
     window.open(workshopApi.workshopDocumentPrintUrl(doctype, name), '_blank', 'noopener,noreferrer')
   }
 
-  function printJobCard(name: string) {
-    window.open(workshopApi.jobCardPrintUrl(name), '_blank', 'noopener,noreferrer')
+  const [jobCardOpen, setJobCardOpen] = useState(false)
+  const [jobCardLoading, setJobCardLoading] = useState(false)
+  const [jobCardHtml, setJobCardHtml] = useState('')
+  const [jobCardId, setJobCardId] = useState('')
+
+  async function openJobCard() {
+    setJobCardOpen(true)
+    setJobCardLoading(true)
+    try {
+      const card = await workshopApi.getAppointmentJobCard(appt!.id)
+      if (!card.jobId) {
+        setJobCardOpen(false)
+        toast.warning('A job card will appear after the appointment is submitted for workshop work.')
+        return
+      }
+      setJobCardId(card.jobId)
+      setJobCardHtml(await workshopApi.getJobCardPreview(card.jobId))
+    } catch (error) {
+      setJobCardOpen(false)
+      toast.error(error instanceof Error ? error.message : 'Unable to load the live job card')
+    } finally {
+      setJobCardLoading(false)
+    }
+  }
+
+  function printCurrentJobCard() {
+    if (!jobCardId) return
+    window.open(workshopApi.jobCardPrintUrl(jobCardId), '_blank', 'noopener,noreferrer')
   }
 
   if (!appt) {
@@ -428,11 +452,16 @@ export function SAAppointmentDetailPage() {
               </Typography>
             </Box>
           </Stack>
-          <Chip
-            label={appt.status}
-            color="primary"
-            sx={{ fontWeight: 700, fontSize: '0.78rem', borderRadius: radii.sm, px: 1 }}
-          />
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button variant="outlined" startIcon={<AssignmentTurnedIn />} onClick={() => void openJobCard()} sx={{ borderRadius: radii.sm, fontWeight: 800 }}>
+              Job Card
+            </Button>
+            <Chip
+              label={appt.status}
+              color="primary"
+              sx={{ fontWeight: 700, fontSize: '0.78rem', borderRadius: radii.sm, px: 1 }}
+            />
+          </Stack>
         </Stack>
 
         {/* ── Vehicle + Customer Info ── */}
@@ -855,9 +884,6 @@ export function SAAppointmentDetailPage() {
                 Print Sales Invoice
               </Button>
             </Stack>
-            {currentBillingOrder.jobIds?.length ? <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mt: 1.25, flexWrap: 'wrap' }}>
-              {currentBillingOrder.jobIds.map((jobId) => <Button key={jobId} variant="outlined" startIcon={<Print />} onClick={() => printJobCard(jobId)} sx={{ borderRadius: radii.sm, fontWeight: 700 }}>Print Job Card {jobId}</Button>)}
-            </Stack> : null}
             <Typography sx={{ mt: 1.25, fontSize: '0.75rem', color: colors.slate[500] }}>
               {currentBillingOrder.salesInvoiceId ? `Invoice: ${currentBillingOrder.salesInvoiceId}` : currentBillingOrder.billingStatus === 'Draft Ready' ? 'Invoice draft is being prepared.' : 'Invoice will be created automatically after service completion.'}
             </Typography>
@@ -889,6 +915,20 @@ export function SAAppointmentDetailPage() {
           </SectionCard>
         )}
       </Stack>
+
+      {/* Live accumulating job card */}
+      <Dialog open={jobCardOpen} onClose={() => setJobCardOpen(false)} maxWidth="lg" fullWidth slotProps={{ paper: { sx: { borderRadius: radii.lg, maxHeight: '94vh' } } }}>
+        <DialogTitle sx={{ fontWeight: 800, color: colors.slate[900] }}>Live Job Card · Appointment Report</DialogTitle>
+        <DialogContent dividers sx={{ bgcolor: '#f8fafc' }}>
+          {jobCardLoading ? <Typography sx={{ py: 8, textAlign: 'center', color: colors.slate[500] }}>Loading the latest appointment, inspection and work data…</Typography> : (
+            <Box sx={{ bgcolor: '#fff', p: { xs: 1, md: 3 }, overflowX: 'auto', '& table': { width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }, '& th, & td': { border: '1px solid #cfd8e3', padding: '6px', textAlign: 'left', verticalAlign: 'top' }, '& th': { bgcolor: '#eef2f6', fontWeight: 800 }, '& img': { maxWidth: '100%' } }} dangerouslySetInnerHTML={{ __html: jobCardHtml }} />
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setJobCardOpen(false)} sx={{ fontWeight: 700 }}>Close</Button>
+          <Button variant="contained" startIcon={<Print />} onClick={printCurrentJobCard} disabled={!jobCardId || jobCardLoading} sx={{ fontWeight: 800 }}>Print Job Card</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* WhatsApp Dialog */}
       <Dialog open={waDialogOpen} onClose={() => setWaDialogOpen(false)} maxWidth="sm" fullWidth

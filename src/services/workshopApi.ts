@@ -1281,6 +1281,14 @@ export const workshopApi = {
     )
   },
 
+  async getAppointmentJobCard(appointmentId: string): Promise<{ appointmentId: string; jobId?: string; appointment: import('../types/cw').CWAppointment; jobs: Array<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }> }> {
+    return request(`/api/method/workshop.api.jobs.appointment_job_card${buildQuery({ appointmentId })}`)
+  },
+
+  async getJobCardPreview(name: string): Promise<string> {
+    return request<string>(`/api/method/workshop.api.accounting.printing.job_card_preview${buildQuery({ doctype: 'CW Job', name })}`)
+  },
+
   async createJob(input: { registrationNo: string; appointmentId?: string }): Promise<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }> {
     return request<{ job: import('../types/cw').CWJob; tasks: import('../types/cw').CWTask[] }>('/api/method/workshop.api.jobs.create', {
       method: 'POST',
