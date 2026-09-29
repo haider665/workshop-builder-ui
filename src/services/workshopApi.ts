@@ -2140,8 +2140,8 @@ export const workshopApi = {
   async listMasterDataRequests(params: { status?: string; mine?: boolean; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
     return request<ApiListResponse<CWMasterDataRequest>>(`/api/method/workshop.api.master_data_requests.list${buildQuery(params)}`)
   },
-  async approveMasterDataRequest(id: string, note?: string, categoryId?: string): Promise<CWMasterDataRequest> {
-    return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.approve', { method: 'POST', body: { data: { id, note, categoryId } } })
+  async approveMasterDataRequest(id: string, note?: string, categoryId?: string, requestedValue?: string, fieldValues?: Record<string, unknown>): Promise<CWMasterDataRequest> {
+    return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.approve', { method: 'POST', body: { data: { id, note, categoryId, requestedValue, fieldValues } } })
   },
   async rejectMasterDataRequest(id: string, note?: string): Promise<CWMasterDataRequest> {
     return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.reject', { method: 'POST', body: { data: { id, note } } })
