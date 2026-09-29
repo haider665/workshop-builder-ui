@@ -33,6 +33,7 @@ import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
 import { useListPagination } from '../../components/ListPagination'
 import { AppointmentDrilldownDialog } from '../../components/AppointmentDrilldownDialog'
+import { SearchHighlight } from '../../components/SearchHighlight'
 
 import type { CWAppointmentStatus } from '../../types/cw'
 
@@ -365,7 +366,7 @@ export function SAAppointmentsPage() {
                         <TableCell sx={bodyCellSx}>
                           <Stack>
                             <Typography sx={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.85rem', color: colors.slate[800] }}>
-                              {v?.registrationNo ?? '—'}
+                              <SearchHighlight value={v?.registrationNo ?? '—'} query={search} />
                             </Typography>
                             <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
                               {[v?.make, v?.model].filter(Boolean).join(' ') || '—'}
@@ -375,10 +376,10 @@ export function SAAppointmentsPage() {
                         <TableCell sx={bodyCellSx}>
                           <Stack>
                             <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: colors.slate[800] }}>
-                              {c?.fullName ?? '—'}
+                              <SearchHighlight value={c?.fullName ?? '—'} query={search} />
                             </Typography>
                             <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-                              {c?.phone ?? ''}
+                              <SearchHighlight value={c?.phone ?? ''} query={search} />
                             </Typography>
                           </Stack>
                         </TableCell>

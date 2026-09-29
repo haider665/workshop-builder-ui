@@ -20,6 +20,7 @@ import {
 import { Download, Search } from '@mui/icons-material'
 import { useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
+import { Children, cloneElement, isValidElement } from 'react'
 import type { ReactNode } from 'react'
 import { colors, shadows, radii, motion } from '../theme/tokens'
 import { matchesSearch } from '../utils/search'
@@ -32,6 +33,17 @@ function highlightSearchValue(value: string, query: string) {
     const matched = terms.some((term) => part.toLocaleLowerCase() === term.toLocaleLowerCase())
     return matched ? <mark key={`${part}-${index}`} style={{ background: '#fef08a', color: 'inherit', borderRadius: 2, padding: '0 1px' }}>{part}</mark> : part
   })
+}
+
+function highlightSearchNode(node: ReactNode, query: string): ReactNode {
+  if (!query.trim()) return node
+  if (typeof node === 'string' || typeof node === 'number') return highlightSearchValue(String(node), query)
+  if (Array.isArray(node)) return Children.map(node, (child) => highlightSearchNode(child, query))
+  if (isValidElement(node) && (node.props as { children?: ReactNode }).children != null) {
+    const children = (node.props as { children: ReactNode }).children
+    return cloneElement(node, undefined, Children.map(children, (child) => highlightSearchNode(child, query)))
+  }
+  return node
 }
 
 /* ─────────────────────── Types ─────────────────────────── */
@@ -325,7 +337,7 @@ export function DataTable<T>({
                   >
                     {columns.map((col) => (
                       <TableCell key={col.key} align={col.align ?? 'left'}>
-                        {(() => { const rendered = col.render(row, safePage * rowsPerPage + index); return typeof rendered === 'string' || typeof rendered === 'number' ? highlightSearchValue(String(rendered), query) : rendered })()}
+                        {highlightSearchNode(col.render(row, safePage * rowsPerPage + index), query)}
                       </TableCell>
                     ))}
                   </TableRow>

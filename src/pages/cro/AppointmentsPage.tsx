@@ -31,6 +31,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { matchesSearch } from '../../utils/search'
+import { SearchHighlight } from '../../components/SearchHighlight'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
 import { useListPagination } from '../../components/ListPagination'
@@ -366,7 +367,7 @@ export function AppointmentsPage() {
                     >
                       <TableCell>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900], fontFamily: 'monospace' }}>
-                          {veh?.registrationNo ?? '—'}
+                          <SearchHighlight value={veh?.registrationNo ?? '—'} query={query} />
                         </Typography>
                         {(veh?.make || veh?.model) && (
                           <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
@@ -376,7 +377,7 @@ export function AppointmentsPage() {
                       </TableCell>
                       <TableCell>
                         <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: colors.slate[900] }}>
-                          {cust?.fullName ?? '—'}
+                          <SearchHighlight value={cust?.fullName ?? '—'} query={query} />
                         </Typography>
                         {cust?.phone && (
                           <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
