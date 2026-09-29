@@ -2146,6 +2146,9 @@ export const workshopApi = {
   async rejectMasterDataRequest(id: string, note?: string): Promise<CWMasterDataRequest> {
     return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.reject', { method: 'POST', body: { data: { id, note } } })
   },
+  async updateMasterDataRequest(id: string, input: { requestedValue: string; targetField: string }): Promise<CWMasterDataRequest> {
+    return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.update', { method: 'POST', body: { data: { id, ...input } } })
+  },
   async linkMasterDataRequestToAppointment(requestId: string, appointmentId: string): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.master_data_requests.link_to_appointment', { method: 'POST', body: { data: { id: requestId, appointmentId } } })
   },
