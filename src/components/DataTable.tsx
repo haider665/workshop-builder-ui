@@ -22,6 +22,17 @@ import { useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import type { ReactNode } from 'react'
 import { colors, shadows, radii, motion } from '../theme/tokens'
+import { matchesSearch } from '../utils/search'
+
+function highlightSearchValue(value: string, query: string) {
+  const terms = query.trim().split(/\s+/).filter(Boolean).map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  if (!terms.length) return value
+  const pattern = new RegExp(`(${terms.join('|')})`, 'ig')
+  return value.split(pattern).map((part, index) => {
+    const matched = terms.some((term) => part.toLocaleLowerCase() === term.toLocaleLowerCase())
+    return matched ? <mark key={`${part}-${index}`} style={{ background: '#fef08a', color: 'inherit', borderRadius: 2, padding: '0 1px' }}>{part}</mark> : part
+  })
+}
 
 /* ─────────────────────── Types ─────────────────────────── */
 
@@ -99,15 +110,13 @@ export function DataTable<T>({
   const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null)
 
   const filteredRows = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase()
-    if (!needle) return rows
+    if (!query.trim()) return rows
     return rows.filter((row) => {
       const explicit = columns.flatMap((column) => {
         const value = column.searchValue?.(row) ?? column.sortValue?.(row)
         return value == null ? [] : [String(value)]
       })
-      const fallback = (() => { try { return JSON.stringify(row) } catch { return '' } })()
-      return [...explicit, fallback].some((value) => value.toLocaleLowerCase().includes(needle))
+      return matchesSearch([...explicit, row], query)
     })
   }, [columns, query, rows])
 
@@ -316,7 +325,7 @@ export function DataTable<T>({
                   >
                     {columns.map((col) => (
                       <TableCell key={col.key} align={col.align ?? 'left'}>
-                        {col.render(row, safePage * rowsPerPage + index)}
+                        {(() => { const rendered = col.render(row, safePage * rowsPerPage + index); return typeof rendered === 'string' || typeof rendered === 'number' ? highlightSearchValue(String(rendered), query) : rendered })()}
                       </TableCell>
                     ))}
                   </TableRow>

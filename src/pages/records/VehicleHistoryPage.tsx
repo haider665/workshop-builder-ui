@@ -21,6 +21,7 @@ import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import type { CWJob, CWTask } from '../../types/cw'
 import { useListPagination } from '../../components/ListPagination'
+import { matchesSearch } from '../../utils/search'
 
 function lastActivityIsoForRegistration(reg: string, tasks: CWTask[], jobs: CWJob[]) {
   const taskLatest = tasks
@@ -54,9 +55,8 @@ export function VehicleHistoryPage() {
   }, [tasks, jobs, pendingVehicles])
 
   const filteredRegs = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return allRegs
-    return allRegs.filter((r) => r.toLowerCase().includes(q))
+    if (!query.trim()) return allRegs
+    return allRegs.filter((r) => matchesSearch(r, query))
   }, [allRegs, query])
   const { pageRows, pagination } = useListPagination(filteredRegs)
 

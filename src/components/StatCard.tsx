@@ -3,6 +3,7 @@ import { Search } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { radii } from '../theme/tokens'
+import { matchesSearch } from '../utils/search'
 
 /* ─────────────────────────────────────────────────────────── */
 /*  StatCard — premium dark gradient card with shine effect  */
@@ -35,7 +36,7 @@ export function StatCard({ icon, title, label, value, gradient, color, details, 
   const [records, setRecords] = useState<{ id: string; cells: string[]; source?: HTMLElement }[]>([])
   const displayTitle = title ?? label ?? ''
   const displayGradient = gradient ?? (color ? `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)` : 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)')
-  const visibleRecords = useMemo(() => { const query = search.trim().toLowerCase(); return query ? records.filter((record) => record.cells.join(' ').toLowerCase().includes(query)) : records }, [records, search])
+  const visibleRecords = useMemo(() => search.trim() ? records.filter((record) => matchesSearch(record, search)) : records, [records, search])
   const drilldown = onClick ?? (() => {
     const rows = Array.from(document.querySelectorAll<HTMLElement>('main tbody tr')).filter((row) => row.offsetParent !== null).map((row, index) => ({ id: `${index}-${row.innerText.slice(0, 24)}`, cells: Array.from(row.querySelectorAll<HTMLElement>('td')).map((cell) => cell.innerText.trim()).filter(Boolean), source: row }))
     setRecords(rows.length ? rows : (details ?? []).map((detail, index) => ({ id: String(index), cells: [detail.label, String(detail.value)] })))

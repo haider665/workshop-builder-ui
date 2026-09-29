@@ -26,6 +26,7 @@ import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { useSessionStore } from '../../store/sessionStore'
+import { matchesSearch } from '../../utils/search'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -182,13 +183,7 @@ export function InventoryTrackerPage() {
 
   const filteredParts = useMemo(() => activeParts.filter((p) => {
     if (!search.trim()) return true
-    const q = search.toLowerCase()
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.partNumber.toLowerCase().includes(q) ||
-      (p.category ?? '').toLowerCase().includes(q) ||
-      (p.brand ?? '').toLowerCase().includes(q)
-    )
+    return matchesSearch(p, search)
   }), [activeParts, search])
 
   const lowStockParts = lowStockItems

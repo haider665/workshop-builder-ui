@@ -33,13 +33,8 @@ import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
+import { matchesSearch } from '../../utils/search'
 import type { CWCustomerType } from '../../types/cw'
-
-/* ─────────────────────── Helpers ─────────────────────────── */
-
-function includesLoose(haystack: string, needle: string) {
-  return haystack.toLowerCase().includes(needle.toLowerCase())
-}
 
 /* ── Premium Stat Card ── */
 
@@ -173,10 +168,7 @@ export function CustomersPage() {
       .filter((c) => (c.type ?? 'Individual') === typeFilter)
       .filter((c) => {
         if (!q) return true
-        if (includesLoose(c.fullName, q)) return true
-        if (includesLoose(c.phone, q)) return true
-        if (c.email && includesLoose(c.email, q)) return true
-        return false
+        return matchesSearch(c, q)
       })
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

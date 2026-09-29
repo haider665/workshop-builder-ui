@@ -26,6 +26,7 @@ import { useBackendData } from '../../hooks/useCREData'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWTechnicianAssignment } from '../../types/cw'
+import { matchesSearch } from '../../utils/search'
 
 /* ─────────────────── Types ─────────────────────────── */
 
@@ -295,24 +296,12 @@ export function TechnicianDashboardPage() {
   // Filtered lists for search
   const filteredActive = useMemo(() => {
     if (!searchQuery.trim()) return active
-    const q = searchQuery.toLowerCase()
-    return active.filter((t) =>
-      t.label.toLowerCase().includes(q) ||
-      t.vehicleReg.toLowerCase().includes(q) ||
-      t.customerName.toLowerCase().includes(q) ||
-      t.assignment.status.toLowerCase().includes(q) ||
-      t.itemType.toLowerCase().includes(q),
-    )
+    return active.filter((t) => matchesSearch(t, searchQuery))
   }, [active, searchQuery])
 
   const filteredCompleted = useMemo(() => {
     if (!searchQuery.trim()) return completed
-    const q = searchQuery.toLowerCase()
-    return completed.filter((t) =>
-      t.label.toLowerCase().includes(q) ||
-      t.vehicleReg.toLowerCase().includes(q) ||
-      t.customerName.toLowerCase().includes(q),
-    )
+    return completed.filter((t) => matchesSearch(t, searchQuery))
   }, [completed, searchQuery])
 
   // Stat details

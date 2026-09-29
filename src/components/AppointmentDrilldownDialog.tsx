@@ -4,6 +4,7 @@ import { Assignment, DirectionsCar, Search } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { useCwStore } from '../store/cwStore'
 import { colors } from '../theme/tokens'
+import { matchesSearch } from '../utils/search'
 import type { CWAppointment } from '../types/cw'
 
 type Props = { open: boolean; onClose: () => void; title: string; description?: string; rows: CWAppointment[]; routeBase: string }
@@ -14,12 +15,11 @@ export function AppointmentDrilldownDialog({ open, onClose, title, description, 
   const customers = useCwStore((state) => state.customers)
   const [search, setSearch] = useState('')
   const visible = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return rows
+    if (!search.trim()) return rows
     return rows.filter((appointment) => {
       const vehicle = vehicles.find((item) => item.id === appointment.vehicleId)
       const customer = customers.find((item) => item.id === appointment.customerId)
-      return [vehicle?.registrationNo, vehicle?.make, vehicle?.model, customer?.fullName, customer?.phone, appointment.status].filter(Boolean).join(' ').toLowerCase().includes(query)
+      return matchesSearch({ appointment, vehicle, customer }, search)
     })
   }, [customers, rows, search, vehicles])
 

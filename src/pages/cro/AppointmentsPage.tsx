@@ -30,16 +30,13 @@ import { useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
+import { matchesSearch } from '../../utils/search'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { CWAppointmentStatus } from '../../types/cw'
 import { useListPagination } from '../../components/ListPagination'
 import { AppointmentDrilldownDialog } from '../../components/AppointmentDrilldownDialog'
 
 /* ─────────────────────── Helpers ─────────────────────────── */
-
-function includesLoose(haystack: string, needle: string) {
-  return haystack.toLowerCase().includes(needle.toLowerCase())
-}
 
 function fmtDate(iso?: string) {
   if (!iso) return '—'
@@ -206,17 +203,7 @@ export function AppointmentsPage() {
       if (q) {
         const cust = customers.find((c) => c.id === appt.customerId)
         const veh = vehicles.find((v) => v.id === appt.vehicleId)
-        const haystack = [
-          cust?.fullName ?? '',
-          cust?.phone ?? '',
-          veh?.registrationNo ?? '',
-          veh?.make ?? '',
-          veh?.model ?? '',
-          appt.status,
-          appt.slotDate ?? '',
-          appt.notes ?? '',
-        ].join(' ')
-        if (!includesLoose(haystack, q)) return false
+        if (!matchesSearch({ appointment: appt, customer: cust, vehicle: veh }, q)) return false
       }
       return true
     })

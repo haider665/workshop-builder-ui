@@ -31,6 +31,7 @@ import { LiveCameraCapture } from '../../components/LiveCameraCapture'
 import { useBackendData } from '../../hooks/useCREData'
 import { workshopApi } from '../../services/workshopApi'
 import { useToast } from '../../hooks/useToast'
+import { matchesSearch } from '../../utils/search'
 
 
 /* ─────────────────────── Helpers ─────────────────────────────── */
@@ -219,13 +220,7 @@ export function CounterDeskPage() {
 
   const filteredReqs = enrichedReqs.filter((r) => {
     if (!search.trim()) return true
-    const q = search.toLowerCase()
-    return (
-      r.reqNumber.toLowerCase().includes(q) ||
-      r.appointmentNumber.toLowerCase().includes(q) ||
-      r.requestedBy.toLowerCase().includes(q) ||
-      r.vehicle.toLowerCase().includes(q)
-    )
+    return matchesSearch(r, search)
   })
 
   /* ── Render ── */

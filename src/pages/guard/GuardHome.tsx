@@ -36,6 +36,7 @@ import { useCwStore } from '../../store/cwStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import { LiveCameraCapture } from '../../components/LiveCameraCapture'
 import { workshopApi } from '../../services/workshopApi'
+import { matchesSearch } from '../../utils/search'
 import type { RegistrationOcrResult } from '../../services/workshopApi'
 import type { CWAppointment, CWCustomer, CWGateVehicleDocument, CWIntakerType, CWJob, CWPendingVehicle, CWVehicle, CWVehicleDocumentType } from '../../types/cw'
 
@@ -207,9 +208,7 @@ export function GuardHome() {
             const appointment = appointments.find((item) => item.id === pending.appointmentId)
             return { id: pending.id, registrationNo: pending.registrationNo, vehicle, customer, appointment, pending, eventAt: pending.arrivedAt, status: pending.status }
           })
-    const query = normalizeKey(statSearch)
-    if (!query) return base
-    return base.filter((row) => normalizeKey([row.registrationNo, row.customer?.fullName, row.customer?.phone, row.vehicle?.make, row.vehicle?.model, row.appointment?.status, row.status].filter(Boolean).join(' ')).includes(query))
+    return base.filter((row) => matchesSearch(row, statSearch))
   }, [appointments, customers, pendingVehicles, statDetails, statSearch, vehicles])
 
   const statTitle = statDetails === 'today' ? "Today's Entries" : statDetails === 'pending' ? 'Pending In Yard' : 'Released Today'

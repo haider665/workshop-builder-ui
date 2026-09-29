@@ -34,6 +34,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
+import { matchesSearch } from '../../utils/search'
 import { colors, radii, shadows } from '../../theme/tokens'
 import { NewAppointmentPage } from './NewAppointmentPage'
 import * as XLSX from 'xlsx'
@@ -355,15 +356,10 @@ export function CroHome() {
     if (exportFrom) list = list.filter((a) => (a.slotDate ?? a.scheduledAt?.slice(0, 10) ?? '') >= exportFrom)
     if (exportTo) list = list.filter((a) => (a.slotDate ?? a.scheduledAt?.slice(0, 10) ?? '') <= exportTo)
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
       list = list.filter((a) => {
         const veh = vehicles.find((v) => v.id === a.vehicleId)
         const cust = customers.find((c) => c.id === a.customerId)
-        return (
-          veh?.registrationNo.toLowerCase().includes(q) ||
-          cust?.fullName.toLowerCase().includes(q) ||
-          a.status.toLowerCase().includes(q)
-        )
+        return matchesSearch({ appointment: a, customer: cust, vehicle: veh }, searchQuery)
       })
     }
     return list

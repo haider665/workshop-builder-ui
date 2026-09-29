@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material'
 import { Add, DirectionsCar, HourglassEmpty, CheckCircle, Search } from '@mui/icons-material'
+import { matchesSearch } from '../../utils/search'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
@@ -58,15 +59,14 @@ export function PendingVehiclesPage() {
     return pendingVehicles.slice().sort((a, b) => b.arrivedAt.localeCompare(a.arrivedAt))
   }, [pendingVehicles])
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return sorted
-    const q = search.toLowerCase()
-    return sorted.filter((p) => p.registrationNo.toLowerCase().includes(q))
-  }, [sorted, search])
-
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c] as const)), [customers])
   const vehicleById = useMemo(() => new Map(vehicles.map((v) => [v.id, v] as const)), [vehicles])
   const appointmentById = useMemo(() => new Map(appointments.map((a) => [a.id, a] as const)), [appointments])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return sorted
+    return sorted.filter((p) => matchesSearch({ pendingVehicle: p, customer: p.customerId ? customerById.get(p.customerId) : undefined, vehicle: p.vehicleId ? vehicleById.get(p.vehicleId) : undefined, appointment: p.appointmentId ? appointmentById.get(p.appointmentId) : undefined }, search))
+  }, [sorted, search, customerById, vehicleById, appointmentById])
 
   const pendingCount = useMemo(() => pendingVehicles.filter((p) => p.status === 'Pending').length, [pendingVehicles])
   const completedCount = useMemo(() => pendingVehicles.filter((p) => p.status !== 'Pending').length, [pendingVehicles])

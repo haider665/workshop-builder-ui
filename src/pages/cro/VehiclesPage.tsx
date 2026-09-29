@@ -24,11 +24,8 @@ import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIco
 import { colors, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
+import { matchesSearch } from '../../utils/search'
 
-
-function includesLoose(haystack: string, needle: string) {
-  return haystack.toLowerCase().includes(needle.toLowerCase())
-}
 
 function statusChipColor(status: string): 'success' | 'default' {
   return status === 'Active' ? 'success' : 'default'
@@ -53,14 +50,8 @@ export function VehiclesPage() {
     if (!q) return vehicles.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     return vehicles
       .filter((v) => {
-        if (includesLoose(v.registrationNo, q)) return true
         const c = customerById.get(v.customerId)
-        if (c && (includesLoose(c.fullName, q) || includesLoose(c.phone, q) || (c.email && includesLoose(c.email, q)))) return true
-        if (v.make && includesLoose(v.make, q)) return true
-        if (v.model && includesLoose(v.model, q)) return true
-        if (v.vin && includesLoose(v.vin, q)) return true
-        if (v.modelVariant && includesLoose(v.modelVariant, q)) return true
-        return false
+        return matchesSearch({ vehicle: v, customer: c }, q)
       })
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

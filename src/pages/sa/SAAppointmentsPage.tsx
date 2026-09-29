@@ -28,6 +28,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCwStore } from '../../store/cwStore'
+import { matchesSearch } from '../../utils/search'
 import { useBackendData } from '../../hooks/useCREData'
 import { colors, radii, shadows, pageLayout } from '../../theme/tokens'
 import { useListPagination } from '../../components/ListPagination'
@@ -171,17 +172,10 @@ export function SAAppointmentsPage() {
     let list = relevant
     if (statusFilter !== 'All') list = list.filter((a) => a.status === statusFilter)
     if (search.trim()) {
-      const q = search.toLowerCase()
       list = list.filter((a) => {
         const v = vehicles.find((x) => x.id === a.vehicleId)
         const c = customers.find((x) => x.id === a.customerId)
-        return (
-          v?.registrationNo.toLowerCase().includes(q) ||
-          v?.make?.toLowerCase().includes(q) ||
-          v?.model?.toLowerCase().includes(q) ||
-          c?.fullName?.toLowerCase().includes(q) ||
-          c?.phone?.toLowerCase().includes(q)
-        )
+        return matchesSearch({ appointment: a, vehicle: v, customer: c }, search)
       })
     }
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))

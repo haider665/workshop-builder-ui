@@ -6,6 +6,7 @@ import { useToast } from '../../hooks/useToast'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import { colors, radii, shadows } from '../../theme/tokens'
+import { matchesSearch } from '../../utils/search'
 
 type OrderLine = { id?: string; type: string; description: string; quantity: number; rate: number; discountPercent: number; taxRate: number; amount?: number }
 type ServiceOrder = { id: string; companyId: string; shopId: string; appointmentId: string; customerId: string; vehicleId: string; status: string; jobId?: string; jobIds?: string[]; salesOrderId?: string; salesInvoiceId?: string; salesInvoiceIds?: string[]; billingStatus?: string; billingError?: string; currency: string; promisedCompletionAt?: string; subtotal: number; discountAmount: number; taxAmount: number; grandTotal: number; lines: OrderLine[]; updatedAt: string }
@@ -49,9 +50,8 @@ export function ServiceOrdersPage() {
   useEffect(() => { void load() }, [load])
 
   const visible = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return rows
-    return rows.filter((row) => [row.id, row.appointmentId, row.customerId, row.vehicleId, row.status].join(' ').toLowerCase().includes(query))
+    if (!search.trim()) return rows
+    return rows.filter((row) => matchesSearch(row, search))
   }, [rows, search])
 
   function seedLines(appointmentId: string) {

@@ -5,6 +5,7 @@ import { workshopApi } from '../../services/workshopApi'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import { useToast } from '../../hooks/useToast'
+import { matchesSearch } from '../../utils/search'
 
 type Drive = {
   id: string; appointmentId?: string; jobId?: string; registrationNo?: string; status: string
@@ -56,9 +57,8 @@ export function TestDrivesPage() {
   useEffect(() => { void load() }, [load])
 
   const visible = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return rows
-    return rows.filter((row) => [row.registrationNo, row.driverName, row.driverNid, row.status, row.requestReason, row.plannedRoute, row.gatePassId].filter(Boolean).join(' ').toLowerCase().includes(query))
+    if (!search.trim()) return rows
+    return rows.filter((row) => matchesSearch(row, search))
   }, [rows, search])
 
   function begin(row: Drive, next: typeof action) {
