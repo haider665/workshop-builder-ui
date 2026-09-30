@@ -798,7 +798,7 @@ export function SAAppointmentDetailPage() {
               >
                 <MenuItem value="">— Select QC —</MenuItem>
                 {activeQCUsers.map((u) => (
-                  <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                  <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>
                 ))}
               </TextField>
               <Button

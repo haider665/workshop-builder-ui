@@ -907,7 +907,7 @@ export function JCAppointmentPage() {
                           const filteredSEs = team
                             ? seUsers.filter((u) => u.id === team.seUserId)
                             : seUsers
-                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)
+                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)
                         })()}
                       </TextField>
                       <TextField
@@ -1013,7 +1013,7 @@ export function JCAppointmentPage() {
                                   {(() => {
                                     const team = teams.find((t) => t.id === form.teamId)
                                     const filtered = team ? seUsers.filter((u) => u.id === team.seUserId) : seUsers
-                                    return filtered.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)
+                                    return filtered.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)
                                   })()}
                                 </TextField>
                                 <TextField
@@ -1113,7 +1113,7 @@ export function JCAppointmentPage() {
                           const filteredSEs = team
                             ? seUsers.filter((u) => u.id === team.seUserId)
                             : seUsers
-                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)
+                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)
                         })()}
                       </TextField>
                       <TextField
@@ -1199,7 +1199,7 @@ export function JCAppointmentPage() {
                         {(() => {
                           const team = teams.find((t) => t.id === form.teamId)
                           const filteredSEs = team ? seUsers.filter((u) => u.id === team.seUserId) : seUsers
-                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)
+                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)
                         })()}
                       </TextField>
                       <TextField
@@ -1316,7 +1316,7 @@ export function JCAppointmentPage() {
               sx={formFieldSx}
             >
               <MenuItem value="">— Select SE —</MenuItem>
-              {seUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+              {seUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)}
             </TextField>
             <TextField
               size="small" label="Start" type="datetime-local" fullWidth

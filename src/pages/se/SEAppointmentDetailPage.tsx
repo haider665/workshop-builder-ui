@@ -397,7 +397,7 @@ export function SEAppointmentDetailPage() {
                           sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                         >
                           {activeUsers.map((u) => (
-                            <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                            <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>
                           ))}
                         </TextField>
                         <Button size="small" variant="contained" onClick={() => saveConcernTechnicians(c.id)}
@@ -731,7 +731,7 @@ export function SEAppointmentDetailPage() {
                                   sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                                 >
                                   {activeUsers.map((u) => (
-                                    <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                                    <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>
                                   ))}
                                 </TextField>
                                 <Button size="small" variant="contained" onClick={() => {
@@ -805,7 +805,7 @@ export function SEAppointmentDetailPage() {
                             sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                           >
                             {activeUsers.map((u) => (
-                              <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
+                              <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>
                             ))}
                           </TextField>
                           <Button size="small" variant="contained" onClick={() => saveServiceTechnicians(s.id)}

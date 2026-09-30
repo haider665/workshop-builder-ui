@@ -587,6 +587,10 @@ export const workshopApi = {
     )
   },
 
+  async userHeartbeat(): Promise<{ userId: string; online: boolean; lastSeenAt: string }> {
+    return request<{ userId: string; online: boolean; lastSeenAt: string }>('/api/method/workshop.api.users.heartbeat', { method: 'POST', body: {} })
+  },
+
   async createUser(input: {
     fullName: string
     email: string

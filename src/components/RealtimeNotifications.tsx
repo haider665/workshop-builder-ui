@@ -45,6 +45,7 @@ export function RealtimeNotifications() {
         if (active) useCwStore.setState({ notifications: result.data as CWNotification[] })
       } catch { /* API errors are already shown globally. */ }
     }
+    const beat = () => { void workshopApi.userHeartbeat().catch(() => undefined) }
     const socket = io(`${socketOrigin}/${siteName}`, { withCredentials: true, transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: Infinity })
     const receive = (payload: CWNotification & { event?: string; description?: string; companyId?: string }) => {
       if (payload.companyId && selectedCompanyId && payload.companyId !== selectedCompanyId) return
@@ -57,10 +58,12 @@ export function RealtimeNotifications() {
     socket.on('connect', refresh)
     socket.io.on('reconnect', refresh)
     void refresh()
+    beat()
     const fallback = window.setInterval(() => void refresh(), 60000)
+    const presence = window.setInterval(beat, 30000)
     const visible = () => { if (document.visibilityState === 'visible') void refresh() }
     document.addEventListener('visibilitychange', visible)
-    return () => { active = false; window.clearInterval(fallback); document.removeEventListener('visibilitychange', visible); socket.off('cw_notification', receive); socket.disconnect() }
+    return () => { active = false; window.clearInterval(fallback); window.clearInterval(presence); document.removeEventListener('visibilitychange', visible); socket.off('cw_notification', receive); socket.disconnect() }
   }, [selectedCompanyId, status])
   return null
 }

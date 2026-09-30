@@ -383,7 +383,7 @@ export function AppointmentDetailPage() {
               <TextField select size="small" label="Assign Service Advisor" value={selectedSAUserId}
                 onChange={(e) => setSelectedSAUserId(e.target.value)} sx={{ minWidth: 280, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}>
                 <MenuItem value="">— Select SA —</MenuItem>
-                {activeSAUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+                {activeSAUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)}
               </TextField>
               <Button variant="contained" disabled={!selectedSAUserId}
                 onClick={() => { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') }}
@@ -626,7 +626,7 @@ export function AppointmentDetailPage() {
                 onChange={(e) => setSelectedQCUserId(e.target.value)}
                 sx={{ minWidth: 250, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}>
                 <MenuItem value="">— Select QC —</MenuItem>
-                {activeQCUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>)}
+                {activeQCUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)}
               </TextField>
               <Button variant="contained" disabled={!selectedQCUserId}
                 onClick={() => { assignQC({ appointmentId: appt.id, qcUserId: selectedQCUserId }); setSelectedQCUserId('') }}

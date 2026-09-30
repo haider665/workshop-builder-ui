@@ -51,6 +51,8 @@ export type CWUser = {
   roleIds: string[]
   shopIds: string[]
   status: CWUserStatus
+  online?: boolean
+  lastSeenAt?: string | null
   password?: string
   createdAt: string
   updatedAt: string
