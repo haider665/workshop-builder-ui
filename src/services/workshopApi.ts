@@ -94,6 +94,7 @@ export type CWMasterDataRequest = {
   requestedValue: string
   sourceRoute?: string
   context?: Record<string, unknown>
+  sourceDetails?: { appointmentId?: string | null; customerId?: string | null; customerName?: string | null; vehicleId?: string | null; registrationNo?: string | null; appointmentStatus?: string | null }
   status: 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
   requestedBy: string
   requestedAt: string
@@ -2137,7 +2138,7 @@ export const workshopApi = {
   async createMasterDataRequest(input: { targetDoctype: string; targetField: string; requestedValue: string; company?: string; sourceRoute?: string; context?: Record<string, unknown> }): Promise<CWMasterDataRequest> {
     return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.create', { method: 'POST', body: { data: input } })
   },
-  async listMasterDataRequests(params: { status?: string; mine?: boolean; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
+  async listMasterDataRequests(params: { status?: string; mine?: boolean; search?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
     return request<ApiListResponse<CWMasterDataRequest>>(`/api/method/workshop.api.master_data_requests.list${buildQuery(params)}`)
   },
   async masterDataRequestFields(doctype: string): Promise<{ data: Array<{ fieldname: string; label: string; fieldtype: string; options?: string | null; choices?: string[]; required: boolean; default?: unknown }> }> {
