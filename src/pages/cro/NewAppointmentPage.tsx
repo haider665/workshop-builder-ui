@@ -52,6 +52,24 @@ const HOURS = [
   '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM',
 ]
 
+/** Return a stable 24-hour minute key for comparison, while keeping the
+ * displayed value in the format the user selected. */
+function timeKey(value: string) {
+  const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i)
+  if (!match) return String(value || '').trim()
+  let hour = Number(match[1])
+  const minute = match[2]
+  const meridiem = match[3]?.toUpperCase()
+  if (meridiem === 'PM' && hour < 12) hour += 12
+  if (meridiem === 'AM' && hour === 12) hour = 0
+  return `${String(hour).padStart(2, '0')}:${minute}`
+}
+
+function timeInputValue(value: string) {
+  const key = timeKey(value)
+  return /^\d{2}:\d{2}$/.test(key) ? key : ''
+}
+
 function localDateToday() {
   const d = new Date()
   const y = d.getFullYear()
@@ -230,7 +248,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
   const bookedSlots = useMemo(() => {
     const slots = new Set<string>()
     for (const appt of appointments) {
-      if (appt.slotDate === slotDate && appt.slotTime) slots.add(appt.slotTime)
+      if (appt.slotDate === slotDate && appt.slotTime) slots.add(timeKey(appt.slotTime))
     }
     return slots
   }, [appointments, slotDate])
@@ -934,12 +952,22 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
             {/* Slot grid */}
             <Stack spacing={0.5}>
               <Typography sx={{ fontSize: '0.82rem', color: colors.slate[500], fontWeight: 600 }}>
-                Slot
+                Appointment time
               </Typography>
+              <TextField
+                size="small"
+                type="time"
+                label="Exact time"
+                value={timeInputValue(slotTime)}
+                onChange={(event) => setSlotTime(event.target.value)}
+                helperText="Choose any minute; the buttons below are quick hourly presets."
+                sx={{ maxWidth: 260, ...fieldSx }}
+                slotProps={{ htmlInput: { step: 60, 'aria-label': 'Exact appointment time' }, inputLabel: { shrink: true } }}
+              />
               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                 {HOURS.map((h) => {
-                  const booked = bookedSlots.has(h)
-                  const selected = slotTime === h
+                  const booked = bookedSlots.has(timeKey(h))
+                  const selected = timeKey(slotTime) === timeKey(h)
                   return (
                     <Button
                       key={h}
