@@ -2140,7 +2140,7 @@ export const workshopApi = {
   async listMasterDataRequests(params: { status?: string; mine?: boolean; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
     return request<ApiListResponse<CWMasterDataRequest>>(`/api/method/workshop.api.master_data_requests.list${buildQuery(params)}`)
   },
-  async masterDataRequestFields(doctype: string): Promise<{ data: Array<{ fieldname: string; label: string; fieldtype: string; options?: string | null; required: boolean; default?: unknown }> }> {
+  async masterDataRequestFields(doctype: string): Promise<{ data: Array<{ fieldname: string; label: string; fieldtype: string; options?: string | null; choices?: string[]; required: boolean; default?: unknown }> }> {
     return request(`/api/method/workshop.api.master_data_requests.fields${buildQuery({ doctype })}`)
   },
   async approveMasterDataRequest(id: string, note?: string, categoryId?: string, requestedValue?: string, fieldValues?: Record<string, unknown>): Promise<CWMasterDataRequest> {
