@@ -502,9 +502,10 @@ export function AppointmentDetailPage() {
           )}
         </SectionCard>
 
+        {false && <>
         {/* ── Services ── */}
-        <SectionCard title={'Services (' + (appt.serviceItems ?? []).length + ')'} icon={<Build sx={{ fontSize: '1rem' }} />} defaultCollapsed>
-          {(appt.serviceItems ?? []).length === 0 ? (
+        <SectionCard title={'Services (' + (appt?.serviceItems ?? []).length + ')'} icon={<Build sx={{ fontSize: '1rem' }} />} defaultCollapsed>
+          {(appt?.serviceItems ?? []).length === 0 ? (
             <Box sx={{ px: 3, py: 2 }}>
               <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No services listed.</Typography>
             </Box>
@@ -522,7 +523,7 @@ export function AppointmentDetailPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {(appt.serviceItems ?? []).map((s) => {
+                {(appt?.serviceItems ?? []).map((s) => {
                   const svcShopName = getServiceShopName(s.serviceId)
                   return (
                   <TableRow key={s.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
@@ -558,6 +559,7 @@ export function AppointmentDetailPage() {
             </Table>
           )}
         </SectionCard>
+        </>}
 
         {/* ── WhatsApp: Concern Approval (1st round) ── */}
         {canSendConcernWA && (

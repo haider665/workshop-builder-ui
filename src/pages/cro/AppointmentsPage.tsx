@@ -343,7 +343,6 @@ export function AppointmentsPage() {
                   <TableCell>Vehicle</TableCell>
                   <TableCell>Customer</TableCell>
                   <TableCell>Slot</TableCell>
-                  <TableCell>Services</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell align="right">View</TableCell>
@@ -353,7 +352,6 @@ export function AppointmentsPage() {
                 {pageRows.map((appt) => {
                   const cust = customers.find((c) => c.id === appt.customerId)
                   const veh = vehicles.find((v) => v.id === appt.vehicleId)
-                  const totalBDT = appt.serviceItems?.reduce((s, i) => s + i.price, 0) ?? 0
                   return (
                     <TableRow
                       key={appt.id}
@@ -396,20 +394,6 @@ export function AppointmentsPage() {
                                 {appt.slotTime}
                               </Typography>
                             )}
-                          </Stack>
-                        ) : (
-                          <Typography sx={{ fontSize: '0.82rem', color: colors.slate[400] }}>—</Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {appt.serviceItems?.length ? (
-                          <Stack>
-                            <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>
-                              {appt.serviceItems.length} service{appt.serviceItems.length !== 1 ? 's' : ''}
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>
-                              BDT {totalBDT.toLocaleString('en-BD')}
-                            </Typography>
                           </Stack>
                         ) : (
                           <Typography sx={{ fontSize: '0.82rem', color: colors.slate[400] }}>—</Typography>

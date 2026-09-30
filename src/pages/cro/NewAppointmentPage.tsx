@@ -767,6 +767,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
           </Stack>
         </SectionCard>
 
+        {false && <>
         {/* ── Service Requests ── */}
         <SectionCard
           title="Service Requests"
@@ -907,6 +908,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
             </Button>
           </Stack>
         </SectionCard>
+        </>}
 
         {/* ── Appointment Info ── */}
         <SectionCard title="Appointment Info" icon={<CalendarMonth sx={{ fontSize: '1rem' }} />} defaultCollapsed>
