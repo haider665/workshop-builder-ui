@@ -36,6 +36,7 @@ function mergeNotification(notification: CWNotification, event = 'created') {
 export function RealtimeNotifications() {
   const status = useSessionStore((state) => state.status)
   const selectedCompanyId = useCompanyStore((state) => state.selectedCompanyId)
+  const hydrateFromBackend = useCwStore((state) => state.hydrateFromBackend)
   useEffect(() => {
     if (status !== 'authenticated') return
     let active = true
@@ -54,7 +55,13 @@ export function RealtimeNotifications() {
       window.dispatchEvent(new CustomEvent('cw:notification-update', { detail: notification }))
       if (payload.event !== 'updated' && payload.event !== 'deleted') window.dispatchEvent(new CustomEvent('cw:notification-toast', { detail: { message: notification.title === notification.message ? notification.title : `${notification.title}: ${notification.message}`, actionUrl: notification.actionUrl } }))
     }
+    const refreshData = (event: Event) => {
+      const detail = (event as CustomEvent<{ referenceType?: string }>).detail
+      if (!detail?.referenceType || !['CW Concern', 'CW Service', 'CW Part', 'CW Customer', 'CW Vehicle', 'CW Appointment', 'CW Master Data Request'].includes(detail.referenceType)) return
+      void hydrateFromBackend()
+    }
     socket.on('cw_notification', receive)
+    window.addEventListener('cw:notification-update', refreshData)
     socket.on('connect', refresh)
     socket.io.on('reconnect', refresh)
     void refresh()
@@ -63,7 +70,7 @@ export function RealtimeNotifications() {
     const presence = window.setInterval(beat, 30000)
     const visible = () => { if (document.visibilityState === 'visible') void refresh() }
     document.addEventListener('visibilitychange', visible)
-    return () => { active = false; window.clearInterval(fallback); window.clearInterval(presence); document.removeEventListener('visibilitychange', visible); socket.off('cw_notification', receive); socket.disconnect() }
-  }, [selectedCompanyId, status])
+    return () => { active = false; window.clearInterval(fallback); window.clearInterval(presence); document.removeEventListener('visibilitychange', visible); window.removeEventListener('cw:notification-update', refreshData); socket.off('cw_notification', receive); socket.disconnect() }
+  }, [hydrateFromBackend, selectedCompanyId, status])
   return null
 }

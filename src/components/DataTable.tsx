@@ -117,7 +117,11 @@ export function DataTable<T>({
 
   /* ── Pagination state ── */
   const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(initialPageSize)
+  const pageSizeStorageKey = `cw.table.pageSize.${exportFilename || searchPlaceholder}`
+  const [rowsPerPage, setRowsPerPage] = useState(() => {
+    const saved = Number(window.localStorage.getItem(pageSizeStorageKey))
+    return pageSizeOptions.includes(saved) ? saved : initialPageSize
+  })
   const [query, setQuery] = useState('')
   const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null)
 
@@ -355,7 +359,9 @@ export function DataTable<T>({
           onPageChange={(_e, newPage) => setPage(newPage)}
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10))
+            const nextSize = parseInt(e.target.value, 10)
+            setRowsPerPage(nextSize)
+            window.localStorage.setItem(pageSizeStorageKey, String(nextSize))
             setPage(0)
           }}
           rowsPerPageOptions={pageSizeOptions}

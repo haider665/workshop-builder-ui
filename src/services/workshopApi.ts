@@ -363,6 +363,10 @@ export const workshopApi = {
 
   async createVehicle(input: {
     customerId: string
+    driverName?: string
+    driverPhone?: string
+    transporterName?: string
+    transporterPhone?: string
     registrationNo: string
     make?: string
     model?: string
@@ -393,6 +397,10 @@ export const workshopApi = {
     vehicleId: string,
     input: Partial<{
       customerId: string
+      driverName?: string
+      driverPhone?: string
+      transporterName?: string
+      transporterPhone?: string
       registrationNo: string
       make?: string
       model?: string

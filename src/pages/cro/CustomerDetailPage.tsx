@@ -177,7 +177,7 @@ export function CustomerDetailPage() {
     return (
       <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
         <Stack spacing={3}>
-          <Button variant="outlined" onClick={() => navigate('/cre/customers')} startIcon={<ArrowBack />}
+          <Button variant="outlined" onClick={() => navigate(-1)} startIcon={<ArrowBack />}
             sx={{ alignSelf: 'flex-start', borderRadius: '10px', fontWeight: 600, borderColor: colors.slate[300], color: colors.slate[700] }}>
             Back
           </Button>
@@ -230,7 +230,7 @@ export function CustomerDetailPage() {
         {/* ── Page Header ── */}
         <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-            <IconButton onClick={() => navigate('/cre/customers')}
+            <IconButton onClick={() => navigate(-1)}
               sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
               <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
             </IconButton>

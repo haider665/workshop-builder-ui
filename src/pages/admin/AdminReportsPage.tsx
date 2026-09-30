@@ -32,6 +32,7 @@ import { workshopApi } from '../../services/workshopApi'
 export function AdminReportsPage() {
 	const [performance, setPerformance] = useState<Array<{ userId: string; fullName: string; completed: number; standardMinutes: number; activeMinutes: number; varianceMinutes: number; efficiencyPercent: number | null; unstandardized: number }>>([])
 	const [performanceError, setPerformanceError] = useState('')
+	const [adminSummary, setAdminSummary] = useState<Record<string, any> | null>(null)
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
@@ -41,7 +42,7 @@ export function AdminReportsPage() {
   const bays = useCwStore((s) => s.bays)
   const users = useCwStore((s) => s.users)
 
-	useEffect(() => { let active = true; workshopApi.getTechnicianPerformance().then((result) => { if (active) setPerformance(result.data) }).catch((error) => { if (active) setPerformanceError(error instanceof Error ? error.message : 'Unable to load technician performance') }); return () => { active = false } }, [])
+	useEffect(() => { let active = true; Promise.all([workshopApi.getTechnicianPerformance(), workshopApi.getAdminSummary()]).then(([result, summary]) => { if (active) { setPerformance(result.data); setAdminSummary(summary) } }).catch((error) => { if (active) setPerformanceError(error instanceof Error ? error.message : 'Unable to load reporting data') }); return () => { active = false } }, [])
 
   // ── Computed Metrics ──
   const activeAppts = useMemo(
@@ -166,6 +167,9 @@ export function AdminReportsPage() {
           <StatCard icon={<DirectionsCar />} label="Vehicles" value={vehicles.length} color="#3b82f6" />
           <StatCard icon={<People />} label="Customers" value={customers.length} color="#8b5cf6" />
           <StatCard icon={<Groups />} label="Teams" value={teams.length} color="#06b6d4" />
+          <StatCard icon={<People />} label="Enabled Users" value={adminSummary?.users?.total ?? '—'} color="#7c3aed" />
+          <StatCard icon={<Assessment />} label="Feedback Entries" value={adminSummary?.feedback?.total ?? '—'} color="#db2777" />
+          <StatCard icon={<Assignment />} label="Comments" value={adminSummary?.comments?.total ?? '—'} color="#0891b2" />
         </Stack>
 
         {/* ── Revenue ── */}

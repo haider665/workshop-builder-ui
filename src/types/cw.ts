@@ -207,6 +207,10 @@ export type CWVehicleSize = 'Small' | 'Medium' | 'Large'
 export type CWVehicle = {
   id: string
   customerId: string
+  driverName?: string
+  driverPhone?: string
+  transporterName?: string
+  transporterPhone?: string
   registrationNo: string
   make?: string
   model?: string

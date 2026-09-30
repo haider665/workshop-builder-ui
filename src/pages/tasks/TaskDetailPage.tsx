@@ -205,7 +205,7 @@ export function TaskDetailPage() {
       <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
         <Stack spacing={3}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-            <IconButton onClick={() => navigate('/tasks')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+            <IconButton onClick={() => navigate(-1)} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
               <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
             </IconButton>
             <Typography sx={{ fontWeight: 800, fontSize: '1.5rem', color: colors.slate[900] }}>Task not found</Typography>

@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -6,7 +7,6 @@ import {
   FormControlLabel,
   FormGroup,
   FormLabel,
-  MenuItem,
   Radio,
   RadioGroup,
   Stack,
@@ -169,21 +169,13 @@ export function FieldRenderer(props: FieldRendererProps) {
     const options = f.options ?? []
     const current = typeof props.value === 'string' ? props.value : ''
 
-    return (
-      <TextField
-        label={f.label + requiredSuffix}
-        value={current}
-        onChange={(e) => props.onChange(e.target.value)}
-        select
-        fullWidth
-      >
-        {options.map((o) => (
-          <MenuItem key={o} value={o}>
-            {o}
-          </MenuItem>
-        ))}
-      </TextField>
-    )
+    return <Autocomplete
+      options={options}
+      value={current || null}
+      onChange={(_, value) => props.onChange(value ?? '')}
+      renderInput={(params) => <TextField {...params} label={f.label + requiredSuffix} fullWidth />}
+      noOptionsText="No matching options"
+    />
   }
 
   if (f.type === 'Date Picker') {

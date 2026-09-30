@@ -3,7 +3,10 @@ import { useEffect, useMemo, useState } from 'react'
 
 export function useListPagination<T>(rows: T[], initialRowsPerPage = 10) {
   const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(initialRowsPerPage)
+  const [rowsPerPage, setRowsPerPage] = useState(() => {
+    const saved = Number(window.localStorage.getItem('cw.table.defaultPageSize'))
+    return [5, 10, 25, 50, 100].includes(saved) ? saved : initialRowsPerPage
+  })
   useEffect(() => setPage(0), [rows])
   const pageRows = useMemo(
     () => rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
@@ -19,7 +22,9 @@ export function useListPagination<T>(rows: T[], initialRowsPerPage = 10) {
         onPageChange={(_, nextPage) => setPage(nextPage)}
         rowsPerPage={rowsPerPage}
         onRowsPerPageChange={(event) => {
-          setRowsPerPage(Number(event.target.value))
+          const nextSize = Number(event.target.value)
+          setRowsPerPage(nextSize)
+          window.localStorage.setItem('cw.table.defaultPageSize', String(nextSize))
           setPage(0)
         }}
         rowsPerPageOptions={[5, 10, 25, 50, 100]}

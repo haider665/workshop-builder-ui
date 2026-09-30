@@ -160,7 +160,7 @@ export function CreateCustomerPage() {
         {/* Header */}
         <Stack direction="row" sx={{ alignItems: 'center', gap: 2 }}>
           <IconButton
-            onClick={() => navigate('/cre/customers')}
+            onClick={() => navigate(-1)}
             sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}
           >
             <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />

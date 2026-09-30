@@ -363,7 +363,7 @@ export function NewJobPage() {
         {/* ── Header ─────────────────────────────────────────── */}
         <Stack direction={{ xs: 'column', md: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2 }}>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-            <IconButton onClick={() => navigate('/jc/pending-vehicles')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+            <IconButton onClick={() => navigate(-1)} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
               <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
             </IconButton>
             <Box>
