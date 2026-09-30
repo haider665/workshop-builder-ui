@@ -1883,6 +1883,14 @@ export const workshopApi = {
     return request(`/api/method/workshop.api.reports.technician_performance${buildQuery(params)}`)
   },
 
+  async getWorkforceMetrics(params: { fromDate?: string; toDate?: string } = {}): Promise<Record<string, any>> {
+    return request(`/api/method/workshop.api.reports.workforce_metrics${buildQuery(params)}`)
+  },
+
+  async getFinancialSnapshot(params: { fromDate?: string; toDate?: string } = {}): Promise<Record<string, any>> {
+    return request(`/api/method/workshop.api.reports.financial_snapshot${buildQuery(params)}`)
+  },
+
   async getF1Report(params: {
     shopId?: string
     userId?: string

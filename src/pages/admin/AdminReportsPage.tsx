@@ -7,6 +7,11 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  Button,
+  Divider,
+  Tab,
+  Tabs,
+  TextField,
   Typography,
 } from '@mui/material'
 import {
@@ -18,6 +23,7 @@ import {
   People,
   Store,
   TrendingUp,
+  Print,
 } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { SectionCard } from '../../components/SectionCard'
@@ -33,6 +39,11 @@ export function AdminReportsPage() {
 	const [performance, setPerformance] = useState<Array<{ userId: string; fullName: string; completed: number; standardMinutes: number; activeMinutes: number; varianceMinutes: number; efficiencyPercent: number | null; unstandardized: number }>>([])
 	const [performanceError, setPerformanceError] = useState('')
 	const [adminSummary, setAdminSummary] = useState<Record<string, any> | null>(null)
+	const [workforce, setWorkforce] = useState<Record<string, any> | null>(null)
+	const [financial, setFinancial] = useState<Record<string, any> | null>(null)
+	const [activeTab, setActiveTab] = useState(0)
+	const [fromDate, setFromDate] = useState('')
+	const [toDate, setToDate] = useState('')
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
@@ -42,7 +53,15 @@ export function AdminReportsPage() {
   const bays = useCwStore((s) => s.bays)
   const users = useCwStore((s) => s.users)
 
-	useEffect(() => { let active = true; Promise.all([workshopApi.getTechnicianPerformance(), workshopApi.getAdminSummary()]).then(([result, summary]) => { if (active) { setPerformance(result.data); setAdminSummary(summary) } }).catch((error) => { if (active) setPerformanceError(error instanceof Error ? error.message : 'Unable to load reporting data') }); return () => { active = false } }, [])
+  const reportAppointments = useMemo(() => appointments.filter((appointment) => {
+    const date = appointment.slotDate || appointment.createdAt?.slice(0, 10) || ''
+    return (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
+  }), [appointments, fromDate, toDate])
+  const reportSales = useMemo(() => reportAppointments.flatMap((appointment) => appointment.serviceItems.map((item) => ({ appointment, item }))), [reportAppointments])
+  const reportStatus = useMemo(() => Array.from(reportAppointments.reduce((map, row) => map.set(row.status, (map.get(row.status) || 0) + 1), new Map<string, number>()).entries()).sort((a, b) => b[1] - a[1]), [reportAppointments])
+  const satisfaction = useMemo(() => ({ responses: adminSummary?.feedback?.total || 0, recommended: adminSummary?.feedback?.byRecommendation?.Yes || 0 }), [adminSummary])
+
+	useEffect(() => { let active = true; Promise.all([workshopApi.getTechnicianPerformance(), workshopApi.getAdminSummary(), workshopApi.getWorkforceMetrics(), workshopApi.getFinancialSnapshot()]).then(([result, summary, people, money]) => { if (active) { setPerformance(result.data); setAdminSummary(summary); setWorkforce(people); setFinancial(money) } }).catch((error) => { if (active) setPerformanceError(error instanceof Error ? error.message : 'Unable to load reporting data') }); return () => { active = false } }, [])
 
   // ── Computed Metrics ──
   const activeAppts = useMemo(
@@ -156,7 +175,19 @@ export function AdminReportsPage() {
           <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
             Reports
           </Typography>
-          <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Workshop analytics and operational overview</Typography>
+          <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Automotive workshop performance, revenue, customer satisfaction, utilization and workforce intelligence</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mt: 2, alignItems: { sm: 'center' }, flexWrap: 'wrap' }} useFlexGap>
+            <TextField type="date" size="small" label="From" value={fromDate} onChange={(e) => setFromDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField type="date" size="small" label="To" value={toDate} onChange={(e) => setToDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <Button variant="outlined" startIcon={<Print />} onClick={() => window.print()} sx={{ fontWeight: 700 }}>Print this report</Button>
+            {(fromDate || toDate) && <Button size="small" onClick={() => { setFromDate(''); setToDate('') }}>Clear filters</Button>}
+          </Stack>
+        </Box>
+
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', overflowX: 'auto' }}>
+          <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} variant="scrollable" allowScrollButtonsMobile>
+            <Tab label="Executive overview" /><Tab label="Sales & services" /><Tab label="Customer satisfaction" /><Tab label="People & workload" /><Tab label="Capacity & quality" />
+          </Tabs>
         </Box>
 
         {/* ── KPI Cards ── */}
@@ -171,6 +202,30 @@ export function AdminReportsPage() {
           <StatCard icon={<Assessment />} label="Feedback Entries" value={adminSummary?.feedback?.total ?? '—'} color="#db2777" />
           <StatCard icon={<Assignment />} label="Comments" value={adminSummary?.comments?.total ?? '—'} color="#0891b2" />
         </Stack>
+
+        {activeTab === 1 && <SectionCard title="Sales & Services Intelligence" icon={<TrendingUp sx={{ fontSize: '1rem' }} />}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+          <Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800, mb: 1 }}>Service revenue by service line</Typography>{topServices.map((service) => { const max = Math.max(...topServices.map((row) => row.revenue), 1); return <Box key={service.desc} sx={{ mb: 1.25 }}><Stack direction="row" sx={{ justifyContent: 'space-between' }}><Typography sx={{ fontSize: '.8rem' }}>{service.desc}</Typography><Typography sx={{ fontSize: '.78rem', fontWeight: 700 }}>BDT {service.revenue.toLocaleString('en-BD')}</Typography></Stack><Box sx={{ height: 10, bgcolor: colors.slate[100], borderRadius: 5 }}><Box sx={{ width: `${Math.round(service.revenue / max * 100)}%`, height: '100%', bgcolor: '#0ea5e9', borderRadius: 5 }} /></Box></Box> })}<Divider sx={{ my: 2 }} /><Typography sx={{ fontWeight: 800, mb: 1 }}>Financial proposition</Typography><Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap' }}><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>Posted sales</Typography><Typography sx={{ fontWeight: 800 }}>BDT {(financial?.sales?.gross || 0).toLocaleString('en-BD')}</Typography></Box><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>Receivables</Typography><Typography sx={{ fontWeight: 800 }}>BDT {(financial?.sales?.outstanding || 0).toLocaleString('en-BD')}</Typography></Box><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>Payables</Typography><Typography sx={{ fontWeight: 800 }}>BDT {(financial?.purchases?.outstanding || 0).toLocaleString('en-BD')}</Typography></Box></Stack></Box>
+            <Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800, mb: 1 }}>Pipeline by appointment status</Typography>{reportStatus.map(([status, count]) => <Stack key={status} direction="row" sx={{ alignItems: 'center', gap: 1, mb: 1 }}><Typography sx={{ width: 150, fontSize: '.8rem' }}>{status}</Typography><Box sx={{ flex: 1, height: 12, bgcolor: colors.slate[100], borderRadius: 6 }}><Box sx={{ width: `${Math.round(count / Math.max(reportAppointments.length, 1) * 100)}%`, height: '100%', bgcolor: '#8b5cf6', borderRadius: 6 }} /></Box><Typography sx={{ fontWeight: 800 }}>{count}</Typography></Stack>)}</Box>
+          </Stack>
+          <Divider sx={{ my: 2 }} /><Typography sx={{ fontSize: '.82rem', color: colors.slate[500] }}>Filtered appointments: {reportAppointments.length} · Service lines: {reportSales.length} · Estimated service value: BDT {reportSales.reduce((sum, row) => sum + (row.item.price || 0), 0).toLocaleString('en-BD')}</Typography>
+        </SectionCard>}
+
+        {activeTab === 2 && <SectionCard title="Customer Satisfaction" icon={<People sx={{ fontSize: '1rem' }} />}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={4}><Box><Typography sx={{ color: colors.slate[500], fontSize: '.8rem' }}>Feedback responses</Typography><Typography sx={{ fontSize: '2rem', fontWeight: 800 }}>{satisfaction.responses}</Typography></Box><Box><Typography sx={{ color: colors.slate[500], fontSize: '.8rem' }}>Would recommend</Typography><Typography sx={{ fontSize: '2rem', fontWeight: 800, color: '#059669' }}>{satisfaction.recommended}</Typography></Box><Box><Typography sx={{ color: colors.slate[500], fontSize: '.8rem' }}>Recommendation rate</Typography><Typography sx={{ fontSize: '2rem', fontWeight: 800 }}>{satisfaction.responses ? `${Math.round(satisfaction.recommended / satisfaction.responses * 100)}%` : '—'}</Typography></Box></Stack>
+          <Typography sx={{ mt: 3, fontWeight: 800, mb: 1 }}>Satisfaction interpretation</Typography><Typography sx={{ color: colors.slate[600], fontSize: '.85rem' }}>Use feedback trends alongside delivery time, repeat visits, service quality and complaint comments. Individual responses remain traceable from the appointment record.</Typography>
+        </SectionCard>}
+
+        {activeTab === 3 && <SectionCard title="People, Assignments & Performance" icon={<Groups sx={{ fontSize: '1rem' }} />}>
+          <Typography sx={{ color: colors.slate[500], fontSize: '.82rem', mb: 2 }}>Assigned work, completion, labour standards, job-card throughput, quality returns, presence and overtime indicators.</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} sx={{ mb: 2 }}><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>Job cards</Typography><Typography sx={{ fontSize: '1.5rem', fontWeight: 800 }}>{workforce?.jobs?.total ?? '—'}</Typography></Box><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>Online now</Typography><Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#059669' }}>{workforce?.presence?.online ?? '—'}</Typography></Box><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>F1 returns</Typography><Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#dc2626' }}>{workforce?.f1?.total ?? '—'}</Typography></Box><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>Overtime hours</Typography><Typography sx={{ fontSize: '1.5rem', fontWeight: 800 }}>{workforce?.overtime?.totalHours ?? '—'}</Typography></Box></Stack>
+          <Table size="small"><TableHead><TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}><TableCell>Employee</TableCell><TableCell align="right">Completed</TableCell><TableCell align="right">Active</TableCell><TableCell align="right">F1 returns</TableCell><TableCell align="right">F1 rate</TableCell><TableCell align="right">Presence</TableCell><TableCell align="right">Efficiency</TableCell></TableRow></TableHead><TableBody>{performance.map((row) => { const f1 = workforce?.f1?.byUser?.find((item: { userId: string }) => item.userId === row.userId)?.f1Count || 0; const presence = workforce?.presence?.users?.find((item: { userId: string }) => item.userId === row.userId); return <TableRow key={row.userId}><TableCell sx={bodyCellSx}>{row.fullName}</TableCell><TableCell align="right" sx={bodyCellSx}>{row.completed}</TableCell><TableCell align="right" sx={bodyCellSx}>{Math.max(0, Math.round(row.activeMinutes))} min</TableCell><TableCell align="right" sx={bodyCellSx}>{f1}</TableCell><TableCell align="right" sx={bodyCellSx}>{row.completed ? `${Math.round(f1 / row.completed * 100)}%` : '—'}</TableCell><TableCell align="right" sx={bodyCellSx}><Chip size="small" label={presence?.online ? 'Online' : 'Offline'} color={presence?.online ? 'success' : 'default'} /></TableCell><TableCell align="right" sx={bodyCellSx}>{row.efficiencyPercent == null ? '—' : `${row.efficiencyPercent}%`}</TableCell></TableRow>})}</TableBody></Table>
+          {workforce?.overtime?.rows?.length ? <><Typography sx={{ fontWeight: 800, mt: 2, mb: 1 }}>Attendance and overtime indicators</Typography><Table size="small"><TableHead><TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}><TableCell>Employee</TableCell><TableCell>Date</TableCell><TableCell align="right">Worked hours</TableCell><TableCell align="right">Overtime hours</TableCell></TableRow></TableHead><TableBody>{workforce.overtime.rows.map((row: { employeeId: string; date: string; workedHours: number; overtimeHours: number }) => <TableRow key={`${row.employeeId}-${row.date}`}><TableCell sx={bodyCellSx}>{row.employeeId}</TableCell><TableCell sx={bodyCellSx}>{row.date}</TableCell><TableCell align="right" sx={bodyCellSx}>{row.workedHours}</TableCell><TableCell align="right" sx={bodyCellSx}>{row.overtimeHours}</TableCell></TableRow>)}</TableBody></Table></> : <Typography sx={{ mt: 2, fontSize: '.8rem', color: colors.slate[500] }}>No complete IN/OUT pairs are available for overtime calculation in this period.</Typography>}
+        </SectionCard>}
+
+        {activeTab === 4 && <SectionCard title="Capacity, Quality & Control" icon={<Assessment sx={{ fontSize: '1rem' }} />}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800, mb: 1 }}>Bay capacity</Typography>{shopUtilization.map((shop) => <Stack key={shop.name} direction="row" sx={{ gap: 1, alignItems: 'center', mb: 1 }}><Typography sx={{ width: 130, fontSize: '.8rem' }}>{shop.name}</Typography><Box sx={{ flex: 1, height: 12, bgcolor: colors.slate[100], borderRadius: 6 }}><Box sx={{ width: `${shop.total ? Math.round(shop.occupied / shop.total * 100) : 0}%`, height: '100%', bgcolor: '#f59e0b', borderRadius: 6 }} /></Box><Typography sx={{ fontSize: '.8rem' }}>{shop.occupied}/{shop.total}</Typography></Stack>)}</Box><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800, mb: 1 }}>Control indicators</Typography><Typography sx={{ fontSize: '.84rem', mb: .75 }}>Open appointments: <strong>{activeAppts.length}</strong></Typography><Typography sx={{ fontSize: '.84rem', mb: .75 }}>Completed appointments: <strong>{completedAppts.length}</strong></Typography><Typography sx={{ fontSize: '.84rem' }}>F1 returns: <strong>{adminSummary?.f1?.total ?? 0}</strong></Typography></Box></Stack>
+        </SectionCard>}
 
         {/* ── Revenue ── */}
         <SectionCard title="Revenue & Metrics" icon={<TrendingUp sx={{ fontSize: '1rem' }} />}>
