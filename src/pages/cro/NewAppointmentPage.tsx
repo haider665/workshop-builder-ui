@@ -95,6 +95,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
   const toast = useToast()
   useCREData()
   const [searchParams] = useSearchParams()
+  const editAppointmentId = searchParams.get('appointmentId') ?? ''
 
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
@@ -166,6 +167,22 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
   const [vehicleDialogOpen, setVehicleDialogOpen] = useState(initialAction === 'vehicle')
   const [vehicleDraft, setVehicleDraft] = useState<{ registrationNo: string; make: string; model: string; vin: string; vehicleSize: CWVehicleSize }>({ registrationNo: '', make: '', model: '', vin: '', vehicleSize: 'Medium' })
   const [modalSaving, setModalSaving] = useState(false)
+
+  useEffect(() => {
+    if (!editAppointmentId) return
+    const draft = appointments.find((item) => item.id === editAppointmentId)
+    if (!draft || draft.status !== 'Draft') return
+    const customer = customers.find((item) => item.id === draft.customerId) ?? null
+    const vehicle = vehicles.find((item) => item.id === draft.vehicleId) ?? null
+    setSelectedCustomer(customer)
+    setSelectedVehicle(vehicle)
+    setSlotDate(draft.slotDate ?? '')
+    setSlotTime(draft.slotTime ?? '')
+    setNotes(draft.notes ?? '')
+    setSaUserId(draft.assignedSAUserId ?? '')
+    setConcernItems((draft.concernItems ?? []).map((item) => ({ id: item.id ?? crypto.randomUUID(), concernId: item.concernId, concernName: item.concernName, processTimeMins: item.processTimeMins, remark: item.remark ?? '' })))
+    setServiceItems((draft.serviceItems ?? []).map((item) => ({ id: item.id ?? crypto.randomUUID(), serviceId: item.serviceId, serviceCode: item.serviceCode, serviceDescription: item.serviceDescription, processTimeMins: item.processTimeMins, ratePerHr: item.ratePerHr ?? 0, price: item.price ?? 0, remark: item.remark ?? '' })))
+  }, [editAppointmentId, appointments, customers, vehicles])
 
   useEffect(() => {
     const pending = pendingVehicles.find((item) => item.id === gateEntryId) ?? null
@@ -343,7 +360,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
         addedBySA: false as const,
       }))
 
-      const createdAppointment = await workshopApi.createAppointment({
+      const appointmentInput = {
         status,
         customerId: selectedCustomer.id,
         vehicleId: selectedVehicle.id,
@@ -373,7 +390,10 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
           })),
           ...pendingServiceItems,
         ],
-      })
+      }
+      const createdAppointment = editAppointmentId
+        ? await workshopApi.updateAppointment(editAppointmentId, appointmentInput)
+        : await workshopApi.createAppointment(appointmentInput)
       let latestAppointment = createdAppointment
       for (const pendingRequest of pendingMasterRequests) {
         try {
@@ -398,7 +418,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
       }
 
       if (pendingMasterRequests.length) setPendingMasterRequests([])
-      toast.success(status === 'Draft' ? 'Appointment saved as draft.' : 'Appointment submitted successfully.')
+      toast.success(editAppointmentId ? (status === 'Draft' ? 'Appointment draft updated.' : 'Appointment updated and submitted.') : (status === 'Draft' ? 'Appointment saved as draft.' : 'Appointment submitted successfully.'))
       if (onComplete) onComplete(latestAppointment.id)
       else navigate('/cre/appointments')
     } catch (e) {
@@ -423,7 +443,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
             </IconButton>
             <Box>
               <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
-                New Appointment
+                {editAppointmentId ? 'Edit Appointment Draft' : 'New Appointment'}
               </Typography>
               <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>Create new appointment from here</Typography>
             </Box>
@@ -994,7 +1014,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
             disabled={!selectedVehicle}
             sx={{ borderColor: colors.border.strong, color: colors.slate[700], fontWeight: 700, borderRadius: '10px', px: 2.5 }}
           >
-            Save Draft
+            {editAppointmentId ? 'Update Draft' : 'Save Draft'}
           </Button>
           <Button
             variant="contained"
@@ -1002,7 +1022,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
             disabled={!selectedVehicle}
             sx={{ bgcolor: colors.slate[900], fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: colors.slate[800] } }}
           >
-            Submit Appointment
+            {editAppointmentId ? 'Update and Submit' : 'Submit Appointment'}
           </Button>
         </Stack>
       </Stack>

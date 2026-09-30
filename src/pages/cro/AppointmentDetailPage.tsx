@@ -323,9 +323,10 @@ export function AppointmentDetailPage() {
               </Stack>
               <Chip label={appt.status} color={statusColor(appt.status)} size="small" sx={{ fontWeight: 700, fontSize: '0.72rem', mt: 0.5 }} />
               {appt.status === 'Draft' && (
-                <Button size="small" variant="contained" onClick={() => void setAppointmentStatus(appt.id, 'New')} sx={{ mt: 1, fontWeight: 800, borderRadius: radii.sm }}>
-                  Submit Appointment
-                </Button>
+                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                  <Button size="small" variant="outlined" onClick={() => navigate(`/cre/appointments/new?appointmentId=${encodeURIComponent(appt.id)}`)} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Edit Draft</Button>
+                  <Button size="small" variant="contained" onClick={() => void setAppointmentStatus(appt.id, 'New')} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Submit Appointment</Button>
+                </Stack>
               )}
             </Box>
           </Stack>

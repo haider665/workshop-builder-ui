@@ -233,7 +233,7 @@ export function WorkflowTimeline({ status, timeline }: Props) {
                 {ev.action}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {new Date(ev.timestamp).toLocaleString()} · {ev.actor}
+                {(() => { const raw = ev.timestamp || (ev as CWTimelineEvent & { at?: string }).at; const parsed = raw ? new Date(raw) : null; return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString() : 'Time not recorded' })()} · {ev.actor || (ev as CWTimelineEvent & { actorId?: string }).actorId || 'System'}
               </Typography>
               {ev.details && (
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
