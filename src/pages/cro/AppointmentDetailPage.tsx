@@ -28,7 +28,7 @@ import {
   Send,
   Verified,
 } from '@mui/icons-material'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { StatCard } from '../../components/StatCard'
@@ -38,6 +38,9 @@ import { WhatsAppHistory } from '../../components/WhatsAppHistory'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
+import { workshopApi } from '../../services/workshopApi'
+import { useToast } from '../../hooks/useToast'
+import type { CWAppointmentComment, CWAppointmentFeedback } from '../../types/cw'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 
@@ -134,6 +137,7 @@ export function AppointmentDetailPage() {
   const assignQC = useCwStore((s) => s.assignQC)
   const assignSA = useCwStore((s) => s.assignSA)
   const roles = useCwStore((s) => s.roles)
+  const toast = useToast()
 
   const appt = useMemo(
     () => appointments.find((a) => a.id === appointmentId) ?? null,
@@ -186,9 +190,75 @@ export function AppointmentDetailPage() {
   const activeQCUsers = useMemo(() => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)), [users, qcRoleId])
   const [selectedQCUserId, setSelectedQCUserId] = useState('')
   const [selectedSAUserId, setSelectedSAUserId] = useState('')
+  const [appointmentComments, setAppointmentComments] = useState<CWAppointmentComment[]>([])
+  const [appointmentFeedback, setAppointmentFeedback] = useState<CWAppointmentFeedback[]>([])
+  const [commentText, setCommentText] = useState('')
+  const [mentionText, setMentionText] = useState('')
+  const [noteText, setNoteText] = useState('')
+  const [feedbackFormOpen, setFeedbackFormOpen] = useState(false)
+  const [feedbackForm, setFeedbackForm] = useState({
+    customerName: '', serviceNo: '', overallRating: '', serviceAdvisorRating: '', serviceQualityRating: '',
+    deliveryTimeRating: '', vehicleConditionRating: '', facilityRating: '', recommendation: '', comments: '',
+  })
   const saRoleId = useMemo(() => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id, [roles])
   const activeSAUsers = useMemo(() => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)), [users, saRoleId])
   const assignedSA = useMemo(() => (appt ? users.find((u) => u.id === appt.assignedSAUserId) : null), [users, appt])
+
+  useEffect(() => {
+    if (!appt?.id) return
+    setNoteText(appt.notes || '')
+    void Promise.all([
+      workshopApi.listAppointmentComments(appt.id),
+      workshopApi.listAppointmentFeedback(appt.id),
+    ]).then(([commentsResponse, feedbackResponse]) => {
+      setAppointmentComments(commentsResponse.data)
+      setAppointmentFeedback(feedbackResponse.data)
+    }).catch((error) => toast.error(error, 'Could not load appointment comments and feedback.'))
+  }, [appt?.id, appt?.notes, toast])
+
+  async function submitAppointmentComment() {
+    if (!appt || !commentText.trim()) return
+    try {
+      const mentions = mentionText.split(',').map((value) => value.trim()).filter(Boolean)
+      const created = await workshopApi.addAppointmentComment(appt.id, { comment: commentText.trim(), mentions })
+      setAppointmentComments((current) => [created, ...current])
+      setCommentText('')
+      setMentionText('')
+      toast.success('Comment added and mentioned users notified.')
+    } catch (error) { toast.error(error, 'Could not add comment.') }
+  }
+
+  async function saveAppointmentNotes() {
+    if (!appt) return
+    try {
+      await workshopApi.updateAppointment(appt.id, { notes: noteText })
+      toast.success('Appointment notes saved.')
+    } catch (error) { toast.error(error, 'Could not save notes.') }
+  }
+
+  async function submitAppointmentFeedback() {
+    if (!appt) return
+    try {
+      const numeric = (value: string) => value ? Number(value) : undefined
+      const created = await workshopApi.addAppointmentFeedback(appt.id, {
+        feedbackSource: 'Customer',
+        customerName: feedbackForm.customerName || customer?.fullName || '',
+        serviceNo: feedbackForm.serviceNo,
+        overallRating: numeric(feedbackForm.overallRating),
+        serviceAdvisorRating: numeric(feedbackForm.serviceAdvisorRating),
+        serviceQualityRating: numeric(feedbackForm.serviceQualityRating),
+        deliveryTimeRating: numeric(feedbackForm.deliveryTimeRating),
+        vehicleConditionRating: numeric(feedbackForm.vehicleConditionRating),
+        facilityRating: numeric(feedbackForm.facilityRating),
+        recommendation: feedbackForm.recommendation,
+        comments: feedbackForm.comments,
+      })
+      setAppointmentFeedback((current) => [created, ...current])
+      setFeedbackFormOpen(false)
+      setFeedbackForm({ customerName: '', serviceNo: '', overallRating: '', serviceAdvisorRating: '', serviceQualityRating: '', deliveryTimeRating: '', vehicleConditionRating: '', facilityRating: '', recommendation: '', comments: '' })
+      toast.success('Customer feedback recorded.')
+    } catch (error) { toast.error(error, 'Could not save customer feedback.') }
+  }
 
   if (!appt) {
     return (
@@ -366,12 +436,57 @@ export function AppointmentDetailPage() {
           />
         </Stack>
 
-        {/* ── Notes (if any) ── */}
-        {appt.concerns && (
-          <SectionCard title="Notes" icon={<ReportProblem sx={{ fontSize: '1rem' }} />}>
-            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[700] }}>{appt.concerns}</Typography>
-          </SectionCard>
-        )}
+        {/* ── Notes and feedbacks ── */}
+        <SectionCard title="Notes and Feedbacks" icon={<ReportProblem sx={{ fontSize: '1rem' }} />}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography sx={{ fontWeight: 800, color: colors.slate[800], mb: 1 }}>Appointment Notes</Typography>
+              <TextField value={noteText} onChange={(event) => setNoteText(event.target.value)} fullWidth multiline minRows={3}
+                placeholder="Internal notes, follow-up instructions, or handover details"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
+              <Button size="small" variant="outlined" onClick={() => void saveAppointmentNotes()} sx={{ mt: 1, fontWeight: 700 }}>Save Notes</Button>
+            </Box>
+            {appt.concerns && <Typography sx={{ fontSize: '0.82rem', color: colors.slate[600] }}>Customer concern summary: {appt.concerns}</Typography>}
+
+            <Box sx={{ pt: 1.5, borderTop: `1px solid ${colors.border.subtle}` }}>
+              <Typography sx={{ fontWeight: 800, color: colors.slate[800], mb: 1 }}>Comments and Mentions</Typography>
+              <Stack spacing={1}>
+                <TextField value={commentText} onChange={(event) => setCommentText(event.target.value)} fullWidth multiline minRows={2}
+                  label="Add a comment" placeholder="Pass an update to the appointment team"
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
+                <TextField value={mentionText} onChange={(event) => setMentionText(event.target.value)} fullWidth size="small"
+                  label="Tag users (emails or user IDs, comma-separated)" helperText="Mentioned users receive an in-app notification immediately."
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.82rem' } }} />
+                <Button variant="contained" onClick={() => void submitAppointmentComment()} disabled={!commentText.trim()} sx={{ alignSelf: 'flex-start', fontWeight: 700, borderRadius: radii.sm }}>Post Comment</Button>
+              </Stack>
+              {appointmentComments.length === 0 ? <Typography sx={{ mt: 1.5, fontSize: '0.82rem', color: colors.slate[500] }}>No comments yet.</Typography> : (
+                <Stack spacing={1} sx={{ mt: 1.5 }}>
+                  {appointmentComments.map((comment) => <Box key={comment.id} sx={{ p: 1.25, bgcolor: colors.bg.page, borderRadius: radii.sm }}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}><Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>{comment.author}</Typography><Typography sx={{ color: colors.slate[500], fontSize: '0.72rem' }}>{fmtDateTime(comment.createdAt)}</Typography></Stack>
+                    <Typography sx={{ mt: 0.4, fontSize: '0.84rem', whiteSpace: 'pre-wrap' }}>{comment.comment}</Typography>
+                    {comment.mentions.length > 0 && <Typography sx={{ mt: 0.4, fontSize: '0.72rem', color: colors.status.info }}>Mentioned: {comment.mentions.join(', ')}</Typography>}
+                  </Box>)}
+                </Stack>
+              )}
+            </Box>
+
+            <Box sx={{ pt: 1.5, borderTop: `1px solid ${colors.border.subtle}` }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 1 }}>
+                <Box><Typography sx={{ fontWeight: 800, color: colors.slate[800] }}>Customer Feedback</Typography><Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>Record the feedback form repeatedly as the appointment progresses.</Typography></Box>
+                <Button variant="outlined" onClick={() => setFeedbackFormOpen(true)} sx={{ fontWeight: 700, borderRadius: radii.sm }}>Add Feedback</Button>
+              </Stack>
+              {appointmentFeedback.length === 0 ? <Typography sx={{ mt: 1.5, fontSize: '0.82rem', color: colors.slate[500] }}>No feedback submitted.</Typography> : (
+                <Stack spacing={1} sx={{ mt: 1.5 }}>
+                  {appointmentFeedback.map((entry) => <Box key={entry.id} sx={{ p: 1.25, bgcolor: colors.bg.page, borderRadius: radii.sm }}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}><Typography sx={{ fontWeight: 700, fontSize: '0.78rem' }}>{entry.feedbackSource} · {entry.customerName || 'Customer'}</Typography><Typography sx={{ color: colors.slate[500], fontSize: '0.72rem' }}>{fmtDateTime(entry.submittedAt)}</Typography></Stack>
+                    <Typography sx={{ mt: 0.4, fontSize: '0.8rem' }}>Overall: {entry.overallRating ?? '—'} / 5 · Recommend: {entry.recommendation || '—'}</Typography>
+                    {entry.comments && <Typography sx={{ mt: 0.4, fontSize: '0.82rem', whiteSpace: 'pre-wrap' }}>{entry.comments}</Typography>}
+                  </Box>)}
+                </Stack>
+              )}
+            </Box>
+          </Stack>
+        </SectionCard>
 
         {/* ── Service Advisor Assignment ── */}
         {!appt.assignedSAUserId ? (
@@ -693,6 +808,32 @@ export function AppointmentDetailPage() {
           </SectionCard>
         )}
       </Stack>
+
+      <Dialog open={feedbackFormOpen} onClose={() => setFeedbackFormOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Customer Feedback Form</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 1 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+              <TextField label="Customer name" value={feedbackForm.customerName || customer?.fullName || ''} onChange={(e) => setFeedbackForm((f) => ({ ...f, customerName: e.target.value }))} fullWidth />
+              <TextField label="Service no." value={feedbackForm.serviceNo} onChange={(e) => setFeedbackForm((f) => ({ ...f, serviceNo: e.target.value }))} fullWidth />
+            </Stack>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: colors.slate[700] }}>Please rate each area (1 = poor, 5 = excellent)</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
+              {([
+                ['overallRating', 'Overall experience'], ['serviceAdvisorRating', 'Service advisor'], ['serviceQualityRating', 'Service quality'],
+                ['deliveryTimeRating', 'Delivery time'], ['vehicleConditionRating', 'Vehicle condition'], ['facilityRating', 'Facility'],
+              ] as const).map(([key, label]) => <TextField key={key} select label={label} value={feedbackForm[key]} onChange={(e) => setFeedbackForm((f) => ({ ...f, [key]: e.target.value }))} sx={{ minWidth: { xs: '100%', sm: 190 } }}>
+                <MenuItem value="">Not rated</MenuItem>{[1, 2, 3, 4, 5].map((value) => <MenuItem key={value} value={String(value)}>{value} / 5</MenuItem>)}
+              </TextField>)}
+            </Stack>
+            <TextField select label="Would you recommend us?" value={feedbackForm.recommendation} onChange={(e) => setFeedbackForm((f) => ({ ...f, recommendation: e.target.value }))}>
+              <MenuItem value="">Not answered</MenuItem><MenuItem value="Yes">Yes</MenuItem><MenuItem value="No">No</MenuItem><MenuItem value="Maybe">Maybe</MenuItem>
+            </TextField>
+            <TextField label="Comments / suggestions" value={feedbackForm.comments} onChange={(e) => setFeedbackForm((f) => ({ ...f, comments: e.target.value }))} fullWidth multiline minRows={4} />
+          </Stack>
+        </DialogContent>
+        <DialogActions><Button onClick={() => setFeedbackFormOpen(false)}>Cancel</Button><Button variant="contained" onClick={() => void submitAppointmentFeedback()}>Save Feedback</Button></DialogActions>
+      </Dialog>
 
       {/* WhatsApp Dialog */}
       <Dialog open={waDialogOpen} onClose={() => setWaDialogOpen(false)} maxWidth="sm" fullWidth>

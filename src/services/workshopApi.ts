@@ -1040,6 +1040,32 @@ export const workshopApi = {
     return request<import('../types/cw').CWAppointment>(`/api/method/workshop.api.appointments.get${buildQuery({ id })}`)
   },
 
+  async listAppointmentComments(appointmentId: string, page = 1, pageSize = 50): Promise<ApiListResponse<import('../types/cw').CWAppointmentComment>> {
+    return request<ApiListResponse<import('../types/cw').CWAppointmentComment>>(
+      `/api/method/workshop.api.appointments.comments${buildQuery({ appointmentId, page, pageSize })}`,
+    )
+  },
+
+  async addAppointmentComment(appointmentId: string, data: { comment: string; mentions?: string[] }): Promise<import('../types/cw').CWAppointmentComment> {
+    return request<import('../types/cw').CWAppointmentComment>('/api/method/workshop.api.appointments.add_comment', {
+      method: 'POST',
+      body: { appointmentId, data },
+    })
+  },
+
+  async listAppointmentFeedback(appointmentId: string, page = 1, pageSize = 50): Promise<ApiListResponse<import('../types/cw').CWAppointmentFeedback>> {
+    return request<ApiListResponse<import('../types/cw').CWAppointmentFeedback>>(
+      `/api/method/workshop.api.appointments.feedback${buildQuery({ appointmentId, page, pageSize })}`,
+    )
+  },
+
+  async addAppointmentFeedback(appointmentId: string, data: Partial<Omit<import('../types/cw').CWAppointmentFeedback, 'id' | 'appointmentId' | 'submittedAt'>>): Promise<import('../types/cw').CWAppointmentFeedback> {
+    return request<import('../types/cw').CWAppointmentFeedback>('/api/method/workshop.api.appointments.add_feedback', {
+      method: 'POST',
+      body: { appointmentId, data },
+    })
+  },
+
   async createAppointment(input: {
     customerId: string
     vehicleId: string

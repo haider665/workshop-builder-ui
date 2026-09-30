@@ -46,6 +46,7 @@ import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { WhatsAppHistory } from '../../components/WhatsAppHistory'
+import { AppointmentNotesFeedback } from '../../components/AppointmentNotesFeedback'
 import { useToast } from '../../hooks/useToast'
 import { workshopApi } from '../../services/workshopApi'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
@@ -854,6 +855,8 @@ export function SAAppointmentDetailPage() {
         )}
 
         {/* ── Accounting documents ── */}
+        <AppointmentNotesFeedback appointmentId={appt.id} customerName={customer?.fullName} notes={appt.notes} />
+
         {(
           <SectionCard title="Accounting Documents" icon={<Print sx={{ fontSize: '1rem' }} />}>
             <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 1.5 }}>

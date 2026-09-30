@@ -591,6 +591,37 @@ export type CWAppointment = {
   updatedAt: string
 }
 
+export type CWAppointmentComment = {
+  id: string
+  appointmentId: string
+  companyId?: string
+  author: string
+  comment: string
+  mentions: string[]
+  createdAt: string
+}
+
+export type CWAppointmentFeedback = {
+  id: string
+  appointmentId: string
+  companyId?: string
+  feedbackSource: string
+  submittedBy: string
+  customerName?: string
+  serviceNo?: string
+  overallRating?: number
+  serviceAdvisorRating?: number
+  serviceQualityRating?: number
+  deliveryTimeRating?: number
+  vehicleConditionRating?: number
+  facilityRating?: number
+  recommendation?: string
+  comments?: string
+  signatureUrl?: string
+  submittedAt: string
+  status: string
+}
+
 export type CWJobStatus = 'Active' | 'Test Drive Approved' | 'Job Finished'
 
 export type CWJob = {
