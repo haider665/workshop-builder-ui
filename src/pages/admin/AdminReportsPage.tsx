@@ -189,14 +189,14 @@ export function AdminReportsPage() {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mt: 2, alignItems: { sm: 'center' }, flexWrap: 'wrap' }} useFlexGap>
             <TextField type="date" size="small" label="From" value={fromDate} onChange={(e) => setFromDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
             <TextField type="date" size="small" label="To" value={toDate} onChange={(e) => setToDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-            <Button variant="outlined" startIcon={<Print />} onClick={() => window.print()} sx={{ fontWeight: 700 }}>Print this report</Button>
+            <Button variant="outlined" startIcon={<Print />} onClick={() => { const report = (['overview', 'sales', 'satisfaction', 'people', 'capacity', 'audit'] as const)[activeTab]; window.open(workshopApi.reportPrintUrl(report === 'capacity' ? 'overview' : report, { fromDate: fromDate || undefined, toDate: toDate || undefined }), '_blank', 'noopener,noreferrer') }} sx={{ fontWeight: 700 }}>Print official report</Button>
             {(fromDate || toDate) && <Button size="small" onClick={() => { setFromDate(''); setToDate('') }}>Clear filters</Button>}
           </Stack>
         </Box>
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider', overflowX: 'auto' }}>
           <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} variant="scrollable" allowScrollButtonsMobile>
-            <Tab label="Executive overview" /><Tab label="Sales & services" /><Tab label="Customer satisfaction" /><Tab label="People & workload" /><Tab label="Capacity & quality" />
+            <Tab label="Executive overview" /><Tab label="Sales & services" /><Tab label="Customer satisfaction" /><Tab label="People & workload" /><Tab label="Capacity & quality" /><Tab label="Audit & governance" />
           </Tabs>
         </Box>
 
@@ -253,6 +253,11 @@ export function AdminReportsPage() {
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800, mb: 1 }}>Bay capacity</Typography>{shopUtilization.map((shop) => <Stack key={shop.name} direction="row" sx={{ gap: 1, alignItems: 'center', mb: 1 }}><Typography sx={{ width: 130, fontSize: '.8rem' }}>{shop.name}</Typography><Box sx={{ flex: 1, height: 12, bgcolor: colors.slate[100], borderRadius: 6 }}><Box sx={{ width: `${shop.total ? Math.round(shop.occupied / shop.total * 100) : 0}%`, height: '100%', bgcolor: '#f59e0b', borderRadius: 6 }} /></Box><Typography sx={{ fontSize: '.8rem' }}>{shop.occupied}/{shop.total}</Typography></Stack>)}</Box><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800, mb: 1 }}>Control indicators</Typography><Typography sx={{ fontSize: '.84rem', mb: .75 }}>Open appointments: <strong>{activeAppts.length}</strong></Typography><Typography sx={{ fontSize: '.84rem', mb: .75 }}>Completed appointments: <strong>{completedAppts.length}</strong></Typography><Typography sx={{ fontSize: '.84rem' }}>F1 returns: <strong>{adminSummary?.f1?.total ?? 0}</strong></Typography></Box></Stack>
           <Divider sx={{ my: 2 }} /><Typography sx={{ fontWeight: 800, mb: 1 }}>Quality returns by employee</Typography>
           {workforce?.f1?.byUser?.length ? <Stack spacing={1}>{workforce.f1.byUser.slice(0, 10).map((row: { userId: string; f1Count: number }) => <Stack key={row.userId} direction="row" sx={{ alignItems: 'center', gap: 1 }}><Typography sx={{ width: { xs: 140, sm: 190 }, fontSize: '.78rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.userId}</Typography><Box sx={{ flex: 1, height: 10, bgcolor: colors.slate[100], borderRadius: 5 }}><Box sx={{ width: `${Math.min(100, row.f1Count * 10)}%`, height: '100%', bgcolor: '#ef4444', borderRadius: 5 }} /></Box><Typography sx={{ width: 30, textAlign: 'right', fontWeight: 800, fontSize: '.78rem' }}>{row.f1Count}</Typography></Stack>)}</Stack> : <Typography sx={{ color: colors.slate[500], fontSize: '.82rem' }}>No quality-return records in this period.</Typography>}
+        </SectionCard>}
+
+        {activeTab === 5 && <SectionCard title="Audit & Governance" icon={<Assessment sx={{ fontSize: '1rem' }} />}>
+          <Typography sx={{ color: colors.slate[600], fontSize: '.9rem', mb: 2 }}>The official audit report records who performed each material action, when it happened, which record was affected, and the recorded reason or evidence. Use the date filters above, then print the controlled PDF for review, sign-off, or audit submission.</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><Box sx={{ flex: 1, p: 2, bgcolor: colors.slate[50], borderRadius: 2 }}><Typography sx={{ fontWeight: 800 }}>Audit trail coverage</Typography><Typography sx={{ fontSize: '.8rem', color: colors.slate[500], mt: .5 }}>Appointments, job cards, assignments, approvals, quality returns, master-data changes, accounting controls and administrative actions.</Typography></Box><Box sx={{ flex: 1, p: 2, bgcolor: colors.slate[50], borderRadius: 2 }}><Typography sx={{ fontWeight: 800 }}>Official output</Typography><Typography sx={{ fontSize: '.8rem', color: colors.slate[500], mt: .5 }}>Company identity, authenticated preparer, timestamp, reporting period, immutable event rows and controlled-copy notice.</Typography></Box></Stack>
         </SectionCard>}
 
         {activeTab === 0 && <>

@@ -1891,6 +1891,11 @@ export const workshopApi = {
     return request(`/api/method/workshop.api.reports.financial_snapshot${buildQuery(params)}`)
   },
 
+  /** Official server-rendered PDF, preserving the authenticated company context. */
+  reportPrintUrl(report: 'overview' | 'sales' | 'satisfaction' | 'people' | 'audit', params: { fromDate?: string; toDate?: string } = {}): string {
+    return `${apiBaseUrl}/api/method/workshop.api.reports.print_report${buildQuery({ report, ...params })}`
+  },
+
   async getF1Report(params: {
     shopId?: string
     userId?: string
