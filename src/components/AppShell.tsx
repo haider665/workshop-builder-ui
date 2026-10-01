@@ -169,6 +169,7 @@ export function AppShell() {
       { kind: 'link', label: 'Gatepass', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
       { kind: 'link', label: 'Test Drives', to: '/test-drives', icon: <DirectionsCar />, anyOfRoles: ['Admin', 'Job Creation', 'Guard', 'CRE', 'Service Advisor', 'Service Engineer'] },
       { kind: "link", label: "Service Orders", to: "/service-orders", icon: <ReceiptLong />, anyOfRoles: ["Admin", "Job Creation", "CRE", "Service Advisor", "Service Engineer"] },
+      { kind: 'link', label: 'Employee Records', to: '/employee-records', icon: <ReceiptLong />, anyOfRoles: ['Admin', 'Job Creation'] },
 
       { kind: 'section', label: 'Service Advisor', anyOfRoles: ['Service Advisor'] },
       { kind: 'link', label: 'SA Appointments', to: '/sa/appointments', icon: <CalendarMonth />, anyOfRoles: ['Service Advisor'] },
@@ -230,13 +231,6 @@ export function AppShell() {
         to: '/vehicle-history',
         icon: <DirectionsCar />,
         anyOfRoles: ['Admin', 'Job Creation', 'CRE'],
-      },
-      {
-        kind: 'link',
-        label: 'Employee Records',
-        to: '/employee-records',
-        icon: <ReceiptLong />,
-        anyOfRoles: ['Admin', 'Job Creation'],
       },
       {
         kind: 'link',

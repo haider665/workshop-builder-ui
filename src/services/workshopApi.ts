@@ -1120,6 +1120,8 @@ export const workshopApi = {
       serviceItems: Array<Record<string, unknown>>
       inspectionChecks: import('../types/cw').CWInspectionCheck[]
       vehicleViewChecks: import('../types/cw').CWInspectionCheck[]
+      reason?: string
+      changeReason?: string
     }>,
   ): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.update', {
@@ -1139,10 +1141,10 @@ export const workshopApi = {
     })
   },
 
-  async assignAppointmentSa(appointmentId: string, assignedSAUserId: string): Promise<import('../types/cw').CWAppointment> {
+  async assignAppointmentSa(appointmentId: string, assignedSAUserId: string, reason?: string): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.assign_sa', {
       method: 'POST',
-      body: { appointmentId, assignedSAUserId },
+      body: { appointmentId, assignedSAUserId, data: reason ? { reason } : undefined },
     })
   },
 
@@ -1158,7 +1160,7 @@ export const workshopApi = {
 
   async addAppointmentConcern(
     appointmentId: string,
-    data: { concernId: string; remark?: string },
+    data: { concernId: string; remark?: string; reason?: string; changeReason?: string },
   ): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.add_concern', {
       method: 'POST',
@@ -1169,7 +1171,7 @@ export const workshopApi = {
   async updateAppointmentConcern(
     appointmentId: string,
     concernItemId: string,
-    data: { remark?: string; serviceIds?: string[] },
+    data: { remark?: string; serviceIds?: string[]; reason?: string; changeReason?: string },
   ): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.update_concern', {
       method: 'POST',
@@ -1177,16 +1179,16 @@ export const workshopApi = {
     })
   },
 
-  async removeAppointmentConcern(appointmentId: string, concernItemId: string): Promise<import('../types/cw').CWAppointment> {
+  async removeAppointmentConcern(appointmentId: string, concernItemId: string, reason?: string): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.remove_concern', {
       method: 'POST',
-      body: { appointmentId, concernItemId },
+      body: { appointmentId, concernItemId, data: reason ? { reason } : undefined },
     })
   },
 
   async addAppointmentService(
     appointmentId: string,
-    data: { serviceId: string; remark?: string; addedBySA?: boolean },
+    data: { serviceId: string; remark?: string; addedBySA?: boolean; reason?: string; changeReason?: string },
   ): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.add_service', {
       method: 'POST',
@@ -1197,7 +1199,7 @@ export const workshopApi = {
   async updateAppointmentService(
     appointmentId: string,
     serviceItemId: string,
-    data: { remark?: string; price?: number; serviceIds?: string[]; addedBySA?: boolean },
+    data: { remark?: string; price?: number; serviceIds?: string[]; addedBySA?: boolean; reason?: string; changeReason?: string },
   ): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.update_service', {
       method: 'POST',
@@ -1205,10 +1207,10 @@ export const workshopApi = {
     })
   },
 
-  async removeAppointmentService(appointmentId: string, serviceItemId: string): Promise<import('../types/cw').CWAppointment> {
+  async removeAppointmentService(appointmentId: string, serviceItemId: string, reason?: string): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.remove_service', {
       method: 'POST',
-      body: { appointmentId, serviceItemId },
+      body: { appointmentId, serviceItemId, data: reason ? { reason } : undefined },
     })
   },
 
@@ -1217,6 +1219,8 @@ export const workshopApi = {
     checks: import('../types/cw').CWInspectionCheck[]
     vehicleViewChecks?: import('../types/cw').CWVehicleViewCheck[]
     actorName?: string
+    reason?: string
+    changeReason?: string
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.submit_inspection', {
       method: 'POST',
@@ -1226,6 +1230,8 @@ export const workshopApi = {
           inspectionChecks: input.checks,
           vehicleViewChecks: input.vehicleViewChecks,
           actorName: input.actorName,
+          reason: input.reason,
+          changeReason: input.changeReason,
         },
       },
     })
@@ -1708,6 +1714,7 @@ export const workshopApi = {
     bayId?: string
     startAt?: string
     endAt?: string
+    reason?: string
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_concern_diagnosis', {
       method: 'POST',
@@ -1719,6 +1726,8 @@ export const workshopApi = {
     appointmentId: string
     concernItemId: string
     technicianUserIds: string[]
+    assignmentRemark?: string
+    reason?: string
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_concern_technicians', {
       method: 'POST',
@@ -1755,6 +1764,7 @@ export const workshopApi = {
     bayId?: string
     startAt?: string
     endAt?: string
+    reason?: string
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_service_se', {
       method: 'POST',
@@ -1766,6 +1776,8 @@ export const workshopApi = {
     appointmentId: string
     serviceItemId: string
     technicianUserIds: string[]
+    assignmentRemark?: string
+    reason?: string
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_service_technicians', {
       method: 'POST',
@@ -1782,6 +1794,7 @@ export const workshopApi = {
     seUserId?: string
     startAt: string
     endAt: string
+    reason?: string
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_stage_schedule', {
       method: 'POST',
@@ -1806,6 +1819,8 @@ export const workshopApi = {
     serviceItemId: string
     stageItemId: string
     technicianUserIds: string[]
+    assignmentRemark?: string
+    reason?: string
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.execution.assign_stage_technicians', {
       method: 'POST',

@@ -29,6 +29,7 @@ import {
   Send,
   Verified,
   Print,
+  Add,
 } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -201,6 +202,16 @@ export function AppointmentDetailPage() {
   const [adminInspectionChecks, setAdminInspectionChecks] = useState<CWInspectionCheck[]>([])
   const [adminVehicleViewChecks, setAdminVehicleViewChecks] = useState<CWVehicleViewCheck[]>([])
   const [savingAdminInspection, setSavingAdminInspection] = useState(false)
+  const [adminChangeReason, setAdminChangeReason] = useState('')
+  const [adminConcernId, setAdminConcernId] = useState('')
+  const [adminServiceId, setAdminServiceId] = useState('')
+  const [jobCardOpen, setJobCardOpen] = useState(false)
+  const [jobCardLoading, setJobCardLoading] = useState(false)
+  const [jobCardHtml, setJobCardHtml] = useState('')
+  const [jobCardId, setJobCardId] = useState('')
+  const [adminConcernTargetId, setAdminConcernTargetId] = useState('')
+  const [adminServiceTargetId, setAdminServiceTargetId] = useState('')
+  const [adminAssignmentUserId, setAdminAssignmentUserId] = useState('')
   const [appointmentComments, setAppointmentComments] = useState<CWAppointmentComment[]>([])
   const [appointmentFeedback, setAppointmentFeedback] = useState<CWAppointmentFeedback[]>([])
   const [commentText, setCommentText] = useState('')
@@ -213,6 +224,10 @@ export function AppointmentDetailPage() {
   })
   const saRoleId = useMemo(() => roles.find((r) => r.name === 'Service Advisor' || r.name === 'SA')?.id, [roles])
   const activeSAUsers = useMemo(() => users.filter((u) => u.status === 'Active' && saRoleId && u.roleIds.includes(saRoleId)), [users, saRoleId])
+  const seRoleId = useMemo(() => roles.find((r) => r.name === 'Service Engineer' || r.name === 'SE')?.id, [roles])
+  const technicianRoleId = useMemo(() => roles.find((r) => r.name === 'Technician')?.id, [roles])
+  const activeSEUsers = useMemo(() => users.filter((u) => u.status === 'Active' && seRoleId && u.roleIds.includes(seRoleId)), [users, seRoleId])
+  const activeTechnicians = useMemo(() => users.filter((u) => u.status === 'Active' && technicianRoleId && u.roleIds.includes(technicianRoleId)), [users, technicianRoleId])
   const assignedSA = useMemo(() => (appt ? users.find((u) => u.id === appt.assignedSAUserId) : null), [users, appt])
 
   useEffect(() => {
@@ -231,13 +246,82 @@ export function AppointmentDetailPage() {
 
   async function saveAdminInspection() {
     if (!appt) return
+    if (!adminChangeReason.trim()) { toast.warning('A change reason is required for administrator changes.'); return }
     try {
       setSavingAdminInspection(true)
-      const updated = await workshopApi.submitAppointmentInspection({ appointmentId: appt.id, checks: adminInspectionChecks, vehicleViewChecks: adminVehicleViewChecks })
+      const updated = await workshopApi.submitAppointmentInspection({ appointmentId: appt.id, checks: adminInspectionChecks, vehicleViewChecks: adminVehicleViewChecks, changeReason: adminChangeReason.trim() })
       useCwStore.setState((state) => ({ appointments: state.appointments.map((item) => item.id === updated.id ? updated : item) }))
       toast.success('Inspection and vehicle health check updated.')
     } catch (error) { toast.error(error, 'Could not update the inspection.') }
     finally { setSavingAdminInspection(false) }
+  }
+
+  async function addAdminConcern() {
+    if (!appt || !adminConcernId || !adminChangeReason.trim()) { toast.warning('Select a concern and enter a change reason.'); return }
+    try {
+      const updated = await workshopApi.addAppointmentConcern(appt.id, { concernId: adminConcernId, reason: adminChangeReason.trim() })
+      useCwStore.setState((state) => ({ appointments: state.appointments.map((item) => item.id === updated.id ? updated : item) }))
+      setAdminConcernId('')
+      toast.success('Concern added and returned to the workflow.')
+    } catch (error) { toast.error(error, 'Could not add concern.') }
+  }
+
+  async function addAdminService() {
+    if (!appt || !adminServiceId || !adminChangeReason.trim()) { toast.warning('Select a service and enter a change reason.'); return }
+    try {
+      const updated = await workshopApi.addAppointmentService(appt.id, { serviceId: adminServiceId, reason: adminChangeReason.trim() })
+      useCwStore.setState((state) => ({ appointments: state.appointments.map((item) => item.id === updated.id ? updated : item) }))
+      setAdminServiceId('')
+      toast.success('Service added and returned to the workflow.')
+    } catch (error) { toast.error(error, 'Could not add service.') }
+  }
+
+  async function assignAdminSA() {
+    if (!appt || !selectedSAUserId || !adminChangeReason.trim()) { toast.warning('Select a Service Advisor and enter a change reason.'); return }
+    try {
+      const updated = await workshopApi.assignAppointmentSa(appt.id, selectedSAUserId, adminChangeReason.trim())
+      useCwStore.setState((state) => ({ appointments: state.appointments.map((item) => item.id === updated.id ? updated : item) }))
+      setSelectedSAUserId('')
+      toast.success('Service Advisor assigned and notified.')
+    } catch (error) { toast.error(error, 'Could not assign Service Advisor.') }
+  }
+
+  async function assignAdminSE(kind: 'concern' | 'service') {
+    const targetId = kind === 'concern' ? adminConcernTargetId : adminServiceTargetId
+    if (!appt || !targetId || !adminAssignmentUserId || !adminChangeReason.trim()) { toast.warning('Select a work item, user and change reason.'); return }
+    try {
+      const now = new Date()
+      const end = new Date(now.getTime() + 60 * 60 * 1000)
+      const updated = kind === 'concern'
+        ? await workshopApi.assignConcernDiagnosis({ appointmentId: appt.id, concernItemId: targetId, seUserId: adminAssignmentUserId, startAt: now.toISOString(), endAt: end.toISOString(), reason: adminChangeReason.trim() })
+        : await workshopApi.assignServiceSE({ appointmentId: appt.id, serviceItemId: targetId, seUserId: adminAssignmentUserId, startAt: now.toISOString(), endAt: end.toISOString(), reason: adminChangeReason.trim() })
+      useCwStore.setState((state) => ({ appointments: state.appointments.map((item) => item.id === updated.id ? updated : item) }))
+      toast.success('Service Engineer assigned and notified.')
+    } catch (error) { toast.error(error, 'Could not assign Service Engineer.') }
+  }
+
+  async function assignAdminTechnician(kind: 'concern' | 'service') {
+    const targetId = kind === 'concern' ? adminConcernTargetId : adminServiceTargetId
+    if (!appt || !targetId || !adminAssignmentUserId || !adminChangeReason.trim()) { toast.warning('Select a work item, user and change reason.'); return }
+    try {
+      const updated = kind === 'concern'
+        ? await workshopApi.assignConcernTechnicians({ appointmentId: appt.id, concernItemId: targetId, technicianUserIds: [adminAssignmentUserId], assignmentRemark: adminChangeReason.trim(), reason: adminChangeReason.trim() })
+        : await workshopApi.assignServiceTechnicians({ appointmentId: appt.id, serviceItemId: targetId, technicianUserIds: [adminAssignmentUserId], assignmentRemark: adminChangeReason.trim(), reason: adminChangeReason.trim() })
+      useCwStore.setState((state) => ({ appointments: state.appointments.map((item) => item.id === updated.id ? updated : item) }))
+      toast.success('Technician assigned and notified.')
+    } catch (error) { toast.error(error, 'Could not assign technician.') }
+  }
+
+  async function openAdminJobCard() {
+    if (!appt) return
+    setJobCardOpen(true); setJobCardLoading(true)
+    try {
+      const card = await workshopApi.getAppointmentJobCard(appt.id)
+      if (!card.jobId) { setJobCardOpen(false); toast.warning('A job card is not available for this appointment yet.'); return }
+      setJobCardId(card.jobId)
+      setJobCardHtml(await workshopApi.getJobCardPreview(card.jobId))
+    } catch (error) { setJobCardOpen(false); toast.error(error, 'Unable to load the live job card.') }
+    finally { setJobCardLoading(false) }
   }
 
   async function submitAppointmentComment() {
@@ -255,7 +339,8 @@ export function AppointmentDetailPage() {
   async function saveAppointmentNotes() {
     if (!appt) return
     try {
-      await workshopApi.updateAppointment(appt.id, { notes: noteText })
+      if (canAdminEdit && !adminChangeReason.trim()) { toast.warning('A change reason is required for administrator changes.'); return }
+      await workshopApi.updateAppointment(appt.id, { notes: noteText, ...(canAdminEdit ? { changeReason: adminChangeReason.trim() } : {}) })
       toast.success('Appointment notes saved.')
     } catch (error) { toast.error(error, 'Could not save notes.') }
   }
@@ -427,7 +512,10 @@ export function AppointmentDetailPage() {
               )}
             </Box>
           </Stack>
-          <Button variant="contained" startIcon={<Print />} onClick={() => window.open(workshopApi.appointmentSheetPrintUrl(appt.id), '_blank', 'noopener,noreferrer')} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Appointment Sheet</Button>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            {canAdminEdit && <Button variant="outlined" startIcon={<Build />} onClick={() => void openAdminJobCard()} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Job Card</Button>}
+            <Button variant="contained" startIcon={<Print />} onClick={() => window.open(workshopApi.appointmentSheetPrintUrl(appt.id), '_blank', 'noopener,noreferrer')} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Appointment Sheet</Button>
+          </Stack>
         </Stack>
 
         {/* ── Workflow Timeline ── */}
@@ -442,11 +530,49 @@ export function AppointmentDetailPage() {
               Administrators can correct the complete inspection and vehicle health check without changing the appointment workflow status.
             </Typography>
             <SAInspectionTabs checks={adminInspectionChecks} vehicleViewChecks={adminVehicleViewChecks} onChange={setAdminInspectionChecks} vehicle={vehicle} />
+            <TextField fullWidth required multiline minRows={2} label="Change reason" value={adminChangeReason} onChange={(event) => setAdminChangeReason(event.target.value)} placeholder="Explain why this appointment, inspection, service, or assignment is being changed." sx={{ mt: 2 }} />
             <Button variant="contained" disabled={savingAdminInspection} onClick={() => void saveAdminInspection()} sx={{ mt: 1.5, fontWeight: 800 }}>
               {savingAdminInspection ? 'Saving inspection…' : 'Save inspection corrections'}
             </Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2 }}>
+              <TextField select fullWidth label="Add concern" value={adminConcernId} onChange={(event) => setAdminConcernId(event.target.value)}>
+                <MenuItem value="">Select a concern</MenuItem>
+                {allConcerns.filter((item) => item.status === 'Active').map((item) => <MenuItem key={item.id} value={item.id}>{item.name ?? item.id}</MenuItem>)}
+              </TextField>
+              <Button variant="outlined" startIcon={<Add />} onClick={() => void addAdminConcern()} disabled={!adminConcernId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Add concern</Button>
+            </Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
+              <TextField select fullWidth label="Add service" value={adminServiceId} onChange={(event) => setAdminServiceId(event.target.value)}>
+                <MenuItem value="">Select a service</MenuItem>
+                {catalogServices.filter((item) => item.status === 'Active').map((item) => <MenuItem key={item.id} value={item.id}>{item.description ?? item.code ?? item.id}</MenuItem>)}
+              </TextField>
+              <Button variant="outlined" startIcon={<Add />} onClick={() => void addAdminService()} disabled={!adminServiceId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Add service</Button>
+            </Stack>
+            <Typography sx={{ mt: 2.5, mb: 1, fontWeight: 850, color: colors.slate[800] }}>Assign additional workshop users</Typography>
+            <Stack spacing={1.25}>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+                <TextField select fullWidth label="Concern" value={adminConcernTargetId} onChange={(event) => setAdminConcernTargetId(event.target.value)}><MenuItem value="">Select concern</MenuItem>{(appt.concernItems ?? []).map((item) => <MenuItem key={item.id} value={item.id}>{item.concernName}</MenuItem>)}</TextField>
+                <TextField select fullWidth label="Technician / Service Engineer" value={adminAssignmentUserId} onChange={(event) => setAdminAssignmentUserId(event.target.value)}><MenuItem value="">Select user</MenuItem>{[...activeSEUsers, ...activeTechnicians].filter((item, index, list) => list.findIndex((entry) => entry.id === item.id) === index).map((item) => <MenuItem key={item.id} value={item.id}>{item.fullName}</MenuItem>)}</TextField>
+                <Button variant="outlined" onClick={() => void assignAdminSE('concern')} disabled={!adminConcernTargetId || !adminAssignmentUserId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Assign SE</Button>
+                <Button variant="outlined" onClick={() => void assignAdminTechnician('concern')} disabled={!adminConcernTargetId || !adminAssignmentUserId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Assign Technician</Button>
+              </Stack>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+                <TextField select fullWidth label="Service" value={adminServiceTargetId} onChange={(event) => setAdminServiceTargetId(event.target.value)}><MenuItem value="">Select service</MenuItem>{(appt.serviceItems ?? []).map((item) => <MenuItem key={item.id} value={item.id}>{item.serviceDescription}</MenuItem>)}</TextField>
+                <TextField select fullWidth label="Technician / Engineer" value={adminAssignmentUserId} onChange={(event) => setAdminAssignmentUserId(event.target.value)}><MenuItem value="">Select user</MenuItem>{[...activeSEUsers, ...activeTechnicians].filter((item, index, list) => list.findIndex((entry) => entry.id === item.id) === index).map((item) => <MenuItem key={item.id} value={item.id}>{item.fullName}</MenuItem>)}</TextField>
+                <Button variant="outlined" onClick={() => void assignAdminSE('service')} disabled={!adminServiceTargetId || !adminAssignmentUserId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Assign SE</Button>
+                <Button variant="outlined" onClick={() => void assignAdminTechnician('service')} disabled={!adminServiceTargetId || !adminAssignmentUserId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Assign Technician</Button>
+              </Stack>
+            </Stack>
           </SectionCard>
         )}
+
+        <Dialog open={jobCardOpen} onClose={() => setJobCardOpen(false)} maxWidth="lg" fullWidth>
+          <DialogTitle sx={{ fontWeight: 800 }}>Live Job Card · Appointment Report</DialogTitle>
+          <DialogContent dividers>
+            {jobCardLoading ? <Box sx={{ py: 8, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box> : <Box sx={{ bgcolor: '#fff', overflowX: 'auto', '& table': { width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }, '& th, & td': { border: '1px solid #cfd8e3', p: .75, textAlign: 'left', verticalAlign: 'top' }, '& th': { bgcolor: '#eef2f6', fontWeight: 800 }, '& img': { maxWidth: '100%' } }} dangerouslySetInnerHTML={{ __html: jobCardHtml }} />}
+          </DialogContent>
+          <DialogActions><Button onClick={() => setJobCardOpen(false)}>Close</Button><Button variant="contained" startIcon={<Print />} disabled={!jobCardId || jobCardLoading} onClick={() => window.open(workshopApi.jobCardPrintUrl(jobCardId), '_blank', 'noopener,noreferrer')}>Print Job Card</Button></DialogActions>
+        </Dialog>
 
         {/* ── Summary Stat Cards ── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -537,8 +663,8 @@ export function AppointmentDetailPage() {
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <PresenceAutocomplete label="Assign Service Advisor" users={activeSAUsers} value={selectedSAUserId}
                 onChange={setSelectedSAUserId} sx={{ minWidth: 280, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
-              <Button variant="contained" disabled={!selectedSAUserId}
-                onClick={() => { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') }}
+              <Button variant="contained" disabled={!selectedSAUserId || (canAdminEdit && !adminChangeReason.trim())}
+                onClick={() => { if (canAdminEdit) void assignAdminSA(); else { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') } }}
                 sx={{ bgcolor: colors.status.warning, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#d97706' } }}>
                 Assign SA
               </Button>
@@ -547,6 +673,7 @@ export function AppointmentDetailPage() {
         ) : (
           <SectionCard title="Service Advisor" icon={<Person sx={{ fontSize: '1rem' }} />}>
             <InfoRow label="Assigned SA" value={<strong>{assignedSA?.fullName ?? appt.assignedSAUserId}</strong>} />
+            {canAdminEdit && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}><PresenceAutocomplete label="Reassign Service Advisor" users={activeSAUsers} value={selectedSAUserId} onChange={setSelectedSAUserId} sx={{ flex: 1 }} /><Button variant="outlined" onClick={() => void assignAdminSA()} disabled={!selectedSAUserId || !adminChangeReason.trim()} sx={{ fontWeight: 800 }}>Reassign</Button></Stack>}
           </SectionCard>
         )}
 
