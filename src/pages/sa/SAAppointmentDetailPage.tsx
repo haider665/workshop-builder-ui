@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -89,6 +90,7 @@ export function SAAppointmentDetailPage() {
   const navigate = useNavigate()
 
   const appointments = useCwStore((s) => s.appointments)
+  const hydrationStatus = useCwStore((s) => s.hydrationStatus)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
   const users = useCwStore((s) => s.users)
@@ -255,6 +257,7 @@ export function SAAppointmentDetailPage() {
   }
 
   if (!appt) {
+    if (hydrationStatus !== 'ready') return <Box sx={{ minHeight: 260, display: 'grid', placeItems: 'center', p: 4 }}><Stack spacing={1.5} sx={{ alignItems: 'center' }}><CircularProgress size={30} /><Typography sx={{ fontWeight: 700, color: colors.slate[600] }}>Loading appointment…</Typography></Stack></Box>
     return (
       <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
         <Alert severity="error">Appointment not found.</Alert>

@@ -42,8 +42,7 @@ import { colors, radii } from '../../theme/tokens'
 import { workshopApi } from '../../services/workshopApi'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
-import type { CWConcern, CWService } from '../../types/cw'
-import type { CWVehicleSize } from '../../types/cw'
+import type { CWConcern, CWCustomerType, CWService, CWVehicleCategory, CWVehicleSize } from '../../types/cw'
 import { useToast } from '../../hooks/useToast'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 
@@ -181,9 +180,9 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
   const linkedPendingVehicle = useMemo(() => pendingVehicles.find((item) => item.id === gateEntryId) ?? null, [pendingVehicles, gateEntryId])
 
   const [customerDialogOpen, setCustomerDialogOpen] = useState(initialAction === 'customer')
-  const [customerDraft, setCustomerDraft] = useState({ fullName: '', phone: '', email: '' })
+  const [customerDraft, setCustomerDraft] = useState<{ fullName: string; phone: string; email: string; type: CWCustomerType; division: string; city: string; street: string; postalCode: string; occupationType: string; companyName: string; designation: string; driverName: string; driverPhone: string }>({ fullName: '', phone: '', email: '', type: 'Individual', division: '', city: '', street: '', postalCode: '', occupationType: '', companyName: '', designation: '', driverName: '', driverPhone: '' })
   const [vehicleDialogOpen, setVehicleDialogOpen] = useState(initialAction === 'vehicle')
-  const [vehicleDraft, setVehicleDraft] = useState<{ registrationNo: string; make: string; model: string; vin: string; vehicleSize: CWVehicleSize }>({ registrationNo: '', make: '', model: '', vin: '', vehicleSize: 'Medium' })
+  const [vehicleDraft, setVehicleDraft] = useState<{ registrationNo: string; make: string; model: string; vin: string; vehicleSize: CWVehicleSize; vehicleCategory: CWVehicleCategory | ''; modelYear: string; odometerKm: string; exteriorColor: string; interiorColor: string; driverName: string; driverPhone: string; transporterName: string; transporterPhone: string }>({ registrationNo: '', make: '', model: '', vin: '', vehicleSize: 'Medium', vehicleCategory: '', modelYear: '', odometerKm: '', exteriorColor: '', interiorColor: '', driverName: '', driverPhone: '', transporterName: '', transporterPhone: '' })
   const [modalSaving, setModalSaving] = useState(false)
 
   useEffect(() => {
@@ -326,12 +325,12 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
       setModalSaving(true)
       if (!customerDraft.fullName.trim()) throw new Error('Customer name is required')
       if (!customerDraft.phone.trim()) throw new Error('Customer phone is required')
-      const created = await workshopApi.createCustomer({ fullName: customerDraft.fullName.trim(), phone: customerDraft.phone.trim(), email: customerDraft.email.trim() || undefined, type: 'Individual' })
+      const created = await workshopApi.createCustomer({ fullName: customerDraft.fullName.trim(), phone: customerDraft.phone.trim(), email: customerDraft.email.trim() || undefined, type: customerDraft.type, address: { division: customerDraft.division.trim() || undefined, city: customerDraft.city.trim() || undefined, street: customerDraft.street.trim() || undefined, postalCode: customerDraft.postalCode.trim() || undefined }, occupation: { type: customerDraft.occupationType.trim() || undefined, companyName: customerDraft.companyName.trim() || undefined, designation: customerDraft.designation.trim() || undefined }, driverName: customerDraft.driverName.trim() || undefined, driverPhone: customerDraft.driverPhone.trim() || undefined })
       useCwStore.setState((state) => ({ customers: [created, ...state.customers.filter((item) => item.id !== created.id)] }))
       setSelectedCustomer(created)
       setSelectedVehicle(null)
       setCustomerDialogOpen(false)
-      setCustomerDraft({ fullName: '', phone: '', email: '' })
+      setCustomerDraft({ fullName: '', phone: '', email: '', type: 'Individual', division: '', city: '', street: '', postalCode: '', occupationType: '', companyName: '', designation: '', driverName: '', driverPhone: '' })
       toast.success('Customer created and selected.')
     } catch (cause) { toast.error(cause, 'Unable to create customer') } finally { setModalSaving(false) }
   }
@@ -347,7 +346,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
       setModalSaving(true)
       if (!selectedCustomer) throw new Error('Select a customer first')
       if (!vehicleDraft.registrationNo.trim()) throw new Error('Registration number is required')
-      const created = await workshopApi.createVehicle({ customerId: selectedCustomer.id, registrationNo: vehicleDraft.registrationNo.trim(), make: vehicleDraft.make.trim() || undefined, model: vehicleDraft.model.trim() || undefined, vin: vehicleDraft.vin.trim() || undefined, vehicleSize: vehicleDraft.vehicleSize, vehicleDocuments: linkedPendingVehicle?.vehicleDocuments })
+      const created = await workshopApi.createVehicle({ customerId: selectedCustomer.id, registrationNo: vehicleDraft.registrationNo.trim(), make: vehicleDraft.make.trim() || undefined, model: vehicleDraft.model.trim() || undefined, vin: vehicleDraft.vin.trim() || undefined, vehicleSize: vehicleDraft.vehicleSize, vehicleCategory: vehicleDraft.vehicleCategory || undefined, modelYear: vehicleDraft.modelYear ? Number(vehicleDraft.modelYear) : undefined, odometerKm: vehicleDraft.odometerKm ? Number(vehicleDraft.odometerKm) : undefined, exteriorColor: vehicleDraft.exteriorColor.trim() || undefined, interiorColor: vehicleDraft.interiorColor.trim() || undefined, driverName: vehicleDraft.driverName.trim() || undefined, driverPhone: vehicleDraft.driverPhone.trim() || undefined, transporterName: vehicleDraft.transporterName.trim() || undefined, transporterPhone: vehicleDraft.transporterPhone.trim() || undefined, vehicleDocuments: linkedPendingVehicle?.vehicleDocuments })
       useCwStore.setState((state) => ({ vehicles: [created, ...state.vehicles.filter((item) => item.id !== created.id)] }))
       setSelectedVehicle(created)
       setVehicleDialogOpen(false)
@@ -646,7 +645,12 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
             <TextField label="Full name" required value={customerDraft.fullName} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, fullName: event.target.value }))} autoFocus />
             <TextField label="Phone" required value={customerDraft.phone} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, phone: event.target.value }))} inputMode="tel" />
             <TextField label="Email (optional)" type="email" value={customerDraft.email} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, email: event.target.value }))} />
-            <Alert severity="info">Use the full customer form later to add address, occupation, identity papers and corporate information.</Alert>
+            <TextField select label="Customer type" value={customerDraft.type} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, type: event.target.value as CWCustomerType }))}><MenuItem value="Individual">Individual</MenuItem><MenuItem value="Corporate">Corporate</MenuItem></TextField>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: colors.slate[700] }}>Address and contact details (optional)</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Street / address" value={customerDraft.street} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, street: event.target.value }))} /><TextField fullWidth label="City" value={customerDraft.city} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, city: event.target.value }))} /><TextField fullWidth label="Division" value={customerDraft.division} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, division: event.target.value }))} /></Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Postal code" value={customerDraft.postalCode} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, postalCode: event.target.value }))} /><TextField fullWidth label="Occupation / business" value={customerDraft.companyName} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, companyName: event.target.value }))} /><TextField fullWidth label="Designation" value={customerDraft.designation} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, designation: event.target.value }))} /></Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Driver name" value={customerDraft.driverName} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, driverName: event.target.value }))} /><TextField fullWidth label="Driver phone" value={customerDraft.driverPhone} onChange={(event) => setCustomerDraft((draft) => ({ ...draft, driverPhone: event.target.value }))} /></Stack>
+            <Alert severity="info">Only name and phone are required. You can complete documents and corporate contacts later from the customer profile.</Alert>
           </Stack></DialogContent>
           <DialogActions><Button onClick={() => setCustomerDialogOpen(false)} disabled={modalSaving}>Cancel</Button><Button variant="contained" onClick={() => void createCustomerInline()} disabled={modalSaving}>{modalSaving ? 'Creating…' : 'Create and select'}</Button></DialogActions>
         </Dialog>
@@ -655,9 +659,11 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
           <DialogTitle>Create vehicle without leaving appointment</DialogTitle>
           <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
             <TextField label="Registration number" required value={vehicleDraft.registrationNo} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, registrationNo: event.target.value }))} helperText={linkedPendingVehicle ? 'Prefilled from the linked Guard intake. Confirm before saving.' : undefined} autoFocus />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Manufacturer" value={vehicleDraft.make} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, make: event.target.value }))} /><TextField fullWidth label="Model" value={vehicleDraft.model} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, model: event.target.value }))} /></Stack>
-            <TextField label="VIN (optional)" value={vehicleDraft.vin} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, vin: event.target.value }))} />
-            <TextField select label="Vehicle size" required value={vehicleDraft.vehicleSize} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, vehicleSize: event.target.value as CWVehicleSize }))}>{(['Small', 'Medium', 'Large'] as CWVehicleSize[]).map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Manufacturer" value={vehicleDraft.make} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, make: event.target.value }))} /><TextField fullWidth label="Model" value={vehicleDraft.model} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, model: event.target.value }))} /><TextField fullWidth label="Model year" type="number" value={vehicleDraft.modelYear} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, modelYear: event.target.value }))} /></Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="VIN (optional)" value={vehicleDraft.vin} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, vin: event.target.value }))} /><TextField fullWidth label="Odometer (km)" type="number" value={vehicleDraft.odometerKm} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, odometerKm: event.target.value }))} /><TextField select fullWidth label="Category" value={vehicleDraft.vehicleCategory} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, vehicleCategory: event.target.value as CWVehicleCategory }))}><MenuItem value="">Not specified</MenuItem>{(['SUV', 'Sedan', 'Hatchback', 'Pickup', 'Van', 'Truck', 'Bus', 'Other'] as CWVehicleCategory[]).map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField></Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Exterior color" value={vehicleDraft.exteriorColor} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, exteriorColor: event.target.value }))} /><TextField fullWidth label="Interior color" value={vehicleDraft.interiorColor} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, interiorColor: event.target.value }))} /><TextField select fullWidth label="Vehicle size" required value={vehicleDraft.vehicleSize} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, vehicleSize: event.target.value as CWVehicleSize }))}>{(['Small', 'Medium', 'Large'] as CWVehicleSize[]).map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}</TextField></Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Driver name" value={vehicleDraft.driverName} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, driverName: event.target.value }))} /><TextField fullWidth label="Driver phone" value={vehicleDraft.driverPhone} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, driverPhone: event.target.value }))} /></Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField fullWidth label="Transporter name" value={vehicleDraft.transporterName} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, transporterName: event.target.value }))} /><TextField fullWidth label="Transporter phone" value={vehicleDraft.transporterPhone} onChange={(event) => setVehicleDraft((draft) => ({ ...draft, transporterPhone: event.target.value }))} /></Stack>
             {linkedPendingVehicle?.vehicleDocuments?.length ? <Alert severity="success">{linkedPendingVehicle.vehicleDocuments.length} Guard-uploaded vehicle document(s) will be copied for CRE/Admin verification.</Alert> : null}
           </Stack></DialogContent>
           <DialogActions><Button onClick={() => setVehicleDialogOpen(false)} disabled={modalSaving}>Cancel</Button><Button variant="contained" onClick={() => void createVehicleInline()} disabled={modalSaving || !selectedCustomer}>{modalSaving ? 'Creating…' : 'Create and select'}</Button></DialogActions>
