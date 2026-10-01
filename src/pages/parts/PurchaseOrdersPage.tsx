@@ -145,10 +145,8 @@ export function PurchaseOrdersPage() {
   const sessionUser = useSessionStore((s) => s.user)
   const isAdmin = sessionUser?.roles?.some(r => r.toLowerCase().includes('admin')) ?? false
 
-  /* ── Store actions for approve/reject/GRN ── */
-  const approvePurchaseOrder = useCwStore((s) => s.approvePurchaseOrder)
-  const rejectPurchaseOrder = useCwStore((s) => s.rejectPurchaseOrder)
-  const addStockUnits = useCwStore((s) => s.addStockUnits)
+  /* Store data remains available for legacy appointment context; procurement
+     mutations are persisted through the API and standard inventory records. */
   const users = useCwStore((s) => s.users)
 
   const getUserName = (id?: string) => users.find(u => u.id === id)?.fullName || '—'
@@ -328,7 +326,6 @@ export function PurchaseOrdersPage() {
   async function handleApprovePO(id: string) {
     try {
       await workshopApi.approvePurchaseOrder(id)
-      approvePurchaseOrder(id, sessionUser?.id || '')
       await loadPOData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve PO')
@@ -341,13 +338,16 @@ export function PurchaseOrdersPage() {
     setRejectDialogOpen(true)
   }
 
-  function handleConfirmReject() {
-    if (rejectPoId && rejectReason.trim()) {
-      rejectPurchaseOrder(rejectPoId, rejectReason.trim(), sessionUser?.id || '')
+  async function handleConfirmReject() {
+    if (!rejectPoId || !rejectReason.trim()) return
+    try {
+      await workshopApi.rejectPurchaseOrder(rejectPoId, rejectReason.trim())
       setRejectDialogOpen(false)
       setRejectPoId(null)
       setRejectReason('')
-      void loadPOData()
+      await loadPOData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reject purchase order')
     }
   }
 
@@ -407,35 +407,6 @@ export function PurchaseOrdersPage() {
         notes: grnNotes || undefined,
         discrepancyNotes: grnDiscrepancy || undefined,
       })
-      // Create stock units locally for lot tracking
-      const po = purchaseOrders.find((p) => p.id === grnPoId)
-      const vendor = vendors.find((v) => v.id === po?.vendorId)
-      const ts = new Date().toISOString()
-      const newUnits: import('../../types/cw').CWPartStockUnit[] = []
-      for (const line of grnLines) {
-        if (line.acceptedQty > 0) {
-          const part = parts.find((p) => p.id === line.partId)
-          newUnits.push({
-            id: `su_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            partId: line.partId,
-            quantity: line.acceptedQty,
-            initialQuantity: line.acceptedQty,
-            status: 'Available',
-            costPrice: line.purchasePrice,
-            sellPrice: line.sellPrice,
-            poId: grnPoId,
-            poNumber: po?.poNumber,
-            grnId: `grn_${Date.now()}`,
-            grnNumber: `GRN-${String(Date.now()).slice(-6)}`,
-            vendorId: po?.vendorId,
-            vendorName: vendor?.name,
-            rackLocation: part?.rackLocation,
-            createdAt: ts,
-            updatedAt: ts,
-          })
-        }
-      }
-      addStockUnits(newUnits)
       setGrnDialogOpen(false)
       setGrnPoId(null)
       await loadPOData()

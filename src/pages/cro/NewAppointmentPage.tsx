@@ -415,6 +415,16 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
         ? await workshopApi.updateAppointment(editAppointmentId, appointmentInput)
         : await workshopApi.createAppointment(appointmentInput)
       let latestAppointment = createdAppointment
+      try {
+        await workshopApi.ensureCrmLead(selectedCustomer.id, createdAppointment.id)
+      } catch (cause) {
+        // CRM is an optional companion app. Appointment creation must remain
+        // operational when it is unavailable or the current role cannot use it.
+        const message = cause instanceof Error ? cause.message : ''
+        if (!/CRM_UNAVAILABLE|permission|not permitted/i.test(message)) {
+          toast.warning(`Appointment saved, but CRM lead sync needs attention: ${message || 'unknown error'}`)
+        }
+      }
       for (const pendingRequest of pendingMasterRequests) {
         try {
           latestAppointment = await workshopApi.linkMasterDataRequestToAppointment(pendingRequest.requestId, createdAppointment.id)

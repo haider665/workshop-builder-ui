@@ -913,6 +913,7 @@ export type CWGoodsReceiptNote = {
   id: string
   grnNumber: string
   poId: string
+  erpnextPurchaseReceiptId?: string
   receivedByUserId: string
   receivedAt: string
   lines: CWGRNLine[]

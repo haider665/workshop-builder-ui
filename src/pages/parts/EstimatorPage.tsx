@@ -137,6 +137,11 @@ export function EstimatorPage() {
     return [...map.entries()]
   }, [queueLines])
 
+  const procurementLines = useMemo(
+    () => lines.filter((line) => line.status === 'Approved' && ['Procurement Open', 'Partially Available', 'Integration Attention'].includes(line.fulfillmentStatus ?? '')),
+    [lines],
+  )
+
   /* ── Select Appointment ── */
 
   function handleSelectAppointment(apptId: string) {
@@ -319,6 +324,38 @@ export function EstimatorPage() {
               )}
             </Stack>
           </Box>
+
+          {procurementLines.length > 0 ? (
+            <Box sx={{ mt: 2, bgcolor: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.md, boxShadow: shadows.card, p: 2.5 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[800] }}>
+                Procurement status
+              </Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.78rem', mb: 1.5 }}>
+                Approved shortages are being handled by Procurement and Accounting.
+              </Typography>
+              <Stack spacing={1}>
+                {procurementLines.map((line) => (
+                  <Box key={line.id} sx={{ p: 1.25, border: `1px solid ${colors.border.subtle}`, borderRadius: radii.sm }}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }} noWrap>{line.partName || line.description}</Typography>
+                        <Typography sx={{ color: colors.slate[500], fontSize: '0.7rem' }} noWrap>
+                          {line.partNumber || line.id} · Qty {line.quantity} · {line.procureQuantity ?? 0} to procure
+                        </Typography>
+                      </Box>
+                      <Chip label={line.fulfillmentStatus} size="small" color={line.fulfillmentStatus === 'Integration Attention' ? 'error' : 'warning'} sx={{ fontWeight: 700, fontSize: '0.65rem' }} />
+                    </Stack>
+                    {line.materialRequestId || line.procurementCaseId ? (
+                      <Typography sx={{ color: colors.slate[400], fontSize: '0.68rem', mt: 0.75 }}>
+                        {line.materialRequestId ? `Request ${line.materialRequestId}` : ''}{line.materialRequestId && line.procurementCaseId ? ' · ' : ''}{line.procurementCaseId ? `Case ${line.procurementCaseId}` : ''}
+                      </Typography>
+                    ) : null}
+                    {line.integrationError ? <Typography sx={{ color: colors.status.error, fontSize: '0.68rem', mt: 0.5 }}>{line.integrationError}</Typography> : null}
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          ) : null}
         </Box>
 
         {/* ── Right Panel: Price All Parts for Appointment ── */}

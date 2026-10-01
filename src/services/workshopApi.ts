@@ -1100,6 +1100,13 @@ export const workshopApi = {
     })
   },
 
+  async ensureCrmLead(customerId: string, appointmentId?: string): Promise<{ id: string; name: string; email?: string; phone?: string; created: boolean }> {
+    return request('/api/method/workshop.api.crm.ensure_lead', {
+      method: 'POST',
+      body: { data: { customerId, appointmentId } },
+    })
+  },
+
   async updateAppointment(
     appointmentId: string,
     input: Partial<{
@@ -2081,6 +2088,10 @@ export const workshopApi = {
 
   async approvePurchaseOrder(id: string): Promise<import('../types/cw').CWPurchaseOrder> {
     return request<import('../types/cw').CWPurchaseOrder>('/api/method/workshop.api.purchase_orders.approve', { method: 'POST', body: { data: { id } } })
+  },
+
+  async rejectPurchaseOrder(id: string, reason: string): Promise<import('../types/cw').CWPurchaseOrder> {
+    return request<import('../types/cw').CWPurchaseOrder>('/api/method/workshop.api.purchase_orders.reject', { method: 'POST', body: { data: { id, reason } } })
   },
 
   async cancelPurchaseOrder(id: string): Promise<import('../types/cw').CWPurchaseOrder> {
