@@ -2241,4 +2241,23 @@ export const workshopApi = {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.master_data_requests.link_to_appointment', { method: 'POST', body: { data: { id: requestId, appointmentId } } })
   },
 
+  // Native Workshop Builder finance workspaces. These use the same audited,
+  // company-scoped accounting APIs as the ERP workspace without redirecting
+  // the operator to another frontend.
+  async accountingDashboard(company?: string): Promise<{ counts: Record<string, number>; attention?: Array<{ id: string; title: string; count: number; route: string; severity?: string; description?: string }> }> {
+    return request(`/api/method/workshop.api.accounting.dashboard${buildQuery({ company })}`)
+  },
+  async procurementInbox(company?: string): Promise<{ data: Array<{ id: string; case?: Record<string, unknown>; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string; checklist?: Array<{ label?: string; ready?: boolean }> }>; meta?: { total?: number } }> {
+    return request(`/api/method/workshop.api.accounting.procurement_cases.inbox${buildQuery({ company, pageSize: 100 })}`)
+  },
+  async procurementCases(company?: string): Promise<ApiListResponse<{ id: string; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string; company?: string }>> {
+    return request(`/api/method/workshop.api.accounting.procurement_cases.list${buildQuery({ company, pageSize: 100 })}`)
+  },
+  async financialClearances(company?: string): Promise<ApiListResponse<{ id: string; type?: string; status?: string; appointmentId?: string; requestedAmount?: number; outstandingAmount?: number; requestedByUserId?: string; requestedAt?: string; reviewedByUserId?: string; reviewedAt?: string; reviewNote?: string }>> {
+    return request(`/api/method/workshop.api.financial_clearances.list${buildQuery({ company, pageSize: 100 })}`)
+  },
+  async approveFinancialClearance(id: string, note?: string) { return request(`/api/method/workshop.api.financial_clearances.approve`, { method: 'POST', body: { id, data: { note } } }) },
+  async rejectFinancialClearance(id: string, note: string) { return request(`/api/method/workshop.api.financial_clearances.reject`, { method: 'POST', body: { id, data: { note } } }) },
+  async returnFinancialClearance(id: string, note: string) { return request(`/api/method/workshop.api.financial_clearances.return_for_correction`, { method: 'POST', body: { id, data: { note } } }) },
+
 }

@@ -68,6 +68,7 @@ const CounterDeskPage = lazy(() => import('../pages/parts/CounterDeskPage').then
 const EstimatorPage = lazy(() => import('../pages/parts/EstimatorPage').then((module) => ({ default: module.EstimatorPage })))
 const TestDrivesPage = lazy(() => import('../pages/test-drives/TestDrivesPage').then((module) => ({ default: module.TestDrivesPage })))
 const ServiceOrdersPage = lazy(() => import('../pages/service-orders/ServiceOrdersPage').then((module) => ({ default: module.ServiceOrdersPage })))
+const FinanceWorkspacePage = lazy(() => import('../pages/operations/FinanceWorkspacePage').then((module) => ({ default: module.FinanceWorkspacePage })))
 
 export function AppRouter() {
   return (
@@ -112,6 +113,11 @@ export function AppRouter() {
           <Route element={<RequireRole anyOf={['Procurement', 'Procurement User', 'Procurement Manager', 'Admin']} />}>
             <Route path="/parts/purchase-orders" element={<PurchaseOrdersPage />} />
             <Route path="/parts/vendors" element={<VendorManagementPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Procurement', 'Procurement User', 'Procurement Manager', 'Accounts', 'Accounts User', 'Accounts Manager', 'Admin']} />}>
+            <Route path="/procurement" element={<FinanceWorkspacePage initialTab="procurement" />} />
+            <Route path="/accounting" element={<FinanceWorkspacePage initialTab="accounting" />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Guard']} />}>

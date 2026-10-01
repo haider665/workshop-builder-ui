@@ -67,6 +67,7 @@ const SPRING_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const PARTS_ROLES: Role[] = ['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Admin']
 const PROCUREMENT_ROLES: Role[] = ['Procurement', 'Procurement User', 'Procurement Manager', 'Admin']
 const ACCOUNTING_ROLES: Role[] = ['Accounts', 'Accounts User', 'Accounts Manager', 'Admin']
+const FINANCE_ROLES: Role[] = [...new Set([...PARTS_ROLES, ...PROCUREMENT_ROLES, ...ACCOUNTING_ROLES])] as Role[]
 
 /* ─────────────────── Dark Sidebar Palette ─────────────────── */
 
@@ -93,6 +94,7 @@ type NavItem = {
   icon?: ReactElement
   anyOfRoles: Role[]
   exactMatch?: boolean
+  external?: boolean
 }
 
 /* ─────────────────────── Notification Badge ────────────────── */
@@ -217,6 +219,9 @@ export function AppShell() {
       { kind: 'link', label: 'Procurement Requests', to: '/parts/part-requests', icon: <ReceiptLong />, anyOfRoles: PROCUREMENT_ROLES },
       { kind: 'section', label: 'Accounting Handoff', anyOfRoles: ACCOUNTING_ROLES },
       { kind: 'link', label: 'Service Orders & Billing', to: '/service-orders', icon: <ReceiptLong />, anyOfRoles: ACCOUNTING_ROLES },
+      { kind: 'section', label: 'Accounting & Procurement', anyOfRoles: FINANCE_ROLES },
+      { kind: 'link', label: 'Procurement Workspace', to: '/procurement', icon: <ShoppingCart />, anyOfRoles: [...new Set([...PARTS_ROLES, ...PROCUREMENT_ROLES])] as Role[] },
+      { kind: 'link', label: 'Accounting Workspace', to: '/accounting', icon: <Calculate />, anyOfRoles: ACCOUNTING_ROLES },
 
       {
         kind: 'link',
@@ -358,8 +363,9 @@ export function AppShell() {
           return (
             <Tooltip title={sidebarCollapsed && mdUp ? t(item.label) : ''} placement="right" key={to}>
             <ListItemButton
-              component={RouterLink}
-              to={to}
+              component={item.external ? 'a' : RouterLink}
+              to={item.external ? undefined : to}
+              href={item.external ? to : undefined}
               selected={selected}
               onClick={() => setMobileOpen(false)}
               aria-current={selected ? 'page' : undefined}
