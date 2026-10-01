@@ -22,7 +22,7 @@ export function FinanceWorkspacePage({ initialTab = 'procurement' }: { initialTa
   const { selectedCompanyId, companies } = useCompanyStore()
   const company = companies.find((item) => item.id === selectedCompanyId)
   const [tab, setTab] = useState<TabId>(initialTab)
-  const [dashboard, setDashboard] = useState<{ counts: Record<string, number>; attention?: Array<{ id: string; title: string; count: number; severity?: string; description?: string }> } | null>(null)
+  const [dashboard, setDashboard] = useState<{ counts: Record<string, number>; attention?: Array<{ id: string; title: string; count: number; route?: string; severity?: string; description?: string }> } | null>(null)
   const [cases, setCases] = useState<Array<{ id: string; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string }>>([])
   const [inbox, setInbox] = useState<Array<{ id: string; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string; checklist?: Array<{ label?: string; ready?: boolean }> }>>([])
   const [clearances, setClearances] = useState<Array<{ id: string; type?: string; status?: string; appointmentId?: string; requestedAmount?: number; outstandingAmount?: number; requestedByUserId?: string; requestedAt?: string; reviewedByUserId?: string; reviewedAt?: string; reviewNote?: string }>>([])
@@ -57,7 +57,11 @@ export function FinanceWorkspacePage({ initialTab = 'procurement' }: { initialTa
   }
 
   const load = useCallback(async () => {
-    if (!selectedCompanyId) return
+    if (!selectedCompanyId) {
+      setLoading(false)
+      setError('Select a company to load the company-scoped procurement and accounting records.')
+      return
+    }
     setLoading(true); setError(null)
     try {
       const [summary, queue, caseList, clearanceList] = await Promise.all([
@@ -71,8 +75,13 @@ export function FinanceWorkspacePage({ initialTab = 'procurement' }: { initialTa
       setCases(caseList.data || [])
       setClearances(clearanceList.data || [])
       const modules: AccountingModule[] = ['requisitions', 'quotations', 'compare_sheets', 'purchase_orders', 'receipts', 'invoices', 'payments', 'journals']
-      const results = await Promise.all(modules.map((module) => workshopApi.accountingList(module, selectedCompanyId).catch(() => ({ data: [] }))))
+      const moduleErrors: string[] = []
+      const results = await Promise.all(modules.map(async (module) => {
+        try { return await workshopApi.accountingList(module, selectedCompanyId) }
+        catch { moduleErrors.push(module); return { data: [] } }
+      }))
       setDocuments(Object.fromEntries(modules.map((module, index) => [module, results[index].data || []])) as Record<AccountingModule, Array<Record<string, unknown>>>)
+      if (moduleErrors.length) setError(`Some permitted modules could not be loaded: ${moduleErrors.join(', ')}. Check the role and company assignment.`)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load company finance workspace')
     } finally { setLoading(false) }
@@ -144,6 +153,7 @@ export function FinanceWorkspacePage({ initialTab = 'procurement' }: { initialTa
       <Box sx={{ ...cardSx, flex: 1 }}><Typography variant="caption">Company</Typography><Typography variant="h6" sx={{ fontWeight: 800 }}>{company?.name || selectedCompanyId || 'Select a company'}</Typography></Box>
       {Object.entries(dashboard?.counts || {}).slice(0, 4).map(([key, value]) => <Box key={key} sx={{ ...cardSx, flex: 1 }}><Typography variant="caption">{key.replace(/([A-Z])/g, ' $1')}</Typography><Typography variant="h5" sx={{ fontWeight: 800 }}>{Number(value || 0).toLocaleString()}</Typography></Box>)}
     </Stack>
+    {dashboard?.attention?.some((item) => item.count > 0) ? <Box sx={{ ...cardSx, mb: 2.5 }}><Typography sx={{ fontWeight: 800, mb: 1 }}>Work requiring action</Typography><Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>{dashboard.attention.filter((item) => item.count > 0).map((item) => <Button key={item.id} variant="outlined" onClick={() => { const route = (item.route || '').split('/').pop() || ''; const tabMap: Record<string, TabId> = { requisitions: 'requisitions', quotations: 'quotations', 'compare-sheets': 'compare', 'purchase-orders': 'orders', receipts: 'receipts', invoices: 'invoices', payments: 'payments', journals: 'journals', cases: 'procurement' }; setTab(tabMap[route] || 'accounting'); setQuery('') }}>{item.title} · {item.count}</Button>)}</Stack></Box> : null}
     <Box sx={cardSx}>
       <Tabs value={tab} variant="scrollable" allowScrollButtonsMobile onChange={(_, value: TabId) => { setTab(value); setQuery('') }}><Tab value="procurement" icon={<ShoppingCart />} iconPosition="start" label="Cases" /><Tab value="requisitions" label="Requisitions" /><Tab value="quotations" label="Quotations" /><Tab value="compare" label="Compare sheets" /><Tab value="orders" label="Purchase orders" /><Tab value="receipts" label="Receipts" /><Tab value="invoices" label="Supplier invoices" /><Tab value="payments" label="Payments" /><Tab value="journals" label="Journals" /><Tab value="accounting" icon={<AccountBalance />} iconPosition="start" label="Clearances" /></Tabs>
       <Divider sx={{ mb: 2 }} />

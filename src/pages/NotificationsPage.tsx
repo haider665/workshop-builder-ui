@@ -61,6 +61,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'grn', label: 'GRN' },
   { key: 'return', label: 'Return' },
   { key: 'advance', label: 'Advance' },
+  { key: 'invoice', label: 'Invoice' },
 ]
 
 /* ─────────────────────── Component ─────────────────────────── */
