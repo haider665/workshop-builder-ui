@@ -1077,7 +1077,15 @@ export function GuardHome() {
                           : null
                         return relAppt ? (
                           <Button variant="contained" color="success" size="large"
-                            onClick={() => { releaseVehicle({ appointmentId: relAppt.id }); reset() }}
+                            onClick={async () => {
+                              try {
+                                await workshopApi.releaseVehicle(relAppt.id)
+                                releaseVehicle({ appointmentId: relAppt.id })
+                                reset()
+                              } catch (cause) {
+                                setError(cause instanceof Error ? cause.message : 'Vehicle cannot be released until Accounts clearance is complete.')
+                              }
+                            }}
                             sx={{ py: 1.75, fontWeight: 700, flex: 1, borderRadius: '12px' }}>
                             Release Vehicle
                           </Button>

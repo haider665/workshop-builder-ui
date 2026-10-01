@@ -589,6 +589,10 @@ export type CWAppointment = {
   assignedTeamId?: string
   // Payment & release
   paymentStatus: 'Pending' | 'Done'
+  /** Linked standard accounting documents created from the Service Order. */
+  serviceOrderId?: string
+  salesOrderId?: string
+  salesInvoiceId?: string
   gatePassIssuedAt?: string
   releasedAt?: string
   createdAt: string

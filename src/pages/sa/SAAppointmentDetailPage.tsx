@@ -103,7 +103,6 @@ export function SAAppointmentDetailPage() {
   const addAppointmentService = useCwStore((s) => s.addAppointmentService)
   const addAppointmentConcern = useCwStore((s) => s.addAppointmentConcern)
   const pushTimeline = useCwStore((s) => s.pushTimeline)
-  const confirmPayment = useCwStore((s) => s.confirmPayment)
   const assignQC = useCwStore((s) => s.assignQC)
   const removeAppointmentConcern = useCwStore((s) => s.removeAppointmentConcern)
   const partRequests = useCwStore((s) => s.partRequests)
@@ -402,8 +401,15 @@ export function SAAppointmentDetailPage() {
     setApprovalNote('')
   }
 
-  function handleConfirmPayment() {
-    confirmPayment({ appointmentId: appt!.id, actorName: 'SA' })
+  async function handleConfirmPayment() {
+    if (!appt) return
+    try {
+      const updated = await workshopApi.confirmPayment(appt.id, { actorName: 'SA' })
+      setAppointmentStatus(updated.id, updated.status)
+      toast.success('Payment confirmed by Accounts. Gate-pass processing can continue.')
+    } catch (cause) {
+      toast.error(cause, 'Payment cannot be confirmed until the submitted invoice is fully settled.')
+    }
   }
 
   function handleAddConcern() {

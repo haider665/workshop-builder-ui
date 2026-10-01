@@ -101,13 +101,17 @@ export function AppRouter() {
             <Route path="/admin/appointments/:appointmentId" element={<AppointmentDetailPage />} />
           </Route>
 
-          <Route element={<RequireRole anyOf={['Parts', 'Admin']} />}>
+          <Route element={<RequireRole anyOf={['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Admin']} />}>
             <Route path="/parts/inventory" element={<InventoryTrackerPage />} />
-            <Route path="/parts/purchase-orders" element={<PurchaseOrdersPage />} />
-            <Route path="/parts/vendors" element={<VendorManagementPage />} />
             <Route path="/parts/counter-desk" element={<CounterDeskPage />} />
             <Route path="/parts/estimator" element={<EstimatorPage />} />
+          </Route>
+          <Route element={<RequireRole anyOf={['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Procurement', 'Procurement User', 'Procurement Manager', 'Admin']} />}>
             <Route path="/parts/part-requests" element={<PartRequestsPage />} />
+          </Route>
+          <Route element={<RequireRole anyOf={['Procurement', 'Procurement User', 'Procurement Manager', 'Admin']} />}>
+            <Route path="/parts/purchase-orders" element={<PurchaseOrdersPage />} />
+            <Route path="/parts/vendors" element={<VendorManagementPage />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Guard']} />}>
@@ -175,7 +179,7 @@ export function AppRouter() {
           <Route element={<RequireRole anyOf={['Admin', 'Job Creation', 'Guard', 'CRE', 'Service Advisor', 'Service Engineer']} />}>
             <Route path="/test-drives" element={<TestDrivesPage />} />
           </Route>
-          <Route element={<RequireRole anyOf={["Admin", "Job Creation", "CRE", "Service Advisor", "Service Engineer"]} />}>
+          <Route element={<RequireRole anyOf={["Admin", "Job Creation", "CRE", "Service Advisor", "Service Engineer", "Accounts", "Accounts User", "Accounts Manager", "Procurement", "Procurement User", "Procurement Manager"]} />}>
             <Route path="/service-orders" element={<ServiceOrdersPage />} />
           </Route>
 

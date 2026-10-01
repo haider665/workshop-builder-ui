@@ -1,5 +1,6 @@
 import {
   Autocomplete,
+  Alert,
   Box,
   Button,
   Checkbox,
@@ -720,6 +721,10 @@ export function PurchaseOrdersPage() {
             Create PO
           </Button>
         </Stack>
+
+        <Alert severity="info" sx={{ borderRadius: radii.md }}>
+          Procurement is connected to the operational ledger: approved shortages flow into the material request and procurement case, accepted GRNs update inventory, and Accounts completes supplier billing and settlement from the linked documents. Do not create a duplicate purchase or invoice outside the linked case.
+        </Alert>
 
         {/* Stats */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

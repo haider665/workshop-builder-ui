@@ -64,6 +64,9 @@ import { GuidedTour } from './GuidedTour'
 const drawerWidth = 264
 const collapsedDrawerWidth = 76
 const SPRING_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
+const PARTS_ROLES: Role[] = ['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Admin']
+const PROCUREMENT_ROLES: Role[] = ['Procurement', 'Procurement User', 'Procurement Manager', 'Admin']
+const ACCOUNTING_ROLES: Role[] = ['Accounts', 'Accounts User', 'Accounts Manager', 'Admin']
 
 /* ─────────────────── Dark Sidebar Palette ─────────────────── */
 
@@ -168,7 +171,7 @@ export function AppShell() {
       { kind: 'link', label: 'Bay Management', to: '/jc/bays', icon: <Settings />, anyOfRoles: ['Job Creation'] },
       { kind: 'link', label: 'Gatepass', to: '/guard', icon: <DoorFront />, anyOfRoles: ['Guard'] },
       { kind: 'link', label: 'Test Drives', to: '/test-drives', icon: <DirectionsCar />, anyOfRoles: ['Admin', 'Job Creation', 'Guard', 'CRE', 'Service Advisor', 'Service Engineer'] },
-      { kind: "link", label: "Service Orders", to: "/service-orders", icon: <ReceiptLong />, anyOfRoles: ["Admin", "Job Creation", "CRE", "Service Advisor", "Service Engineer"] },
+      { kind: "link", label: "Service Orders", to: "/service-orders", icon: <ReceiptLong />, anyOfRoles: ["Admin", "Job Creation", "CRE", "Service Advisor", "Service Engineer", "Accounts", "Accounts User", "Accounts Manager", "Procurement", "Procurement User", "Procurement Manager"] },
       { kind: 'link', label: 'Employee Records', to: '/employee-records', icon: <ReceiptLong />, anyOfRoles: ['Admin', 'Job Creation'] },
 
       { kind: 'section', label: 'Service Advisor', anyOfRoles: ['Service Advisor'] },
@@ -203,13 +206,17 @@ export function AppShell() {
       { kind: 'link', label: 'Reports', to: '/admin/reports', icon: <Assignment />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Appointments', to: '/admin/appointments', icon: <Assignment />, anyOfRoles: ['Admin'] },
 
-      { kind: 'section', label: 'Parts Department', anyOfRoles: ['Parts', 'Admin'] },
-      { kind: 'link', label: 'Purchase Module', to: '/parts/purchase-orders', icon: <ShoppingCart />, anyOfRoles: ['Parts', 'Admin'] },
-      { kind: 'link', label: 'Vendor Management', to: '/parts/vendors', icon: <Storefront />, anyOfRoles: ['Parts', 'Admin'] },
-      { kind: 'link', label: 'Counter Desk', to: '/parts/counter-desk', icon: <Store />, anyOfRoles: ['Parts', 'Admin'] },
-      { kind: 'link', label: 'Inventory Tracker', to: '/parts/inventory', icon: <Inventory />, anyOfRoles: ['Parts', 'Admin'] },
-      { kind: 'link', label: 'Estimator', to: '/parts/estimator', icon: <Calculate />, anyOfRoles: ['Parts', 'Admin'] },
-      { kind: 'link', label: 'Part Requests', to: '/parts/part-requests', icon: <ReceiptLong />, anyOfRoles: ['Parts', 'Admin'] },
+      { kind: 'section', label: 'Parts Department', anyOfRoles: PARTS_ROLES },
+      { kind: 'link', label: 'Counter Desk', to: '/parts/counter-desk', icon: <Store />, anyOfRoles: PARTS_ROLES },
+      { kind: 'link', label: 'Inventory Tracker', to: '/parts/inventory', icon: <Inventory />, anyOfRoles: PARTS_ROLES },
+      { kind: 'link', label: 'Estimator', to: '/parts/estimator', icon: <Calculate />, anyOfRoles: ['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Admin'] },
+      { kind: 'link', label: 'Part Requests', to: '/parts/part-requests', icon: <ReceiptLong />, anyOfRoles: PARTS_ROLES },
+      { kind: 'section', label: 'Procurement', anyOfRoles: PROCUREMENT_ROLES },
+      { kind: 'link', label: 'Purchase Orders & Receipts', to: '/parts/purchase-orders', icon: <ShoppingCart />, anyOfRoles: PROCUREMENT_ROLES },
+      { kind: 'link', label: 'Supplier Management', to: '/parts/vendors', icon: <Storefront />, anyOfRoles: PROCUREMENT_ROLES },
+      { kind: 'link', label: 'Procurement Requests', to: '/parts/part-requests', icon: <ReceiptLong />, anyOfRoles: PROCUREMENT_ROLES },
+      { kind: 'section', label: 'Accounting Handoff', anyOfRoles: ACCOUNTING_ROLES },
+      { kind: 'link', label: 'Service Orders & Billing', to: '/service-orders', icon: <ReceiptLong />, anyOfRoles: ACCOUNTING_ROLES },
 
       {
         kind: 'link',

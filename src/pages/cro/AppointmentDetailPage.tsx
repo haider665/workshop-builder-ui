@@ -142,7 +142,6 @@ export function AppointmentDetailPage() {
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
   const setCustomerApproval = useCwStore((s) => s.setCustomerApproval)
   const pushTimeline = useCwStore((s) => s.pushTimeline)
-  const confirmPayment = useCwStore((s) => s.confirmPayment)
   const assignQC = useCwStore((s) => s.assignQC)
   const assignSA = useCwStore((s) => s.assignSA)
   const roles = useCwStore((s) => s.roles)
@@ -941,7 +940,15 @@ export function AppointmentDetailPage() {
               Confirm Payment Received
             </Typography>
             <Button variant="contained" size="large"
-              onClick={() => confirmPayment({ appointmentId: appt.id, actorName: 'CRE' })}
+              onClick={async () => {
+                try {
+                  const updated = await workshopApi.confirmPayment(appt.id, { actorName: 'CRE' })
+                  setAppointmentStatus(updated.id, updated.status)
+                  toast.success('Payment confirmed by Accounts. Gate-pass processing can continue.')
+                } catch (cause) {
+                  toast.error(cause, 'Payment cannot be confirmed until the submitted invoice is fully settled.')
+                }
+              }}
               sx={{ bgcolor: colors.status.success, fontWeight: 800, borderRadius: '10px', px: 3, '&:hover': { bgcolor: '#059669' } }}>
               Payment Received — Issue Gate Pass
             </Button>
