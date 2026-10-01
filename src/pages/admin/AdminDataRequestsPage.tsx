@@ -1,5 +1,5 @@
 import { Assignment, CheckCircle, Close, Refresh } from '@mui/icons-material'
-import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
 import { useCallback, useEffect, useState } from 'react'
 import { workshopApi, type CWMasterDataRequest } from '../../services/workshopApi'
 import { useToast } from '../../hooks/useToast'
@@ -19,16 +19,17 @@ export function AdminDataRequestsPage() {
   const [masterFieldValues, setMasterFieldValues] = useState<Record<string, unknown>>({})
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([])
   const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<'All' | 'Pending' | 'Approved' | 'Rejected'>('Pending')
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [result, categoryResult] = await Promise.all([workshopApi.listMasterDataRequests({ status: 'Pending', search: search.trim() || undefined, pageSize: 100 }), workshopApi.listConcernCategories({ status: 'Active', pageSize: 100 })])
+      const [result, categoryResult] = await Promise.all([workshopApi.listMasterDataRequests({ status: status === 'All' ? undefined : status, search: search.trim() || undefined, pageSize: 100 }), workshopApi.listConcernCategories({ status: 'Active', pageSize: 100 })])
       setRows(result.data)
       setCategories(categoryResult.data.map((item) => ({ id: item.id, name: item.name })))
     }
     catch (error) { toast.error(error, 'Could not load master-data requests.') }
     finally { setLoading(false) }
-  }, [toast, search])
+  }, [status, toast, search])
   useEffect(() => { void load() }, [load])
   useEffect(() => {
     if (!review || review.action !== 'approve') { setFieldDefs([]); setMasterFieldValues({}); return }
@@ -79,7 +80,13 @@ export function AdminDataRequestsPage() {
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ minWidth: { sm: 420 } }}><TextField size="small" fullWidth placeholder="Search request, appointment, customer, vehicle or requester" value={search} onChange={(event) => setSearch(event.target.value)} /><Button variant="outlined" startIcon={<Refresh />} onClick={() => void load()}>Refresh</Button></Stack>
     </Box>
     <Alert severity="info" sx={{ mb: 3 }}>Approval authorizes the request. Appointment-linked concerns appear as pending drafts immediately; approval activates them, while rejection removes them. Other requests can be completed from their administration screen.</Alert>
-    <SectionCard title={`Pending requests (${rows.length})`} icon={<Assignment />}>
+    <SectionCard title={`${status === 'All' ? 'All' : status} requests (${rows.length})`} icon={<Assignment />}>
+      <Tabs value={status} onChange={(_, value: 'All' | 'Pending' | 'Approved' | 'Rejected') => setStatus(value)} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab value="Pending" label="Pending" />
+        <Tab value="Approved" label="Approved" />
+        <Tab value="Rejected" label="Rejected" />
+        <Tab value="All" label="All history" />
+      </Tabs>
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>
       ) : rows.length === 0 ? (
@@ -92,6 +99,7 @@ export function AdminDataRequestsPage() {
                 <Box sx={{ minWidth: 0 }}>
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                     <Chip size="small" label={row.targetDoctype} color="primary" variant="outlined" />
+                    {row.status !== 'Pending' && <Chip size="small" label={row.status} color={row.status === 'Approved' ? 'success' : 'error'} />}
                     <Typography sx={{ fontWeight: 800 }}>{row.requestedValue}</Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -102,11 +110,15 @@ export function AdminDataRequestsPage() {
                     Appointment: {row.sourceDetails.appointmentId} · Customer: {row.sourceDetails.customerName || row.sourceDetails.customerId || '—'} · Vehicle: {row.sourceDetails.registrationNo || row.sourceDetails.vehicleId || '—'}
                   </Typography>}
                   {Boolean(row.context?.requesterNote) && <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>Note: {String(row.context?.requesterNote)}</Typography>}
+                  {row.status !== 'Pending' && <Box sx={{ mt: 1, p: 1.25, bgcolor: row.status === 'Approved' ? 'success.50' : 'error.50', borderRadius: 1.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.status} by {row.reviewedBy || 'Unknown'} · {row.reviewedAt ? new Date(row.reviewedAt).toLocaleString() : '—'}</Typography>
+                    <Typography variant="body2" color="text.secondary">Reason / review note: {row.reviewNote || 'No reason recorded.'}</Typography>
+                  </Box>}
                 </Box>
-                <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                {row.status === 'Pending' && <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
                   <Button size="small" variant="contained" color="success" startIcon={<CheckCircle />} onClick={() => { setReview({ row, action: 'approve' }); setApprovedValue(row.requestedValue); setFieldValuesJson('{}'); setMasterFieldValues({}); setNote(''); setCategoryId('') }}>Approve</Button>
                   <Button size="small" variant="outlined" color="error" startIcon={<Close />} onClick={() => { setReview({ row, action: 'reject' }); setNote(''); setCategoryId('') }}>Reject</Button>
-                </Box>
+                </Box>}
               </Box>
             </Box>
           ))}
