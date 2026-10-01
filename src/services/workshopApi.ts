@@ -1912,11 +1912,11 @@ export const workshopApi = {
     return request(`/api/method/workshop.api.reports.technician_performance${buildQuery(params)}`)
   },
 
-  async getWorkforceMetrics(params: { fromDate?: string; toDate?: string } = {}): Promise<Record<string, any>> {
+  async getWorkforceMetrics(params: { fromDate?: string; toDate?: string } = {}): Promise<Record<string, unknown>> {
     return request(`/api/method/workshop.api.reports.workforce_metrics${buildQuery(params)}`)
   },
 
-  async getFinancialSnapshot(params: { fromDate?: string; toDate?: string } = {}): Promise<Record<string, any>> {
+  async getFinancialSnapshot(params: { fromDate?: string; toDate?: string } = {}): Promise<Record<string, unknown>> {
     return request(`/api/method/workshop.api.reports.financial_snapshot${buildQuery(params)}`)
   },
 
@@ -2259,5 +2259,24 @@ export const workshopApi = {
   async approveFinancialClearance(id: string, note?: string) { return request(`/api/method/workshop.api.financial_clearances.approve`, { method: 'POST', body: { id, data: { note } } }) },
   async rejectFinancialClearance(id: string, note: string) { return request(`/api/method/workshop.api.financial_clearances.reject`, { method: 'POST', body: { id, data: { note } } }) },
   async returnFinancialClearance(id: string, note: string) { return request(`/api/method/workshop.api.financial_clearances.return_for_correction`, { method: 'POST', body: { id, data: { note } } }) },
+  async accountingList(module: 'requisitions' | 'quotations' | 'compare_sheets' | 'purchase_orders' | 'receipts' | 'invoices' | 'payments' | 'journals', company?: string): Promise<ApiListResponse<Record<string, unknown>>> {
+    return request(`/api/method/workshop.api.accounting.${module}.list${buildQuery({ company, pageSize: 100 })}`)
+  },
+  async accountingGet(module: 'requisitions' | 'quotations' | 'compare_sheets' | 'purchase_orders' | 'receipts' | 'invoices' | 'payments' | 'journals', id: string): Promise<Record<string, unknown>> {
+    return request(`/api/method/workshop.api.accounting.${module}.get${buildQuery({ id })}`)
+  },
+  async accountingCreate(module: 'requisitions' | 'quotations', data: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return request(`/api/method/workshop.api.accounting.${module}.create`, { method: 'POST', body: { data } })
+  },
+  async accountingWorkflow(id: string): Promise<Record<string, unknown>> {
+    return request(`/api/method/workshop.api.accounting.requisitions.workflow${buildQuery({ id })}`)
+  },
+  accountingPrintUrl(module: string, id: string): string {
+    const doctype: Record<string, string> = { requisitions: 'Material Request', quotations: 'Supplier Quotation', compare_sheets: 'CW Compare Sheet', purchase_orders: 'Purchase Order', receipts: 'Purchase Receipt', invoices: 'Purchase Invoice', payments: 'Payment Entry', journals: 'Journal Entry' }
+    return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.document?doctype=${encodeURIComponent(doctype[module] || module)}&name=${encodeURIComponent(id)}`
+  },
+  async accountingSubmit(module: 'requisitions' | 'quotations' | 'compare_sheets' | 'purchase_orders' | 'receipts' | 'invoices' | 'payments' | 'journals', id: string, reason?: string) {
+    return request(`/api/method/workshop.api.accounting.${module}.submit`, { method: 'POST', body: { id, data: { reason } } })
+  },
 
 }
