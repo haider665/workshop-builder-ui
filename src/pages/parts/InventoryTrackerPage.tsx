@@ -26,6 +26,7 @@ import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { useSessionStore } from '../../store/sessionStore'
+import { useCompanyStore } from '../../store/companyStore'
 import { matchesSearch } from '../../utils/search'
 
 /* ─────────────────────── Constants ─────────────────────────── */
@@ -134,6 +135,7 @@ export function InventoryTrackerPage() {
   const vehicles = useCwStore((s) => s.vehicles)
   const users = useCwStore((s) => s.users)
   const sessionUser = useSessionStore((s) => s.user)
+  const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
 
   const modelOptions = useMemo(
     () => [...new Set(vehicles.map((v) => v.modelVariant || v.model).filter(Boolean) as string[]), 'Universal'],
@@ -174,8 +176,11 @@ export function InventoryTrackerPage() {
   }
 
   useEffect(() => {
-    void loadInventory()
-  }, [])
+    // Company context is loaded asynchronously during authentication.  Do not
+    // issue inventory requests before it is selected: the backend correctly
+    // rejects company-scoped reads without an active company.
+    if (selectedCompanyId) void loadInventory()
+  }, [selectedCompanyId])
 
   /* ── Derived data ── */
 
