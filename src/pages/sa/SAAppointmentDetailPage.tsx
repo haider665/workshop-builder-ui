@@ -48,6 +48,7 @@ import { RequestMasterDataButton } from '../../components/RequestMasterDataButto
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { WhatsAppHistory } from '../../components/WhatsAppHistory'
 import { AppointmentNotesFeedback } from '../../components/AppointmentNotesFeedback'
+import { PresenceAutocomplete } from '../../components/PresenceAutocomplete'
 import { useToast } from '../../hooks/useToast'
 import { workshopApi } from '../../services/workshopApi'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
@@ -797,17 +798,8 @@ export function SAAppointmentDetailPage() {
               All services finished. Assign a QC inspector to verify the work before contacting the customer.
             </Typography>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-              <TextField
-                select size="small" label="QC Inspector"
-                value={selectedQCUserId}
-                onChange={(e) => setSelectedQCUserId(e.target.value)}
-                sx={{ minWidth: 250, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
-              >
-                <MenuItem value="">— Select QC —</MenuItem>
-                {activeQCUsers.map((u) => (
-                  <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>
-                ))}
-              </TextField>
+              <PresenceAutocomplete label="QC Inspector" users={activeQCUsers} value={selectedQCUserId}
+                onChange={setSelectedQCUserId} sx={{ minWidth: 250, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
               <Button
                 variant="contained" color="info"
                 disabled={!selectedQCUserId}

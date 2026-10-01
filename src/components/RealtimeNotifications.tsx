@@ -47,6 +47,19 @@ export function RealtimeNotifications() {
       } catch { /* API errors are already shown globally. */ }
     }
     const beat = () => { void workshopApi.userHeartbeat().catch(() => undefined) }
+    const refreshPresence = async () => {
+      try {
+        const result = await workshopApi.listUsers({ page: 1, pageSize: 100 })
+        if (!active) return
+        const freshUsers = result.data as Array<{ id: string; online?: boolean; lastSeenAt?: string | null }>
+        useCwStore.setState((state) => ({
+          users: state.users.map((user) => {
+            const fresh = freshUsers.find((candidate) => candidate.id === user.id)
+            return fresh ? { ...user, online: fresh.online, lastSeenAt: fresh.lastSeenAt } : user
+          }),
+        }))
+      } catch { /* presence is advisory and must never block the UI */ }
+    }
     // Frappe's reverse proxy exposes Socket.IO at the origin's `/socket.io`
     // endpoint, while the authenticated site is a Socket.IO namespace. The
     // namespace belongs in the client URL (the HTTP path remains `/socket.io`);
@@ -80,17 +93,19 @@ export function RealtimeNotifications() {
     }
     socket.on('cw_notification', receive)
     window.addEventListener('cw:notification-update', refreshData)
+    window.addEventListener('cw:presence-refresh', refreshPresence)
     socket.on('connect', refresh)
     socket.io.on('reconnect', refresh)
     void refresh()
     beat()
+    void refreshPresence()
     // Realtime is preferred, but a short bounded fallback keeps assignment
     // notifications usable during deploys or transient websocket failures.
     const fallback = window.setInterval(() => void refresh(), 10000)
-    const presence = window.setInterval(beat, 30000)
+    const presence = window.setInterval(() => { beat(); void refreshPresence() }, 30000)
     const visible = () => { if (document.visibilityState === 'visible') void refresh() }
     document.addEventListener('visibilitychange', visible)
-    return () => { active = false; window.clearInterval(fallback); window.clearInterval(presence); document.removeEventListener('visibilitychange', visible); window.removeEventListener('cw:notification-update', refreshData); socket.off('cw_notification', receive); socket.disconnect() }
+    return () => { active = false; window.clearInterval(fallback); window.clearInterval(presence); document.removeEventListener('visibilitychange', visible); window.removeEventListener('cw:notification-update', refreshData); window.removeEventListener('cw:presence-refresh', refreshPresence); socket.off('cw_notification', receive); socket.disconnect() }
   }, [hydrateFromBackend, selectedCompanyId, siteName, status])
   return null
 }

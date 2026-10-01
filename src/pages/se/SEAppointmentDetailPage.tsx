@@ -26,6 +26,7 @@ import { useBackendData } from '../../hooks/useCREData'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
+import { PresenceMultiAutocomplete } from '../../components/PresenceAutocomplete'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { colors, radii, shadows } from '../../theme/tokens'
 import { workshopApi } from '../../services/workshopApi'
@@ -396,17 +397,9 @@ export function SEAppointmentDetailPage() {
                         sx={{ '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
                       />
                       <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                        <TextField
-                          select size="small" label="Technicians"
-                          value={concernTechForm[c.id] ?? []}
-                          onChange={(e) => setConcernTechForm((prev) => ({ ...prev, [c.id]: e.target.value as unknown as string[] }))}
-                          slotProps={{ select: { multiple: true } }}
-                          sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
-                        >
-                          {activeUsers.map((u) => (
-                            <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>
-                          ))}
-                        </TextField>
+                        <PresenceMultiAutocomplete label="Technicians" users={activeUsers} value={concernTechForm[c.id] ?? []}
+                          onChange={(ids) => setConcernTechForm((prev) => ({ ...prev, [c.id]: ids }))}
+                          sx={{ minWidth: 260, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
                         <Button size="small" variant="contained" onClick={() => saveConcernTechnicians(c.id)}
                           sx={{ ...actionBtnSx, bgcolor: colors.slate[900], '&:hover': { bgcolor: colors.slate[800] } }}>
                           Assign
@@ -730,17 +723,9 @@ export function SEAppointmentDetailPage() {
                             {/* Assignment + status controls (only if not blocked) */}
                             {!isBlocked && stage.workStatus !== 'Completed' && (
                               <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                                <TextField
-                                  select size="small" label="Technicians"
-                                  value={serviceTechForm[stageKey] ?? []}
-                                  onChange={(e) => setServiceTechForm((prev) => ({ ...prev, [stageKey]: e.target.value as unknown as string[] }))}
-                                  slotProps={{ select: { multiple: true } }}
-                                  sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
-                                >
-                                  {activeUsers.map((u) => (
-                                    <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>
-                                  ))}
-                                </TextField>
+                                <PresenceMultiAutocomplete label="Technicians" users={activeUsers} value={serviceTechForm[stageKey] ?? []}
+                                  onChange={(ids) => setServiceTechForm((prev) => ({ ...prev, [stageKey]: ids }))}
+                                  sx={{ minWidth: 260, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
                                 <Button size="small" variant="contained" onClick={() => {
                                   const techs = serviceTechForm[stageKey] ?? []
                                   if (techs.length === 0) return

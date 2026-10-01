@@ -38,6 +38,7 @@ import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { WhatsAppHistory } from '../../components/WhatsAppHistory'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
+import { PresenceAutocomplete } from '../../components/PresenceAutocomplete'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { workshopApi } from '../../services/workshopApi'
@@ -505,11 +506,8 @@ export function AppointmentDetailPage() {
               No Service Advisor Assigned
             </Typography>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-              <TextField select size="small" label="Assign Service Advisor" value={selectedSAUserId}
-                onChange={(e) => setSelectedSAUserId(e.target.value)} sx={{ minWidth: 280, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}>
-                <MenuItem value="">— Select SA —</MenuItem>
-                {activeSAUsers.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)}
-              </TextField>
+              <PresenceAutocomplete label="Assign Service Advisor" users={activeSAUsers} value={selectedSAUserId}
+                onChange={setSelectedSAUserId} sx={{ minWidth: 280, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
               <Button variant="contained" disabled={!selectedSAUserId}
                 onClick={() => { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') }}
                 sx={{ bgcolor: colors.status.warning, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#d97706' } }}>

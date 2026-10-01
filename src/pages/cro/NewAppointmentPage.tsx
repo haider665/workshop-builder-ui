@@ -45,6 +45,7 @@ import { useCREData } from '../../hooks/useCREData'
 import type { CWConcern, CWCustomerType, CWService, CWVehicleCategory, CWVehicleSize } from '../../types/cw'
 import { useToast } from '../../hooks/useToast'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
+import { PresenceAutocomplete } from '../../components/PresenceAutocomplete'
 
 const HOURS = [
   '08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
@@ -1009,19 +1010,13 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
 
             {/* Service Advisor + Notes */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                select
-                size="small"
+              <PresenceAutocomplete
                 label="Assign Service Advisor"
+                users={saUsers}
                 value={saUserId}
-                onChange={(e) => setSaUserId(e.target.value)}
+                onChange={setSaUserId}
                 sx={{ flex: '1 1 200px', ...fieldSx }}
-              >
-                <MenuItem value="">— None —</MenuItem>
-                {saUsers.map((u) => (
-                  <MenuItem key={u.id} value={u.id}>{u.fullName}</MenuItem>
-                ))}
-              </TextField>
+              />
               <TextField
                 size="small"
                 label="Additional Note"

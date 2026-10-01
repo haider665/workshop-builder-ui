@@ -34,6 +34,7 @@ import { useBackendData } from '../../hooks/useCREData'
 import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
+import { PresenceAutocomplete } from '../../components/PresenceAutocomplete'
 import { headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 
@@ -898,21 +899,10 @@ export function JCAppointmentPage() {
                         <MenuItem value="">— Select Team —</MenuItem>
                         {teams.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
                       </TextField>
-                      <TextField
-                        select size="small" label="Service Engineer"
-                        value={form.seUserId}
-                        onChange={(e) => setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), seUserId: e.target.value } }))}
-                        sx={formFieldSx}
-                      >
-                        <MenuItem value="">— Select SE —</MenuItem>
-                        {(() => {
-                          const team = teams.find((t) => t.id === form.teamId)
-                          const filteredSEs = team
-                            ? seUsers.filter((u) => u.id === team.seUserId)
-                            : seUsers
-                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)
-                        })()}
-                      </TextField>
+                      <PresenceAutocomplete label="Service Engineer" value={form.seUserId}
+                        users={(() => { const team = teams.find((t) => t.id === form.teamId); return team ? seUsers.filter((u) => u.id === team.seUserId) : seUsers })()}
+                        onChange={(id) => setConcernForm((prev) => ({ ...prev, [c.id]: { ...getConcernFormVal(c.id), seUserId: id } }))}
+                        sx={formFieldSx} />
                       <TextField
                         select size="small" label="Bay"
                         value={form.bayId}
@@ -1104,21 +1094,10 @@ export function JCAppointmentPage() {
                         <MenuItem value="">— Select Team —</MenuItem>
                         {teams.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
                       </TextField>
-                      <TextField
-                        select size="small" label="Service Engineer"
-                        value={form.seUserId}
-                        onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), seUserId: e.target.value } }))}
-                        sx={formFieldSx}
-                      >
-                        <MenuItem value="">— Select SE —</MenuItem>
-                        {(() => {
-                          const team = teams.find((t) => t.id === form.teamId)
-                          const filteredSEs = team
-                            ? seUsers.filter((u) => u.id === team.seUserId)
-                            : seUsers
-                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)
-                        })()}
-                      </TextField>
+                      <PresenceAutocomplete label="Service Engineer" value={form.seUserId}
+                        users={(() => { const team = teams.find((t) => t.id === form.teamId); return team ? seUsers.filter((u) => u.id === team.seUserId) : seUsers })()}
+                        onChange={(id) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), seUserId: id } }))}
+                        sx={formFieldSx} />
                       <TextField
                         select size="small" label="Bay"
                         value={form.bayId}
@@ -1193,18 +1172,10 @@ export function JCAppointmentPage() {
                         <MenuItem value="">— Select Team —</MenuItem>
                         {teams.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
                       </TextField>
-                      <TextField
-                        select size="small" label="Service Engineer" value={form.seUserId}
-                        onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), seUserId: e.target.value } }))}
-                        sx={formFieldSx}
-                      >
-                        <MenuItem value="">— Select SE —</MenuItem>
-                        {(() => {
-                          const team = teams.find((t) => t.id === form.teamId)
-                          const filteredSEs = team ? seUsers.filter((u) => u.id === team.seUserId) : seUsers
-                          return filteredSEs.map((u) => <MenuItem key={u.id} value={u.id}>{u.fullName} {u.online ? '• Online' : '• Offline'}</MenuItem>)
-                        })()}
-                      </TextField>
+                      <PresenceAutocomplete label="Service Engineer" value={form.seUserId}
+                        users={(() => { const team = teams.find((t) => t.id === form.teamId); return team ? seUsers.filter((u) => u.id === team.seUserId) : seUsers })()}
+                        onChange={(id) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), seUserId: id } }))}
+                        sx={formFieldSx} />
                       <TextField
                         select size="small" label="Bay" value={form.bayId}
                         onChange={(e) => setServiceForm((prev) => ({ ...prev, [s.id]: { ...getServiceFormVal(s.id), bayId: e.target.value } }))}
