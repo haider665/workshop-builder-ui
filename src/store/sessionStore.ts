@@ -11,6 +11,8 @@ export type SessionUser = {
   capabilities: string[]
   rawRoleIds: string[]
   siteName?: string
+  isAdministrator: boolean
+  isWorkshopAdmin: boolean
 }
 
 type SessionStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous'
@@ -53,14 +55,19 @@ function roleFromBackend(session: AuthSessionDto): Role[] {
 }
 
 function toSessionUser(session: AuthSessionDto): SessionUser {
+  const rawRoleIds = session.user.roleIds ?? []
+  const isAdministrator = session.user.id === 'Administrator' || hasAnyRole(rawRoleIds, ['Administrator'])
+  const isWorkshopAdmin = hasAnyRole(rawRoleIds, ['Workshop Admin', 'Workshop Administrator'])
   return {
     id: session.user.id,
     name: session.user.fullName || session.user.id,
     email: session.user.email,
     roles: roleFromBackend(session),
     capabilities: session.capabilities ?? [],
-    rawRoleIds: session.user.roleIds ?? [],
+    rawRoleIds,
     siteName: session.siteName,
+    isAdministrator,
+    isWorkshopAdmin,
   }
 }
 

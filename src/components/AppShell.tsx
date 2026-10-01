@@ -136,7 +136,9 @@ export function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('cw.workshop.sidebar.collapsed') === 'true')
   const [footerCollapsed, setFooterCollapsed] = useState(() => localStorage.getItem('cw.workshop.sidebar.footer.collapsed') === 'true')
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(localStorage.getItem('cw.workshop.sidebar.sections') ?? '{}') as Record<string, boolean> } catch { return {} }
+    // Version the preference key so the new collapsed-by-default navigation is
+    // applied once for existing users instead of inheriting old open sections.
+    try { return JSON.parse(localStorage.getItem('cw.workshop.sidebar.sections.v2') ?? '{}') as Record<string, boolean> } catch { return {} }
   })
   const activeDrawerWidth = sidebarCollapsed && mdUp ? collapsedDrawerWidth : drawerWidth
   const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? window.location.origin).replace(/\/$/, '')
@@ -148,7 +150,7 @@ export function AppShell() {
 
   useEffect(() => { localStorage.setItem('cw.workshop.sidebar.collapsed', String(sidebarCollapsed)) }, [sidebarCollapsed])
   useEffect(() => { localStorage.setItem('cw.workshop.sidebar.footer.collapsed', String(footerCollapsed)) }, [footerCollapsed])
-  useEffect(() => { localStorage.setItem('cw.workshop.sidebar.sections', JSON.stringify(collapsedSections)) }, [collapsedSections])
+  useEffect(() => { localStorage.setItem('cw.workshop.sidebar.sections.v2', JSON.stringify(collapsedSections)) }, [collapsedSections])
 
   const navItems = useMemo<NavItem[]>(
     () => [
@@ -192,8 +194,8 @@ export function AppShell() {
       { kind: 'link', label: 'Call History', to: '/cre/calls', icon: <Phone />, anyOfRoles: ['CRE'] },
       { kind: 'link', label: 'Reminders', to: '/cre/reminders', icon: <NotificationsActive />, anyOfRoles: ['CRE'] },
       { kind: 'section', label: 'Admin Config', anyOfRoles: ['Admin'] },
-      { kind: 'link', label: 'Concerns', to: '/admin/concerns', icon: <AdminPanelSettings />, anyOfRoles: ['Admin'] },
-      { kind: 'link', label: 'Services', to: '/admin/services', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
+      { kind: 'link', label: 'Concerns', to: '/admin/concerns', icon: <AdminPanelSettings />, anyOfRoles: ['Admin', 'Service Advisor', 'Service Engineer'] },
+      { kind: 'link', label: 'Services', to: '/admin/services', icon: <ReceiptLong />, anyOfRoles: ['Admin', 'Service Advisor', 'Service Engineer'] },
       { kind: 'link', label: 'Teams', to: '/admin/teams', icon: <Groups />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Parts', to: '/admin/parts', icon: <Settings />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Part Requests', to: '/admin/part-requests', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
@@ -247,9 +249,13 @@ export function AppShell() {
     [],
   )
 
-  const allowedItems = navItems.filter(
-    (item) => user && (user.roles.includes('Admin') || item.anyOfRoles.some((r) => user.roles.includes(r))),
-  )
+  const adminOnly = Boolean(user?.roles.includes('Admin') && !user.isWorkshopAdmin && !user.isAdministrator)
+  const allowedItems = navItems.filter((item) => {
+    if (!user) return false
+    if (adminOnly) return item.kind === 'link' && item.anyOfRoles.includes('Admin') && ['Admin', 'Test Drives', 'Service Orders'].includes(item.label)
+    if (user.isAdministrator || user.isWorkshopAdmin) return true
+    return item.anyOfRoles.some((r) => user.roles.includes(r))
+  })
   const navigationGroups = useMemo(() => {
     const groups: Array<{ label: string; items: NavItem[] }> = [{ label: 'Workspace', items: [] }]
     for (const item of allowedItems) {
@@ -335,10 +341,10 @@ export function AppShell() {
         sx={{ px: 1.25, py: 1.5, overflowY: 'auto', flexGrow: 1 }}
       >
         {navigationGroups.map((group) => {
-          const sectionCollapsed = collapsedSections[group.label] === true
+          const sectionCollapsed = collapsedSections[group.label] ?? true
           return <Box key={group.label}>
-            {!sidebarCollapsed || !mdUp ? <ListItemButton onClick={() => setCollapsedSections((current) => ({ ...current, [group.label]: !sectionCollapsed }))} aria-expanded={!sectionCollapsed} sx={{ px: 1.25, pt: 2, pb: 0.5, color: sb.textFaint, '&:hover': { color: sb.text, bgcolor: 'transparent' } }}>
-              <ListItemText primary={<Typography component="h3" sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>{t(group.label)}</Typography>} />
+            {!sidebarCollapsed || !mdUp ? <ListItemButton onClick={() => setCollapsedSections((current) => ({ ...current, [group.label]: !sectionCollapsed }))} aria-expanded={!sectionCollapsed} sx={{ px: 1.25, pt: 1.75, pb: 0.75, mt: 0.5, borderRadius: '10px', color: sb.accent, bgcolor: 'rgba(255,255,255,.055)', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,.1)' } }}>
+              <ListItemText primary={<Typography component="h3" sx={{ fontSize: '0.76rem', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{t(group.label)}</Typography>} />
               {sectionCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}
             </ListItemButton> : null}
             <Collapse in={!sectionCollapsed || (sidebarCollapsed && mdUp)} timeout="auto">

@@ -389,6 +389,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
         notes: notes.trim(),
         concernItems: [
           ...concernItems.map((i) => ({
+            id: i.id,
             concernId: i.concernId,
             concernName: i.concernName,
             remark: i.remark,
@@ -397,6 +398,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
         ],
         serviceItems: [
           ...serviceItems.map((i) => ({
+            id: i.id,
             serviceId: i.serviceId,
             serviceCode: i.serviceCode,
             serviceDescription: i.serviceDescription,

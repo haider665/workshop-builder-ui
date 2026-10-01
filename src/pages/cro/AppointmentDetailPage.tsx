@@ -39,12 +39,13 @@ import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { WhatsAppHistory } from '../../components/WhatsAppHistory'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { PresenceAutocomplete } from '../../components/PresenceAutocomplete'
+import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { workshopApi } from '../../services/workshopApi'
 import { useToast } from '../../hooks/useToast'
 import { useSessionStore } from '../../store/sessionStore'
-import type { CWAppointmentComment, CWAppointmentFeedback } from '../../types/cw'
+import type { CWAppointmentComment, CWAppointmentFeedback, CWInspectionCheck, CWVehicleViewCheck } from '../../types/cw'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 
@@ -197,6 +198,9 @@ export function AppointmentDetailPage() {
   const activeQCUsers = useMemo(() => users.filter((u) => u.status === 'Active' && qcRoleId && u.roleIds.includes(qcRoleId)), [users, qcRoleId])
   const [selectedQCUserId, setSelectedQCUserId] = useState('')
   const [selectedSAUserId, setSelectedSAUserId] = useState('')
+  const [adminInspectionChecks, setAdminInspectionChecks] = useState<CWInspectionCheck[]>([])
+  const [adminVehicleViewChecks, setAdminVehicleViewChecks] = useState<CWVehicleViewCheck[]>([])
+  const [savingAdminInspection, setSavingAdminInspection] = useState(false)
   const [appointmentComments, setAppointmentComments] = useState<CWAppointmentComment[]>([])
   const [appointmentFeedback, setAppointmentFeedback] = useState<CWAppointmentFeedback[]>([])
   const [commentText, setCommentText] = useState('')
@@ -214,6 +218,8 @@ export function AppointmentDetailPage() {
   useEffect(() => {
     if (!appt?.id) return
     setNoteText(appt.notes || '')
+    setAdminInspectionChecks(appt.inspectionChecks ?? [])
+    setAdminVehicleViewChecks(appt.vehicleViewChecks ?? [])
     void Promise.all([
       workshopApi.listAppointmentComments(appt.id),
       workshopApi.listAppointmentFeedback(appt.id),
@@ -222,6 +228,17 @@ export function AppointmentDetailPage() {
       setAppointmentFeedback(feedbackResponse.data)
     }).catch((error) => toast.error(error, 'Could not load appointment comments and feedback.'))
   }, [appt?.id, appt?.notes, toast])
+
+  async function saveAdminInspection() {
+    if (!appt) return
+    try {
+      setSavingAdminInspection(true)
+      const updated = await workshopApi.submitAppointmentInspection({ appointmentId: appt.id, checks: adminInspectionChecks, vehicleViewChecks: adminVehicleViewChecks })
+      useCwStore.setState((state) => ({ appointments: state.appointments.map((item) => item.id === updated.id ? updated : item) }))
+      toast.success('Inspection and vehicle health check updated.')
+    } catch (error) { toast.error(error, 'Could not update the inspection.') }
+    finally { setSavingAdminInspection(false) }
+  }
 
   async function submitAppointmentComment() {
     if (!appt || !commentText.trim()) return
@@ -418,6 +435,18 @@ export function AppointmentDetailPage() {
 
         {/* ── Vehicle & Customer Info (collapsible) ── */}
         <VehicleInfoBanner appointmentId={appt.id} />
+
+        {canAdminEdit && (
+          <SectionCard title="Administrator workbook editing" icon={<Verified sx={{ fontSize: '1rem' }} />}>
+            <Typography sx={{ color: colors.slate[500], fontSize: '0.82rem', mb: 1.5 }}>
+              Administrators can correct the complete inspection and vehicle health check without changing the appointment workflow status.
+            </Typography>
+            <SAInspectionTabs checks={adminInspectionChecks} vehicleViewChecks={adminVehicleViewChecks} onChange={setAdminInspectionChecks} vehicle={vehicle} />
+            <Button variant="contained" disabled={savingAdminInspection} onClick={() => void saveAdminInspection()} sx={{ mt: 1.5, fontWeight: 800 }}>
+              {savingAdminInspection ? 'Saving inspection…' : 'Save inspection corrections'}
+            </Button>
+          </SectionCard>
+        )}
 
         {/* ── Summary Stat Cards ── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

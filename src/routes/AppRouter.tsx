@@ -98,6 +98,7 @@ export function AppRouter() {
 
           <Route element={<RequireRole anyOf={['Admin']} />}>
             <Route path="/admin/appointments" element={<AppointmentsPage />} />
+            <Route path="/admin/appointments/:appointmentId" element={<AppointmentDetailPage />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Parts', 'Admin']} />}>

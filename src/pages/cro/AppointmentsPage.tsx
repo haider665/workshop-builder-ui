@@ -361,7 +361,7 @@ export function AppointmentsPage() {
                         '& .MuiTableCell-body': bodyCellSx,
                         '&:hover': { background: colors.bg.cardHover },
                       }}
-                      onClick={() => navigate(`/cre/appointments/${appt.id}`)}
+                      onClick={() => navigate(`/admin/appointments/${appt.id}`)}
                     >
                       <TableCell>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900], fontFamily: 'monospace' }}>
@@ -412,7 +412,7 @@ export function AppointmentsPage() {
                           <IconButton
                             size="small"
                             component={RouterLink}
-                            to={`/cre/appointments/${appt.id}`}
+                            to={`/admin/appointments/${appt.id}`}
                             onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           >
                             <Visibility fontSize="small" sx={{ color: colors.slate[500] }} />

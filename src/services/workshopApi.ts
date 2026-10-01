@@ -1215,6 +1215,7 @@ export const workshopApi = {
   async submitAppointmentInspection(input: {
     appointmentId: string
     checks: import('../types/cw').CWInspectionCheck[]
+    vehicleViewChecks?: import('../types/cw').CWVehicleViewCheck[]
     actorName?: string
   }): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.submit_inspection', {
@@ -1223,6 +1224,7 @@ export const workshopApi = {
         data: {
           appointmentId: input.appointmentId,
           inspectionChecks: input.checks,
+          vehicleViewChecks: input.vehicleViewChecks,
           actorName: input.actorName,
         },
       },
