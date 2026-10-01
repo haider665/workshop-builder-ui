@@ -7,7 +7,6 @@ import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || window.location.origin).replace(/\/$/, '')
-const siteName = import.meta.env.VITE_SITE_NAME || new URL(apiBaseUrl, window.location.origin).hostname
 const socketOrigin = import.meta.env.VITE_SOCKET_URL || new URL(apiBaseUrl, window.location.origin).origin
 
 
@@ -35,6 +34,7 @@ function mergeNotification(notification: CWNotification, event = 'created') {
 
 export function RealtimeNotifications() {
   const status = useSessionStore((state) => state.status)
+  const siteName = useSessionStore((state) => state.user?.siteName || import.meta.env.VITE_SITE_NAME || '')
   const selectedCompanyId = useCompanyStore((state) => state.selectedCompanyId)
   const hydrateFromBackend = useCwStore((state) => state.hydrateFromBackend)
   useEffect(() => {
@@ -47,7 +47,25 @@ export function RealtimeNotifications() {
       } catch { /* API errors are already shown globally. */ }
     }
     const beat = () => { void workshopApi.userHeartbeat().catch(() => undefined) }
-    const socket = io(`${socketOrigin}/${siteName}`, { withCredentials: true, transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: Infinity })
+    // Frappe's reverse proxy exposes Socket.IO at the origin's `/socket.io`
+    // endpoint, while the authenticated site is a Socket.IO namespace. The
+    // namespace belongs in the client URL (the HTTP path remains `/socket.io`);
+    // using the public hostname as the namespace silently misses the user's
+    // private room when those two names differ.
+    const namespace = siteName ? `/${siteName.replace(/^\/+|\/+$/g, '')}` : undefined
+    const socket = io(namespace ? `${socketOrigin}${namespace}` : socketOrigin, {
+      path: import.meta.env.VITE_SOCKET_PATH || '/socket.io',
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      timeout: 10000,
+    })
+    socket.on('connect_error', (error) => {
+      // The polling refresh below is an intentional resilience path. Keep the
+      // error visible to diagnostics without interrupting the user's workflow.
+      console.warn('[workshop] realtime notifications unavailable; using polling fallback', error.message)
+    })
     const receive = (payload: CWNotification & { event?: string; description?: string; companyId?: string }) => {
       if (payload.companyId && selectedCompanyId && payload.companyId !== selectedCompanyId) return
       const notification = { ...payload, actionUrl: workshopRoute(payload), title: payload.title || payload.description || 'Notification', message: payload.message || payload.description || payload.title || '' }
@@ -66,11 +84,13 @@ export function RealtimeNotifications() {
     socket.io.on('reconnect', refresh)
     void refresh()
     beat()
-    const fallback = window.setInterval(() => void refresh(), 60000)
+    // Realtime is preferred, but a short bounded fallback keeps assignment
+    // notifications usable during deploys or transient websocket failures.
+    const fallback = window.setInterval(() => void refresh(), 10000)
     const presence = window.setInterval(beat, 30000)
     const visible = () => { if (document.visibilityState === 'visible') void refresh() }
     document.addEventListener('visibilitychange', visible)
     return () => { active = false; window.clearInterval(fallback); window.clearInterval(presence); document.removeEventListener('visibilitychange', visible); window.removeEventListener('cw:notification-update', refreshData); socket.off('cw_notification', receive); socket.disconnect() }
-  }, [hydrateFromBackend, selectedCompanyId, status])
+  }, [hydrateFromBackend, selectedCompanyId, siteName, status])
   return null
 }

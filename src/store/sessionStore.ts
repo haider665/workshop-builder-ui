@@ -10,6 +10,7 @@ export type SessionUser = {
   email: string
   capabilities: string[]
   rawRoleIds: string[]
+  siteName?: string
 }
 
 type SessionStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous'
@@ -59,6 +60,7 @@ function toSessionUser(session: AuthSessionDto): SessionUser {
     roles: roleFromBackend(session),
     capabilities: session.capabilities ?? [],
     rawRoleIds: session.user.roleIds ?? [],
+    siteName: session.siteName,
   }
 }
 

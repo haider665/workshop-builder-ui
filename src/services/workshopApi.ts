@@ -55,6 +55,7 @@ export type AuthSessionDto = {
   ok?: boolean
   user: CWUserDto
   capabilities: string[]
+  siteName?: string
 }
 
 type FrappeResponse<T> = {
