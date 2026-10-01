@@ -96,6 +96,10 @@ export function AppRouter() {
             <Route path="/admin/data-requests" element={<AdminDataRequestsPage />} />
           </Route>
 
+          <Route element={<RequireRole anyOf={['Admin']} />}>
+            <Route path="/admin/appointments" element={<AppointmentsPage />} />
+          </Route>
+
           <Route element={<RequireRole anyOf={['Parts', 'Admin']} />}>
             <Route path="/parts/inventory" element={<InventoryTrackerPage />} />
             <Route path="/parts/purchase-orders" element={<PurchaseOrdersPage />} />
@@ -141,7 +145,7 @@ export function AppRouter() {
           </Route>
 
           {/* Appointment detail: accessible to both CRO and Service Advisor */}
-          <Route element={<RequireRole anyOf={['CRE', 'Service Advisor']} />}>
+          <Route element={<RequireRole anyOf={['CRE', 'Service Advisor', 'Admin']} />}>
             <Route path="/cre/appointments/:appointmentId" element={<AppointmentDetailPage />} />
           </Route>
 

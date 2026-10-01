@@ -68,6 +68,7 @@ const sections: Section[] = [
       { title: 'Roles', desc: 'Role permissions', to: '/admin/roles', icon: <AdminPanelSettings /> },
       { title: 'F1 Config', desc: 'F1 configuration', to: '/admin/f1', icon: <Settings /> },
       { title: 'Reports', desc: 'Reports & analytics', to: '/admin/reports', icon: <Assessment /> },
+      { title: 'Appointments', desc: 'All appointment workbooks and remarks', to: '/admin/appointments', icon: <Assignment /> },
       { title: 'Data Requests', desc: 'Review missing master-data requests', to: '/admin/data-requests', icon: <AssignmentTurnedIn /> },
     ],
   },

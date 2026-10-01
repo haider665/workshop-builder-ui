@@ -27,6 +27,7 @@ import {
   ReportProblem,
   Send,
   Verified,
+  Print,
 } from '@mui/icons-material'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -40,6 +41,7 @@ import { useCwStore } from '../../store/cwStore'
 import { useCREData } from '../../hooks/useCREData'
 import { workshopApi } from '../../services/workshopApi'
 import { useToast } from '../../hooks/useToast'
+import { useSessionStore } from '../../store/sessionStore'
 import type { CWAppointmentComment, CWAppointmentFeedback } from '../../types/cw'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
@@ -123,6 +125,8 @@ export function AppointmentDetailPage() {
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
   const users = useCwStore((s) => s.users)
+  const sessionUser = useSessionStore((s) => s.user)
+  const canAdminEdit = Boolean(sessionUser?.roles.includes('Admin'))
   const bays = useCwStore((s) => s.bays)
   const catalogServices = useCwStore((s) => s.services)
   const partRequests = useCwStore((s) => s.partRequests)
@@ -392,14 +396,15 @@ export function AppointmentDetailPage() {
                 </Typography>
               </Stack>
               <Chip label={appt.status} color={statusColor(appt.status)} size="small" sx={{ fontWeight: 700, fontSize: '0.72rem', mt: 0.5 }} />
-              {appt.status === 'Draft' && (
+              {(appt.status === 'Draft' || canAdminEdit) && (
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                  <Button size="small" variant="outlined" onClick={() => navigate(`/cre/appointments/new?appointmentId=${encodeURIComponent(appt.id)}`)} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Edit Draft</Button>
-                  <Button size="small" variant="contained" onClick={() => void setAppointmentStatus(appt.id, 'New')} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Submit Appointment</Button>
+                  <Button size="small" variant="outlined" onClick={() => navigate(`/cre/appointments/new?appointmentId=${encodeURIComponent(appt.id)}`)} sx={{ fontWeight: 800, borderRadius: radii.sm }}>{appt.status === 'Draft' ? 'Edit Draft' : 'Admin Edit Appointment'}</Button>
+                  {appt.status === 'Draft' && <Button size="small" variant="contained" onClick={() => void setAppointmentStatus(appt.id, 'New')} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Submit Appointment</Button>}
                 </Stack>
               )}
             </Box>
           </Stack>
+          <Button variant="contained" startIcon={<Print />} onClick={() => window.open(workshopApi.appointmentSheetPrintUrl(appt.id), '_blank', 'noopener,noreferrer')} sx={{ fontWeight: 800, borderRadius: radii.sm }}>Appointment Sheet</Button>
         </Stack>
 
         {/* ── Workflow Timeline ── */}

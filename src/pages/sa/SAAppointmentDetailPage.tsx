@@ -454,6 +454,9 @@ export function SAAppointmentDetailPage() {
             </Box>
           </Stack>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button variant="contained" startIcon={<Print />} onClick={() => window.open(workshopApi.appointmentSheetPrintUrl(appt.id), '_blank', 'noopener,noreferrer')} sx={{ borderRadius: radii.sm, fontWeight: 800 }}>
+              Appointment Sheet
+            </Button>
             <Button variant="outlined" startIcon={<AssignmentTurnedIn />} onClick={() => void openJobCard()} sx={{ borderRadius: radii.sm, fontWeight: 800 }}>
               Job Card
             </Button>

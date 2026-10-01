@@ -16,7 +16,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { ArrowBack, ExpandMore, Warning, Build, MedicalServices, DirectionsCar, AddCircleOutlined, LocalShipping } from '@mui/icons-material'
+import { ArrowBack, ExpandMore, Warning, Build, MedicalServices, DirectionsCar, AddCircleOutlined, LocalShipping, Print } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
@@ -27,6 +27,7 @@ import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { colors, radii, shadows } from '../../theme/tokens'
+import { workshopApi } from '../../services/workshopApi'
 import type { CWConcernWorkStatus, CWServiceWorkStatus } from '../../types/cw'
 
 function fmtBDT(n: number) {
@@ -252,7 +253,10 @@ export function SEAppointmentDetailPage() {
               </Typography>
             </Box>
           </Stack>
-          <Chip label={appt.status} color="primary" sx={{ fontWeight: 700, fontSize: '0.78rem', borderRadius: radii.full }} />
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button variant="contained" startIcon={<Print />} onClick={() => window.open(workshopApi.appointmentSheetPrintUrl(appt.id), '_blank', 'noopener,noreferrer')} sx={{ borderRadius: radii.sm, fontWeight: 800 }}>Appointment Sheet</Button>
+            <Chip label={appt.status} color="primary" sx={{ fontWeight: 700, fontSize: '0.78rem', borderRadius: radii.full }} />
+          </Stack>
         </Stack>
 
         {/* ── Vehicle + Customer Summary Card ── */}

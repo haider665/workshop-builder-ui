@@ -198,6 +198,7 @@ export function AppShell() {
       { kind: 'link', label: 'Parts', to: '/admin/parts', icon: <Settings />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Part Requests', to: '/admin/part-requests', icon: <ReceiptLong />, anyOfRoles: ['Admin'] },
       { kind: 'link', label: 'Reports', to: '/admin/reports', icon: <Assignment />, anyOfRoles: ['Admin'] },
+      { kind: 'link', label: 'Appointments', to: '/admin/appointments', icon: <Assignment />, anyOfRoles: ['Admin'] },
 
       { kind: 'section', label: 'Parts Department', anyOfRoles: ['Parts', 'Admin'] },
       { kind: 'link', label: 'Purchase Module', to: '/parts/purchase-orders', icon: <ShoppingCart />, anyOfRoles: ['Parts', 'Admin'] },

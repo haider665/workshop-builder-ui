@@ -189,7 +189,7 @@ export function NewAppointmentPage({ initialPendingVehicleId, initialVehicleId, 
   useEffect(() => {
     if (!editAppointmentId) return
     const draft = appointments.find((item) => item.id === editAppointmentId)
-    if (!draft || draft.status !== 'Draft') return
+    if (!draft) return
     const customer = customers.find((item) => item.id === draft.customerId) ?? null
     const vehicle = vehicles.find((item) => item.id === draft.vehicleId) ?? null
     setSelectedCustomer(customer)

@@ -1385,6 +1385,10 @@ export const workshopApi = {
   jobCardPrintUrl(name: string): string {
     return apiBaseUrl + '/api/method/workshop.api.accounting.printing.job_card?doctype=CW%20Job&name=' + encodeURIComponent(name)
   },
+
+  appointmentSheetPrintUrl(appointmentId: string): string {
+    return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.appointment_sheet?appointment=${encodeURIComponent(appointmentId)}`
+  },
   workshopDocumentPrintUrl(doctype: 'Sales Order' | 'Sales Invoice', name: string): string {
     return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.workshop_document?doctype=${encodeURIComponent(doctype)}&name=${encodeURIComponent(name)}`
   },

@@ -20,6 +20,7 @@ import {
   ReportProblem,
   Verified,
   Build,
+  Print,
 } from '@mui/icons-material'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -30,6 +31,7 @@ import { WorkflowTimeline } from '../../components/WorkflowTimeline'
 import { VehicleInfoBanner } from '../../components/VehicleInfoBanner'
 import { SAInspectionTabs } from '../../components/SAInspectionTabs'
 import { colors, radii, shadows } from '../../theme/tokens'
+import { workshopApi } from '../../services/workshopApi'
 import type { QCItemVerification } from '../../store/cwStore'
 
 function fmtBDT(n: number) {
@@ -152,7 +154,7 @@ export function QCAppointmentDetailPage() {
               </Typography>
             </Box>
           </Stack>
-          <Chip label={appt.status} color="primary" sx={{ fontWeight: 800, fontSize: '0.78rem', alignSelf: { xs: 'flex-start', md: 'center' } }} />
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}><Button variant="contained" startIcon={<Print />} onClick={() => window.open(workshopApi.appointmentSheetPrintUrl(appt.id), '_blank', 'noopener,noreferrer')} sx={{ fontWeight: 800 }}>Appointment Sheet</Button><Chip label={appt.status} color="primary" sx={{ fontWeight: 800, fontSize: '0.78rem', alignSelf: { xs: 'flex-start', md: 'center' } }} /></Stack>
         </Stack>
 
         {/* Vehicle + Customer Info card */}
