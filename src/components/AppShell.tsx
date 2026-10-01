@@ -691,7 +691,11 @@ export function AppShell() {
               position: 'sticky',
               top: { xs: 56, md: 0 },
               zIndex: 10,
-              overflowX: 'auto',
+              // Keep the header content compact, but do not clip anchored
+              // menus. The notification panel is positioned from the action
+              // group below; overflow-x:auto causes browsers to clip it into
+              // the navbar instead of allowing it to float over the page.
+              overflow: 'visible',
               whiteSpace: 'nowrap',
             }}
           >
@@ -718,7 +722,7 @@ export function AppShell() {
               </Tooltip>
               <Tooltip title={t('My profile')}><IconButton component="a" href={`${mainSystemUrl}/my-profile`} aria-label={t('My profile')} size="small" sx={{ color: 'text.secondary' }}><PersonOutlined sx={{ fontSize: 20 }} /></IconButton></Tooltip>
               <Tooltip title={t('Logout')}><IconButton onClick={logout} aria-label={t('Logout')} size="small" sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'error.50' } }}><Logout sx={{ fontSize: 18 }} /></IconButton></Tooltip>
-              {notificationMenuOpen ? <Box role="dialog" aria-label={t('Recent notifications')} sx={{ position: 'absolute', top: 38, right: 0, width: { xs: 'calc(100vw - 24px)', sm: 370 }, maxWidth: 370, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', borderRadius: 3, boxShadow: '0 22px 60px rgba(15,23,42,.18)', overflow: 'hidden', zIndex: 1400, whiteSpace: 'normal' }}>
+              {notificationMenuOpen ? <Box role="dialog" aria-label={t('Recent notifications')} sx={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: { xs: 'calc(100vw - 24px)', sm: 370 }, maxWidth: 370, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', borderRadius: 3, boxShadow: '0 22px 60px rgba(15,23,42,.18)', overflow: 'hidden', zIndex: 1400, whiteSpace: 'normal' }}>
                 <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}><Typography sx={{ fontSize: 14, fontWeight: 900 }}>{t('Notifications')}</Typography><Typography sx={{ ml: 'auto', fontSize: 11, color: 'text.secondary' }}>{unreadCount} {t('unread')}</Typography></Box>
                 <Box sx={{ maxHeight: 360, overflowY: 'auto' }}>
                   {recentNotifications.length ? recentNotifications.map((notification) => <Box key={notification.id} component="button" type="button" onClick={() => openNotification(notification)} sx={{ width: '100%', border: 0, borderBottom: '1px solid', borderColor: 'divider', bgcolor: notification.read ? '#fff' : 'rgba(37,99,235,.045)', p: 1.5, display: 'block', textAlign: 'left', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}><Typography sx={{ fontSize: 12.5, fontWeight: notification.read ? 700 : 900, color: 'text.primary' }}>{notification.title}</Typography><Typography sx={{ mt: .35, fontSize: 11.5, lineHeight: 1.45, color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{notification.message}</Typography></Box>) : <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary', fontSize: 12 }}>{t('No notifications yet')}</Typography>}
