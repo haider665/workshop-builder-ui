@@ -9,6 +9,7 @@ type PresenceAutocompleteProps = {
   onChange: (id: string) => void
   disabled?: boolean
   sx?: SxProps<Theme>
+  roleNames?: Map<string, string>
 }
 
 type PresenceMultiAutocompleteProps = Omit<PresenceAutocompleteProps, 'value' | 'onChange'> & {
@@ -19,7 +20,7 @@ type PresenceMultiAutocompleteProps = Omit<PresenceAutocompleteProps, 'value' | 
 /** Searchable assignee picker shared by every workshop role. Presence is
  * refreshed by RealtimeNotifications and is deliberately shown in the list,
  * not used as a hard filter (offline users can still be scheduled). */
-export function PresenceAutocomplete({ label, users, value, onChange, disabled, sx }: PresenceAutocompleteProps) {
+export function PresenceAutocomplete({ label, users, value, onChange, disabled, sx, roleNames }: PresenceAutocompleteProps) {
   const selected = users.find((user) => user.id === value) ?? null
   return (
     <Autocomplete<CWUser>
@@ -35,7 +36,7 @@ export function PresenceAutocomplete({ label, users, value, onChange, disabled, 
       filterOptions={(options, state) => {
         const query = state.inputValue.trim().toLocaleLowerCase()
         if (!query) return options
-        return options.filter((user) => [user.fullName, user.email, user.mobile, user.id]
+        return options.filter((user) => [user.fullName, user.email, user.mobile, user.id, ...(user.roleIds ?? []).map((id) => roleNames?.get(id) ?? id)]
           .filter(Boolean).some((field) => String(field).toLocaleLowerCase().includes(query)))
       }}
       renderOption={(props, user) => (
@@ -43,7 +44,7 @@ export function PresenceAutocomplete({ label, users, value, onChange, disabled, 
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="body2" noWrap>{user.fullName || user.email}</Typography>
             <Typography variant="caption" color="text.secondary" noWrap>
-              {[user.email, user.mobile].filter(Boolean).join(' · ')}
+              {[...(user.roleIds ?? []).map((id) => roleNames?.get(id) ?? id), user.email, user.mobile].filter(Boolean).join(' · ')}
             </Typography>
           </Box>
           <Chip size="small" label={user.online ? 'Online' : 'Offline'} color={user.online ? 'success' : 'default'} variant={user.online ? 'filled' : 'outlined'} />

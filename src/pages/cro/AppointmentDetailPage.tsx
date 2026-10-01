@@ -228,6 +228,8 @@ export function AppointmentDetailPage() {
   const technicianRoleId = useMemo(() => roles.find((r) => r.name === 'Technician')?.id, [roles])
   const activeSEUsers = useMemo(() => users.filter((u) => u.status === 'Active' && seRoleId && u.roleIds.includes(seRoleId)), [users, seRoleId])
   const activeTechnicians = useMemo(() => users.filter((u) => u.status === 'Active' && technicianRoleId && u.roleIds.includes(technicianRoleId)), [users, technicianRoleId])
+  const assignableWorkUsers = useMemo(() => [...activeSEUsers, ...activeTechnicians].filter((item, index, list) => list.findIndex((entry) => entry.id === item.id) === index), [activeSEUsers, activeTechnicians])
+  const roleNames = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles])
   const assignedSA = useMemo(() => (appt ? users.find((u) => u.id === appt.assignedSAUserId) : null), [users, appt])
 
   useEffect(() => {
@@ -552,13 +554,13 @@ export function AppointmentDetailPage() {
             <Stack spacing={1.25}>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
                 <TextField select fullWidth label="Concern" value={adminConcernTargetId} onChange={(event) => setAdminConcernTargetId(event.target.value)}><MenuItem value="">Select concern</MenuItem>{(appt.concernItems ?? []).map((item) => <MenuItem key={item.id} value={item.id}>{item.concernName}</MenuItem>)}</TextField>
-                <TextField select fullWidth label="Technician / Service Engineer" value={adminAssignmentUserId} onChange={(event) => setAdminAssignmentUserId(event.target.value)}><MenuItem value="">Select user</MenuItem>{[...activeSEUsers, ...activeTechnicians].filter((item, index, list) => list.findIndex((entry) => entry.id === item.id) === index).map((item) => <MenuItem key={item.id} value={item.id}>{item.fullName}</MenuItem>)}</TextField>
+                <PresenceAutocomplete label="Technician / Service Engineer" users={assignableWorkUsers} value={adminAssignmentUserId} onChange={setAdminAssignmentUserId} roleNames={roleNames} sx={{ flex: 1 }} />
                 <Button variant="outlined" onClick={() => void assignAdminSE('concern')} disabled={!adminConcernTargetId || !adminAssignmentUserId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Assign SE</Button>
                 <Button variant="outlined" onClick={() => void assignAdminTechnician('concern')} disabled={!adminConcernTargetId || !adminAssignmentUserId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Assign Technician</Button>
               </Stack>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
                 <TextField select fullWidth label="Service" value={adminServiceTargetId} onChange={(event) => setAdminServiceTargetId(event.target.value)}><MenuItem value="">Select service</MenuItem>{(appt.serviceItems ?? []).map((item) => <MenuItem key={item.id} value={item.id}>{item.serviceDescription}</MenuItem>)}</TextField>
-                <TextField select fullWidth label="Technician / Engineer" value={adminAssignmentUserId} onChange={(event) => setAdminAssignmentUserId(event.target.value)}><MenuItem value="">Select user</MenuItem>{[...activeSEUsers, ...activeTechnicians].filter((item, index, list) => list.findIndex((entry) => entry.id === item.id) === index).map((item) => <MenuItem key={item.id} value={item.id}>{item.fullName}</MenuItem>)}</TextField>
+                <PresenceAutocomplete label="Technician / Service Engineer" users={assignableWorkUsers} value={adminAssignmentUserId} onChange={setAdminAssignmentUserId} roleNames={roleNames} sx={{ flex: 1 }} />
                 <Button variant="outlined" onClick={() => void assignAdminSE('service')} disabled={!adminServiceTargetId || !adminAssignmentUserId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Assign SE</Button>
                 <Button variant="outlined" onClick={() => void assignAdminTechnician('service')} disabled={!adminServiceTargetId || !adminAssignmentUserId || !adminChangeReason.trim()} sx={{ minWidth: 170, fontWeight: 800 }}>Assign Technician</Button>
               </Stack>
@@ -662,7 +664,7 @@ export function AppointmentDetailPage() {
             </Typography>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <PresenceAutocomplete label="Assign Service Advisor" users={activeSAUsers} value={selectedSAUserId}
-                onChange={setSelectedSAUserId} sx={{ minWidth: 280, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
+                onChange={setSelectedSAUserId} roleNames={roleNames} sx={{ minWidth: 280, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }} />
               <Button variant="contained" disabled={!selectedSAUserId || (canAdminEdit && !adminChangeReason.trim())}
                 onClick={() => { if (canAdminEdit) void assignAdminSA(); else { assignSA(appt.id, selectedSAUserId); setSelectedSAUserId('') } }}
                 sx={{ bgcolor: colors.status.warning, fontWeight: 600, borderRadius: '10px', px: 2.5, '&:hover': { bgcolor: '#d97706' } }}>
@@ -673,7 +675,7 @@ export function AppointmentDetailPage() {
         ) : (
           <SectionCard title="Service Advisor" icon={<Person sx={{ fontSize: '1rem' }} />}>
             <InfoRow label="Assigned SA" value={<strong>{assignedSA?.fullName ?? appt.assignedSAUserId}</strong>} />
-            {canAdminEdit && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}><PresenceAutocomplete label="Reassign Service Advisor" users={activeSAUsers} value={selectedSAUserId} onChange={setSelectedSAUserId} sx={{ flex: 1 }} /><Button variant="outlined" onClick={() => void assignAdminSA()} disabled={!selectedSAUserId || !adminChangeReason.trim()} sx={{ fontWeight: 800 }}>Reassign</Button></Stack>}
+            {canAdminEdit && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}><PresenceAutocomplete label="Reassign Service Advisor" users={activeSAUsers} value={selectedSAUserId} onChange={setSelectedSAUserId} roleNames={roleNames} sx={{ flex: 1 }} /><Button variant="outlined" onClick={() => void assignAdminSA()} disabled={!selectedSAUserId || !adminChangeReason.trim()} sx={{ fontWeight: 800 }}>Reassign</Button></Stack>}
           </SectionCard>
         )}
 
