@@ -116,8 +116,8 @@ export function AppRouter() {
           </Route>
 
           <Route element={<RequireRole anyOf={['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Procurement', 'Procurement User', 'Procurement Manager', 'Accounts', 'Accounts User', 'Accounts Manager', 'Admin']} />}>
-            <Route path="/procurement" element={<FinanceWorkspacePage initialTab="procurement" />} />
-            <Route path="/accounting" element={<FinanceWorkspacePage initialTab="accounting" />} />
+            <Route path="/procurement" element={<FinanceWorkspacePage workspace="procurement" initialTab="procurement" />} />
+            <Route path="/accounting" element={<FinanceWorkspacePage workspace="accounting" initialTab="accounting" />} />
           </Route>
 
           <Route element={<RequireRole anyOf={['Guard']} />}>

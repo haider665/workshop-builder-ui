@@ -2268,6 +2268,21 @@ export const workshopApi = {
   async accountingCreate(module: 'requisitions' | 'quotations', data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request(`/api/method/workshop.api.accounting.${module}.create`, { method: 'POST', body: { data } })
   },
+  async accountingCreatePayment(data: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.payments.create', { method: 'POST', body: { data } })
+  },
+  async accountingItems(search?: string): Promise<ApiListResponse<{ id: string; itemCode: string; itemName: string; uom?: string }>> {
+    return request(`/api/method/workshop.api.accounting.items${buildQuery({ search, pageSize: 100 })}`)
+  },
+  async accountingSuppliers(search?: string): Promise<ApiListResponse<{ id: string; name: string; type?: string }>> {
+    return request(`/api/method/workshop.api.accounting.suppliers${buildQuery({ search, pageSize: 100 })}`)
+  },
+  async accountingAccounts(company?: string): Promise<ApiListResponse<{ id: string; name: string; type?: string; company?: string }>> {
+    return request(`/api/method/workshop.api.accounting.accounts${buildQuery({ company, pageSize: 100 })}`)
+  },
+  async accountingPaymentModes(): Promise<ApiListResponse<{ id: string; name: string; type?: string }>> {
+    return request('/api/method/workshop.api.accounting.payments.modes')
+  },
   async accountingWorkflow(id: string): Promise<Record<string, unknown>> {
     return request(`/api/method/workshop.api.accounting.requisitions.workflow${buildQuery({ id })}`)
   },
