@@ -16,9 +16,10 @@ import {
   Skeleton,
   Stack,
   TextField,
+  Popover,
 } from '@mui/material'
-import { Download, Search } from '@mui/icons-material'
-import { useState, useMemo } from 'react'
+import { Download, FilterList, Search } from '@mui/icons-material'
+import { useEffect, useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { Children, cloneElement, isValidElement } from 'react'
 import type { ReactNode } from 'react'
@@ -86,8 +87,15 @@ type DataTableProps<T> = {
   searchPlaceholder?: string
   enableExport?: boolean
   exportFilename?: string
+  /** Stable browser-storage namespace for pagination, search, and filters. */
+  storageKey?: string
   onRowClick?: (row: T) => void
   toolbarActions?: ReactNode
+}
+
+function dataTableColumnValue<T>(column: Column<T>, row: T): string {
+  const value = column.searchValue?.(row) ?? column.sortValue?.(row) ?? (row as Record<string, unknown>)[column.key]
+  return value == null ? '' : String(value)
 }
 
 /* ─────────────────────── Component ─────────────────────── */
@@ -108,6 +116,7 @@ export function DataTable<T>({
   searchPlaceholder = 'Search records…',
   enableExport = true,
   exportFilename = 'records.csv',
+  storageKey,
   onRowClick,
   toolbarActions,
 }: DataTableProps<T>) {
@@ -117,24 +126,45 @@ export function DataTable<T>({
 
   /* ── Pagination state ── */
   const [page, setPage] = useState(0)
-  const pageSizeStorageKey = `cw.table.pageSize.${exportFilename || searchPlaceholder}`
+  const tableStorageKey = storageKey || exportFilename || searchPlaceholder
+  const pageSizeStorageKey = `cw.table.pageSize.${tableStorageKey}`
+  const queryStorageKey = `cw.table.query.${tableStorageKey}`
+  const filterFieldStorageKey = `cw.table.filterField.${tableStorageKey}`
+  const filterValueStorageKey = `cw.table.filterValue.${tableStorageKey}`
   const [rowsPerPage, setRowsPerPage] = useState(() => {
     const saved = Number(window.localStorage.getItem(pageSizeStorageKey))
     return pageSizeOptions.includes(saved) ? saved : initialPageSize
   })
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => window.localStorage.getItem(queryStorageKey) || '')
+  const [filterField, setFilterField] = useState(() => window.localStorage.getItem(filterFieldStorageKey) || '')
+  const [filterValue, setFilterValue] = useState(() => window.localStorage.getItem(filterValueStorageKey) || '')
   const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null)
+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    window.localStorage.setItem(pageSizeStorageKey, String(rowsPerPage))
+    if (query) window.localStorage.setItem(queryStorageKey, query)
+    else window.localStorage.removeItem(queryStorageKey)
+    if (filterField) window.localStorage.setItem(filterFieldStorageKey, filterField)
+    else window.localStorage.removeItem(filterFieldStorageKey)
+    if (filterValue) window.localStorage.setItem(filterValueStorageKey, filterValue)
+    else window.localStorage.removeItem(filterValueStorageKey)
+  }, [rowsPerPage, query, filterField, filterValue, pageSizeStorageKey, queryStorageKey, filterFieldStorageKey, filterValueStorageKey])
+
+  const filterColumns = useMemo(() => columns.filter((column) => column.searchValue || column.sortValue || column.key), [columns])
+  const activeFilterColumn = filterColumns.find((column) => column.key === filterField)
 
   const filteredRows = useMemo(() => {
-    if (!query.trim()) return rows
     return rows.filter((row) => {
+      if (activeFilterColumn && filterValue.trim() && !matchesSearch(dataTableColumnValue(activeFilterColumn, row), filterValue)) return false
+      if (!query.trim()) return true
       const explicit = columns.flatMap((column) => {
         const value = column.searchValue?.(row) ?? column.sortValue?.(row)
         return value == null ? [] : [String(value)]
       })
       return matchesSearch([...explicit, row], query)
     })
-  }, [columns, query, rows])
+  }, [activeFilterColumn, columns, filterValue, query, rows])
 
   /* ── Handle sort toggle ── */
   const handleSort = (colKey: string) => {
@@ -228,7 +258,22 @@ export function DataTable<T>({
     >
       {(searchable || enableExport || toolbarActions) ? <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ p: { xs: 1.25, sm: 1.5 }, alignItems: { sm: 'center' }, justifyContent: 'space-between', borderBottom: `1px solid ${colors.border.subtle}` }}>
         {searchable ? <TextField size="small" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder={searchPlaceholder} sx={{ width: { xs: '100%', sm: 300 }, '& .MuiOutlinedInput-root': { borderRadius: 2 } }} slotProps={{ htmlInput: { 'aria-label': searchPlaceholder }, input: { startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> } }} /> : <Box />}
-        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>{toolbarActions}{enableExport ? <><Button size="small" variant="outlined" startIcon={<Download />} onClick={(event) => setExportAnchor(event.currentTarget)} disabled={!sortedRows.length}>Export</Button><Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}><MenuItem onClick={() => { exportCsv(); setExportAnchor(null) }}>CSV file</MenuItem><MenuItem onClick={() => { exportExcel(); setExportAnchor(null) }}>Excel workbook</MenuItem><MenuItem onClick={() => { exportPdf(); setExportAnchor(null) }}>Print / PDF</MenuItem></Menu></> : null}</Stack>
+        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          {toolbarActions}
+          <Button size="small" variant={filterField && filterValue ? 'contained' : 'outlined'} startIcon={<FilterList />} onClick={(event) => setFilterAnchor(event.currentTarget)}>{filterField && filterValue ? 'Filter active' : 'Filter'}</Button>
+          <Popover open={Boolean(filterAnchor)} anchorEl={filterAnchor} onClose={() => setFilterAnchor(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+            <Box sx={{ p: 2, width: { xs: 280, sm: 340 } }}>
+              <Typography sx={{ fontWeight: 700, mb: 1.25 }}>Filter records</Typography>
+              <TextField select fullWidth size="small" label="Field" value={filterField} onChange={(event) => { setFilterField(event.target.value); setFilterValue(''); setPage(0) }}>
+                <MenuItem value="">All fields</MenuItem>
+                {filterColumns.map((column) => <MenuItem key={column.key} value={column.key}>{column.header}</MenuItem>)}
+              </TextField>
+              <TextField fullWidth size="small" label="Contains" value={filterValue} disabled={!filterField} onChange={(event) => { setFilterValue(event.target.value); setPage(0) }} sx={{ mt: 1.25 }} />
+              <Button size="small" sx={{ mt: 1 }} disabled={!filterField && !filterValue} onClick={() => { setFilterField(''); setFilterValue(''); setPage(0) }}>Clear filter</Button>
+            </Box>
+          </Popover>
+          {enableExport ? <><Button size="small" variant="outlined" startIcon={<Download />} onClick={(event) => setExportAnchor(event.currentTarget)} disabled={!sortedRows.length}>Export</Button><Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}><MenuItem onClick={() => { exportCsv(); setExportAnchor(null) }}>CSV file</MenuItem><MenuItem onClick={() => { exportExcel(); setExportAnchor(null) }}>Excel workbook</MenuItem><MenuItem onClick={() => { exportPdf(); setExportAnchor(null) }}>Print / PDF</MenuItem></Menu></> : null}
+        </Stack>
       </Stack> : null}
       <TableContainer sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <Table

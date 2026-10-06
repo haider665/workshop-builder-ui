@@ -43,7 +43,7 @@ export function EmployeeRecordsPage() {
     if (!q) return base
     return base.filter((u) => u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
   }, [users, query])
-  const { pageRows, pagination } = useListPagination(filteredUsers)
+  const { pageRows, pagination } = useListPagination(filteredUsers, 10, 'records.employees')
 
   function tasksAssignedTo(userFullName: string) {
     return tasks.filter((t) => {

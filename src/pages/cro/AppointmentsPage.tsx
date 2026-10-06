@@ -209,7 +209,7 @@ export function AppointmentsPage() {
       return true
     })
   }, [appointments, customers, vehicles, query, filterStatus])
-  const { pageRows, pagination } = useListPagination(filtered)
+  const { pageRows, pagination } = useListPagination(filtered, 10, 'cro.appointments')
 
   // Stats
   const totalCount = appointments.length

@@ -292,7 +292,10 @@ export function CroHome() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [appointmentPage, setAppointmentPage] = useState(0)
-  const [appointmentRowsPerPage, setAppointmentRowsPerPage] = useState(25)
+  const [appointmentRowsPerPage, setAppointmentRowsPerPage] = useState(() => {
+    const saved = Number(window.localStorage.getItem('cw.table.pageSize.cro.dashboard-appointments'))
+    return [10, 25, 50, 100].includes(saved) ? saved : 25
+  })
   const [exportFrom, setExportFrom] = useState('')
   const [exportTo, setExportTo] = useState('')
   const [appointmentComposerOpen, setAppointmentComposerOpen] = useState(false)
@@ -373,6 +376,7 @@ export function CroHome() {
       const customer = customers.find((c) => c.id === a.customerId)
       const advisor = a.assignedSAUserId ? users.find((u) => u.id === a.assignedSAUserId) : undefined
       const reasons = a.concernItems?.map((item) => item.concernName).filter(Boolean).join(', ') || a.concerns || a.notes || ''
+      const mileage = a.currentMileage ?? vehicle?.odometerKm ?? ''
       return {
         SL: index + 1,
         Date: a.slotDate ?? a.scheduledAt?.slice(0, 10) ?? '',
@@ -381,7 +385,8 @@ export function CroHome() {
         Model: [vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || '',
         VIN: vehicle?.vin ?? '',
         'Reg No.': vehicle?.registrationNo ?? '',
-        'Mileage on arrival (KM)': a.currentMileage ?? vehicle?.odometerKm ?? '',
+        'Mileage on arrival (KM)': mileage,
+        'Mileage (KM)': mileage,
         'Service Eng./Advisor': advisor?.fullName ?? '',
         'Reason for visit': reasons,
         'Source of Client': a.gateEntryId ? 'WALK IN' : 'BOOKED',
@@ -854,7 +859,9 @@ export function CroHome() {
               onPageChange={(_, nextPage) => setAppointmentPage(nextPage)}
               rowsPerPage={appointmentRowsPerPage}
               onRowsPerPageChange={(event) => {
-                setAppointmentRowsPerPage(Number(event.target.value))
+                const nextSize = Number(event.target.value)
+                setAppointmentRowsPerPage(nextSize)
+                window.localStorage.setItem('cw.table.pageSize.cro.dashboard-appointments', String(nextSize))
                 setAppointmentPage(0)
               }}
               rowsPerPageOptions={[10, 25, 50, 100]}

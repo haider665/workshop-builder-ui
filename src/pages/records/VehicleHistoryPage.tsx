@@ -58,7 +58,7 @@ export function VehicleHistoryPage() {
     if (!query.trim()) return allRegs
     return allRegs.filter((r) => matchesSearch(r, query))
   }, [allRegs, query])
-  const { pageRows, pagination } = useListPagination(filteredRegs)
+  const { pageRows, pagination } = useListPagination(filteredRegs, 10, 'records.vehicle-history')
 
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>

@@ -70,7 +70,7 @@ export function PendingVehiclesPage() {
 
   const pendingCount = useMemo(() => pendingVehicles.filter((p) => p.status === 'Pending').length, [pendingVehicles])
   const completedCount = useMemo(() => pendingVehicles.filter((p) => p.status !== 'Pending').length, [pendingVehicles])
-  const { pageRows, pagination } = useListPagination(filtered)
+  const { pageRows, pagination } = useListPagination(filtered, 10, 'jc.pending-vehicles')
 
   function labelCustomer(customerId?: string) {
     if (!customerId) return '—'

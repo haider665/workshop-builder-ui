@@ -1,10 +1,11 @@
 import { TablePagination } from '@mui/material'
 import { useEffect, useMemo, useState } from 'react'
 
-export function useListPagination<T>(rows: T[], initialRowsPerPage = 10) {
+export function useListPagination<T>(rows: T[], initialRowsPerPage = 10, storageKey = 'default') {
   const [page, setPage] = useState(0)
+  const pageSizeKey = `cw.table.pageSize.${storageKey}`
   const [rowsPerPage, setRowsPerPage] = useState(() => {
-    const saved = Number(window.localStorage.getItem('cw.table.defaultPageSize'))
+    const saved = Number(window.localStorage.getItem(pageSizeKey) || window.localStorage.getItem('cw.table.defaultPageSize'))
     return [5, 10, 25, 50, 100].includes(saved) ? saved : initialRowsPerPage
   })
   useEffect(() => setPage(0), [rows])
@@ -24,7 +25,7 @@ export function useListPagination<T>(rows: T[], initialRowsPerPage = 10) {
         onRowsPerPageChange={(event) => {
           const nextSize = Number(event.target.value)
           setRowsPerPage(nextSize)
-          window.localStorage.setItem('cw.table.defaultPageSize', String(nextSize))
+          window.localStorage.setItem(pageSizeKey, String(nextSize))
           setPage(0)
         }}
         rowsPerPageOptions={[5, 10, 25, 50, 100]}

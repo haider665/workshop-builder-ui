@@ -5,13 +5,13 @@ import {
   Chip,
   IconButton,
   InputAdornment,
+  MenuItem,
   Snackbar,
   Stack,
   Table,
   TableBody,
   TableCell,
   TableHead,
-  TablePagination,
   TableRow,
   TextField,
   ToggleButton,
@@ -35,6 +35,7 @@ import { useCREData } from '../../hooks/useCREData'
 import { colors, radii, shadows } from '../../theme/tokens'
 import { matchesSearch } from '../../utils/search'
 import type { CWCustomerType } from '../../types/cw'
+import { useListPagination } from '../../components/ListPagination'
 
 /* ── Premium Stat Card ── */
 
@@ -137,11 +138,11 @@ export function CustomersPage() {
 
   const [typeFilter, setTypeFilter] = useState<CWCustomerType>('Individual')
   const [query, setQuery] = useState('')
+  const [filterField, setFilterField] = useState<'name' | 'phone' | 'email'>('name')
+  const [filterValue, setFilterValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
-  const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(10)
 
   // Quick-create form (inline)
   const [showCreate, setShowCreate] = useState(false)
@@ -170,22 +171,16 @@ export function CustomersPage() {
         if (!q) return true
         return matchesSearch(c, q)
       })
+      .filter((c) => {
+        if (!filterValue.trim()) return true
+        const value = filterField === 'name' ? c.fullName : filterField === 'phone' ? c.phone : c.email
+        return matchesSearch(value || '', filterValue)
+      })
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  }, [customers, typeFilter, query])
+  }, [customers, typeFilter, query, filterField, filterValue])
 
-  // Reset page when filter changes
-  const prevFilterRef = `${typeFilter}|${query}`
-  const [prevFilter, setPrevFilter] = useState(prevFilterRef)
-  if (prevFilterRef !== prevFilter) {
-    setPrevFilter(prevFilterRef)
-    if (page !== 0) setPage(0)
-  }
-
-  const paginatedCustomers = useMemo(
-    () => filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [filtered, page, rowsPerPage],
-  )
+  const { pageRows: paginatedCustomers, pagination } = useListPagination(filtered, 10, 'cro.customers')
 
   function vehicleCount(customerId: string) {
     return vehicles.filter((v) => v.customerId === customerId).length
@@ -348,6 +343,25 @@ export function CustomersPage() {
                   },
                 }}
               />
+              <TextField
+                select
+                size="small"
+                label="Filter field"
+                value={filterField}
+                onChange={(event) => setFilterField(event.target.value as 'name' | 'phone' | 'email')}
+                sx={{ minWidth: 135, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem', bgcolor: colors.bg.page } }}
+              >
+                <MenuItem value="name">Name</MenuItem>
+                <MenuItem value="phone">Phone</MenuItem>
+                <MenuItem value="email">Email</MenuItem>
+              </TextField>
+              <TextField
+                size="small"
+                placeholder="Filter value"
+                value={filterValue}
+                onChange={(event) => setFilterValue(event.target.value)}
+                sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem', bgcolor: colors.bg.page } }}
+              />
 
               <Box sx={{
                 bgcolor: colors.slate[100], borderRadius: radii.full,
@@ -443,16 +457,7 @@ export function CustomersPage() {
               </TableBody>
             </Table>
           )}
-          <TablePagination
-            component="div"
-            count={filtered.length}
-            page={page}
-            onPageChange={(_, p) => setPage(p)}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0) }}
-            rowsPerPageOptions={[10, 25, 50]}
-            sx={{ borderTop: `1px solid ${colors.border.subtle}` }}
-          />
+          {pagination}
         </Box>
       </Stack>
     </Box>

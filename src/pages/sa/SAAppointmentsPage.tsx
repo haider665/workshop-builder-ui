@@ -197,7 +197,7 @@ export function SAAppointmentsPage() {
     }
     return readyApptIds.size
   }, [relevant, partRequests])
-  const { pageRows, pagination } = useListPagination(filtered)
+  const { pageRows, pagination } = useListPagination(filtered, 10, 'sa.appointments')
   const statRows = statView === 'inspection' ? relevant.filter((a) => a.status === 'SA Inspection') : statView === 'review' ? relevant.filter((a) => a.status === 'SA Reviewed') : statView === 'parts' ? relevant.filter((a) => partRequests.some((part) => part.appointmentId === a.id && (part.status === 'Labeled' || part.status === 'Fulfilled'))) : relevant
   const statTitle = statView === 'inspection' ? 'Pending Inspection' : statView === 'review' ? 'Under Review' : statView === 'parts' ? 'Parts Ready' : 'Total Assigned'
 

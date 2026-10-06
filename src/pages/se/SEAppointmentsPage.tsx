@@ -157,7 +157,7 @@ export function SEAppointmentsPage() {
   const completed = relevant.filter((a) => a.status === 'Diagnosis Complete' || a.status === 'Service Complete').length
   const statRows = statView === 'assigned' ? relevant.filter((a) => a.status === 'Diagnosis Assigned' || a.status === 'Service Assigned') : statView === 'progress' ? relevant.filter((a) => a.status === 'Diagnosis In Progress' || a.status === 'Service In Progress') : relevant.filter((a) => a.status === 'Diagnosis Complete' || a.status === 'Service Complete')
   const statTitle = statView === 'assigned' ? 'Assigned Work' : statView === 'progress' ? 'Work In Progress' : 'Completed Work'
-  const { pageRows, pagination } = useListPagination(filtered)
+  const { pageRows, pagination } = useListPagination(filtered, 10, 'se.appointments')
 
   return (
     <Box sx={{ px: pageLayout.px, py: pageLayout.py, minHeight: '100vh', bgcolor: colors.bg.page }}>

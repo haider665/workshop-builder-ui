@@ -41,7 +41,10 @@ export function VehiclesPage() {
   const [successOpen, setSuccessOpen] = useState(false)
   const [successMessage] = useState('')
   const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const [rowsPerPage, setRowsPerPage] = useState(() => {
+    const saved = Number(window.localStorage.getItem('cw.table.pageSize.cro.vehicles'))
+    return [10, 25, 50].includes(saved) ? saved : 10
+  })
 
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c] as const)), [customers])
 
@@ -212,7 +215,7 @@ export function VehiclesPage() {
             page={page}
             onPageChange={(_, p) => setPage(p)}
             rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0) }}
+            onRowsPerPageChange={(e) => { const nextSize = parseInt(e.target.value, 10); setRowsPerPage(nextSize); window.localStorage.setItem('cw.table.pageSize.cro.vehicles', String(nextSize)); setPage(0) }}
             rowsPerPageOptions={[10, 25, 50]}
           />
         </Box>

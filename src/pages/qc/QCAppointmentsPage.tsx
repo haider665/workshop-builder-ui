@@ -127,7 +127,7 @@ export function QCAppointmentsPage() {
     (sum, appt) => sum + appt.serviceItems.reduce((s, i) => s + i.price, 0),
     0,
   )
-  const { pageRows, pagination } = useListPagination(filtered)
+  const { pageRows, pagination } = useListPagination(filtered, 10, 'qc.appointments')
 
   return (
     <Box sx={{ px: pageLayout.px, py: pageLayout.py, minHeight: '100vh', bgcolor: colors.bg.page }}>
