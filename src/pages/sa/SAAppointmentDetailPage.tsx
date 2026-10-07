@@ -50,6 +50,7 @@ import { WhatsAppHistory } from '../../components/WhatsAppHistory'
 import { AppointmentNotesFeedback } from '../../components/AppointmentNotesFeedback'
 import { PresenceAutocomplete } from '../../components/PresenceAutocomplete'
 import { useToast } from '../../hooks/useToast'
+import { useSessionStore } from '../../store/sessionStore'
 import { workshopApi } from '../../services/workshopApi'
 import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
@@ -95,6 +96,8 @@ export function SAAppointmentDetailPage() {
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
   const users = useCwStore((s) => s.users)
+  const sessionUser = useSessionStore((s) => s.user)
+  const canAdminEdit = Boolean(sessionUser?.isAdministrator || sessionUser?.isWorkshopAdmin || sessionUser?.roles.includes('Admin'))
   const services = useCwStore((s) => s.services)
   const submitInspection = useCwStore((s) => s.submitInspection)
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
@@ -143,6 +146,16 @@ export function SAAppointmentDetailPage() {
 
   // Approval dialog
   const [approvalNote, setApprovalNote] = useState('')
+  const [changeReason, setChangeReason] = useState('')
+
+  function auditReason(): string | undefined {
+    const reason = changeReason.trim()
+    if (canAdminEdit && !reason) {
+      toast.warning('Add a change reason before making an administrator change.')
+      return undefined
+    }
+    return reason || undefined
+  }
 
   // Add concern/service forms
   const [addConcernId, setAddConcernId] = useState('')
@@ -303,10 +316,13 @@ export function SAAppointmentDetailPage() {
       toast.warning(`Add a not-applicable reason for “${invalidNotApplicable.label}”.`)
       return
     }
+    const reason = auditReason()
+    if (canAdminEdit && !reason) return
     submitInspection({
       appointmentId: appt!.id,
       checks: inspChecks,
       actorName: userNameById.get(appt!.assignedSAUserId ?? '') ?? 'SA',
+      changeReason: reason,
     })
   }
 
@@ -360,6 +376,8 @@ export function SAAppointmentDetailPage() {
   }
 
   function sendWhatsapp() {
+    const reason = auditReason()
+    if (canAdminEdit && !reason) return
     addWhatsappLog({
       appointmentId: appt!.id,
       direction: 'outbound',
@@ -368,13 +386,13 @@ export function SAAppointmentDetailPage() {
     })
 
     if (waDialogPurpose === 'concern-approval') {
-      setAppointmentStatus(appt!.id, 'Customer Notified')
+      setAppointmentStatus(appt!.id, 'Customer Notified', reason)
       pushTimeline(appt!.id, { actor: 'SA', action: 'WhatsApp sent for concern/service approval' })
     } else if (waDialogPurpose === 'service-approval') {
-      setAppointmentStatus(appt!.id, 'Service Approval Pending')
+      setAppointmentStatus(appt!.id, 'Service Approval Pending', reason)
       pushTimeline(appt!.id, { actor: 'SA', action: 'WhatsApp sent for service approval (post-diagnosis)' })
     } else if (waDialogPurpose === 'payment') {
-      setAppointmentStatus(appt!.id, 'Payment Pending')
+      setAppointmentStatus(appt!.id, 'Payment Pending', reason)
       pushTimeline(appt!.id, { actor: 'SA', action: 'WhatsApp sent for payment' })
     }
 
@@ -383,7 +401,9 @@ export function SAAppointmentDetailPage() {
   }
 
   async function handleApproval(status: 'Approved' | 'Rejected') {
-    await setCustomerApproval({ appointmentId: appt!.id, status, note: approvalNote.trim() || undefined })
+    const reason = auditReason()
+    if (canAdminEdit && !reason) return
+    await setCustomerApproval({ appointmentId: appt!.id, status, note: approvalNote.trim() || undefined, changeReason: reason })
 
     if (status === 'Approved') {
       if (isCustomerNotified) {
@@ -391,7 +411,7 @@ export function SAAppointmentDetailPage() {
         pushTimeline(appt!.id, { actor: 'SA', action: 'Customer approved concerns — ready for JC diagnosis assignment' })
       } else if (isServiceApprovalPending) {
         // 2nd approval → needs explicit transition to 'Service Approved' (after approval save)
-        await setAppointmentStatus(appt!.id, 'Service Approved')
+        await setAppointmentStatus(appt!.id, 'Service Approved', reason)
         pushTimeline(appt!.id, { actor: 'SA', action: 'Customer approved services — ready for JC service assignment' })
       }
     } else {
@@ -403,9 +423,11 @@ export function SAAppointmentDetailPage() {
 
   async function handleConfirmPayment() {
     if (!appt) return
+    const reason = auditReason()
+    if (canAdminEdit && !reason) return
     try {
       const updated = await workshopApi.confirmPayment(appt.id, { actorName: 'SA' })
-      setAppointmentStatus(updated.id, updated.status)
+      setAppointmentStatus(updated.id, updated.status, reason)
       toast.success('Payment confirmed by Accounts. Gate-pass processing can continue.')
     } catch (cause) {
       toast.error(cause, 'Payment cannot be confirmed until the submitted invoice is fully settled.')
@@ -415,11 +437,14 @@ export function SAAppointmentDetailPage() {
   function handleAddConcern() {
     const concern = activeConcerns.find((c) => c.id === addConcernId)
     if (!concern) return
+    const reason = auditReason()
+    if (canAdminEdit && !reason) return
     addAppointmentConcern({
       appointmentId: appt!.id,
       concernId: concern.id,
       concernName: concern.name,
       remark: addConcernRemark.trim(),
+      changeReason: reason,
     })
     pushTimeline(appt!.id, { actor: 'SA', action: `Added concern: ${concern.name}` })
     setAddConcernId('')
@@ -429,6 +454,8 @@ export function SAAppointmentDetailPage() {
   function handleAddService() {
     const svc = activeServices.find((s) => s.id === addServiceId)
     if (!svc) return
+    const reason = auditReason()
+    if (canAdminEdit && !reason) return
     addAppointmentService({
       appointmentId: appt!.id,
       serviceId: svc.id,
@@ -439,6 +466,7 @@ export function SAAppointmentDetailPage() {
       price: svc.price,
       remark: addServiceRemark.trim(),
       addedBySA: true,
+      changeReason: reason,
     })
     pushTimeline(appt!.id, { actor: 'SA', action: `Added service: ${svc.description}` })
     setAddServiceId('')
@@ -484,6 +512,20 @@ export function SAAppointmentDetailPage() {
         {/* ── Timeline ── */}
         <WorkflowTimeline status={appt.status} timeline={appt.timeline} />
 
+        {canAdminEdit && (
+          <Alert severity="info" sx={{ borderRadius: radii.md, alignItems: 'center' }}>
+            <TextField
+              label="Change reason (required for administrator changes)"
+              value={changeReason}
+              onChange={(event) => setChangeReason(event.target.value)}
+              fullWidth
+              size="small"
+              placeholder="Explain why this appointment is being changed"
+              sx={{ mt: 0.5, '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: radii.sm } }}
+            />
+          </Alert>
+        )}
+
 
 
         {/* ── Inspection Checklist ── */}
@@ -518,7 +560,11 @@ export function SAAppointmentDetailPage() {
                           <Chip label={c.workStatus} size="small" color={workStatusColor(c.workStatus)} sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
                         ) : null}
                         {(isInspection || isReviewed) && (
-                          <IconButton size="small" color="error" onClick={() => removeAppointmentConcern(appt.id, c.id)}>
+                          <IconButton size="small" color="error" onClick={() => {
+                            const reason = auditReason()
+                            if (canAdminEdit && !reason) return
+                            removeAppointmentConcern(appt.id, c.id, reason)
+                          }}>
                             <Delete fontSize="small" />
                           </IconButton>
                         )}

@@ -1157,7 +1157,7 @@ export const workshopApi = {
 
   async setCustomerApproval(
     appointmentId: string,
-    input: { status: 'Approved' | 'Rejected'; note?: string },
+    input: { status: 'Approved' | 'Rejected'; note?: string; changeReason?: string },
   ): Promise<import('../types/cw').CWAppointment> {
     return request<import('../types/cw').CWAppointment>('/api/method/workshop.api.appointments.set_customer_approval', {
       method: 'POST',

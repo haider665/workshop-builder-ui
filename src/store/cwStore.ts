@@ -726,6 +726,7 @@ export type AddAppointmentConcernInput = {
   concernId: string
   concernName: string
   remark: string
+  changeReason?: string
 }
 export type UpdateAppointmentConcernInput = { remark: string }
 export type AddAppointmentServiceInput = {
@@ -738,6 +739,7 @@ export type AddAppointmentServiceInput = {
   price: number
   remark: string
   addedBySA?: boolean
+  changeReason?: string
 }
 export type UpdateAppointmentServiceInput = {
   remark: string
@@ -754,6 +756,7 @@ export type SetCustomerApprovalInput = {
   appointmentId: string
   status: 'Approved' | 'Rejected'
   note?: string
+  changeReason?: string
 }
 
 export type UpdateServiceItemAssignmentInput = {
@@ -806,6 +809,7 @@ export type SubmitInspectionInput = {
   appointmentId: string
   checks: CWInspectionCheck[]
   actorName: string
+  changeReason?: string
 }
 
 // ─── Technician timer inputs ──────────────────────────────────────────────────
@@ -916,15 +920,15 @@ type CWState = {
 
   createAppointment: (input: CreateAppointmentInput) => CWAppointment
   updateAppointment: (appointmentId: string, input: UpdateAppointmentInput) => void
-  setAppointmentStatus: (appointmentId: string, status: CWAppointmentStatus) => Promise<void>
+  setAppointmentStatus: (appointmentId: string, status: CWAppointmentStatus, changeReason?: string) => Promise<void>
   setAppointmentGateEntry: (appointmentId: string, gateEntryId: string | undefined) => void
   addAppointmentConcern: (input: AddAppointmentConcernInput) => CWAppointmentConcernItem
-  removeAppointmentConcern: (appointmentId: string, itemId: string) => void
+  removeAppointmentConcern: (appointmentId: string, itemId: string, changeReason?: string) => void
   updateAppointmentConcernRemark: (appointmentId: string, itemId: string, remark: string) => void
   updateConcernItemServices: (appointmentId: string, itemId: string, serviceIds: string[]) => void
   updateConcernDiagnosisRemark: (appointmentId: string, itemId: string, remark: string) => void
   addAppointmentService: (input: AddAppointmentServiceInput) => CWAppointmentServiceItem
-  removeAppointmentService: (appointmentId: string, itemId: string) => void
+  removeAppointmentService: (appointmentId: string, itemId: string, changeReason?: string) => void
   updateAppointmentService: (appointmentId: string, itemId: string, input: UpdateAppointmentServiceInput) => void
   addWhatsappLog: (input: AddWhatsappLogInput) => CWWhatsappLog
   setCustomerApproval: (input: SetCustomerApprovalInput) => Promise<void>
@@ -2469,7 +2473,7 @@ export const useCwStore = create<CWState>((set, get) => ({
     syncBackend(workshopApi.updateAppointment(appointmentId, input), 'update appointment')
   },
 
-  setAppointmentStatus: async (appointmentId, status) => {
+  setAppointmentStatus: async (appointmentId, status, changeReason) => {
     const prev = get().appointments.find(a => a.id === appointmentId)
     const prevStatus = prev?.status
     // Optimistic update
@@ -2485,7 +2489,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       ),
     })
     try {
-      await workshopApi.transitionAppointment(appointmentId, status)
+      await workshopApi.transitionAppointment(appointmentId, status, changeReason ? { changeReason } : {})
     } catch (err) {
       // Rollback on failure
       if (prevStatus) {
@@ -2545,13 +2549,14 @@ export const useCwStore = create<CWState>((set, get) => ({
       workshopApi.addAppointmentConcern(input.appointmentId, {
         concernId: input.concernId,
         remark: input.remark,
+        changeReason: input.changeReason,
       }),
       'appointment concern add',
     )
     return item
   },
 
-  removeAppointmentConcern: (appointmentId, itemId) => {
+  removeAppointmentConcern: (appointmentId, itemId, changeReason) => {
     set({
       appointments: get().appointments.map((a) =>
         a.id === appointmentId
@@ -2559,7 +2564,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
-    syncBackend(workshopApi.removeAppointmentConcern(appointmentId, itemId), 'appointment concern remove')
+    syncBackend(workshopApi.removeAppointmentConcern(appointmentId, itemId, changeReason), 'appointment concern remove')
   },
 
   updateAppointmentConcernRemark: (appointmentId, itemId, remark) => {
@@ -2722,13 +2727,14 @@ export const useCwStore = create<CWState>((set, get) => ({
         serviceId: input.serviceId,
         remark: input.remark,
         addedBySA: input.addedBySA,
+        changeReason: input.changeReason,
       }),
       'appointment service add',
     )
     return item
   },
 
-  removeAppointmentService: (appointmentId, itemId) => {
+  removeAppointmentService: (appointmentId, itemId, changeReason) => {
     set({
       appointments: get().appointments.map((a) =>
         a.id === appointmentId
@@ -2736,7 +2742,7 @@ export const useCwStore = create<CWState>((set, get) => ({
           : a,
       ),
     })
-    syncBackend(workshopApi.removeAppointmentService(appointmentId, itemId), 'appointment service remove')
+    syncBackend(workshopApi.removeAppointmentService(appointmentId, itemId, changeReason), 'appointment service remove')
   },
 
   updateAppointmentService: (appointmentId, itemId, input) => {
@@ -2810,7 +2816,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       ),
     })
     try {
-      await workshopApi.setCustomerApproval(input.appointmentId, { status: input.status, note: input.note })
+      await workshopApi.setCustomerApproval(input.appointmentId, { status: input.status, note: input.note, changeReason: input.changeReason })
     } catch (err) {
       // Rollback on failure
       if (prev) {
