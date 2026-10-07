@@ -149,12 +149,7 @@ export function SAAppointmentDetailPage() {
   const [changeReason, setChangeReason] = useState('')
 
   function auditReason(): string | undefined {
-    const reason = changeReason.trim()
-    if (canAdminEdit && !reason) {
-      toast.warning('Add a change reason before making an administrator change.')
-      return undefined
-    }
-    return reason || undefined
+    return changeReason.trim() || undefined
   }
 
   // Add concern/service forms
@@ -317,7 +312,6 @@ export function SAAppointmentDetailPage() {
       return
     }
     const reason = auditReason()
-    if (canAdminEdit && !reason) return
     submitInspection({
       appointmentId: appt!.id,
       checks: inspChecks,
@@ -377,7 +371,6 @@ export function SAAppointmentDetailPage() {
 
   function sendWhatsapp() {
     const reason = auditReason()
-    if (canAdminEdit && !reason) return
     addWhatsappLog({
       appointmentId: appt!.id,
       direction: 'outbound',
@@ -402,7 +395,6 @@ export function SAAppointmentDetailPage() {
 
   async function handleApproval(status: 'Approved' | 'Rejected') {
     const reason = auditReason()
-    if (canAdminEdit && !reason) return
     await setCustomerApproval({ appointmentId: appt!.id, status, note: approvalNote.trim() || undefined, changeReason: reason })
 
     if (status === 'Approved') {
@@ -424,7 +416,6 @@ export function SAAppointmentDetailPage() {
   async function handleConfirmPayment() {
     if (!appt) return
     const reason = auditReason()
-    if (canAdminEdit && !reason) return
     try {
       const updated = await workshopApi.confirmPayment(appt.id, { actorName: 'SA' })
       setAppointmentStatus(updated.id, updated.status, reason)
@@ -438,7 +429,6 @@ export function SAAppointmentDetailPage() {
     const concern = activeConcerns.find((c) => c.id === addConcernId)
     if (!concern) return
     const reason = auditReason()
-    if (canAdminEdit && !reason) return
     addAppointmentConcern({
       appointmentId: appt!.id,
       concernId: concern.id,
@@ -455,7 +445,6 @@ export function SAAppointmentDetailPage() {
     const svc = activeServices.find((s) => s.id === addServiceId)
     if (!svc) return
     const reason = auditReason()
-    if (canAdminEdit && !reason) return
     addAppointmentService({
       appointmentId: appt!.id,
       serviceId: svc.id,
@@ -515,7 +504,7 @@ export function SAAppointmentDetailPage() {
         {canAdminEdit && (
           <Alert severity="info" sx={{ borderRadius: radii.md, alignItems: 'center' }}>
             <TextField
-              label="Change reason (required for administrator changes)"
+              label="Change note (optional)"
               value={changeReason}
               onChange={(event) => setChangeReason(event.target.value)}
               fullWidth
@@ -562,7 +551,6 @@ export function SAAppointmentDetailPage() {
                         {(isInspection || isReviewed) && (
                           <IconButton size="small" color="error" onClick={() => {
                             const reason = auditReason()
-                            if (canAdminEdit && !reason) return
                             removeAppointmentConcern(appt.id, c.id, reason)
                           }}>
                             <Delete fontSize="small" />
