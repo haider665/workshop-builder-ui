@@ -1920,8 +1920,12 @@ export const workshopApi = {
     return request(`/api/method/workshop.api.reports.financial_snapshot${buildQuery(params)}`)
   },
 
+  async getAppointmentActivityReport(params: { fromDate?: string; toDate?: string; search?: string; page?: number; pageSize?: number } = {}): Promise<{ data: Array<Record<string, any>>; meta: { page: number; pageSize: number; total: number }; summary: Record<string, any> }> {
+    return request(`/api/method/workshop.api.reports.appointment_activity_report${buildQuery(params)}`)
+  },
+
   /** Official server-rendered PDF, preserving the authenticated company context. */
-  reportPrintUrl(report: 'overview' | 'sales' | 'satisfaction' | 'people' | 'audit', params: { fromDate?: string; toDate?: string } = {}): string {
+  reportPrintUrl(report: 'overview' | 'sales' | 'satisfaction' | 'people' | 'appointments' | 'audit', params: { fromDate?: string; toDate?: string } = {}): string {
     return `${apiBaseUrl}/api/method/workshop.api.reports.print_report${buildQuery({ report, ...params })}`
   },
 

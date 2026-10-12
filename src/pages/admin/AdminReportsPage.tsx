@@ -44,6 +44,9 @@ export function AdminReportsPage() {
 	const [activeTab, setActiveTab] = useState(0)
 	const [fromDate, setFromDate] = useState('')
 	const [toDate, setToDate] = useState('')
+	const [appointmentSearch, setAppointmentSearch] = useState('')
+	const [appointmentActivity, setAppointmentActivity] = useState<{ data: Array<Record<string, any>>; meta: { page: number; pageSize: number; total: number }; summary: Record<string, any> } | null>(null)
+	const [appointmentActivityError, setAppointmentActivityError] = useState('')
   const appointments = useCwStore((s) => s.appointments)
   const vehicles = useCwStore((s) => s.vehicles)
   const customers = useCwStore((s) => s.customers)
@@ -72,6 +75,8 @@ export function AdminReportsPage() {
   const maxFinancialValue = Math.max(1, ...financialMonths.flatMap((row: { sales?: number; purchases?: number; collections?: number }) => [row.sales || 0, row.purchases || 0, row.collections || 0]))
 
 	useEffect(() => { let active = true; setPerformanceError(''); const range = { fromDate: fromDate || undefined, toDate: toDate || undefined }; Promise.all([workshopApi.getTechnicianPerformance(range), workshopApi.getAdminSummary(), workshopApi.getWorkforceMetrics(range), workshopApi.getFinancialSnapshot(range)]).then(([result, summary, people, money]) => { if (active) { setPerformance(result.data); setAdminSummary(summary); setWorkforce(people); setFinancial(money) } }).catch((error) => { if (active) setPerformanceError(error instanceof Error ? error.message : 'Unable to load reporting data') }); return () => { active = false } }, [fromDate, toDate])
+
+	useEffect(() => { let active = true; setAppointmentActivityError(''); workshopApi.getAppointmentActivityReport({ fromDate: fromDate || undefined, toDate: toDate || undefined, search: appointmentSearch || undefined, pageSize: 100 }).then((result) => { if (active) setAppointmentActivity(result) }).catch((error) => { if (active) setAppointmentActivityError(error instanceof Error ? error.message : 'Unable to load appointment activity') }); return () => { active = false } }, [fromDate, toDate, appointmentSearch])
 
   // ── Computed Metrics ──
   const activeAppts = useMemo(
@@ -189,14 +194,15 @@ export function AdminReportsPage() {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mt: 2, alignItems: { sm: 'center' }, flexWrap: 'wrap' }} useFlexGap>
             <TextField type="date" size="small" label="From" value={fromDate} onChange={(e) => setFromDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
             <TextField type="date" size="small" label="To" value={toDate} onChange={(e) => setToDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-            <Button variant="outlined" startIcon={<Print />} onClick={() => { const report = (['overview', 'sales', 'satisfaction', 'people', 'capacity', 'audit'] as const)[activeTab]; window.open(workshopApi.reportPrintUrl(report === 'capacity' ? 'overview' : report, { fromDate: fromDate || undefined, toDate: toDate || undefined }), '_blank', 'noopener,noreferrer') }} sx={{ fontWeight: 700 }}>Print official report</Button>
-            {(fromDate || toDate) && <Button size="small" onClick={() => { setFromDate(''); setToDate('') }}>Clear filters</Button>}
+            <TextField size="small" label="Appointment / customer / vehicle / user" value={appointmentSearch} onChange={(e) => setAppointmentSearch(e.target.value)} sx={{ minWidth: { sm: 260 } }} />
+            <Button variant="outlined" startIcon={<Print />} onClick={() => { const report = (['overview', 'sales', 'satisfaction', 'people', 'capacity', 'audit', 'appointments'] as const)[activeTab]; window.open(workshopApi.reportPrintUrl(report === 'capacity' ? 'overview' : report, { fromDate: fromDate || undefined, toDate: toDate || undefined }), '_blank', 'noopener,noreferrer') }} sx={{ fontWeight: 700 }}>Print official report</Button>
+            {(fromDate || toDate || appointmentSearch) && <Button size="small" onClick={() => { setFromDate(''); setToDate(''); setAppointmentSearch('') }}>Clear filters</Button>}
           </Stack>
         </Box>
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider', overflowX: 'auto' }}>
           <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} variant="scrollable" allowScrollButtonsMobile>
-            <Tab label="Executive overview" /><Tab label="Sales & services" /><Tab label="Customer satisfaction" /><Tab label="People & workload" /><Tab label="Capacity & quality" /><Tab label="Audit & governance" />
+            <Tab label="Executive overview" /><Tab label="Sales & services" /><Tab label="Customer satisfaction" /><Tab label="People & workload" /><Tab label="Capacity & quality" /><Tab label="Audit & governance" /><Tab label="Appointment activity" />
           </Tabs>
         </Box>
 
@@ -259,6 +265,17 @@ export function AdminReportsPage() {
           <Typography sx={{ color: colors.slate[600], fontSize: '.9rem', mb: 2 }}>The official audit report records who performed each material action, when it happened, which record was affected, and the recorded reason or evidence. Use the date filters above, then print the controlled PDF for review, sign-off, or audit submission.</Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><Box sx={{ flex: 1, p: 2, bgcolor: colors.slate[50], borderRadius: 2 }}><Typography sx={{ fontWeight: 800 }}>Audit trail coverage</Typography><Typography sx={{ fontSize: '.8rem', color: colors.slate[500], mt: .5 }}>Appointments, job cards, assignments, approvals, quality returns, master-data changes, accounting controls and administrative actions.</Typography></Box><Box sx={{ flex: 1, p: 2, bgcolor: colors.slate[50], borderRadius: 2 }}><Typography sx={{ fontWeight: 800 }}>Official output</Typography><Typography sx={{ fontSize: '.8rem', color: colors.slate[500], mt: .5 }}>Company identity, authenticated preparer, timestamp, reporting period, immutable event rows and controlled-copy notice.</Typography></Box></Stack>
         </SectionCard>}
+
+		{activeTab === 6 && <SectionCard title="Appointment Work Register" icon={<Assignment sx={{ fontSize: '1rem' }} />}>
+		  <Typography sx={{ color: colors.slate[500], fontSize: '.82rem', mb: 2 }}>Appointments are listed by creation time. Every timeline and immutable audit event is shown in ascending date and time, with the responsible user, role, action, details and reason.</Typography>
+		  {appointmentActivityError ? <Typography color="error" sx={{ mb: 2 }}>{appointmentActivityError}</Typography> : null}
+		  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} sx={{ mb: 2 }}><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>Appointments</Typography><Typography sx={{ fontSize: '1.5rem', fontWeight: 800 }}>{appointmentActivity?.summary?.totalAppointments ?? '—'}</Typography></Box><Box><Typography sx={{ fontSize: '.75rem', color: colors.slate[500] }}>Recorded activities</Typography><Typography sx={{ fontSize: '1.5rem', fontWeight: 800 }}>{appointmentActivity?.summary?.totalActivities ?? '—'}</Typography></Box></Stack>
+		  {(appointmentActivity?.data || []).map((item) => <Box key={String(item.id)} sx={{ mb: 3, border: `1px solid ${colors.slate[200]}`, borderRadius: 2, overflow: 'hidden' }}>
+		    <Box sx={{ p: 1.5, bgcolor: colors.slate[50] }}><Typography sx={{ fontWeight: 800 }}>{item.id} · {item.customer?.full_name || item.customer?.id || 'Customer'} · {item.vehicle?.registration_no || item.vehicle?.vin || item.vehicle?.id || 'Vehicle'}</Typography><Typography sx={{ fontSize: '.78rem', color: colors.slate[600] }}>Created {item.createdAt} by {item.createdBy?.name} ({item.createdBy?.role || '—'}) · {item.status} · {item.companyId}</Typography><Typography sx={{ fontSize: '.76rem', color: colors.slate[600], mt: .5 }}>Assigned: {(item.assignedUsers || []).map((user: Record<string, any>) => `${user.name}${user.role ? ` (${user.role})` : ''}`).join(', ') || 'None recorded'}</Typography></Box>
+		    <Box sx={{ overflowX: 'auto' }}><Table size="small"><TableHead><TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}><TableCell>Date/time</TableCell><TableCell>Actor</TableCell><TableCell>Role</TableCell><TableCell>Action</TableCell><TableCell>Details / reason</TableCell><TableCell>Source</TableCell></TableRow></TableHead><TableBody>{(item.activities || []).map((event: Record<string, any>) => <TableRow key={`${item.id}-${event.id}`}><TableCell sx={bodyCellSx}>{event.eventAt}</TableCell><TableCell sx={bodyCellSx}>{event.actor?.name || event.actor?.id || 'System'}</TableCell><TableCell sx={bodyCellSx}>{event.actor?.role || '—'}</TableCell><TableCell sx={{ ...bodyCellSx, fontWeight: 700 }}>{event.action}</TableCell><TableCell sx={bodyCellSx}>{event.details || event.reason || '—'}</TableCell><TableCell sx={bodyCellSx}><Chip size="small" label={event.source} /></TableCell></TableRow>)}</TableBody></Table></Box>
+		  </Box>)}
+		  {!appointmentActivityError && appointmentActivity && !appointmentActivity.data.length ? <Typography sx={{ py: 2, color: colors.slate[500] }}>No appointments match the selected period or search.</Typography> : null}
+		</SectionCard>}
 
         {activeTab === 0 && <>
         {/* ── Revenue ── */}
