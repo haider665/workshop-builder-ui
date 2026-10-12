@@ -166,10 +166,15 @@ export function CustomersPage() {
   const filtered = useMemo(() => {
     const q = query.trim()
     return customers
-      .filter((c) => (c.type ?? 'Individual') === typeFilter)
+      // A global search must be able to find a vehicle/customer even when the
+      // type toggle is still on its default Individual view (corporate owners
+      // commonly hold the VIN being searched). The toggle remains the default
+      // browse filter when no search is entered.
+      .filter((c) => q ? true : (c.type ?? 'Individual') === typeFilter)
       .filter((c) => {
         if (!q) return true
-        return matchesSearch(c, q)
+        const linkedVehicles = vehicles.filter((vehicle) => vehicle.customerId === c.id)
+        return matchesSearch({ customer: c, vehicles: linkedVehicles }, q)
       })
       .filter((c) => {
         if (!filterValue.trim()) return true
