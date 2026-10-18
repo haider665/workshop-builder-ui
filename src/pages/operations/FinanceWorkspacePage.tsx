@@ -9,6 +9,31 @@ type TabId = 'procurement' | 'policy' | 'requisitions' | 'quotations' | 'compare
 type AccountingModule = 'requisitions' | 'quotations' | 'compare_sheets' | 'purchase_orders' | 'receipts' | 'invoices' | 'payments' | 'journals'
 type MasterOption = { id: string; label: string; secondary?: string }
 
+const PROCUREMENT_DEMO_STEPS = [
+  { title: 'Part request from the floor', role: 'SA / SE / Technician', detail: 'A part is requested against the appointment, vehicle, customer, concern, and quantity. The request remains traceable to the job.' },
+  { title: 'Store review', role: 'Parts / Store Keeper', detail: 'The store checks available stock and FIFO stock units. If the part is available, it returns to Counter Desk; if there is a shortage, procurement demand is opened.' },
+  { title: 'Quotation collection', role: 'Procurement', detail: 'Procurement collects supplier quotations against the requisition. Supplier, price, delivery date, tax, currency, and commercial terms are recorded.' },
+  { title: 'Comparative Statement', role: 'Procurement', detail: 'The quotations are compared in a controlled Compare Statement. The recommended supplier and commercial justification are recorded.' },
+  { title: 'Verification and approval', role: 'Audit / GM / ED / MD / Chairman', detail: 'The configured company policy decides which approval stages are required. Thresholds and escalation are evaluated server-side.' },
+  { title: 'Purchase Order and supplier confirmation', role: 'Procurement', detail: 'The approved supplier becomes the Purchase Order supplier. ETA, advance instruction, VAT, tax, terms, and delivery conditions are captured.' },
+  { title: 'GRN and inventory', role: 'Store Keeper / Procurement', detail: 'The store physically verifies the delivery and submits the GRN. Inventory is increased using FIFO-aware stock records and the procurement case is updated.' },
+  { title: 'Accounts and settlement', role: 'Accounts', detail: 'The supplier invoice is checked, posted, reconciled, and settled through the Payment Entry. The complete case and audit history remain printable.' },
+]
+
+const PROCUREMENT_DEMO_DATA = {
+  case: { id: 'DEMO-PROC-0001', title: 'Nissan X-Trail · Front brake pad set', stage: 'Bill Settlement', status: 'In Progress', owner: 'procurement@continental-works.com', currentOwnerRole: 'Accounts', sourceName: 'Appointment APPT-DEMO-0001', approvalAmount: 128000, updatedAt: '2026-10-18 10:30:00' },
+  documents: {
+    requisitions: [{ id: 'DEMO-MR-0001', name: 'DEMO-MR-0001', status: 'Submitted', itemName: 'Front Brake Pad Set', itemCode: 'CW-PART-BRAKE-001', qty: 1, company: 'Continental Works', source: 'APPT-DEMO-0001' }],
+    quotations: [{ id: 'DEMO-QTN-0001', name: 'DEMO-QTN-0001', status: 'Submitted', supplierName: 'Continental Auto Parts Ltd.', supplierId: 'SUP-CW-001', totalAmount: 128000, company: 'Continental Works' }, { id: 'DEMO-QTN-0002', name: 'DEMO-QTN-0002', status: 'Submitted', supplierName: 'Dhaka Motor Components', supplierId: 'SUP-CW-002', totalAmount: 135000, company: 'Continental Works' }],
+    compare_sheets: [{ id: 'DEMO-CS-0001', name: 'DEMO-CS-0001', status: 'Approved', supplierName: 'Continental Auto Parts Ltd.', totalAmount: 128000, company: 'Continental Works', recommendation: 'Lowest compliant quotation; ETA 3 working days' }],
+    purchase_orders: [{ id: 'DEMO-PO-0001', name: 'DEMO-PO-0001', status: 'Submitted', supplierName: 'Continental Auto Parts Ltd.', grandTotal: 128000, company: 'Continental Works', eta: '2026-10-21' }],
+    receipts: [{ id: 'DEMO-GRN-0001', name: 'DEMO-GRN-0001', status: 'Submitted', supplierName: 'Continental Auto Parts Ltd.', total: 128000, company: 'Continental Works', receivedBy: 'Store Keeper' }],
+    invoices: [{ id: 'DEMO-PINV-0001', name: 'DEMO-PINV-0001', status: 'Submitted', supplierName: 'Continental Auto Parts Ltd.', grandTotal: 128000, company: 'Continental Works' }],
+    payments: [{ id: 'DEMO-PAY-0001', name: 'DEMO-PAY-0001', status: 'Paid', partyName: 'Continental Auto Parts Ltd.', paidAmount: 128000, company: 'Continental Works', modeOfPayment: 'Bank Transfer' }],
+    journals: [],
+  },
+}
+
 const cardSx = { background: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.lg, boxShadow: shadows.card, p: 2.5 } as const
 
 function statusColor(status?: string): 'default' | 'success' | 'warning' | 'error' | 'info' {
@@ -60,6 +85,22 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
   const [paymentMode, setPaymentMode] = useState('')
   const [compareOpen, setCompareOpen] = useState(false)
   const [compareSelection, setCompareSelection] = useState<string[]>([])
+  const [demoOpen, setDemoOpen] = useState(false)
+  const [demoStep, setDemoStep] = useState(0)
+  const [demoDataLoaded, setDemoDataLoaded] = useState(false)
+
+  function loadDemoData() {
+    setDemoDataLoaded(true)
+    setTab('procurement')
+    setQuery('')
+    setCases([PROCUREMENT_DEMO_DATA.case])
+    setInbox([{ id: 'DEMO-TASK-0001', title: 'Complete supplier payment settlement', stage: 'Bill Settlement', status: 'Open', owner: 'Accounts', updatedAt: PROCUREMENT_DEMO_DATA.case.updatedAt }])
+    setClearances([])
+    setDocuments(PROCUREMENT_DEMO_DATA.documents as Record<AccountingModule, Array<Record<string, unknown>>>)
+    setDashboard({ counts: { openCases: 1, requisitions: 1, quotations: 2, outstandingPayments: 128000 }, attention: [{ id: 'demo-payment', title: 'Payment settlement', count: 1, description: 'Complete the final payment step in the demonstration case.' }] })
+    setSelectedCase(null)
+    setSelectedRecord(null)
+  }
 
   async function openDocument(module: AccountingModule, row: Record<string, unknown>) {
     const id = String(row.name || row.id || '')
@@ -77,6 +118,15 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
 
   async function openCase(id: string) {
     setSelectedCase({ id }); setCaseActions([]); setDetailLoading(true)
+    if (demoDataLoaded && id === PROCUREMENT_DEMO_DATA.case.id) {
+      setSelectedCase(PROCUREMENT_DEMO_DATA.case)
+      setCaseActions([
+        { action: 'review', label: 'Review settlement', allowed: true, requiresReason: false, toStage: 'Bill Settlement' },
+        { action: 'close', label: 'Mark paid / closed', allowed: true, requiresReason: false, toStage: 'Paid / Closed' },
+      ])
+      setDetailLoading(false)
+      return
+    }
     try {
       const [detail, available] = await Promise.all([workshopApi.procurementCase(id), workshopApi.procurementCaseActions(id)])
       setSelectedCase(detail); setCaseActions(available.actions || [])
@@ -85,10 +135,15 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
   }
 
 
-  async function runCaseAction(action: { action: string; label: string; requiresReason: boolean }) {
+  async function runCaseAction(action: { action: string; label: string; requiresReason: boolean; toStage?: string }) {
     if (!selectedCase?.id) return
     const note = action.requiresReason || action.action.includes('reject') ? window.prompt(`Reason for ${action.label}`) : window.prompt(`${action.label} note (optional)`)
     if ((action.requiresReason || action.action.includes('reject')) && !note?.trim()) return
+    if (demoDataLoaded && selectedCase.id === PROCUREMENT_DEMO_DATA.case.id) {
+      setSelectedCase({ ...selectedCase, currentStage: action.toStage || selectedCase.currentStage, status: action.action === 'close' ? 'Paid / Closed' : selectedCase.status, lastAction: action.label, note: note || undefined })
+      setCaseActions([])
+      return
+    }
     setBusyId(String(selectedCase.id)); setError(null)
     try { await workshopApi.procurementCaseAction(String(selectedCase.id), action.action, note?.trim() || undefined); await openCase(String(selectedCase.id)); await load() }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Procurement action failed') }
@@ -236,8 +291,9 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
   return <Box sx={{ ...pageLayout, p: { xs: 2, md: 3 } }}>
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2.5, justifyContent: 'space-between' }}>
       <Box><Typography variant="overline" sx={{ color: colors.slate[500], fontWeight: 800 }}>WORKSHOP OPERATIONS</Typography><Typography variant="h4" sx={{ fontWeight: 800 }}>{workspace === 'accounting' ? 'Accounting Workspace' : 'Procurement Workspace'}</Typography><Typography sx={{ color: colors.slate[600], mt: .5 }}>{workspace === 'accounting' ? 'Ledger-facing finance control: invoices, payment entries, journals, clearances and company financial records.' : 'Company-scoped requisitions, supplier quotations, compare sheets, purchase orders and receipts.'}</Typography></Box>
-      <Button startIcon={<Refresh />} variant="outlined" onClick={() => void load()} disabled={loading}>Refresh</Button>
+      <Stack direction="row" spacing={1}><Button variant="outlined" onClick={() => { setDemoStep(0); setDemoOpen(true) }} disabled={workspace !== 'procurement'}>Guided process demo</Button><Button variant="contained" onClick={loadDemoData} disabled={workspace !== 'procurement'}>Load mock case</Button><Button startIcon={<Refresh />} variant="outlined" onClick={() => { setDemoDataLoaded(false); void load() }} disabled={loading}>Refresh</Button></Stack>
     </Stack>
+    {demoDataLoaded ? <Alert severity="info" sx={{ mb: 2 }}>Presentation mock case loaded locally. It is not saved to Frappe and will be replaced when you refresh.</Alert> : null}
     {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2.5 }}>
       <Box sx={{ ...cardSx, flex: 1 }}><Typography variant="caption">Company</Typography><Typography variant="h6" sx={{ fontWeight: 800 }}>{company?.name || selectedCompanyId || 'Select a company'}</Typography></Box>
@@ -268,5 +324,6 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
     <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth><DialogTitle>Create {tab === 'quotations' ? 'supplier quotation' : 'material requisition'}</DialogTitle><DialogContent dividers><Stack spacing={1.5} sx={{ pt: .5 }}><Typography variant="caption">Choose master records from the selected company. Search matches code, name, and type.</Typography><Autocomplete loading={mastersLoading} options={itemOptions} value={itemOptions.find((item) => item.id === createItemCode) || null} onChange={(_, value) => setCreateItemCode(value?.id || '')} getOptionLabel={(option) => option.secondary ? `${option.label} · ${option.secondary}` : option.label} isOptionEqualToValue={(option, value) => option.id === value.id} renderInput={(params) => <TextField {...params} required label="Item / part" autoFocus />} /><TextField label="Quantity" type="number" value={createQty} onChange={(event) => setCreateQty(event.target.value)} />{tab === 'quotations' ? <Autocomplete loading={mastersLoading} options={supplierOptions} value={supplierOptions.find((supplier) => supplier.id === createSupplier) || null} onChange={(_, value) => setCreateSupplier(value?.id || '')} getOptionLabel={(option) => option.secondary ? `${option.label} · ${option.secondary}` : option.label} isOptionEqualToValue={(option, value) => option.id === value.id} renderInput={(params) => <TextField {...params} required label="Supplier" />} /> : null}{tab === 'quotations' ? <TextField label="Rate" type="number" value={createRate} onChange={(event) => setCreateRate(event.target.value)} /> : null}<TextField label="Remarks / description" multiline minRows={2} value={createRemarks} onChange={(event) => setCreateRemarks(event.target.value)} /></Stack></DialogContent><DialogActions><Button onClick={() => setCreateOpen(false)}>Cancel</Button><Button variant="contained" disabled={createBusy || !createItemCode.trim() || (tab === 'quotations' && !createSupplier.trim())} onClick={() => void createDocument()}>{createBusy ? 'Creating…' : 'Create draft'}</Button></DialogActions></Dialog>
     <Dialog open={paymentOpen} onClose={() => setPaymentOpen(false)} maxWidth="sm" fullWidth><DialogTitle>New payment entry</DialogTitle><DialogContent dividers><Stack spacing={1.5} sx={{ pt: .5 }}><Typography variant="caption">Select ledger accounts and payment mode from the database. Bank payments require reference number and date on the accounting record.</Typography><TextField required label="Amount" type="number" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /><Autocomplete options={supplierOptions} loading={mastersLoading} value={supplierOptions.find((item) => item.id === paymentParty) || null} onChange={(_, value) => setPaymentParty(value?.id || '')} getOptionLabel={(option) => option.label} isOptionEqualToValue={(option, value) => option.id === value.id} renderInput={(params) => <TextField {...params} label="Supplier (optional for internal transfer)" />} /><Autocomplete options={accountOptions} loading={mastersLoading} value={accountOptions.find((item) => item.id === paymentFrom) || null} onChange={(_, value) => setPaymentFrom(value?.id || '')} getOptionLabel={(option) => option.secondary ? `${option.label} · ${option.secondary}` : option.label} isOptionEqualToValue={(option, value) => option.id === value.id} renderInput={(params) => <TextField {...params} required label="Paid from account" />} /><Autocomplete options={accountOptions} loading={mastersLoading} value={accountOptions.find((item) => item.id === paymentTo) || null} onChange={(_, value) => setPaymentTo(value?.id || '')} getOptionLabel={(option) => option.secondary ? `${option.label} · ${option.secondary}` : option.label} isOptionEqualToValue={(option, value) => option.id === value.id} renderInput={(params) => <TextField {...params} required label="Paid to account" />} /><Autocomplete options={modeOptions} loading={mastersLoading} value={modeOptions.find((item) => item.id === paymentMode) || null} onChange={(_, value) => setPaymentMode(value?.id || '')} getOptionLabel={(option) => option.label} isOptionEqualToValue={(option, value) => option.id === value.id} renderInput={(params) => <TextField {...params} label="Mode of payment" />} /></Stack></DialogContent><DialogActions><Button onClick={() => setPaymentOpen(false)}>Cancel</Button><Button variant="contained" disabled={createBusy || !paymentAmount || !paymentFrom || !paymentTo} onClick={() => void createPayment()}>{createBusy ? 'Creating…' : 'Create payment draft'}</Button></DialogActions></Dialog>
     <Dialog open={compareOpen} onClose={() => setCompareOpen(false)} maxWidth="sm" fullWidth><DialogTitle>Create compare statement</DialogTitle><DialogContent dividers><Stack spacing={1}><Typography variant="caption">Select the supplier quotations to compare. The backend will snapshot the quotations and link the statement to the originating procurement case.</Typography>{documents.quotations.map((row) => { const id = String(row.name || row.id || ''); const selected = compareSelection.includes(id); return <Stack key={id} direction="row" spacing={1} sx={{ alignItems: 'center', borderBottom: `1px solid ${colors.border.subtle}`, py: .5 }}><Checkbox checked={selected} onChange={() => setCompareSelection((current) => selected ? current.filter((value) => value !== id) : [...current, id])} /><Box><Typography sx={{ fontWeight: 700 }}>{id}</Typography><Typography variant="caption">{String(row.supplierName || row.supplierId || 'Supplier')} · {Number(row.grandTotal || row.totalAmount || 0).toLocaleString()}</Typography></Box></Stack>})}{!documents.quotations.length ? <Typography sx={{ color: colors.slate[500] }}>Create supplier quotations before preparing a compare statement.</Typography> : null}</Stack></DialogContent><DialogActions><Button onClick={() => setCompareOpen(false)}>Cancel</Button><Button variant="contained" disabled={createBusy || compareSelection.length === 0} onClick={() => void createCompareSheet()}>{createBusy ? 'Creating…' : 'Create compare statement'}</Button></DialogActions></Dialog>
+    <Dialog open={demoOpen} onClose={() => setDemoOpen(false)} maxWidth="md" fullWidth><DialogTitle>Continental Works parts procurement walkthrough</DialogTitle><DialogContent dividers><Typography variant="body2" sx={{ color: colors.slate[600], mb: 2 }}>This guided walkthrough is presentation-only. It does not create or alter operational records.</Typography><Stepper activeStep={demoStep} alternativeLabel sx={{ mb: 3, overflowX: 'auto' }}>{PROCUREMENT_DEMO_STEPS.map((step) => <Step key={step.title}><StepLabel>{step.title}</StepLabel></Step>)}</Stepper><Box sx={{ ...cardSx, p: 2 }}><Typography variant="overline" sx={{ color: colors.slate[500], fontWeight: 800 }}>Step {demoStep + 1} · {PROCUREMENT_DEMO_STEPS[demoStep].role}</Typography><Typography variant="h6" sx={{ fontWeight: 800, mt: .5 }}>{PROCUREMENT_DEMO_STEPS[demoStep].title}</Typography><Typography sx={{ color: colors.slate[700], mt: 1 }}>{PROCUREMENT_DEMO_STEPS[demoStep].detail}</Typography><Chip label={demoStep === PROCUREMENT_DEMO_STEPS.length - 1 ? 'Complete procurement-to-payment cycle' : 'Next operational handoff'} color={demoStep === PROCUREMENT_DEMO_STEPS.length - 1 ? 'success' : 'info'} sx={{ mt: 2 }} /></Box></DialogContent><DialogActions><Button onClick={() => setDemoOpen(false)}>Close</Button><Button disabled={demoStep === 0} onClick={() => setDemoStep((step) => Math.max(0, step - 1))}>Back</Button><Button variant="contained" disabled={demoStep === PROCUREMENT_DEMO_STEPS.length - 1} onClick={() => setDemoStep((step) => Math.min(PROCUREMENT_DEMO_STEPS.length - 1, step + 1))}>Next</Button></DialogActions></Dialog>
   </Box>
 }
