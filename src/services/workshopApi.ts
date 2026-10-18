@@ -2257,6 +2257,15 @@ export const workshopApi = {
   async procurementCases(company?: string): Promise<ApiListResponse<{ id: string; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string; company?: string }>> {
     return request(`/api/method/workshop.api.accounting.procurement_cases.list${buildQuery({ company, pageSize: 100 })}`)
   },
+  async procurementCase(id: string): Promise<Record<string, unknown>> {
+    return request(`/api/method/workshop.api.accounting.procurement_cases.get${buildQuery({ id })}`)
+  },
+  async procurementCaseActions(id: string): Promise<{ caseId: string; stage: string; actions: Array<{ action: string; label: string; allowed: boolean; requiresReason: boolean; disabledReason?: string | null; toStage: string }> }> {
+    return request(`/api/method/workshop.api.accounting.procurement_cases.available_actions${buildQuery({ id })}`)
+  },
+  async procurementCaseAction(id: string, action: string, note?: string): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.procurement_cases.action', { method: 'POST', body: { id, data: { action, note } } })
+  },
   async procurementApprovalPolicies(company?: string): Promise<{ data: Array<Record<string, unknown>>; defaults?: Array<Record<string, unknown>> }> {
     return request(`/api/method/workshop.api.accounting.approval_policies.list${buildQuery({ company })}`)
   },
