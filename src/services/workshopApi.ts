@@ -1,10 +1,5 @@
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-// In local Vite development, route API calls through the dev-server proxy.
-// Calling the production origin directly from localhost makes the Frappe sid
-// cookie cross-origin and browsers may drop it between login and refresh.
-const isLocalViteHost = typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-const apiBaseUrl = isLocalViteHost ? '' : configuredApiBaseUrl
+const apiBaseUrl = configuredApiBaseUrl
 
 function apiActivity(delta: 1 | -1) { window.dispatchEvent(new CustomEvent('cw:api-activity', { detail: { delta } })) }
 
