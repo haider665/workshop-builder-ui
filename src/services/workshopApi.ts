@@ -2296,6 +2296,15 @@ export const workshopApi = {
   async accountingCreateCompareSheet(data: { company: string; quotationIds: string[]; materialRequestId?: string; overrideReason?: string }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.compare_sheets.create_from_quotations', { method: 'POST', body: { data } })
   },
+  async accountingCreatePurchaseOrder(data: { compareSheetId: string; transactionDate?: string; scheduleDate?: string }): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.purchase_orders.create_from_compare_sheet', { method: 'POST', body: { data } })
+  },
+  async accountingCreateReceipt(data: { purchaseOrderId: string; postingDate?: string }): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.receipts.create_from_purchase_order', { method: 'POST', body: { data } })
+  },
+  async accountingCreateInvoice(data: { purchaseReceiptId: string; postingDate?: string; dueDate?: string }): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.invoices.create_from_receipt', { method: 'POST', body: { data } })
+  },
   async accountingCreatePayment(data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.payments.create', { method: 'POST', body: { data } })
   },
