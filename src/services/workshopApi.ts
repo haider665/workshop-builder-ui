@@ -2266,6 +2266,12 @@ export const workshopApi = {
   async procurementCaseAction(id: string, action: string, note?: string): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.action', { method: 'POST', body: { id, data: { action, note } } })
   },
+  async procurementAttachQuotation(id: string, supplierQuotationId: string, reason?: string): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.procurement_cases.attach_quotation', { method: 'POST', body: { id, data: { supplierQuotationId, reason } } })
+  },
+  async procurementSelectQuotation(id: string, supplierQuotationId: string, reason: string): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.procurement_cases.select_quotation', { method: 'POST', body: { id, data: { supplierQuotationId, reason } } })
+  },
   async procurementApprovalPolicies(company?: string): Promise<{ data: Array<Record<string, unknown>>; defaults?: Array<Record<string, unknown>> }> {
     return request(`/api/method/workshop.api.accounting.approval_policies.list${buildQuery({ company })}`)
   },
@@ -2286,6 +2292,9 @@ export const workshopApi = {
   },
   async accountingCreate(module: 'requisitions' | 'quotations', data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request(`/api/method/workshop.api.accounting.${module}.create`, { method: 'POST', body: { data } })
+  },
+  async accountingCreateCompareSheet(data: { company: string; quotationIds: string[]; materialRequestId?: string; overrideReason?: string }): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.compare_sheets.create_from_quotations', { method: 'POST', body: { data } })
   },
   async accountingCreatePayment(data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.payments.create', { method: 'POST', body: { data } })
