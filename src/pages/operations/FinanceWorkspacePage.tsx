@@ -10,6 +10,7 @@ type AccountingModule = 'requisitions' | 'quotations' | 'compare_sheets' | 'purc
 type MasterOption = { id: string; label: string; secondary?: string }
 
 const cardSx = { background: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.lg, boxShadow: shadows.card, p: 2.5 } as const
+const PROCUREMENT_PIPELINE_STAGES = ['Requested', 'Procurement Review', 'Quotation Collection', 'Compare Sheet Preparation', 'GM Approval', 'Audit Verification', 'Management Approval', 'PO Creation', 'Supplier Confirmation', 'Chalan / GRN', 'Actual Accounts', 'Reconciliation', 'Bill Settlement']
 
 function statusColor(status?: string): 'default' | 'success' | 'warning' | 'error' | 'info' {
   const value = (status || '').toLowerCase()
@@ -132,8 +133,7 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
     if (!term) return cases
     return cases.filter((item) => [item.id, item.title, item.stage, item.status, item.owner].some((value) => String(value || '').toLowerCase().includes(term)))
   }, [cases, query])
-  const pipelineStages = ['Requested', 'Procurement Review', 'Quotation Collection', 'Compare Sheet Preparation', 'GM Approval', 'Audit Verification', 'Management Approval', 'PO Creation', 'Supplier Confirmation', 'Chalan / GRN', 'Actual Accounts', 'Reconciliation', 'Bill Settlement']
-  const stageCounts = useMemo(() => pipelineStages.map((stage) => ({ stage, count: cases.filter((item) => item.stage === stage).length })), [cases])
+  const stageCounts = useMemo(() => PROCUREMENT_PIPELINE_STAGES.map((stage) => ({ stage, count: cases.filter((item) => item.stage === stage).length })), [cases])
   const overdueCases = useMemo(() => cases.filter((item) => item.slaDueAt && new Date(item.slaDueAt).getTime() < Date.now() && !['Completed', 'Cancelled'].includes(String(item.status || ''))), [cases])
   const filteredClearances = useMemo(() => {
     const term = query.trim().toLowerCase()
