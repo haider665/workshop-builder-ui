@@ -14,6 +14,8 @@ export default defineConfig(({ mode }) => {
           target: backendUrl,
           changeOrigin: true,
           secure: false,
+          // Keep Frappe's host-only session cookies on localhost during dev.
+          cookieDomainRewrite: '',
         },
       },
     },
