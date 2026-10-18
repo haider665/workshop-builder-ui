@@ -294,6 +294,17 @@ const DEMO_ACTION_CHAIN = [
   },
 ];
 
+const PROCESS_PRINT_MODULES: Array<AccountingModule | null> = [
+  null,
+  "requisitions",
+  "quotations",
+  "compare_sheets",
+  "purchase_orders",
+  "receipts",
+  "invoices",
+  "payments",
+];
+
 function demoActionsForStage(stage: string) {
   const stages = [
     "Requested",
@@ -471,6 +482,11 @@ export function FinanceWorkspacePage({
     "orders" | "receipts" | "invoices" | null
   >(null);
   const [createFromId, setCreateFromId] = useState("");
+  const [printPreview, setPrintPreview] = useState<{
+    title: string;
+    documentId: string;
+    module: AccountingModule | null;
+  } | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoStep, setDemoStep] = useState(0);
   const [demoDataLoaded, setDemoDataLoaded] = useState(false);
@@ -1012,6 +1028,33 @@ export function FinanceWorkspacePage({
     } finally {
       setCreateBusy(false);
     }
+  }
+
+  function printProcessDocument(
+    module: AccountingModule | null,
+    id: string,
+    title: string,
+  ) {
+    if (!id) return;
+    if (!demoDataLoaded && module) {
+      window.open(
+        workshopApi.accountingPrintUrl(module, id),
+        "_blank",
+        "noopener,noreferrer",
+      );
+      return;
+    }
+    setPrintPreview({ title, documentId: id, module });
+  }
+
+  function printMockDocument() {
+    if (!printPreview) return;
+    const popup = window.open("", "_blank", "noopener,noreferrer");
+    if (!popup) return;
+    popup.document.write(`<html><head><title>${printPreview.title}</title><style>body{font-family:Arial,sans-serif;color:#172033;margin:40px}header{border-bottom:2px solid #172033;margin-bottom:24px}h1{font-size:22px}h2{font-size:16px;margin-top:28px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #cbd5e1;padding:10px;text-align:left}.meta{color:#475569;font-size:12px}.stamp{display:inline-block;border:1px solid #16a34a;color:#166534;padding:6px 10px;border-radius:4px;font-weight:bold}</style></head><body><header><h1>Continental Works Ltd.</h1><div class="meta">Workshop Procurement Document · Company-scoped operational record</div></header><h2>${printPreview.title}</h2><p class="meta">Document ID: ${printPreview.documentId}<br/>Generated from procurement case DEMO-PROC-0001<br/>Printed: ${new Date().toLocaleString()}</p><table><tr><th>Process</th><td>${printPreview.title}</td></tr><tr><th>Item</th><td>Nissan X-Trail · Front brake pad set</td></tr><tr><th>Amount</th><td>৳128,000</td></tr><tr><th>Company</th><td>Continental Works</td></tr></table><p class="stamp">DEMO DOCUMENT · PRESENTATION ONLY</p><h2>Audit note</h2><p>This document is a printable demonstration of the procurement process. Live documents are printed from the official company record.</p></body></html>`);
+    popup.document.close();
+    popup.focus();
+    popup.print();
   }
 
   const tabGuidance: Record<string, { title: string; description: string }> = {
@@ -1984,6 +2027,21 @@ export function FinanceWorkspacePage({
                             {linked ? ` · ${String(linked)}` : ""}
                           </Typography>
                         </Box>
+                        {linked && index > 0 ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() =>
+                              printProcessDocument(
+                                PROCESS_PRINT_MODULES[index],
+                                String(linked),
+                                step.title,
+                              )
+                            }
+                          >
+                            Print
+                          </Button>
+                        ) : null}
                       </Stack>
                     );
                   })}
@@ -2399,8 +2457,8 @@ export function FinanceWorkspacePage({
           </Button>
         </DialogActions>
       </Dialog>
-      <Dialog
-        open={createFromOpen}
+    <Dialog
+      open={createFromOpen}
         onClose={() => setCreateFromOpen(false)}
         maxWidth="sm"
         fullWidth
@@ -2453,10 +2511,28 @@ export function FinanceWorkspacePage({
           >
             {createBusy ? "Creating…" : "Create linked document"}
           </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog
-        open={demoOpen}
+      </DialogActions>
+    </Dialog>
+    <Dialog open={Boolean(printPreview)} onClose={() => setPrintPreview(null)} maxWidth="md" fullWidth>
+      <DialogTitle>Printable document preview</DialogTitle>
+      <DialogContent dividers>
+        {printPreview ? (
+          <Box sx={{ background: "#fff", color: colors.slate[900], border: `1px solid ${colors.border.default}`, p: { xs: 2, md: 4 }, minHeight: 360 }}>
+            <Stack direction="row" sx={{ justifyContent: "space-between", borderBottom: `2px solid ${colors.slate[900]}`, pb: 1.5, mb: 2 }}>
+              <Box><Typography variant="h6" sx={{ fontWeight: 800 }}>Continental Works Ltd.</Typography><Typography variant="caption">Workshop Procurement Document</Typography></Box>
+              <Chip label="DEMO · PRESENTATION ONLY" color="success" variant="outlined" />
+            </Stack>
+            <Typography variant="h5" sx={{ fontWeight: 800 }}>{printPreview.title}</Typography>
+            <Typography variant="body2" sx={{ color: colors.slate[600], mt: 1 }}>Document ID: {printPreview.documentId}</Typography>
+            <Typography variant="body2" sx={{ color: colors.slate[600] }}>Procurement case: DEMO-PROC-0001 · Printed: {new Date().toLocaleString()}</Typography>
+            <Stack spacing={1} sx={{ mt: 3 }}><Typography><b>Item:</b> Nissan X-Trail · Front brake pad set</Typography><Typography><b>Company:</b> Continental Works</Typography><Typography><b>Amount:</b> ৳128,000</Typography><Divider /><Typography variant="body2">This paper is generated from the full procurement process and remains linked to the case audit trail.</Typography></Stack>
+          </Box>
+        ) : null}
+      </DialogContent>
+      <DialogActions><Button onClick={() => setPrintPreview(null)}>Close</Button><Button variant="contained" onClick={printMockDocument}>Print document</Button></DialogActions>
+    </Dialog>
+    <Dialog
+      open={demoOpen}
         onClose={() => setDemoOpen(false)}
         maxWidth="md"
         fullWidth
