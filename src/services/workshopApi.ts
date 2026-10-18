@@ -2257,6 +2257,12 @@ export const workshopApi = {
   async procurementCases(company?: string): Promise<ApiListResponse<{ id: string; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string; company?: string }>> {
     return request(`/api/method/workshop.api.accounting.procurement_cases.list${buildQuery({ company, pageSize: 100 })}`)
   },
+  async procurementApprovalPolicies(company?: string): Promise<{ data: Array<Record<string, unknown>>; defaults?: Array<Record<string, unknown>> }> {
+    return request(`/api/method/workshop.api.accounting.approval_policies.list${buildQuery({ company })}`)
+  },
+  async saveProcurementApprovalPolicy(data: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.approval_policies.save', { method: 'POST', body: { data } })
+  },
   async financialClearances(company?: string): Promise<ApiListResponse<{ id: string; type?: string; status?: string; appointmentId?: string; requestedAmount?: number; outstandingAmount?: number; requestedByUserId?: string; requestedAt?: string; reviewedByUserId?: string; reviewedAt?: string; reviewNote?: string }>> {
     return request(`/api/method/workshop.api.financial_clearances.list${buildQuery({ company, pageSize: 100 })}`)
   },

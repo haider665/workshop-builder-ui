@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Autocomplete, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Autocomplete, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, Stack, Switch, Tab, Tabs, TextField, Typography } from '@mui/material'
 import { AccountBalance, AssignmentTurnedIn, Refresh, ShoppingCart } from '@mui/icons-material'
 import { workshopApi } from '../../services/workshopApi'
 import { useCompanyStore } from '../../store/companyStore'
 import { colors, pageLayout, radii, shadows } from '../../theme/tokens'
 
-type TabId = 'procurement' | 'requisitions' | 'quotations' | 'compare' | 'orders' | 'receipts' | 'invoices' | 'payments' | 'journals' | 'accounting'
+type TabId = 'procurement' | 'policy' | 'requisitions' | 'quotations' | 'compare' | 'orders' | 'receipts' | 'invoices' | 'payments' | 'journals' | 'accounting'
 type AccountingModule = 'requisitions' | 'quotations' | 'compare_sheets' | 'purchase_orders' | 'receipts' | 'invoices' | 'payments' | 'journals'
 type MasterOption = { id: string; label: string; secondary?: string }
 
@@ -47,6 +47,8 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
   const [mastersLoading, setMastersLoading] = useState(false)
   const [accountOptions, setAccountOptions] = useState<MasterOption[]>([])
   const [modeOptions, setModeOptions] = useState<MasterOption[]>([])
+  const [policy, setPolicy] = useState<Record<string, unknown> | null>(null)
+  const [policyBusy, setPolicyBusy] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentParty, setPaymentParty] = useState('')
@@ -76,16 +78,18 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
     }
     setLoading(true); setError(null)
     try {
-      const [summary, queue, caseList, clearanceList] = await Promise.all([
+      const [summary, queue, caseList, clearanceList, policyResult] = await Promise.all([
         workshopApi.accountingDashboard(selectedCompanyId),
         workshopApi.procurementInbox(selectedCompanyId).catch(() => ({ data: [] })),
         workshopApi.procurementCases(selectedCompanyId).catch(() => ({ data: [], meta: { page: 1, pageSize: 100, total: 0 } })),
         workshopApi.financialClearances(selectedCompanyId).catch(() => ({ data: [], meta: { page: 1, pageSize: 100, total: 0 } })),
+        workshopApi.procurementApprovalPolicies(selectedCompanyId).catch(() => ({ data: [], defaults: [] })),
       ])
       setDashboard(summary)
       setInbox(queue.data || [])
       setCases(caseList.data || [])
       setClearances(clearanceList.data || [])
+      setPolicy(policyResult.data?.[0] || policyResult.defaults?.[0] || null)
       const modules: AccountingModule[] = ['requisitions', 'quotations', 'compare_sheets', 'purchase_orders', 'receipts', 'invoices', 'payments', 'journals']
       const moduleErrors: string[] = []
       const results = await Promise.all(modules.map(async (module) => {
@@ -179,6 +183,18 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
     finally { setCreateBusy(false) }
   }
 
+  async function savePolicy() {
+    if (!selectedCompanyId || !policy) return
+    setPolicyBusy(true); setError(null)
+    try {
+      const saved = await workshopApi.saveProcurementApprovalPolicy({ ...policy, companyId: selectedCompanyId })
+      setPolicy(saved)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save procurement policy') }
+    finally { setPolicyBusy(false) }
+  }
+
+  const setPolicyValue = (key: string, value: unknown) => setPolicy((current) => current ? { ...current, [key]: value } : current)
+
   return <Box sx={{ ...pageLayout, p: { xs: 2, md: 3 } }}>
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2.5, justifyContent: 'space-between' }}>
       <Box><Typography variant="overline" sx={{ color: colors.slate[500], fontWeight: 800 }}>WORKSHOP OPERATIONS</Typography><Typography variant="h4" sx={{ fontWeight: 800 }}>{workspace === 'accounting' ? 'Accounting Workspace' : 'Procurement Workspace'}</Typography><Typography sx={{ color: colors.slate[600], mt: .5 }}>{workspace === 'accounting' ? 'Ledger-facing finance control: invoices, payment entries, journals, clearances and company financial records.' : 'Company-scoped requisitions, supplier quotations, compare sheets, purchase orders and receipts.'}</Typography></Box>
@@ -191,10 +207,13 @@ export function FinanceWorkspacePage({ initialTab = 'procurement', workspace = '
     </Stack>
     {dashboard?.attention?.some((item) => item.count > 0) ? <Box sx={{ ...cardSx, mb: 2.5 }}><Typography sx={{ fontWeight: 800, mb: 1 }}>Work requiring action</Typography><Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>{dashboard.attention.filter((item) => item.count > 0).map((item) => <Button key={item.id} variant="outlined" onClick={() => { const route = (item.route || '').split('/').pop() || ''; const tabMap: Record<string, TabId> = { requisitions: 'requisitions', quotations: 'quotations', 'compare-sheets': 'compare', 'purchase-orders': 'orders', receipts: 'receipts', invoices: 'invoices', payments: 'payments', journals: 'journals', cases: 'procurement' }; setTab(tabMap[route] || 'accounting'); setQuery('') }}>{item.title} · {item.count}</Button>)}</Stack></Box> : null}
     <Box sx={cardSx}>
-      <Tabs value={tab} variant="scrollable" allowScrollButtonsMobile onChange={(_, value: TabId) => { setTab(value); setQuery('') }}>{workspace === 'procurement' ? <><Tab value="procurement" icon={<ShoppingCart />} iconPosition="start" label="Procurement cases" /><Tab value="requisitions" label="Requisitions" /><Tab value="quotations" label="Supplier quotations" /><Tab value="compare" label="Compare sheets" /><Tab value="orders" label="Purchase orders" /><Tab value="receipts" label="Receipts / GRN" /></> : <><Tab value="accounting" icon={<AccountBalance />} iconPosition="start" label="Clearances" /><Tab value="invoices" label="Supplier invoices" /><Tab value="payments" label="Payment entry" /><Tab value="journals" label="Journal ledger" /></>}</Tabs>
+      <Tabs value={tab} variant="scrollable" allowScrollButtonsMobile onChange={(_, value: TabId) => { setTab(value); setQuery('') }}>{workspace === 'procurement' ? <><Tab value="procurement" icon={<ShoppingCart />} iconPosition="start" label="Procurement cases" /><Tab value="policy" label="Policy & approvals" /><Tab value="requisitions" label="Requisitions" /><Tab value="quotations" label="Supplier quotations" /><Tab value="compare" label="Compare sheets" /><Tab value="orders" label="Purchase orders" /><Tab value="receipts" label="Receipts / GRN" /></> : <><Tab value="accounting" icon={<AccountBalance />} iconPosition="start" label="Clearances" /><Tab value="invoices" label="Supplier invoices" /><Tab value="payments" label="Payment entry" /><Tab value="journals" label="Journal ledger" /></>}</Tabs>
       <Divider sx={{ mb: 2 }} />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}><TextField fullWidth size="small" label="Search permitted records" value={query} onChange={(event) => setQuery(event.target.value)} />{['requisitions', 'quotations'].includes(tab) ? <Button variant="contained" onClick={() => setCreateOpen(true)}>New {tab === 'quotations' ? 'quotation' : 'requisition'}</Button> : null}{workspace === 'accounting' && tab === 'payments' ? <Button variant="contained" onClick={() => setPaymentOpen(true)}>New payment entry</Button> : null}</Stack>
-      {loading ? <Stack sx={{ py: 6, alignItems: 'center' }}><CircularProgress size={28} /></Stack> : activeModule ? <Stack spacing={1}>
+      {loading ? <Stack sx={{ py: 6, alignItems: 'center' }}><CircularProgress size={28} /></Stack> : tab === 'policy' ? <Stack spacing={2} sx={{ py: 1 }}>
+        <Box><Typography variant="h6" sx={{ fontWeight: 800 }}>Procurement approval policy</Typography><Typography variant="body2" sx={{ color: colors.slate[600], mt: .5 }}>Configure the approval gates for {company?.name || selectedCompanyId}. New procurement cases snapshot this policy; historical cases remain unchanged.</Typography></Box>
+        {policy ? <><Stack direction={{ xs: 'column', md: 'row' }} spacing={2}><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 700, mb: 1 }}>Approval gates</Typography><FormControlLabel control={<Switch checked={Boolean(policy.requireGmApproval)} onChange={(e) => setPolicyValue('requireGmApproval', e.target.checked)} />} label="GM approval" /><TextField fullWidth size="small" type="number" label="GM minimum amount" value={String(policy.gmMinAmount ?? 0)} onChange={(e) => setPolicyValue('gmMinAmount', Number(e.target.value) || 0)} sx={{ mb: 1.5 }} /><FormControlLabel control={<Switch checked={Boolean(policy.requireAuditVerification)} onChange={(e) => setPolicyValue('requireAuditVerification', e.target.checked)} />} label="Audit verification" /><TextField fullWidth size="small" type="number" label="Audit verification minimum amount" value={String(policy.auditVerificationMinAmount ?? 0)} onChange={(e) => setPolicyValue('auditVerificationMinAmount', Number(e.target.value) || 0)} /></Box><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 700, mb: 1 }}>Management and receiving controls</Typography><FormControlLabel control={<Switch checked={Boolean(policy.requireManagementApproval)} onChange={(e) => setPolicyValue('requireManagementApproval', e.target.checked)} />} label="Management approval" /><TextField fullWidth size="small" type="number" label="Management minimum amount" value={String(policy.managementMinAmount ?? 0)} onChange={(e) => setPolicyValue('managementMinAmount', Number(e.target.value) || 0)} sx={{ mb: 1.5 }} /><FormControlLabel control={<Switch checked={Boolean(policy.requirePhysicalAudit)} onChange={(e) => setPolicyValue('requirePhysicalAudit', e.target.checked)} />} label="Physical receiving audit" /><TextField fullWidth size="small" type="number" label="Physical audit minimum amount" value={String(policy.physicalAuditMinAmount ?? 0)} onChange={(e) => setPolicyValue('physicalAuditMinAmount', Number(e.target.value) || 0)} sx={{ mb: 1.5 }} /><FormControlLabel control={<Switch checked={Boolean(policy.requireAuditClearance)} onChange={(e) => setPolicyValue('requireAuditClearance', e.target.checked)} />} label="Final audit clearance" /><TextField fullWidth size="small" type="number" label="Audit clearance minimum amount" value={String(policy.auditClearanceMinAmount ?? 0)} onChange={(e) => setPolicyValue('auditClearanceMinAmount', Number(e.target.value) || 0)} /></Box></Stack><TextField fullWidth multiline minRows={2} label="Policy notes" value={String(policy.notes || '')} onChange={(e) => setPolicyValue('notes', e.target.value)} /><Stack direction="row" sx={{ justifyContent: 'flex-end' }}><Button variant="contained" disabled={policyBusy} onClick={() => void savePolicy()}>{policyBusy ? 'Saving…' : 'Save policy'}</Button></Stack></> : <Alert severity="info">No approval policy is available for this company yet. The built-in approval chain will remain active until a manager saves a policy.</Alert>}
+      </Stack> : activeModule ? <Stack spacing={1}>
         {filteredDocuments.map((row) => { const id = String(row.name || row.id || ''); const status = String(row.status || (Number(row.docstatus) === 1 ? 'Submitted' : 'Draft')); const party = String(row.supplierName || row.supplierId || row.partyName || row.partyId || ''); const amount = row.grandTotal ?? row.totalAmount ?? row.paidAmount ?? row.total ?? null; return <Box key={id} role="button" tabIndex={0} onClick={() => void openDocument(activeModule, row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDocument(activeModule, row) }} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: radii.md, p: 1.75, cursor: 'pointer', '&:hover': { borderColor: colors.slate[500] } }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ alignItems: { md: 'center' } }}><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800 }}>{id || 'Unnamed document'}</Typography><Typography variant="caption">{party || 'No party'}{amount !== null ? ` · ${Number(amount).toLocaleString()} · ` : ' · '}{String(row.company || selectedCompanyId || '')}</Typography></Box><Chip size="small" label={status} color={statusColor(status)} />{['Draft', '0', 'Open'].includes(status) ? <Button size="small" variant="outlined" disabled={!id || busyId === id} onClick={(event) => { event.stopPropagation(); void submitDocument(activeModule, id) }}>Submit</Button> : null}</Stack></Box> })}
         {!filteredDocuments.length ? <Typography sx={{ color: colors.slate[500], py: 4, textAlign: 'center' }}>No records found for this company.</Typography> : null}
       </Stack> : tab === 'procurement' ? <Stack spacing={1}>
