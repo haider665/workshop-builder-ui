@@ -56,6 +56,16 @@ type AccountingModule =
   | "payments"
   | "journals";
 type MasterOption = { id: string; label: string; secondary?: string };
+type QuotationLineDraft = {
+  key: string;
+  itemCode: string;
+  quantity: string;
+  rate: string;
+  description?: string;
+  materialRequestId?: string;
+  materialRequestItemId?: string;
+  warehouse?: string;
+};
 
 const PROCUREMENT_DEMO_STEPS = [
   {
@@ -549,6 +559,7 @@ export function FinanceWorkspacePage({
   const [createRate, setCreateRate] = useState("0");
   const [createRemarks, setCreateRemarks] = useState("");
   const [createMaterialRequestId, setCreateMaterialRequestId] = useState("");
+  const [quotationLines, setQuotationLines] = useState<QuotationLineDraft[]>([]);
   const [createBusy, setCreateBusy] = useState(false);
   const [itemOptions, setItemOptions] = useState<MasterOption[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<MasterOption[]>([]);
@@ -582,6 +593,7 @@ export function FinanceWorkspacePage({
   const [storeProcurementType, setStoreProcurementType] = useState<"Local" | "Foreign">("Local");
   const [storeVendorRoute, setStoreVendorRoute] = useState<"Enlisted Vendor" | "Non-enlisted Vendor" | "Single Vendor">("Enlisted Vendor");
   const [storeReviewNote, setStoreReviewNote] = useState("");
+  const [storePartReviews, setStorePartReviews] = useState<Record<string, { status: "Stock Available" | "Local Shortage" | "Foreign Required"; procurementType: "Local" | "Foreign"; note: string; stockAvailable: number }>>({});
   const [foreignCustomerConfirmation, setForeignCustomerConfirmation] = useState<"Not Required" | "Pending" | "Confirmed" | "Rejected">("Pending");
   const [foreignAdvanceStatus, setForeignAdvanceStatus] = useState<"Not Required" | "Pending" | "Confirmed" | "Partially Paid" | "Paid">("Pending");
   const [foreignAdvanceAmount, setForeignAdvanceAmount] = useState("");
@@ -722,6 +734,22 @@ export function FinanceWorkspacePage({
     setStoreProcurementType((value.procurementType as typeof storeProcurementType) || "Local");
     setStoreVendorRoute((value.vendorRoute as typeof storeVendorRoute) || "Enlisted Vendor");
     setStoreReviewNote(String(value.storeReviewNote || ""));
+    const context = value.requestContext as { parts?: Array<Record<string, unknown>> } | null;
+    if (context?.parts?.length) {
+      setStorePartReviews(Object.fromEntries(context.parts.map((part, index) => {
+        const id = String(part.id || part.partRequestId || index);
+        const status = String(part.storeReviewStatus || "") as "Stock Available" | "Local Shortage" | "Foreign Required";
+        const procurementType = String(part.procurementType || "") as "Local" | "Foreign";
+        return [id, {
+          status: ["Stock Available", "Local Shortage", "Foreign Required"].includes(status) ? status : "Local Shortage",
+          procurementType: procurementType === "Foreign" ? "Foreign" : "Local",
+          note: String(part.storeReviewNote || ""),
+          stockAvailable: Number(part.stockAvailable || 0),
+        }];
+      })));
+    } else {
+      setStorePartReviews({});
+    }
     setForeignCustomerConfirmation((value.foreignCustomerConfirmation as typeof foreignCustomerConfirmation) || "Pending");
     setForeignAdvanceStatus((value.foreignAdvanceStatus as typeof foreignAdvanceStatus) || "Pending");
     setForeignAdvanceAmount(value.foreignAdvanceAmount ? String(value.foreignAdvanceAmount) : "");
@@ -840,12 +868,14 @@ export function FinanceWorkspacePage({
     setWorkflowBusy(true);
     setError(null);
     try {
+      const lineReviews = Object.entries(storePartReviews).map(([partRequestId, review]) => ({ partRequestId, storeReviewStatus: review.status, procurementType: review.procurementType, stockAvailable: review.stockAvailable, note: review.note || undefined }));
       if (demoDataLoaded && selectedCase.id === PROCUREMENT_DEMO_DATA.case.id) {
-        const nextStage = storeReviewStatus === "Stock Available" ? "Counter Desk Fulfilment" : "Quotation Collection";
+        const allStock = lineReviews.length > 0 && lineReviews.every((line) => line.storeReviewStatus === "Stock Available");
+        const nextStage = (allStock || storeReviewStatus === "Stock Available") ? "Counter Desk Fulfilment" : "Quotation Collection";
         setSelectedCase({ ...selectedCase, currentStage: nextStage, stage: nextStage, status: "In Progress", procurementType: storeProcurementType, vendorRoute: storeVendorRoute, storeReviewStatus, storeReviewNote });
         setCaseActions(demoActionsForStage(nextStage));
       } else {
-        await workshopApi.procurementStoreReview(String(selectedCase.id), { storeReviewStatus, procurementType: storeProcurementType, vendorRoute: storeVendorRoute, note: storeReviewNote.trim() || undefined });
+        await workshopApi.procurementStoreReview(String(selectedCase.id), { storeReviewStatus, procurementType: storeProcurementType, vendorRoute: storeVendorRoute, note: storeReviewNote.trim() || undefined, parts: lineReviews });
         await openCase(String(selectedCase.id));
         await load();
       }
@@ -880,6 +910,17 @@ export function FinanceWorkspacePage({
     if (kind === "quotation") {
       setTab("quotations");
       setCreateMaterialRequestId(String(selectedCase.materialRequestId || ""));
+      const context = selectedCase.requestContext as { parts?: Array<Record<string, unknown>> } & Record<string, unknown> | null;
+      const parts: Array<Record<string, unknown>> = context?.parts?.length ? context.parts : [context || {}];
+      setQuotationLines(parts.map((part, index) => ({
+        key: String(part.id || part.partRequestId || part.partNumber || index),
+        itemCode: String(part.partNumber || part.itemCode || ""),
+        quantity: String(part.quantity || 1),
+        rate: String(part.rate || part.estimatedRate || 0),
+        description: String(part.partName || part.request || ""),
+        materialRequestId: String(part.materialRequestId || selectedCase.materialRequestId || "") || undefined,
+        materialRequestItemId: String(part.materialRequestItemId || "") || undefined,
+      })));
       setCreateOpen(true);
       return;
     }
@@ -1136,19 +1177,20 @@ export function FinanceWorkspacePage({
       if (demoDataLoaded && selectedCase?.id === PROCUREMENT_DEMO_DATA.case.id && tab === "quotations") {
         const nextNumber = documents.quotations.length + 1;
         const id = "DEMO-QTN-" + String(nextNumber).padStart(4, "0");
-        const total = (Number(createQty) || 1) * (Number(createRate) || 0);
+        const lines = quotationLines.length ? quotationLines : [{ key: "1", itemCode: createItemCode.trim(), quantity: createQty, rate: createRate, description: createRemarks }];
         const quotation = {
           id,
           name: id,
           status: "Submitted",
           supplierName: createSupplier.trim() || "Demo supplier",
           supplierId: createSupplier.trim() || "DEMO-SUPPLIER",
-          grandTotal: total,
-          totalAmount: total,
+          grandTotal: lines.reduce((sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.rate) || 0), 0),
+          totalAmount: lines.reduce((sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.rate) || 0), 0),
           currency: "BDT",
           company: selectedCompanyId,
           materialRequestId: createMaterialRequestId || "DEMO-MR-0001",
-          itemCode: createItemCode.trim(),
+          itemCode: lines[0]?.itemCode || createItemCode.trim(),
+          items: lines.map((line) => ({ itemCode: line.itemCode, qty: Number(line.quantity) || 1, rate: Number(line.rate) || 0, description: line.description })),
         };
         setDocuments((current) => ({ ...current, quotations: [...current.quotations, quotation] }));
         setSelectedCase((current) => current ? { ...current, selectedSupplierQuotationId: current.selectedSupplierQuotationId || id, currentStage: "Quotation Collection", stage: "Quotation Collection" } : current);
@@ -1159,19 +1201,26 @@ export function FinanceWorkspacePage({
         setCreateRate("0");
         setCreateRemarks("");
         setCreateMaterialRequestId("");
+        setQuotationLines([]);
         return;
       }
-      const item: Record<string, unknown> = {
-        itemCode: createItemCode.trim(),
-        qty: Number(createQty) || 1,
-        rate: Number(createRate) || 0,
-        description: createRemarks.trim() || undefined,
-      };
+      const lines = tab === "quotations" && quotationLines.length
+        ? quotationLines
+        : [{ key: "single", itemCode: createItemCode.trim(), quantity: createQty, rate: createRate, description: createRemarks.trim() }];
+      const items = lines.map((line) => ({
+        itemCode: line.itemCode.trim(),
+        qty: Number(line.quantity) || 1,
+        rate: Number(line.rate) || 0,
+        description: line.description?.trim() || undefined,
+        materialRequestId: line.materialRequestId || (tab === "quotations" ? createMaterialRequestId || undefined : undefined),
+        materialRequestItemId: line.materialRequestItemId || undefined,
+        warehouse: line.warehouse || undefined,
+      }));
       if (tab === "quotations" && createMaterialRequestId)
-        item.materialRequestId = createMaterialRequestId;
+        items.forEach((item) => { if (!item.materialRequestId) item.materialRequestId = createMaterialRequestId; });
       const data: Record<string, unknown> = {
         company: selectedCompanyId,
-        items: [item],
+        items,
       };
       if (tab === "quotations") data.supplierId = createSupplier.trim();
       if (tab === "requisitions")
@@ -1187,6 +1236,7 @@ export function FinanceWorkspacePage({
       setCreateRate("0");
       setCreateRemarks("");
       setCreateMaterialRequestId("");
+      setQuotationLines([]);
       await load();
       if (caseId) await openCase(caseId);
     } catch (cause) {
@@ -2552,6 +2602,39 @@ export function FinanceWorkspacePage({
                   })}
                 </Stack>
               </Box>
+              <Stack direction={{ xs: "column", lg: "row" }} spacing={2} sx={{ alignItems: "stretch" }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 800, mb: 1 }}>Case documents</Typography>
+                  <Typography variant="body2" sx={{ color: colors.slate[600] }}>
+                    Every requisition, quotation, comparative statement, order, GRN, invoice, and payment remains available from this case.
+                  </Typography>
+                </Box>
+                <Box sx={{ width: { xs: "100%", lg: 340 }, flexShrink: 0, border: "1px solid " + colors.border.default, borderRadius: radii.md, p: 1.25, background: colors.bg.subtle }}>
+                  <Typography sx={{ fontWeight: 800, mb: 1 }}>Print / open documents</Typography>
+                  {([
+                    ["requisitions", "Requisition", selectedCase.materialRequestId],
+                    ["quotations", "Supplier quotation", selectedCase.selectedSupplierQuotationId],
+                    ["compare_sheets", "Comparative statement", selectedCase.compareSheetId],
+                    ["purchase_orders", "Purchase order", selectedCase.purchaseOrderId],
+                    ["receipts", "Goods receipt note", selectedCase.purchaseReceiptId],
+                    ["invoices", "Supplier invoice", selectedCase.purchaseInvoiceId],
+                    ["payments", "Payment entry", selectedCase.paymentEntryId],
+                  ] as Array<[AccountingModule, string, unknown]>).map(([module, label, value]) => {
+                    const id = String(value || "");
+                    if (!id && !demoDataLoaded) return null;
+                    const documentId = id || "DEMO-" + module.toUpperCase() + "-0001";
+                    return (
+                      <Stack key={module} direction="row" spacing={0.75} sx={{ mb: 0.75, alignItems: "center" }}>
+                        <Typography variant="body2" sx={{ flex: 1 }}>{label}<br /><Typography component="span" variant="caption">{documentId}</Typography></Typography>
+                        <Button size="small" variant="outlined" onClick={() => printProcessDocument(module, documentId, label)}>Print</Button>
+                      </Stack>
+                    );
+                  })}
+                  {!demoDataLoaded && !selectedCase.materialRequestId && !selectedCase.selectedSupplierQuotationId && !selectedCase.compareSheetId && !selectedCase.purchaseOrderId && !selectedCase.purchaseReceiptId && !selectedCase.purchaseInvoiceId && !selectedCase.paymentEntryId ? (
+                    <Typography variant="caption" sx={{ color: colors.slate[500] }}>Documents will appear here as each stage is completed.</Typography>
+                  ) : null}
+                </Box>
+              </Stack>
               <Box sx={{ ...cardSx, p: 1.5 }}>
                 <Typography sx={{ fontWeight: 800, mb: 1 }}>
                   Current operation
@@ -2610,6 +2693,39 @@ export function FinanceWorkspacePage({
                     <Typography variant="body2" sx={{ color: colors.slate[600], mb: 1.25 }}>
                       Parts / Store Keeper checks FIFO stock here. Available stock goes to Counter Desk; a shortage starts local procurement; no local source routes the case to foreign procurement.
                     </Typography>
+                    {(() => {
+                      const storeContext = selectedCase.requestContext as { parts?: Array<Record<string, unknown>> } | null;
+                      const parts = storeContext?.parts || [];
+                      if (!parts.length) return null;
+                      return (
+                        <Box sx={{ mb: 1.25, p: 1, borderRadius: 1, bgcolor: colors.bg.subtle }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.75 }}>Review each requested part</Typography>
+                          <Stack spacing={1}>
+                            {parts.map((part, index) => {
+                              const id = String(part.id || part.partRequestId || index);
+                              const review = storePartReviews[id] || { status: "Local Shortage" as const, procurementType: "Local" as const, note: "", stockAvailable: Number(part.stockAvailable || 0) };
+                              return (
+                                <Stack key={id} direction={{ xs: "column", md: "row" }} spacing={1} sx={{ alignItems: { md: "center" } }}>
+                                  <Box sx={{ flex: 1, minWidth: 180 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{String(part.partName || part.partNumber || "Part")}</Typography>
+                                    <Typography variant="caption">Requested {String(part.quantity || 0)} · Available FIFO stock {review.stockAvailable}</Typography>
+                                  </Box>
+                                  <TextField select size="small" label="Decision" value={review.status} onChange={(event) => setStorePartReviews((current) => ({ ...current, [id]: { ...review, status: event.target.value as typeof review.status } }))} sx={{ minWidth: 190 }}>
+                                    <MenuItem value="Stock Available">Stock available</MenuItem>
+                                    <MenuItem value="Local Shortage">Local shortage</MenuItem>
+                                    <MenuItem value="Foreign Required">Foreign required</MenuItem>
+                                  </TextField>
+                                  <TextField select size="small" label="Type" value={review.procurementType} onChange={(event) => setStorePartReviews((current) => ({ ...current, [id]: { ...review, procurementType: event.target.value as typeof review.procurementType } }))} sx={{ minWidth: 130 }}>
+                                    <MenuItem value="Local">Local</MenuItem>
+                                    <MenuItem value="Foreign">Foreign</MenuItem>
+                                  </TextField>
+                                </Stack>
+                              );
+                            })}
+                          </Stack>
+                        </Box>
+                      );
+                    })()}
                     <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
                       <TextField select size="small" label="Store decision" value={storeReviewStatus} onChange={(event) => setStoreReviewStatus(event.target.value as typeof storeReviewStatus)} sx={{ minWidth: 210 }}>
                         <MenuItem value="Stock Available">Stock available → Counter Desk</MenuItem>
@@ -2950,7 +3066,42 @@ export function FinanceWorkspacePage({
               Choose master records from the selected company. Search matches
               code, name, and type.
             </Typography>
-            <Autocomplete<MasterOption>
+            {tab === "quotations" && quotationLines.length ? (
+              <Stack spacing={1}>
+                <Typography sx={{ fontWeight: 800 }}>
+                  Parts in this appointment ({quotationLines.length})
+                </Typography>
+                <Typography variant="caption" sx={{ color: colors.slate[600] }}>
+                  One supplier quotation will contain every requested part. Adjust each quantity and rate before creating it.
+                </Typography>
+                {quotationLines.map((line, index) => (
+                  <Box key={line.key} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: radii.md, p: 1 }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <Autocomplete<MasterOption>
+                        fullWidth
+                        size="small"
+                        loading={mastersLoading}
+                        options={itemOptions}
+                        value={itemOptions.find((item) => item.id === line.itemCode) || null}
+                        onChange={(_, value) => setQuotationLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, itemCode: value?.id || "", description: value?.label || item.description } : item))}
+                        getOptionLabel={(option) => option.secondary ? `${option.label} · ${option.secondary}` : option.label}
+                        isOptionEqualToValue={(option, value) => option.id === value.id}
+                        renderInput={(params) => <TextField {...params} label={`Part ${index + 1}`} required />}
+                      />
+                      <TextField size="small" label="Qty" type="number" value={line.quantity} onChange={(event) => setQuotationLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: event.target.value } : item))} sx={{ width: { sm: 100 } }} />
+                      <TextField size="small" label="Rate" type="number" value={line.rate} onChange={(event) => setQuotationLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, rate: event.target.value } : item))} sx={{ width: { sm: 130 } }} />
+                    </Stack>
+                    <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: colors.slate[600] }}>
+                      {line.description || "No description"} · line total {(Number(line.quantity) || 0) * (Number(line.rate) || 0)}
+                    </Typography>
+                  </Box>
+                ))}
+                <Button size="small" variant="text" onClick={() => setQuotationLines((current) => [...current, { key: "line-" + Date.now(), itemCode: "", quantity: "1", rate: "0" }])}>
+                  Add another part
+                </Button>
+              </Stack>
+            ) : null}
+            {tab !== "quotations" || !quotationLines.length ? <Autocomplete<MasterOption>
               loading={mastersLoading}
               options={itemOptions}
               value={
@@ -2966,13 +3117,13 @@ export function FinanceWorkspacePage({
               renderInput={(params) => (
                 <TextField {...params} required label="Item / part" autoFocus />
               )}
-            />
-            <TextField
+            /> : null}
+            {tab !== "quotations" || !quotationLines.length ? <TextField
               label="Quantity"
               type="number"
               value={createQty}
               onChange={(event) => setCreateQty(event.target.value)}
-            />
+            /> : null}
             {tab === "quotations" ? (
               <Autocomplete
                 loading={mastersLoading}
@@ -3017,7 +3168,9 @@ export function FinanceWorkspacePage({
             variant="contained"
             disabled={
               createBusy ||
-              !createItemCode.trim() ||
+              (tab === "quotations" && quotationLines.length
+                ? quotationLines.some((line) => !line.itemCode.trim() || Number(line.quantity) <= 0)
+                : !createItemCode.trim()) ||
               (tab === "quotations" && !createSupplier.trim())
             }
             onClick={() => void createDocument()}
