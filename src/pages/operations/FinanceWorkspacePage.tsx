@@ -3082,7 +3082,16 @@ export function FinanceWorkspacePage({
                         size="small"
                         loading={mastersLoading}
                         options={itemOptions}
-                        value={itemOptions.find((item) => item.id === line.itemCode) || null}
+                        value={itemOptions.find((item) =>
+                          item.id === line.itemCode ||
+                          item.secondary === line.itemCode ||
+                          item.label === line.itemCode ||
+                          item.label === line.description
+                        ) || (line.itemCode ? {
+                          id: line.itemCode,
+                          label: line.description || line.itemCode,
+                          secondary: line.itemCode,
+                        } : null)}
                         onChange={(_, value) => setQuotationLines((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, itemCode: value?.id || "", description: value?.label || item.description } : item))}
                         getOptionLabel={(option) => option.secondary ? `${option.label} · ${option.secondary}` : option.label}
                         isOptionEqualToValue={(option, value) => option.id === value.id}
