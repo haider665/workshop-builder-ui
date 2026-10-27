@@ -108,6 +108,13 @@ const PROCUREMENT_DEMO_STEPS = [
       "The approved supplier becomes the Purchase Order supplier. ETA, advance instruction, VAT, tax, terms, and delivery conditions are captured.",
   },
   {
+    title: "Supplier confirmation",
+    role: "Procurement",
+    required: "Supplier acceptance and delivery commitment",
+    detail:
+      "Procurement records supplier confirmation, agreed ETA, payment terms, and any advance or shipment instructions against the purchase order.",
+  },
+  {
     title: "GRN and inventory",
     role: "Store Keeper / Procurement",
     required: "Physical verification and received quantity",
@@ -115,11 +122,53 @@ const PROCUREMENT_DEMO_STEPS = [
       "The store physically verifies the delivery and submits the GRN. Inventory is increased using FIFO-aware stock records and the procurement case is updated.",
   },
   {
-    title: "Accounts and settlement",
-    role: "Accounts",
-    required: "Invoice, reconciliation, and payment entry",
+    title: "Physical audit review",
+    role: "Audit / Store Keeper",
+    required: "Received quantity and supporting delivery documents",
     detail:
-      "The supplier invoice is checked, posted, reconciled, and settled through the Payment Entry. The complete case and audit history remain printable.",
+      "Audit reviews the physical receipt and supporting documents. Store remains responsible for the actual receipt and inventory update.",
+  },
+  {
+    title: "Procurement file completion",
+    role: "Procurement",
+    required: "Complete PO, GRN, invoice, and attachments",
+    detail:
+      "Procurement completes the commercial file so every quotation, approval, purchase order, receipt, invoice, and attachment is available for review and printing.",
+  },
+  {
+    title: "Audit clearance",
+    role: "Audit",
+    required: "Completed procurement file cleared",
+    detail:
+      "Audit clears the completed procurement file before the accounting team posts and settles the supplier liability.",
+  },
+  {
+    title: "Actual accounts",
+    role: "Accounts",
+    required: "Supplier invoice checked and posted",
+    detail:
+      "Accounts verifies the supplier invoice and posts the payable using the linked receipt and approved purchase order.",
+  },
+  {
+    title: "Reconciliation",
+    role: "Accounts Manager",
+    required: "Payment and ledger reconciliation",
+    detail:
+      "The Accounts Manager confirms the payment allocation and reconciliation against the supplier invoice and company ledger.",
+  },
+  {
+    title: "Bill settlement",
+    role: "Accounts",
+    required: "Payment entry and authentic reference",
+    detail:
+      "Accounts records the Payment Entry with the bank or transaction reference and settles the outstanding supplier balance.",
+  },
+  {
+    title: "Paid / Closed",
+    role: "Procurement / Accounts",
+    required: "All gates complete and audit history retained",
+    detail:
+      "The case is closed only after receipt, accounting, reconciliation, and settlement are complete. The full printable file remains linked to the appointment.",
   },
 ];
 
@@ -305,13 +354,20 @@ const DEMO_ACTION_CHAIN = [
 const PROCESS_PRINT_MODULES: Array<AccountingModule | null> = [
   null,
   "requisitions",
-  "requisitions",
   "quotations",
   "compare_sheets",
   "compare_sheets",
+  "compare_sheets",
+  "compare_sheets",
+  "purchase_orders",
   "purchase_orders",
   "receipts",
+  "receipts",
   "invoices",
+  "invoices",
+  "invoices",
+  "payments",
+  "payments",
   "payments",
 ];
 
@@ -1057,6 +1113,34 @@ export function FinanceWorkspacePage({
     setCreateBusy(true);
     setError(null);
     try {
+      if (demoDataLoaded && selectedCase?.id === PROCUREMENT_DEMO_DATA.case.id && tab === "quotations") {
+        const nextNumber = documents.quotations.length + 1;
+        const id = "DEMO-QTN-" + String(nextNumber).padStart(4, "0");
+        const total = (Number(createQty) || 1) * (Number(createRate) || 0);
+        const quotation = {
+          id,
+          name: id,
+          status: "Submitted",
+          supplierName: createSupplier.trim() || "Demo supplier",
+          supplierId: createSupplier.trim() || "DEMO-SUPPLIER",
+          grandTotal: total,
+          totalAmount: total,
+          currency: "BDT",
+          company: selectedCompanyId,
+          materialRequestId: createMaterialRequestId || "DEMO-MR-0001",
+          itemCode: createItemCode.trim(),
+        };
+        setDocuments((current) => ({ ...current, quotations: [...current.quotations, quotation] }));
+        setSelectedCase((current) => current ? { ...current, selectedSupplierQuotationId: current.selectedSupplierQuotationId || id, currentStage: "Quotation Collection", stage: "Quotation Collection" } : current);
+        setCreateOpen(false);
+        setCreateItemCode("");
+        setCreateSupplier("");
+        setCreateQty("1");
+        setCreateRate("0");
+        setCreateRemarks("");
+        setCreateMaterialRequestId("");
+        return;
+      }
       const item: Record<string, unknown> = {
         itemCode: createItemCode.trim(),
         qty: Number(createQty) || 1,
@@ -1215,6 +1299,16 @@ export function FinanceWorkspacePage({
     setCreateBusy(true);
     setError(null);
     try {
+      if (demoDataLoaded && selectedCase?.id === PROCUREMENT_DEMO_DATA.case.id) {
+        const id = "DEMO-CS-" + String(documents.compare_sheets.length + 1).padStart(4, "0");
+        const selected = documents.quotations.filter((row) => compareSelection.includes(String(row.name || row.id || "")));
+        const total = selected.reduce((sum, row) => sum + Number(row.grandTotal || row.totalAmount || 0), 0);
+        setDocuments((current) => ({ ...current, compare_sheets: [...current.compare_sheets, { id, name: id, status: "Submitted", company: selectedCompanyId, quotationIds: compareSelection, grandTotal: total, totalAmount: total }] }));
+        setSelectedCase((current) => current ? { ...current, compareSheetId: id, currentStage: "Compare Sheet Preparation", stage: "Compare Sheet Preparation" } : current);
+        setCompareOpen(false);
+        setCompareSelection([]);
+        return;
+      }
       await workshopApi.accountingCreateCompareSheet({
         company: selectedCompanyId,
         quotationIds: compareSelection,
@@ -1908,6 +2002,36 @@ export function FinanceWorkspacePage({
                         Submit
                       </Button>
                     ) : null}
+                    {id ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          printProcessDocument(
+                            activeModule,
+                            id,
+                            tab === "compare"
+                              ? "Comparative Statement"
+                              : tab === "quotations"
+                                ? "Supplier Quotation"
+                                : tab === "requisitions"
+                                  ? "Material Requisition"
+                                  : tab === "orders"
+                                    ? "Purchase Order"
+                                    : tab === "receipts"
+                                      ? "Goods Receipt Note"
+                                      : tab === "invoices"
+                                        ? "Supplier Invoice"
+                                        : tab === "payments"
+                                          ? "Payment Entry"
+                                          : "Accounting Document",
+                          );
+                        }}
+                      >
+                        Print
+                      </Button>
+                    ) : null}
                   </Stack>
                 </Box>
               );
@@ -2268,13 +2392,20 @@ export function FinanceWorkspacePage({
                     const docMap = [
                       "sourceName",
                       "materialRequestId",
-                      "materialRequestId",
                       "selectedSupplierQuotationId",
                       "compareSheetId",
                       "compareSheetId",
+                      "compareSheetId",
+                      "compareSheetId",
+                      "purchaseOrderId",
                       "purchaseOrderId",
                       "purchaseReceiptId",
+                      "purchaseReceiptId",
                       "purchaseInvoiceId",
+                      "purchaseInvoiceId",
+                      "purchaseInvoiceId",
+                      "paymentEntryId",
+                      "paymentEntryId",
                       "paymentEntryId",
                     ];
                     const linked =
@@ -2283,13 +2414,20 @@ export function FinanceWorkspacePage({
                         ? [
                             "DEMO-MR-0001",
                             "DEMO-MR-0001",
-                            "DEMO-MR-0001",
                             "DEMO-QTN-0001",
                             "DEMO-CS-0001",
                             "DEMO-CS-0001",
+                            "DEMO-CS-0001",
+                            "DEMO-CS-0001",
+                            "DEMO-PO-0001",
                             "DEMO-PO-0001",
                             "DEMO-GRN-0001",
+                            "DEMO-GRN-0001",
                             "DEMO-PINV-0001",
+                            "DEMO-PINV-0001",
+                            "DEMO-PINV-0001",
+                            "DEMO-PAY-0001",
+                            "DEMO-PAY-0001",
                             "DEMO-PAY-0001",
                           ][index] || ""
                         : "");
@@ -2350,7 +2488,7 @@ export function FinanceWorkspacePage({
                             Print
                           </Button>
                         ) : null}
-                        {index === 8 &&
+                        {index === 13 &&
                         (selectedCase.paymentEntryId || demoDataLoaded) ? (
                           <Button
                             size="small"
