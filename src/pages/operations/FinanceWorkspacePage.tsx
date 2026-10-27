@@ -305,7 +305,9 @@ const DEMO_ACTION_CHAIN = [
 const PROCESS_PRINT_MODULES: Array<AccountingModule | null> = [
   null,
   "requisitions",
+  "requisitions",
   "quotations",
+  "compare_sheets",
   "compare_sheets",
   "purchase_orders",
   "receipts",
@@ -2266,7 +2268,9 @@ export function FinanceWorkspacePage({
                     const docMap = [
                       "sourceName",
                       "materialRequestId",
+                      "materialRequestId",
                       "selectedSupplierQuotationId",
+                      "compareSheetId",
                       "compareSheetId",
                       "purchaseOrderId",
                       "purchaseReceiptId",
@@ -2279,7 +2283,9 @@ export function FinanceWorkspacePage({
                         ? [
                             "DEMO-MR-0001",
                             "DEMO-MR-0001",
+                            "DEMO-MR-0001",
                             "DEMO-QTN-0001",
+                            "DEMO-CS-0001",
                             "DEMO-CS-0001",
                             "DEMO-PO-0001",
                             "DEMO-GRN-0001",
@@ -2342,6 +2348,25 @@ export function FinanceWorkspacePage({
                             }
                           >
                             Print
+                          </Button>
+                        ) : null}
+                        {index === 8 &&
+                        (selectedCase.paymentEntryId || demoDataLoaded) ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() =>
+                              printProcessDocument(
+                                "payments",
+                                String(
+                                  selectedCase.paymentEntryId ||
+                                    "DEMO-PAY-0001",
+                                ),
+                                "Payment Entry",
+                              )
+                            }
+                          >
+                            Print payment
                           </Button>
                         ) : null}
                       </Stack>
