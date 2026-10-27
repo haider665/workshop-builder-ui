@@ -622,6 +622,25 @@ export function FinanceWorkspacePage({
         Array<Record<string, unknown>>
       >,
     );
+    setItemOptions([
+      {
+        id: "CW-PART-BRAKE-001",
+        label: "Front Brake Pad Set",
+        secondary: "Workshop Parts",
+      },
+    ]);
+    setSupplierOptions([
+      {
+        id: "DEMO-SUPPLIER-A",
+        label: "Demo Parts Supplier",
+        secondary: "Enlisted vendor",
+      },
+      {
+        id: "DEMO-SUPPLIER-B",
+        label: "Demo Auto Components",
+        secondary: "Non-enlisted vendor",
+      },
+    ]);
     setDashboard({
       counts: {
         openCases: 1,
@@ -640,7 +659,7 @@ export function FinanceWorkspacePage({
       ],
     });
     setCaseActions(demoActionsForStage("Requested"));
-    setSelectedCase(null);
+    setSelectedCase(PROCUREMENT_DEMO_DATA.case);
     setSelectedRecord(null);
   }
 
