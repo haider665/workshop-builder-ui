@@ -13,6 +13,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  MenuItem,
   Stack,
   Step,
   StepLabel,
@@ -490,6 +491,16 @@ export function FinanceWorkspacePage({
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoStep, setDemoStep] = useState(0);
   const [demoDataLoaded, setDemoDataLoaded] = useState(false);
+  const [storeReviewStatus, setStoreReviewStatus] = useState<"Stock Available" | "Local Shortage" | "Foreign Required">("Local Shortage");
+  const [storeProcurementType, setStoreProcurementType] = useState<"Local" | "Foreign">("Local");
+  const [storeVendorRoute, setStoreVendorRoute] = useState<"Enlisted Vendor" | "Non-enlisted Vendor" | "Single Vendor">("Enlisted Vendor");
+  const [storeReviewNote, setStoreReviewNote] = useState("");
+  const [foreignCustomerConfirmation, setForeignCustomerConfirmation] = useState<"Not Required" | "Pending" | "Confirmed" | "Rejected">("Pending");
+  const [foreignAdvanceStatus, setForeignAdvanceStatus] = useState<"Not Required" | "Pending" | "Confirmed" | "Partially Paid" | "Paid">("Pending");
+  const [foreignAdvanceAmount, setForeignAdvanceAmount] = useState("");
+  const [foreignShipmentEta, setForeignShipmentEta] = useState("");
+  const [foreignNote, setForeignNote] = useState("");
+  const [workflowBusy, setWorkflowBusy] = useState(false);
 
   function loadDemoData() {
     setDemoDataLoaded(true);
@@ -584,6 +595,79 @@ export function FinanceWorkspacePage({
     } finally {
       setDetailLoading(false);
     }
+  }
+
+  useEffect(() => {
+    if (!selectedCase) return;
+    const value = selectedCase as Record<string, unknown>;
+    setStoreReviewStatus((value.storeReviewStatus as typeof storeReviewStatus) || "Local Shortage");
+    setStoreProcurementType((value.procurementType as typeof storeProcurementType) || "Local");
+    setStoreVendorRoute((value.vendorRoute as typeof storeVendorRoute) || "Enlisted Vendor");
+    setStoreReviewNote(String(value.storeReviewNote || ""));
+    setForeignCustomerConfirmation((value.foreignCustomerConfirmation as typeof foreignCustomerConfirmation) || "Pending");
+    setForeignAdvanceStatus((value.foreignAdvanceStatus as typeof foreignAdvanceStatus) || "Pending");
+    setForeignAdvanceAmount(value.foreignAdvanceAmount ? String(value.foreignAdvanceAmount) : "");
+    setForeignShipmentEta(String(value.foreignShipmentEta || ""));
+    setForeignNote("");
+  }, [selectedCase]);
+
+  async function saveStoreReview() {
+    if (!selectedCase?.id) return;
+    setWorkflowBusy(true);
+    setError(null);
+    try {
+      if (demoDataLoaded && selectedCase.id === PROCUREMENT_DEMO_DATA.case.id) {
+        const nextStage = storeReviewStatus === "Stock Available" ? "Counter Desk Fulfilment" : "Quotation Collection";
+        setSelectedCase({ ...selectedCase, currentStage: nextStage, stage: nextStage, status: "In Progress", procurementType: storeProcurementType, vendorRoute: storeVendorRoute, storeReviewStatus, storeReviewNote });
+        setCaseActions(demoActionsForStage(nextStage));
+      } else {
+        await workshopApi.procurementStoreReview(String(selectedCase.id), { storeReviewStatus, procurementType: storeProcurementType, vendorRoute: storeVendorRoute, note: storeReviewNote.trim() || undefined });
+        await openCase(String(selectedCase.id));
+        await load();
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to save store review");
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
+
+  async function saveForeignMilestone() {
+    if (!selectedCase?.id) return;
+    setWorkflowBusy(true);
+    setError(null);
+    try {
+      if (demoDataLoaded && selectedCase.id === PROCUREMENT_DEMO_DATA.case.id) {
+        setSelectedCase({ ...selectedCase, foreignCustomerConfirmation, foreignAdvanceStatus, foreignAdvanceAmount: Number(foreignAdvanceAmount) || 0, foreignShipmentEta, foreignNote });
+      } else {
+        await workshopApi.procurementForeignMilestone(String(selectedCase.id), { customerConfirmation: foreignCustomerConfirmation, advanceStatus: foreignAdvanceStatus, advanceAmount: Number(foreignAdvanceAmount) || 0, shipmentEta: foreignShipmentEta || undefined, note: foreignNote.trim() || undefined });
+        await openCase(String(selectedCase.id));
+        await load();
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to save foreign procurement milestone");
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
+
+  function openCaseComposer(kind: "quotation" | "compare" | "order" | "receipt" | "invoice") {
+    if (!selectedCase) return;
+    if (kind === "quotation") {
+      setTab("quotations");
+      setCreateMaterialRequestId(String(selectedCase.materialRequestId || ""));
+      setCreateOpen(true);
+      return;
+    }
+    if (kind === "compare") {
+      setTab("compare");
+      setCompareOpen(true);
+      return;
+    }
+    setTab(kind === "order" ? "orders" : kind === "receipt" ? "receipts" : "invoices");
+    setCreateFromModule(kind === "order" ? "orders" : kind === "receipt" ? "receipts" : "invoices");
+    setCreateFromId("");
+    setCreateFromOpen(true);
   }
 
   async function runCaseAction(action: {
@@ -821,6 +905,7 @@ export function FinanceWorkspacePage({
 
   async function createDocument() {
     if (!selectedCompanyId || !createItemCode.trim()) return;
+    const caseId = selectedCase?.id ? String(selectedCase.id) : "";
     setCreateBusy(true);
     setError(null);
     try {
@@ -851,6 +936,7 @@ export function FinanceWorkspacePage({
       setCreateRemarks("");
       setCreateMaterialRequestId("");
       await load();
+      if (caseId) await openCase(caseId);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Unable to create document",
@@ -977,6 +1063,7 @@ export function FinanceWorkspacePage({
 
   async function createCompareSheet() {
     if (!selectedCompanyId || compareSelection.length === 0) return;
+    const caseId = selectedCase?.id ? String(selectedCase.id) : "";
     setCreateBusy(true);
     setError(null);
     try {
@@ -987,6 +1074,7 @@ export function FinanceWorkspacePage({
       setCompareOpen(false);
       setCompareSelection([]);
       await load();
+      if (caseId) await openCase(caseId);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -1000,6 +1088,7 @@ export function FinanceWorkspacePage({
 
   async function createFromPrevious() {
     if (!createFromModule || !createFromId.trim()) return;
+    const caseId = selectedCase?.id ? String(selectedCase.id) : "";
     setCreateBusy(true);
     setError(null);
     try {
@@ -1019,6 +1108,7 @@ export function FinanceWorkspacePage({
       setCreateFromId("");
       setCreateFromModule(null);
       await load();
+      if (caseId) await openCase(caseId);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -1987,7 +2077,7 @@ export function FinanceWorkspacePage({
                         : "");
                     const policyText =
                       index === 4 && policy
-                        ? ` · GM ≥ ৳${Number(policy.gmMinAmount || 0).toLocaleString()}${Boolean(policy.requireAuditVerification) ? `; audit ≥ ৳${Number(policy.auditVerificationMinAmount || 0).toLocaleString()}` : ""}${Boolean(policy.requireManagementApproval) ? `; management ≥ ৳${Number(policy.managementMinAmount || 0).toLocaleString()}` : ""}`
+                        ? ` · GM ≥ ৳${Number(policy.gmMinAmount || 0).toLocaleString()}${policy.requireAuditVerification ? `; audit ≥ ৳${Number(policy.auditVerificationMinAmount || 0).toLocaleString()}` : ""}${policy.requireManagementApproval ? `; management ≥ ৳${Number(policy.managementMinAmount || 0).toLocaleString()}` : ""}`
                         : "";
                     return (
                       <Stack
@@ -2054,6 +2144,70 @@ export function FinanceWorkspacePage({
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   The next action is controlled by the assigned role and the company approval policy. A disabled action includes the reason it cannot be performed by the current user.
                 </Typography>
+                {(String(selectedCase.currentStage || "") === "Requested" || String(selectedCase.currentStage || "") === "Procurement Review") ? (
+                  <Box sx={{ border: `1px solid ${colors.border.default}`, borderRadius: radii.md, p: 1.5, mb: 1.5 }}>
+                    <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Store review and routing</Typography>
+                    <Typography variant="body2" sx={{ color: colors.slate[600], mb: 1.25 }}>
+                      Parts / Store Keeper checks FIFO stock here. Available stock goes to Counter Desk; a shortage starts local procurement; no local source routes the case to foreign procurement.
+                    </Typography>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                      <TextField select size="small" label="Store decision" value={storeReviewStatus} onChange={(event) => setStoreReviewStatus(event.target.value as typeof storeReviewStatus)} sx={{ minWidth: 210 }}>
+                        <MenuItem value="Stock Available">Stock available → Counter Desk</MenuItem>
+                        <MenuItem value="Local Shortage">Local shortage → Procurement</MenuItem>
+                        <MenuItem value="Foreign Required">Foreign required → Procurement</MenuItem>
+                      </TextField>
+                      <TextField select size="small" label="Procurement type" value={storeProcurementType} onChange={(event) => setStoreProcurementType(event.target.value as typeof storeProcurementType)} sx={{ minWidth: 150 }}>
+                        <MenuItem value="Local">Local</MenuItem>
+                        <MenuItem value="Foreign">Foreign</MenuItem>
+                      </TextField>
+                      <TextField select size="small" label="Vendor route" value={storeVendorRoute} onChange={(event) => setStoreVendorRoute(event.target.value as typeof storeVendorRoute)} sx={{ minWidth: 190 }}>
+                        <MenuItem value="Enlisted Vendor">Enlisted vendor</MenuItem>
+                        <MenuItem value="Non-enlisted Vendor">Non-enlisted vendor</MenuItem>
+                        <MenuItem value="Single Vendor">Single vendor</MenuItem>
+                      </TextField>
+                    </Stack>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1} sx={{ mt: 1 }}>
+                      <TextField fullWidth size="small" label="Store review note" value={storeReviewNote} onChange={(event) => setStoreReviewNote(event.target.value)} />
+                      <Button variant="contained" disabled={workflowBusy} onClick={() => void saveStoreReview()} sx={{ minWidth: 160 }}>Save store review</Button>
+                    </Stack>
+                  </Box>
+                ) : null}
+                {String(selectedCase.procurementType || "") === "Foreign" ? (
+                  <Box sx={{ border: `1px solid ${colors.border.default}`, borderRadius: radii.md, p: 1.5, mb: 1.5 }}>
+                    <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Foreign procurement milestones</Typography>
+                    <Typography variant="body2" sx={{ color: colors.slate[600], mb: 1.25 }}>
+                      Record supplier/customer quotation confirmation, advance confirmation from Accounts, and shipment ETA before the case moves through foreign procurement.
+                    </Typography>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                      <TextField select size="small" label="Customer confirmation" value={foreignCustomerConfirmation} onChange={(event) => setForeignCustomerConfirmation(event.target.value as typeof foreignCustomerConfirmation)} sx={{ minWidth: 190 }}>
+                        {(["Not Required", "Pending", "Confirmed", "Rejected"] as const).map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+                      </TextField>
+                      <TextField select size="small" label="Advance status" value={foreignAdvanceStatus} onChange={(event) => setForeignAdvanceStatus(event.target.value as typeof foreignAdvanceStatus)} sx={{ minWidth: 170 }}>
+                        {(["Not Required", "Pending", "Confirmed", "Partially Paid", "Paid"] as const).map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+                      </TextField>
+                      <TextField size="small" type="number" label="Advance amount" value={foreignAdvanceAmount} onChange={(event) => setForeignAdvanceAmount(event.target.value)} />
+                      <TextField size="small" type="date" label="Shipment ETA" slotProps={{ inputLabel: { shrink: true } }} value={foreignShipmentEta} onChange={(event) => setForeignShipmentEta(event.target.value)} />
+                    </Stack>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1} sx={{ mt: 1 }}>
+                      <TextField fullWidth size="small" label="Milestone note" value={foreignNote} onChange={(event) => setForeignNote(event.target.value)} />
+                      <Button variant="contained" disabled={workflowBusy} onClick={() => void saveForeignMilestone()} sx={{ minWidth: 190 }}>Save foreign milestone</Button>
+                    </Stack>
+                  </Box>
+                ) : null}
+                <Box sx={{ border: `1px dashed ${colors.border.default}`, borderRadius: radii.md, p: 1.25, mb: 1.5 }}>
+                  <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Continue this case from here</Typography>
+                  <Typography variant="body2" sx={{ color: colors.slate[600], mb: 1 }}>
+                    Create or review the next official document without losing the case context. Each document remains linked to this request and appears in the process board after saving.
+                  </Typography>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ flexWrap: "wrap" }}>
+                    {String(selectedCase.currentStage || "") === "Quotation Collection" ? <Button size="small" variant="outlined" onClick={() => openCaseComposer("quotation")}>Collect quotation</Button> : null}
+                    {String(selectedCase.currentStage || "") === "Compare Sheet Preparation" ? <Button size="small" variant="outlined" onClick={() => openCaseComposer("compare")}>Create compare sheet</Button> : null}
+                    {String(selectedCase.currentStage || "") === "PO Creation" ? <Button size="small" variant="outlined" onClick={() => openCaseComposer("order")}>Create purchase order</Button> : null}
+                    {String(selectedCase.currentStage || "") === "Chalan / GRN" ? <Button size="small" variant="outlined" onClick={() => openCaseComposer("receipt")}>Create GRN</Button> : null}
+                    {String(selectedCase.currentStage || "") === "Procurement File Completion" ? <Button size="small" variant="outlined" onClick={() => openCaseComposer("invoice")}>Create supplier invoice</Button> : null}
+                    {String(selectedCase.currentStage || "") === "Bill Settlement" && selectedCase.purchaseInvoiceId ? <Button size="small" variant="outlined" onClick={() => { setTab("payments"); setPaymentOpen(true); }}>Create payment entry</Button> : null}
+                  </Stack>
+                </Box>
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
                   {caseActions.map((action) => (
                     <Box key={action.action}>
