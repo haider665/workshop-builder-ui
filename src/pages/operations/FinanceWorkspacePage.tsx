@@ -501,6 +501,18 @@ export function FinanceWorkspacePage({
   const [foreignShipmentEta, setForeignShipmentEta] = useState("");
   const [foreignNote, setForeignNote] = useState("");
   const [workflowBusy, setWorkflowBusy] = useState(false);
+  const [estimateLineId, setEstimateLineId] = useState("");
+  const [estimateStatus, setEstimateStatus] = useState("Requested");
+  const [estimateDescription, setEstimateDescription] = useState("");
+  const [estimatePart, setEstimatePart] = useState<MasterOption | null>(null);
+  const [estimatePartOptions, setEstimatePartOptions] = useState<MasterOption[]>([]);
+  const [estimatePartNumber, setEstimatePartNumber] = useState("");
+  const [estimatePartName, setEstimatePartName] = useState("");
+  const [estimateQuantity, setEstimateQuantity] = useState("1");
+  const [estimateSellPrice, setEstimateSellPrice] = useState("0");
+  const [estimateDeliveryDate, setEstimateDeliveryDate] = useState("");
+  const [estimateSourcingType, setEstimateSourcingType] = useState<"OEM" | "Genuine" | "Aftermarket">("Genuine");
+  const [estimateRemarks, setEstimateRemarks] = useState("");
 
   function loadDemoData() {
     setDemoDataLoaded(true);
@@ -609,7 +621,113 @@ export function FinanceWorkspacePage({
     setForeignAdvanceAmount(value.foreignAdvanceAmount ? String(value.foreignAdvanceAmount) : "");
     setForeignShipmentEta(String(value.foreignShipmentEta || ""));
     setForeignNote("");
+    setEstimateLineId(String(value.estimateLineId || ""));
+    setEstimateStatus(String(value.estimateStatus || "Requested"));
+    setEstimateDescription(String(value.partName || value.caseTitle || ""));
+    setEstimatePartNumber(String(value.partNumber || ""));
+    setEstimatePartName(String(value.partName || ""));
+    setEstimateQuantity(String(value.quantity || 1));
+    setEstimateSellPrice(String(value.sellPrice || value.approvalAmount || 0));
+    setEstimateDeliveryDate(String(value.estimatedDeliveryDate || ""));
+    setEstimateRemarks("");
   }, [selectedCase]);
+
+  useEffect(() => {
+    if (!selectedCase?.id || demoDataLoaded) return;
+    let active = true;
+    const caseValue = selectedCase as Record<string, unknown>;
+    Promise.all([
+      caseValue.partRequestId ? workshopApi.getPartRequest(String(caseValue.partRequestId)).catch(() => null) : Promise.resolve(null),
+      caseValue.appointmentId ? workshopApi.listEstimateLines({ appointmentId: String(caseValue.appointmentId), pageSize: 100 }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      workshopApi.listParts({ status: "Active", pageSize: 100 }).catch(() => ({ data: [] })),
+    ]).then(([partRequest, lines, parts]) => {
+      if (!active) return;
+      const request = partRequest as Record<string, unknown> | null;
+      if (request) {
+        setEstimateDescription(String(request.partName || ""));
+        setEstimatePartNumber(String(request.partNumber || ""));
+        setEstimatePartName(String(request.partName || ""));
+        setEstimateQuantity(String(request.quantity || 1));
+      }
+      const line = (lines.data || []).find((item) => {
+        const candidate = item as typeof item & { partRequestId?: string };
+        return String(candidate.id) === String(caseValue.estimateLineId || "") || String(candidate.partRequestId || "") === String(caseValue.partRequestId || "");
+      });
+      if (line) {
+        setEstimateLineId(String(line.id));
+        setEstimateStatus(String(line.status || "Requested"));
+        setEstimateDescription(String(line.description || ""));
+        setEstimatePartNumber(String(line.partNumber || ""));
+        setEstimatePartName(String(line.partName || ""));
+        setEstimateQuantity(String(line.quantity || 1));
+        setEstimateSellPrice(String(line.sellPrice || 0));
+        setEstimateDeliveryDate(String(line.estimatedDeliveryDate || ""));
+        setEstimateSourcingType((line.sourcingType as typeof estimateSourcingType) || "Genuine");
+        setSelectedCase((current) => current ? { ...current, estimateLineId: line.id, estimateStatus: line.status, partRequestId: (line as typeof line & { partRequestId?: string }).partRequestId || caseValue.partRequestId } : current);
+      }
+      const options = (parts.data || []).map((part) => ({ id: part.id, label: `${part.partNumber} · ${part.name}`, secondary: part.description || part.brand }));
+      setEstimatePartOptions(options);
+      const selectedPartId = line?.partId;
+      if (selectedPartId) setEstimatePart(options.find((option) => option.id === selectedPartId) || null);
+    });
+    return () => { active = false; };
+  // Deliberately key this hydration to the case id; updating the linked estimate
+  // on selectedCase must not recursively restart the same requests.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCase?.id, demoDataLoaded]);
+
+  async function saveEstimate(submit = true) {
+    if (!selectedCase?.id || !selectedCase.appointmentId) return;
+    setWorkflowBusy(true);
+    setError(null);
+    try {
+      let lineId = estimateLineId;
+      if (!lineId) {
+        const created = await workshopApi.createEstimateLine({
+          appointmentId: String(selectedCase.appointmentId),
+          partRequestId: selectedCase.partRequestId ? String(selectedCase.partRequestId) : undefined,
+          description: estimateDescription.trim(),
+          partId: estimatePart?.id || undefined,
+          partNumber: estimatePartNumber.trim() || undefined,
+          partName: estimatePartName.trim() || undefined,
+          quantity: Math.max(Number(estimateQuantity) || 1, 1),
+        });
+        lineId = created.id;
+        setEstimateLineId(lineId);
+      }
+      await workshopApi.priceEstimateLine(lineId, {
+        quantity: Math.max(Number(estimateQuantity) || 1, 1),
+        sellPrice: Number(estimateSellPrice) || 0,
+        sourcingType: estimateSourcingType,
+        estimatedDeliveryDate: estimateDeliveryDate || undefined,
+        remarks: estimateRemarks.trim() || undefined,
+      });
+      if (submit && estimateStatus !== "Submitted" && estimateStatus !== "Approved") {
+        await workshopApi.submitEstimateLines(String(selectedCase.appointmentId), [lineId]);
+      }
+      await openCase(String(selectedCase.id));
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to save estimate");
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
+
+  async function approveEstimate() {
+    if (!estimateLineId) return;
+    setWorkflowBusy(true);
+    setError(null);
+    try {
+      await workshopApi.approveEstimateLine(estimateLineId);
+      if (selectedCase?.id) await openCase(String(selectedCase.id));
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to approve estimate");
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
 
   async function saveStoreReview() {
     if (!selectedCase?.id) return;
@@ -2144,6 +2262,51 @@ export function FinanceWorkspacePage({
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   The next action is controlled by the assigned role and the company approval policy. A disabled action includes the reason it cannot be performed by the current user.
                 </Typography>
+                <Box sx={{ border: `1px solid ${colors.border.default}`, borderRadius: radii.md, p: 1.5, mb: 1.5 }}>
+                  <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Estimate and customer quotation</Typography>
+                  <Typography variant="body2" sx={{ color: colors.slate[600], mb: 1.25 }}>
+                    Prepare the estimate from this same SA request. Save it to price the requested part, submit it for review, and let the authorized approver approve it. Approval then performs the stock-first check and links the resulting material request back to this procurement case.
+                  </Typography>
+                  {!selectedCase.appointmentId ? <Alert severity="warning" sx={{ mb: 1 }}>This case is not linked to an appointment, so an estimate cannot be created yet.</Alert> : null}
+                  <Stack spacing={1}>
+                    <TextField fullWidth size="small" label="Requested part / estimate description" value={estimateDescription} onChange={(event) => setEstimateDescription(event.target.value)} disabled={estimateStatus === "Approved"} />
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                      <Autocomplete
+                        fullWidth
+                        size="small"
+                        options={estimatePartOptions}
+                        value={estimatePart}
+                        onChange={(_, option) => {
+                          setEstimatePart(option);
+                          if (option) {
+                            const [partNumber, ...name] = option.label.split(" · ");
+                            setEstimatePartNumber(partNumber || "");
+                            setEstimatePartName(name.join(" · ") || option.label);
+                          }
+                        }}
+                        getOptionLabel={(option) => option.label}
+                        renderInput={(params) => <TextField {...params} label="Catalog part (optional)" placeholder="Search part number or name" />}
+                        disabled={estimateStatus === "Approved"}
+                      />
+                      <TextField size="small" label="Part number" value={estimatePartNumber} onChange={(event) => setEstimatePartNumber(event.target.value)} disabled={estimateStatus === "Approved"} />
+                      <TextField size="small" label="Quantity" type="number" slotProps={{ htmlInput: { min: 1 } }} value={estimateQuantity} onChange={(event) => setEstimateQuantity(event.target.value)} disabled={estimateStatus === "Approved"} />
+                    </Stack>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                      <TextField size="small" label="Part name" value={estimatePartName} onChange={(event) => setEstimatePartName(event.target.value)} disabled={estimateStatus === "Approved"} />
+                      <TextField size="small" label="Customer sell price" type="number" slotProps={{ htmlInput: { min: 0 } }} value={estimateSellPrice} onChange={(event) => setEstimateSellPrice(event.target.value)} disabled={estimateStatus === "Approved"} />
+                      <TextField select size="small" label="Sourcing" value={estimateSourcingType} onChange={(event) => setEstimateSourcingType(event.target.value as typeof estimateSourcingType)} disabled={estimateStatus === "Approved"} sx={{ minWidth: 150 }}>
+                        {(["OEM", "Genuine", "Aftermarket"] as const).map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+                      </TextField>
+                      <TextField size="small" type="date" label="Estimated delivery" slotProps={{ inputLabel: { shrink: true } }} value={estimateDeliveryDate} onChange={(event) => setEstimateDeliveryDate(event.target.value)} disabled={estimateStatus === "Approved"} />
+                    </Stack>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                      <TextField fullWidth size="small" label="Estimate remarks / commercial terms" value={estimateRemarks} onChange={(event) => setEstimateRemarks(event.target.value)} disabled={estimateStatus === "Approved"} />
+                      <Chip label={`Estimate: ${estimateStatus}`} color={estimateStatus === "Approved" ? "success" : estimateStatus === "Submitted" ? "warning" : "default"} sx={{ alignSelf: "center" }} />
+                      <Button variant="contained" disabled={workflowBusy || !selectedCase.appointmentId || estimateStatus === "Approved" || !estimateDescription.trim()} onClick={() => void saveEstimate(true)} sx={{ minWidth: 190 }}>Save & submit estimate</Button>
+                      {estimateStatus === "Submitted" ? <Button variant="outlined" disabled={workflowBusy} onClick={() => void approveEstimate()} sx={{ minWidth: 190 }}>Approve & check stock</Button> : null}
+                    </Stack>
+                  </Stack>
+                </Box>
                 {(String(selectedCase.currentStage || "") === "Requested" || String(selectedCase.currentStage || "") === "Procurement Review") ? (
                   <Box sx={{ border: `1px solid ${colors.border.default}`, borderRadius: radii.md, p: 1.5, mb: 1.5 }}>
                     <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Store review and routing</Typography>

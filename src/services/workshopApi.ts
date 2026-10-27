@@ -2050,6 +2050,14 @@ export const workshopApi = {
     return request<import('../types/cw').CWEstimateLine>('/api/method/workshop.api.estimate_lines.create', { method: 'POST', body: input })
   },
 
+  async getPartRequest(id: string): Promise<import('../types/cw').CWPartRequest> {
+    return request<import('../types/cw').CWPartRequest>(`/api/method/workshop.api.part_requests.get${buildQuery({ id })}`)
+  },
+
+  async approveEstimateLine(id: string): Promise<import('../types/cw').CWEstimateLine> {
+    return request<import('../types/cw').CWEstimateLine>('/api/method/workshop.api.estimate_lines.approve', { method: 'POST', body: { data: { id } } })
+  },
+
   async listEstimateLines(params: { appointmentId?: string; status?: import('../types/cw').CWEstimateLineStatus; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWEstimateLine>> {
     return request<ApiListResponse<import('../types/cw').CWEstimateLine>>(`/api/method/workshop.api.estimate_lines.list${buildQuery(params)}`)
   },
@@ -2271,6 +2279,9 @@ export const workshopApi = {
   },
   async procurementForeignMilestone(id: string, input: { customerConfirmation?: 'Not Required' | 'Pending' | 'Confirmed' | 'Rejected'; advanceStatus?: 'Not Required' | 'Pending' | 'Confirmed' | 'Partially Paid' | 'Paid'; advanceAmount?: number; shipmentEta?: string; note?: string }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.foreign_milestone', { method: 'POST', body: { id, data: input } })
+  },
+  async createProcurementCaseFromPartRequest(partRequestId: string): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.procurement_cases.create_from_part_request', { method: 'POST', body: { id: partRequestId, data: { partRequestId } } })
   },
   async procurementAttachQuotation(id: string, supplierQuotationId: string, reason?: string): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.attach_quotation', { method: 'POST', body: { id, data: { supplierQuotationId, reason } } })
