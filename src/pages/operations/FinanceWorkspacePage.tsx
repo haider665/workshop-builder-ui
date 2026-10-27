@@ -87,11 +87,18 @@ const PROCUREMENT_DEMO_STEPS = [
       "The quotations are compared in a controlled Compare Statement. The recommended supplier and commercial justification are recorded.",
   },
   {
-    title: "Verification and approval",
-    role: "Audit / GM / ED / MD / Chairman",
-    required: "Policy thresholds and required approval chain",
+    title: "Audit verification",
+    role: "Audit",
+    required: "Compare sheet and supporting documents verified",
     detail:
-      "The configured company policy decides which approval stages are required. Thresholds and escalation are evaluated server-side.",
+      "Audit verifies the quotations, comparative statement, supplier information, pricing, tax, and supporting documents before any approval is requested.",
+  },
+  {
+    title: "Approval",
+    role: "GM / ED / MD / Chairman",
+    required: "Policy threshold and authorized approver",
+    detail:
+      "After audit verification, the configured company policy routes the case to GM or escalates it to ED, MD, or Chairman. Thresholds and escalation are evaluated server-side.",
   },
   {
     title: "Purchase Order and supplier confirmation",
