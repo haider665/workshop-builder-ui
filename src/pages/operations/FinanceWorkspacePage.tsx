@@ -2711,18 +2711,67 @@ export function FinanceWorkspacePage({
                   remain linked to this case.
                 </Typography>
               </Box>
-              <Box
-                component="pre"
-                sx={{
-                  m: 0,
-                  whiteSpace: "pre-wrap",
-                  overflow: "auto",
-                  fontFamily: "monospace",
-                  fontSize: ".8rem",
-                  maxHeight: 160,
-                }}
-              >
-                {JSON.stringify(selectedCase, null, 2)}
+              <Box sx={{ ...cardSx, p: 2, background: colors.slate[50] }}>
+                <Stack spacing={1.75}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}
+                  >
+                    <Box>
+                      <Typography variant="overline" sx={{ color: colors.slate[500], fontWeight: 800 }}>
+                        Procurement case summary
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {String(selectedCase.title || "Parts procurement request")}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: colors.slate[600] }}>
+                        Case {String(selectedCase.id || "—")} · {String(selectedCase.sourceName || "Workshop request")}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={String(selectedCase.status || "Open")}
+                      color={statusColor(String(selectedCase.status || "Open"))}
+                    />
+                  </Stack>
+                  <Divider />
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ color: colors.slate[500] }}>CURRENT STAGE</Typography>
+                      <Typography sx={{ fontWeight: 800 }}>{String(selectedCase.currentStage || selectedCase.stage || "Requested")}</Typography>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ color: colors.slate[500] }}>RESPONSIBLE ROLE</Typography>
+                      <Typography sx={{ fontWeight: 800 }}>{String(selectedCase.currentOwnerRole || "Unassigned")}</Typography>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ color: colors.slate[500] }}>APPROVAL AMOUNT</Typography>
+                      <Typography sx={{ fontWeight: 800 }}>৳{Number(selectedCase.approvalAmount || 0).toLocaleString()}</Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ color: colors.slate[500] }}>CASE OWNER</Typography>
+                      <Typography variant="body2">{String(selectedCase.owner || "Unassigned")}</Typography>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ color: colors.slate[500] }}>LAST UPDATED</Typography>
+                      <Typography variant="body2">{String(selectedCase.updatedAt || "Not available")}</Typography>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="caption" sx={{ color: colors.slate[500] }}>LAST ACTION</Typography>
+                      <Typography variant="body2">{String(selectedCase.lastAction || "No action recorded")}</Typography>
+                    </Box>
+                  </Stack>
+                  <Box sx={{ borderRadius: radii.md, p: 1.5, background: "#fff", border: `1px solid ${colors.border.subtle}` }}>
+                    <Typography variant="caption" sx={{ color: colors.slate[500], fontWeight: 800 }}>REVIEW NOTE</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>{String(selectedCase.note || "No review note recorded.")}</Typography>
+                  </Box>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ flexWrap: "wrap" }}>
+                    <Chip size="small" variant="outlined" label={`Supplier quotation: ${String(selectedCase.selectedSupplierQuotationId || "Not selected")}`} />
+                    <Chip size="small" variant="outlined" label={`Compare sheet: ${String(selectedCase.compareSheetId || "Not created")}`} />
+                  </Stack>
+                </Stack>
               </Box>
             </Stack>
           ) : (
