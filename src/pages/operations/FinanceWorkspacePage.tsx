@@ -1408,6 +1408,23 @@ export function FinanceWorkspacePage({
     popup.print();
   }
 
+  function compareSheetQuotations(record: Record<string, unknown>) {
+    const embedded = Array.isArray(record.quotations)
+      ? record.quotations.filter(
+          (row): row is Record<string, unknown> =>
+            Boolean(row) && typeof row === "object",
+        )
+      : [];
+    if (embedded.length) return embedded;
+    const ids = Array.isArray(record.quotationIds)
+      ? record.quotationIds.map(String)
+      : [];
+    const quotations = documents.quotations;
+    return ids.length
+      ? quotations.filter((row) => ids.includes(String(row.name || row.id || "")))
+      : quotations;
+  }
+
   const tabGuidance: Record<string, { title: string; description: string }> = {
     procurement: {
       title: "Case control",
@@ -2735,19 +2752,16 @@ export function FinanceWorkspacePage({
                   size="small"
                   variant="outlined"
                   onClick={() =>
-                    window.open(
-                      workshopApi.accountingPrintUrl(
-                        selectedModule || "",
-                        String(
-                          selectedRecord?.id || selectedRecord?.name || "",
-                        ),
-                      ),
-                      "_blank",
-                      "noopener,noreferrer",
+                    printProcessDocument(
+                      selectedModule,
+                      String(selectedRecord?.id || selectedRecord?.name || ""),
+                      selectedModule === "compare_sheets"
+                        ? "Comparative Statement"
+                        : String(selectedRecord?.doctype || selectedModule || "Document"),
                     )
                   }
                 >
-                  Print official document
+                  Print document
                 </Button>
                 {selectedModule &&
                 ["Draft", "0", "Open"].includes(
@@ -2774,18 +2788,95 @@ export function FinanceWorkspacePage({
                   </Button>
                 ) : null}
               </Stack>
-              <Box
-                component="pre"
-                sx={{
-                  m: 0,
-                  whiteSpace: "pre-wrap",
-                  overflow: "auto",
-                  fontFamily: "monospace",
-                  fontSize: ".8rem",
-                }}
-              >
-                {selectedRecord ? JSON.stringify(selectedRecord, null, 2) : ""}
-              </Box>
+              {selectedModule === "compare_sheets" && selectedRecord ? (
+                (() => {
+                  const quotations = compareSheetQuotations(selectedRecord);
+                  const quoteTotal = (row: Record<string, unknown>) =>
+                    Number(row.grandTotal ?? row.totalAmount ?? row.total ?? 0);
+                  const recommended = quotations.reduce<Record<string, unknown> | null>(
+                    (best, row) =>
+                      !best || quoteTotal(row) < quoteTotal(best) ? row : best,
+                    null,
+                  );
+                  const total = Number(
+                    selectedRecord.grandTotal ??
+                      selectedRecord.totalAmount ??
+                      quotations.reduce((sum, row) => sum + quoteTotal(row), 0),
+                  );
+                  return (
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                      <Box sx={{ ...cardSx, p: 2, background: colors.slate[50] }}>
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                          sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}
+                        >
+                          <Box>
+                            <Typography variant="overline" sx={{ fontWeight: 800, color: colors.slate[500] }}>
+                              Procurement document
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                              Comparative Statement
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: colors.slate[600] }}>
+                              {String(selectedRecord.id || selectedRecord.name || "—")} · {String(selectedRecord.company || selectedCompanyId || "—")}
+                            </Typography>
+                          </Box>
+                          <Chip
+                            label={String(selectedRecord.status || "Draft")}
+                            color={statusColor(String(selectedRecord.status || "Draft"))}
+                          />
+                        </Stack>
+                      </Box>
+                      <Box sx={{ overflowX: "auto" }}>
+                        <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", minWidth: 560, "& th, & td": { borderBottom: `1px solid ${colors.border.subtle}`, p: 1, textAlign: "left" }, "& th": { color: colors.slate[500], fontSize: ".75rem", textTransform: "uppercase" } }}>
+                          <Box component="thead">
+                            <Box component="tr">
+                              <Box component="th">Supplier</Box>
+                              <Box component="th">Quotation</Box>
+                              <Box component="th">Total</Box>
+                              <Box component="th">Status</Box>
+                            </Box>
+                          </Box>
+                          <Box component="tbody">
+                            {quotations.map((row, index) => {
+                              const isRecommended = row === recommended;
+                              return (
+                                <Box component="tr" key={String(row.name || row.id || index)} sx={{ background: isRecommended ? "rgba(22, 163, 74, 0.08)" : "transparent" }}>
+                                  <Box component="td" sx={{ fontWeight: 700 }}>{String(row.supplierName || row.supplier || row.supplierId || "Unknown supplier")}</Box>
+                                  <Box component="td">{String(row.name || row.id || "—")}</Box>
+                                  <Box component="td">৳{quoteTotal(row).toLocaleString()}</Box>
+                                  <Box component="td"><Chip size="small" label={isRecommended ? "Recommended" : String(row.status || "Submitted")} color={isRecommended ? "success" : "default"} /></Box>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        </Box>
+                      </Box>
+                      <Box sx={{ ...cardSx, p: 2 }}>
+                        <Stack spacing={0.75}>
+                          <Typography><b>Recommendation:</b> {String(selectedRecord.recommendation || (recommended ? `Lowest compliant quotation from ${String(recommended.supplierName || recommended.supplier || recommended.supplierId || "selected supplier")}` : "No recommendation recorded"))}</Typography>
+                          <Typography><b>Compared total:</b> ৳{total.toLocaleString()}</Typography>
+                          <Typography variant="body2" sx={{ color: colors.slate[600] }}>Audit verification must be completed before the authorized approval stage. This statement remains linked to the procurement case and can be printed for the file.</Typography>
+                        </Stack>
+                      </Box>
+                    </Stack>
+                  );
+                })()
+              ) : (
+                <Box
+                  component="pre"
+                  sx={{
+                    m: 0,
+                    whiteSpace: "pre-wrap",
+                    overflow: "auto",
+                    fontFamily: "monospace",
+                    fontSize: ".8rem",
+                  }}
+                >
+                  {selectedRecord ? JSON.stringify(selectedRecord, null, 2) : ""}
+                </Box>
+              )}
             </Stack>
           )}
         </DialogContent>
