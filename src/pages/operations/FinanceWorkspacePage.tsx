@@ -1935,7 +1935,7 @@ export function FinanceWorkspacePage({
                 >
                   <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontWeight: 800 }}>
-                      {item.title || item.id}
+                      {context?.appointment?.id ? `Appointment ${context.appointment.id}` : item.title || item.id}
                     </Typography>
                     <Typography variant="caption">
                       {item.id} · {item.stage || "Unstaged"} ·{" "}
