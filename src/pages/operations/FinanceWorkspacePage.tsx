@@ -395,6 +395,16 @@ export function FinanceWorkspacePage({
         partNumber?: string;
         quantity?: number;
         requestedByName?: string;
+        parts?: Array<{
+          id?: string;
+          partName?: string;
+          partNumber?: string;
+          quantity?: number;
+          status?: string;
+          requestedByName?: string;
+          requestedAt?: string;
+          deliveryDate?: string;
+        }>;
         appointment?: { id?: string; scheduledAt?: string; status?: string };
         customer?: { name?: string; phone?: string };
         vehicle?: { registrationNo?: string; vin?: string; make?: string; model?: string; modelVariant?: string };
@@ -1949,7 +1959,11 @@ export function FinanceWorkspacePage({
                     ) : null}
                     {context ? (
                       <Typography variant="caption" sx={{ display: "block", mt: 0.25 }}>
-                        <b>Request:</b> {context.request || context.partName || context.partNumber || "—"} × {context.quantity || 0} · <b>Raised by:</b> {context.requestedByName || "—"}{context.concern?.name ? ` · Concern: ${context.concern.name}` : ""}
+                        <b>{context.parts && context.parts.length > 1 ? "Parts requested:" : "Request:"}</b>{" "}
+                        {context.parts && context.parts.length > 1
+                          ? context.parts.map((part) => `${part.partName || part.partNumber || "Part"} × ${part.quantity || 0}`).join(" · ")
+                          : `${context.request || context.partName || context.partNumber || "—"} × ${context.quantity || 0}`}
+                        {context.requestedByName ? ` · Raised by: ${context.requestedByName}` : ""}{context.concern?.name ? ` · Concern: ${context.concern.name}` : ""}
                       </Typography>
                     ) : null}
                   </Box>
@@ -2165,6 +2179,7 @@ export function FinanceWorkspacePage({
               {(() => {
                 const context = selectedCase.requestContext as {
                   request?: string; partName?: string; partNumber?: string; quantity?: number; requestedByName?: string; requestedBy?: string; requestedAt?: string; deliveryDate?: string;
+                  parts?: Array<{ id?: string; partName?: string; partNumber?: string; quantity?: number; status?: string; requestedByName?: string; requestedAt?: string; deliveryDate?: string }>;
                   appointment?: { id?: string; scheduledAt?: string; date?: string; time?: string; status?: string; mileage?: number; shopId?: string };
                   customer?: { id?: string; name?: string; phone?: string };
                   vehicle?: { id?: string; registrationNo?: string; vin?: string; make?: string; model?: string; modelVariant?: string };
@@ -2176,6 +2191,19 @@ export function FinanceWorkspacePage({
                 return (
                   <Box sx={{ ...cardSx, p: 1.5 }}>
                     <Typography sx={{ fontWeight: 800, mb: 1 }}>Appointment request context</Typography>
+                    {context.parts && context.parts.length ? (
+                      <Box sx={{ mb: 1.5, p: 1, borderRadius: 1, bgcolor: colors.bg.subtle }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.75 }}>All parts requested for this appointment ({context.parts.length})</Typography>
+                        <Stack spacing={0.5}>
+                          {context.parts.map((part) => (
+                            <Stack key={part.id || `${part.partNumber}-${part.partName}`} direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0, sm: 1 }} sx={{ justifyContent: "space-between" }}>
+                              <Typography variant="body2">{part.partName || part.partNumber || "Part"} · Qty {part.quantity || 0}</Typography>
+                              <Typography variant="caption" sx={{ color: colors.slate[600] }}>{part.status || "Requested"} · {part.requestedByName || "—"}{part.deliveryDate ? ` · Required ${part.deliveryDate}` : ""}</Typography>
+                            </Stack>
+                          ))}
+                        </Stack>
+                      </Box>
+                    ) : null}
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="body2"><b>Request:</b> {context.request || context.partName || context.partNumber || "—"} · Qty {context.quantity || 0}</Typography>
