@@ -460,6 +460,7 @@ export function FinanceWorkspacePage({
         partNumber?: string;
         quantity?: number;
         requestedByName?: string;
+        partCount?: number;
         parts?: Array<{
           id?: string;
           partName?: string;
@@ -2134,6 +2135,9 @@ export function FinanceWorkspacePage({
                           : `${context.request || context.partName || context.partNumber || "—"} × ${context.quantity || 0}`}
                         {context.requestedByName ? ` · Raised by: ${context.requestedByName}` : ""}{context.concern?.name ? ` · Concern: ${context.concern.name}` : ""}
                       </Typography>
+                    ) : null}
+                    {context?.parts && context.parts.length > 1 ? (
+                      <Chip size="small" variant="outlined" label={`${context.parts.length} parts in this appointment case`} sx={{ mt: 0.75, width: "fit-content" }} />
                     ) : null}
                   </Box>
                   {item.approvalAmount ? (
