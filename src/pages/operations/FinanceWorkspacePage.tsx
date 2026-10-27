@@ -389,6 +389,17 @@ export function FinanceWorkspacePage({
       slaDueAt?: string;
       currentOwnerRole?: string;
       sourceName?: string;
+      requestContext?: {
+        request?: string;
+        partName?: string;
+        partNumber?: string;
+        quantity?: number;
+        requestedByName?: string;
+        appointment?: { id?: string; scheduledAt?: string; status?: string };
+        customer?: { name?: string; phone?: string };
+        vehicle?: { registrationNo?: string; vin?: string; make?: string; model?: string; modelVariant?: string };
+        concern?: { name?: string; remark?: string } | null;
+      } | null;
     }>
   >([]);
   const [inbox, setInbox] = useState<
@@ -1912,6 +1923,11 @@ export function FinanceWorkspacePage({
                   },
                 }}
               >
+                {(() => {
+                  const context = item.requestContext;
+                  const vehicle = context?.vehicle;
+                  const appointment = context?.appointment;
+                  return (
                 <Stack
                   direction={{ xs: "column", md: "row" }}
                   spacing={1}
@@ -1926,6 +1942,16 @@ export function FinanceWorkspacePage({
                       {item.currentOwnerRole || item.owner || "Unassigned"}
                       {item.sourceName ? ` · Source: ${item.sourceName}` : ""}
                     </Typography>
+                    {context ? (
+                      <Typography variant="body2" sx={{ mt: 0.5, color: colors.slate[700] }}>
+                        <b>Appointment:</b> {appointment?.id || "—"} · <b>Vehicle:</b> {vehicle?.registrationNo || vehicle?.vin || "—"} {vehicle?.make || vehicle?.model ? `(${[vehicle.make, vehicle.model, vehicle.modelVariant].filter(Boolean).join(" ")})` : ""} · <b>Customer:</b> {context.customer?.name || "—"}
+                      </Typography>
+                    ) : null}
+                    {context ? (
+                      <Typography variant="caption" sx={{ display: "block", mt: 0.25 }}>
+                        <b>Request:</b> {context.request || context.partName || context.partNumber || "—"} × {context.quantity || 0} · <b>Raised by:</b> {context.requestedByName || "—"}{context.concern?.name ? ` · Concern: ${context.concern.name}` : ""}
+                      </Typography>
+                    ) : null}
                   </Box>
                   {item.approvalAmount ? (
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>
@@ -1952,6 +1978,8 @@ export function FinanceWorkspacePage({
                     Open full process
                   </Button>
                 </Stack>
+                  );
+                })()}
               </Box>
             ))}
             {!filteredCases.length ? (
@@ -2134,6 +2162,37 @@ export function FinanceWorkspacePage({
                   label={`Owner: ${String(selectedCase.currentOwnerRole || selectedCase.owner || "Unassigned")}`}
                 />
               </Stack>
+              {(() => {
+                const context = selectedCase.requestContext as {
+                  request?: string; partName?: string; partNumber?: string; quantity?: number; requestedByName?: string; requestedBy?: string; requestedAt?: string; deliveryDate?: string;
+                  appointment?: { id?: string; scheduledAt?: string; date?: string; time?: string; status?: string; mileage?: number; shopId?: string };
+                  customer?: { id?: string; name?: string; phone?: string };
+                  vehicle?: { id?: string; registrationNo?: string; vin?: string; make?: string; model?: string; modelVariant?: string };
+                  concern?: { id?: string; name?: string; remark?: string } | null;
+                } | null;
+                if (!context) return null;
+                const vehicle = context.vehicle;
+                const appointment = context.appointment;
+                return (
+                  <Box sx={{ ...cardSx, p: 1.5 }}>
+                    <Typography sx={{ fontWeight: 800, mb: 1 }}>Appointment request context</Typography>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2"><b>Request:</b> {context.request || context.partName || context.partNumber || "—"} · Qty {context.quantity || 0}</Typography>
+                        <Typography variant="body2"><b>Raised by:</b> {context.requestedByName || context.requestedBy || "—"} · {context.requestedAt || "—"}</Typography>
+                        <Typography variant="body2"><b>Required by:</b> {context.deliveryDate || "Not specified"}</Typography>
+                        <Typography variant="body2"><b>Concern:</b> {context.concern?.name || "—"}{context.concern?.remark ? ` · ${context.concern.remark}` : ""}</Typography>
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2"><b>Appointment:</b> {appointment?.id || String(selectedCase.appointmentId || "—")} · {appointment?.scheduledAt || [appointment?.date, appointment?.time].filter(Boolean).join(" ") || "—"}</Typography>
+                        <Typography variant="body2"><b>Customer:</b> {context.customer?.name || String(selectedCase.customerId || "—")}{context.customer?.phone ? ` · ${context.customer.phone}` : ""}</Typography>
+                        <Typography variant="body2"><b>Vehicle:</b> {vehicle?.registrationNo || vehicle?.vin || String(selectedCase.vehicleId || "—")} · {[vehicle?.make, vehicle?.model, vehicle?.modelVariant].filter(Boolean).join(" ") || "—"}</Typography>
+                        <Typography variant="body2"><b>Job mileage:</b> {appointment?.mileage || 0} · <b>Status:</b> {appointment?.status || "—"}</Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+                );
+              })()}
               <Box sx={{ ...cardSx, p: 1.5 }}>
                 <Typography sx={{ fontWeight: 800, mb: 1 }}>
                   Process board
