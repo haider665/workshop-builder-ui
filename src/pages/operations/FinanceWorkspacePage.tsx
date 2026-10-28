@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  Drawer,
   FormControlLabel,
   MenuItem,
   Stack,
@@ -541,6 +542,9 @@ export function FinanceWorkspacePage({
     string,
     unknown
   > | null>(null);
+  const [documentsDrawerOpen, setDocumentsDrawerOpen] = useState(false);
+  const [processBoardOpen, setProcessBoardOpen] = useState(false);
+  const [selectedProcessStep, setSelectedProcessStep] = useState(0);
   const [caseActions, setCaseActions] = useState<
     Array<{
       action: string;
@@ -2322,6 +2326,9 @@ export function FinanceWorkspacePage({
           setSelectedModule(null);
           setSelectedCase(null);
           setCaseActions([]);
+          setDocumentsDrawerOpen(false);
+          setProcessBoardOpen(false);
+          setSelectedProcessStep(0);
         }}
         maxWidth={selectedCase ? "lg" : "md"}
         fullWidth
@@ -2445,10 +2452,16 @@ export function FinanceWorkspacePage({
                 );
               })()}
               <Box sx={{ ...cardSx, p: 1.5 }}>
-                <Typography sx={{ fontWeight: 800, mb: 1 }}>
-                  Process board
-                </Typography>
-                <Stack spacing={1}>
+                <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap", mb: processBoardOpen ? 1 : 0 }}>
+                  <Box>
+                    <Typography sx={{ fontWeight: 800 }}>Process board</Typography>
+                    <Typography variant="caption" sx={{ color: colors.slate[600] }}>Click a stage to review its requirements and available document.</Typography>
+                  </Box>
+                  <Button size="small" variant="outlined" onClick={() => setProcessBoardOpen((open) => !open)}>
+                    {processBoardOpen ? "Collapse process" : "Expand process"}
+                  </Button>
+                </Stack>
+                {processBoardOpen ? <Stack spacing={1}>
                   {PROCUREMENT_DEMO_STEPS.map((step, index) => {
                     const completed =
                       index <
@@ -2530,8 +2543,14 @@ export function FinanceWorkspacePage({
                         key={step.title}
                         direction="row"
                         spacing={1}
+                        onClick={() => setSelectedProcessStep(index)}
                         sx={{
                           alignItems: "center",
+                          cursor: "pointer",
+                          borderRadius: 1.5,
+                          px: 1,
+                          pt: 0.75,
+                          bgcolor: selectedProcessStep === index ? colors.bg.subtle : "transparent",
                           borderBottom: `1px solid ${colors.border.subtle}`,
                           pb: 0.75,
                         }}
@@ -2600,18 +2619,44 @@ export function FinanceWorkspacePage({
                       </Stack>
                     );
                   })}
-                </Stack>
+                </Stack> : <Typography variant="body2" sx={{ color: colors.slate[600], mt: 0.75 }}>The process board is collapsed. Expand it to inspect stages, roles, policy gates, and linked documents.</Typography>}
+                {processBoardOpen ? <Box sx={{ mt: 1.5, p: 1.25, borderRadius: 1.5, border: `1px solid ${colors.border.default}`, bgcolor: colors.bg.subtle }}>
+                  <Typography sx={{ fontWeight: 800 }}>{PROCUREMENT_DEMO_STEPS[selectedProcessStep]?.title || "Selected stage"}</Typography>
+                  <Typography variant="body2" sx={{ color: colors.slate[600], mt: 0.35 }}>{PROCUREMENT_DEMO_STEPS[selectedProcessStep]?.detail}</Typography>
+                  <Typography variant="caption" sx={{ display: "block", color: colors.slate[600], mt: 0.75 }}>Owner: {PROCUREMENT_DEMO_STEPS[selectedProcessStep]?.role} · Required: {PROCUREMENT_DEMO_STEPS[selectedProcessStep]?.required}</Typography>
+                </Box> : null}
               </Box>
               <Stack direction={{ xs: "column", lg: "row" }} spacing={2} sx={{ alignItems: "stretch" }}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 800, mb: 1 }}>Case documents</Typography>
+                  <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap", mb: 1 }}>
+                    <Typography sx={{ fontWeight: 800 }}>Case documents</Typography>
+                    <Button size="small" variant="contained" onClick={() => setDocumentsDrawerOpen(true)}>Open documents</Button>
+                  </Stack>
                   <Typography variant="body2" sx={{ color: colors.slate[600] }}>
-                    Every requisition, quotation, comparative statement, order, GRN, invoice, and payment remains available from this case.
+                    Appointment, requisition, quotations, vendors, comparative statement, purchase order, GRN, invoice, and payment remain available from this case.
                   </Typography>
+                  <Stack direction="row" spacing={0.75} sx={{ mt: 1.25, flexWrap: "wrap", gap: 0.75 }}>
+                    <Chip size="small" label="Appointment" variant="outlined" />
+                    <Chip size="small" label="Requisition" variant="outlined" />
+                    <Chip size="small" label="Quotations" variant="outlined" />
+                    <Chip size="small" label="CS" variant="outlined" />
+                    <Chip size="small" label="PO / GRN" variant="outlined" />
+                    <Chip size="small" label="Accounts" variant="outlined" />
+                  </Stack>
                 </Box>
-                <Box sx={{ width: { xs: "100%", lg: 340 }, flexShrink: 0, border: "1px solid " + colors.border.default, borderRadius: radii.md, p: 1.25, background: colors.bg.subtle }}>
-                  <Typography sx={{ fontWeight: 800, mb: 1 }}>Print / open documents</Typography>
+              </Stack>
+              <Drawer anchor="right" open={documentsDrawerOpen} onClose={() => setDocumentsDrawerOpen(false)}>
+                <Box sx={{ width: { xs: "min(100vw, 380px)", sm: 440 }, p: 2, height: "100%", overflowY: "auto", bgcolor: colors.bg.page }}>
+                  <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+                    <Box>
+                      <Typography sx={{ fontWeight: 850, fontSize: "1.15rem" }}>Case documents</Typography>
+                      <Typography variant="caption" sx={{ color: colors.slate[600] }}>Open, review, or print the controlled procurement file.</Typography>
+                    </Box>
+                    <Button size="small" onClick={() => setDocumentsDrawerOpen(false)}>Close</Button>
+                  </Stack>
+                  <Stack spacing={1}>
                   {([
+                    ["appointment", "Appointment", selectedCase.appointmentId],
                     ["requisitions", "Requisition", selectedCase.materialRequestId],
                     ["quotations", "Supplier quotation", selectedCase.selectedSupplierQuotationId],
                     ["compare_sheets", "Comparative statement", selectedCase.compareSheetId],
@@ -2619,22 +2664,29 @@ export function FinanceWorkspacePage({
                     ["receipts", "Goods receipt note", selectedCase.purchaseReceiptId],
                     ["invoices", "Supplier invoice", selectedCase.purchaseInvoiceId],
                     ["payments", "Payment entry", selectedCase.paymentEntryId],
-                  ] as Array<[AccountingModule, string, unknown]>).map(([module, label, value]) => {
+                  ] as Array<[string, string, unknown]>).map(([module, label, value]) => {
                     const id = String(value || "");
                     if (!id && !demoDataLoaded) return null;
                     const documentId = id || "DEMO-" + module.toUpperCase() + "-0001";
+                    const printableModule: AccountingModule = module === "appointment" ? "requisitions" : module as AccountingModule;
                     return (
-                      <Stack key={module} direction="row" spacing={0.75} sx={{ mb: 0.75, alignItems: "center" }}>
-                        <Typography variant="body2" sx={{ flex: 1 }}>{label}<br /><Typography component="span" variant="caption">{documentId}</Typography></Typography>
-                        <Button size="small" variant="outlined" onClick={() => printProcessDocument(module, documentId, label)}>Print</Button>
-                      </Stack>
+                      <Box key={module} sx={{ p: 1.25, border: `1px solid ${colors.border.default}`, borderRadius: 1.5, bgcolor: colors.bg.card }}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 750 }}>{label}</Typography>
+                            <Typography variant="caption" sx={{ color: colors.slate[600], overflowWrap: "anywhere" }}>{documentId}</Typography>
+                          </Box>
+                          <Button size="small" variant="outlined" onClick={() => printProcessDocument(printableModule, documentId, label)}>Print</Button>
+                        </Stack>
+                      </Box>
                     );
                   })}
                   {!demoDataLoaded && !selectedCase.materialRequestId && !selectedCase.selectedSupplierQuotationId && !selectedCase.compareSheetId && !selectedCase.purchaseOrderId && !selectedCase.purchaseReceiptId && !selectedCase.purchaseInvoiceId && !selectedCase.paymentEntryId ? (
                     <Typography variant="caption" sx={{ color: colors.slate[500] }}>Documents will appear here as each stage is completed.</Typography>
                   ) : null}
+                  </Stack>
                 </Box>
-              </Stack>
+              </Drawer>
               <Box sx={{ ...cardSx, p: 1.5 }}>
                 <Typography sx={{ fontWeight: 800, mb: 1 }}>
                   Current operation
