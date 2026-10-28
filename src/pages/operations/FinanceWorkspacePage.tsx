@@ -544,6 +544,7 @@ export function FinanceWorkspacePage({
   > | null>(null);
   const [documentsDrawerOpen, setDocumentsDrawerOpen] = useState(false);
   const [processBoardOpen, setProcessBoardOpen] = useState(false);
+  const [appointmentContextOpen, setAppointmentContextOpen] = useState(true);
   const [selectedProcessStep, setSelectedProcessStep] = useState(0);
   const [caseActions, setCaseActions] = useState<
     Array<{
@@ -2336,6 +2337,7 @@ export function FinanceWorkspacePage({
           setCaseActions([]);
           setDocumentsDrawerOpen(false);
           setProcessBoardOpen(false);
+          setAppointmentContextOpen(true);
           setSelectedProcessStep(0);
         }}
         maxWidth={selectedCase ? "lg" : "md"}
@@ -2429,34 +2431,45 @@ export function FinanceWorkspacePage({
                 const appointment = context.appointment;
                 return (
                   <Box sx={{ ...cardSx, p: 1.5 }}>
-                    <Typography sx={{ fontWeight: 800, mb: 1 }}>Appointment request context</Typography>
-                    {context.parts && context.parts.length ? (
-                      <Box sx={{ mb: 1.5, p: 1, borderRadius: 1, bgcolor: colors.bg.subtle }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.75 }}>All parts requested for this appointment ({context.parts.length})</Typography>
-                        <Stack spacing={0.5}>
-                          {context.parts.map((part) => (
-                            <Stack key={part.id || `${part.partNumber}-${part.partName}`} direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0, sm: 1 }} sx={{ justifyContent: "space-between" }}>
-                              <Typography variant="body2">{part.partName || part.partNumber || "Part"} · Qty {part.quantity || 0}</Typography>
-                              <Typography variant="caption" sx={{ color: colors.slate[600] }}>{part.status || "Requested"} · {part.requestedByName || "—"}{part.deliveryDate ? ` · Required ${part.deliveryDate}` : ""}</Typography>
-                            </Stack>
-                          ))}
-                        </Stack>
+                    <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap", mb: appointmentContextOpen ? 1.25 : 0 }}>
+                      <Box>
+                        <Typography sx={{ fontWeight: 800 }}>Appointment request context</Typography>
+                        <Typography variant="caption" sx={{ color: colors.slate[600] }}>Parts and source details stay linked to this procurement case.</Typography>
                       </Box>
-                    ) : null}
-                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2"><b>Request:</b> {context.request || context.partName || context.partNumber || "—"} · Qty {context.quantity || 0}</Typography>
-                        <Typography variant="body2"><b>Raised by:</b> {context.requestedByName || context.requestedBy || "—"} · {context.requestedAt || "—"}</Typography>
-                        <Typography variant="body2"><b>Required by:</b> {context.deliveryDate || "Not specified"}</Typography>
-                        <Typography variant="body2"><b>Concern:</b> {context.concern?.name || "—"}{context.concern?.remark ? ` · ${context.concern.remark}` : ""}</Typography>
-                      </Box>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2"><b>Appointment:</b> {appointment?.id || String(selectedCase.appointmentId || "—")} · {appointment?.scheduledAt || [appointment?.date, appointment?.time].filter(Boolean).join(" ") || "—"}</Typography>
-                        <Typography variant="body2"><b>Customer:</b> {context.customer?.name || String(selectedCase.customerId || "—")}{context.customer?.phone ? ` · ${context.customer.phone}` : ""}</Typography>
-                        <Typography variant="body2"><b>Vehicle:</b> {vehicle?.registrationNo || vehicle?.vin || String(selectedCase.vehicleId || "—")} · {[vehicle?.make, vehicle?.model, vehicle?.modelVariant].filter(Boolean).join(" ") || "—"}</Typography>
-                        <Typography variant="body2"><b>Job mileage:</b> {appointment?.mileage || 0} · <b>Status:</b> {appointment?.status || "—"}</Typography>
-                      </Box>
+                      <Button size="small" variant="outlined" onClick={() => setAppointmentContextOpen((open) => !open)}>
+                        {appointmentContextOpen ? "Collapse details" : "Show details"}
+                      </Button>
                     </Stack>
+                    {appointmentContextOpen ? (
+                      <Stack direction={{ xs: "column", lg: "row" }} spacing={1.5} sx={{ alignItems: "stretch" }}>
+                        <Box sx={{ flex: 1, minWidth: 0, p: 1.25, borderRadius: 1, bgcolor: colors.bg.subtle }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.75 }}>All parts requested for this appointment ({context.parts?.length || 0})</Typography>
+                          {context.parts && context.parts.length ? (
+                            <Stack spacing={0.75}>
+                              {context.parts.map((part) => (
+                                <Box key={part.id || `${part.partNumber}-${part.partName}`} sx={{ p: 0.75, borderRadius: 1, bgcolor: "white" }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{part.partName || part.partNumber || "Part"} · Qty {part.quantity || 0}</Typography>
+                                  <Typography variant="caption" sx={{ color: colors.slate[600] }}>{part.status || "Requested"} · {part.requestedByName || "—"}{part.deliveryDate ? ` · Required ${part.deliveryDate}` : ""}</Typography>
+                                </Box>
+                              ))}
+                            </Stack>
+                          ) : <Typography variant="body2" sx={{ color: colors.slate[600] }}>No part lines were supplied.</Typography>}
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0, p: 1.25, border: `1px solid ${colors.border}`, borderRadius: 1 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.75 }}>Request details</Typography>
+                          <Stack spacing={0.4}>
+                            <Typography variant="body2"><b>Request:</b> {context.request || context.partName || context.partNumber || "—"} · Qty {context.quantity || 0}</Typography>
+                            <Typography variant="body2"><b>Raised by:</b> {context.requestedByName || context.requestedBy || "—"} · {context.requestedAt || "—"}</Typography>
+                            <Typography variant="body2"><b>Required by:</b> {context.deliveryDate || "Not specified"}</Typography>
+                            <Typography variant="body2"><b>Concern:</b> {context.concern?.name || "—"}{context.concern?.remark ? ` · ${context.concern.remark}` : ""}</Typography>
+                            <Typography variant="body2"><b>Appointment:</b> {appointment?.id || String(selectedCase.appointmentId || "—")} · {appointment?.scheduledAt || [appointment?.date, appointment?.time].filter(Boolean).join(" ") || "—"}</Typography>
+                            <Typography variant="body2"><b>Customer:</b> {context.customer?.name || String(selectedCase.customerId || "—")}{context.customer?.phone ? ` · ${context.customer.phone}` : ""}</Typography>
+                            <Typography variant="body2"><b>Vehicle:</b> {vehicle?.registrationNo || vehicle?.vin || String(selectedCase.vehicleId || "—")} · {[vehicle?.make, vehicle?.model, vehicle?.modelVariant].filter(Boolean).join(" ") || "—"}</Typography>
+                            <Typography variant="body2"><b>Job mileage:</b> {appointment?.mileage || 0} · <b>Status:</b> {appointment?.status || "—"}</Typography>
+                          </Stack>
+                        </Box>
+                      </Stack>
+                    ) : null}
                   </Box>
                 );
               })()}
