@@ -2332,6 +2332,7 @@ export function FinanceWorkspacePage({
         }}
         maxWidth={selectedCase ? "lg" : "md"}
         fullWidth
+        slotProps={{ paper: { id: selectedCase ? "procurement-case-dialog" : undefined } }}
       >
         <DialogTitle>
           {selectedCase
@@ -2645,7 +2646,15 @@ export function FinanceWorkspacePage({
                   </Stack>
                 </Box>
               </Stack>
-              <Drawer anchor="right" open={documentsDrawerOpen} onClose={() => setDocumentsDrawerOpen(false)}>
+              <Drawer
+                anchor="right"
+                open={documentsDrawerOpen}
+                onClose={() => setDocumentsDrawerOpen(false)}
+                ModalProps={{
+                  container: () => document.getElementById("procurement-case-dialog") || document.body,
+                  disablePortal: true,
+                }}
+              >
                 <Box sx={{ width: { xs: "min(100vw, 380px)", sm: 440 }, p: 2, height: "100%", overflowY: "auto", bgcolor: colors.bg.page }}>
                   <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
                     <Box>
