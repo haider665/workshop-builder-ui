@@ -81,10 +81,15 @@ export function AdminReportsPage() {
   function printTable(tableId: string, title: string) {
     const table = document.getElementById(tableId)
     if (!table) return
-    const popup = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=800')
+    // Keep the popup same-window accessible so its document can be populated
+    // before printing. Some browsers return a null/closed WindowProxy when
+    // noopener is used with an empty popup URL.
+    const popup = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes')
     if (!popup) return
+    popup.document.open()
     popup.document.write(`<!doctype html><html><head><title>${title}</title><style>@page{size:A4 landscape;margin:12mm}body{font:12px Arial,sans-serif;color:#172033}h1{font-size:20px;margin:0 0 6px}p{color:#667085;margin:0 0 14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:7px;text-align:left;vertical-align:top}th{background:#eef2f7;font-weight:700}footer{margin-top:14px;color:#667085}</style></head><body><h1>${title}</h1><p>Continental Workshop - Generated ${new Date().toLocaleString()}</p>${table.outerHTML}<footer>Controlled report copy</footer><script>window.onload=()=>window.print()</script></body></html>`)
     popup.document.close()
+    popup.focus()
   }
 
   // ── Computed Metrics ──
