@@ -588,7 +588,7 @@ export function FinanceWorkspacePage({
   const [printPreview, setPrintPreview] = useState<{
     title: string;
     documentId: string;
-    module: AccountingModule | null;
+    module: AccountingModule | "appointment" | null;
   } | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoStep, setDemoStep] = useState(0);
@@ -1437,14 +1437,22 @@ export function FinanceWorkspacePage({
   }
 
   function printProcessDocument(
-    module: AccountingModule | null,
+    module: AccountingModule | "appointment" | null,
     id: string,
     title: string,
   ) {
     if (!id) return;
+    if (!demoDataLoaded && module === "appointment") {
+      window.open(
+        workshopApi.appointmentSheetPrintUrl(id),
+        "_blank",
+        "noopener,noreferrer",
+      );
+      return;
+    }
     if (!demoDataLoaded && module) {
       window.open(
-        workshopApi.accountingPrintUrl(module, id),
+        workshopApi.accountingPrintUrl(module as AccountingModule, id),
         "_blank",
         "noopener,noreferrer",
       );
@@ -2677,7 +2685,7 @@ export function FinanceWorkspacePage({
                     const id = String(value || "");
                     if (!id && !demoDataLoaded) return null;
                     const documentId = id || "DEMO-" + module.toUpperCase() + "-0001";
-                    const printableModule: AccountingModule = module === "appointment" ? "requisitions" : module as AccountingModule;
+                    const printableModule: AccountingModule | "appointment" = module === "appointment" ? "appointment" : module as AccountingModule;
                     return (
                       <Box key={module} sx={{ p: 1.25, border: `1px solid ${colors.border.default}`, borderRadius: 1.5, bgcolor: colors.bg.card }}>
                         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
