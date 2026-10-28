@@ -2351,7 +2351,18 @@ export function FinanceWorkspacePage({
         </DialogTitle>
         <DialogContent dividers>
           {selectedCase ? (
-            <Stack spacing={2}>
+            <Stack
+              spacing={2}
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(320px, 0.85fr) minmax(0, 1.6fr)" },
+                alignItems: "start",
+                "@media (min-width: 1200px)": {
+                  "& > *:not(#procurement-current-operation):not(#procurement-documents-drawer)": { gridColumn: "2" },
+                  "#procurement-current-operation": { gridColumn: "1", gridRow: "1 / span 20" },
+                },
+              }}
+            >
               <Typography variant="caption">
                 One company-scoped process board for the complete
                 request-to-payment journey. Actions are validated by role,
@@ -2668,6 +2679,7 @@ export function FinanceWorkspacePage({
                 </Box>
               </Stack>
               <Drawer
+                id="procurement-documents-drawer"
                 anchor="right"
                 open={documentsDrawerOpen}
                 onClose={() => setDocumentsDrawerOpen(false)}
@@ -2717,7 +2729,18 @@ export function FinanceWorkspacePage({
                   </Stack>
                 </Box>
               </Drawer>
-              <Box sx={{ ...cardSx, p: 1.5 }}>
+              <Box
+                id="procurement-current-operation"
+                sx={{
+                  ...cardSx,
+                  p: 1.5,
+                  position: { lg: "sticky" },
+                  top: { lg: 0 },
+                  maxHeight: { lg: "calc(100vh - 220px)" },
+                  overflowY: { lg: "auto" },
+                  zIndex: 1,
+                }}
+              >
                 <Typography sx={{ fontWeight: 800, mb: 1 }}>
                   Current operation
                 </Typography>
