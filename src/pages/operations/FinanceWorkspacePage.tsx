@@ -28,6 +28,7 @@ import {
 import {
   AccountBalance,
   AssignmentTurnedIn,
+  CloudUpload,
   Refresh,
   ShoppingCart,
 } from "@mui/icons-material";
@@ -565,6 +566,10 @@ export function FinanceWorkspacePage({
   const [createRate, setCreateRate] = useState("0");
   const [createRemarks, setCreateRemarks] = useState("");
   const [createMaterialRequestId, setCreateMaterialRequestId] = useState("");
+  const [quotationAttachment, setQuotationAttachment] = useState<File | null>(null);
+  const [supplierCreateOpen, setSupplierCreateOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [supplierCreateBusy, setSupplierCreateBusy] = useState(false);
   const [quotationLines, setQuotationLines] = useState<QuotationLineDraft[]>([]);
   const [createBusy, setCreateBusy] = useState(false);
   const [itemOptions, setItemOptions] = useState<MasterOption[]>([]);
@@ -1175,7 +1180,8 @@ export function FinanceWorkspacePage({
   }
 
   async function createDocument() {
-    if (!selectedCompanyId || !createItemCode.trim()) return;
+    const hasQuotationLines = tab === "quotations" && quotationLines.length > 0;
+    if (!selectedCompanyId || (!hasQuotationLines && !createItemCode.trim())) return;
     const caseId = selectedCase?.id ? String(selectedCase.id) : "";
     setCreateBusy(true);
     setError(null);
@@ -1196,6 +1202,7 @@ export function FinanceWorkspacePage({
           company: selectedCompanyId,
           materialRequestId: createMaterialRequestId || "DEMO-MR-0001",
           itemCode: lines[0]?.itemCode || createItemCode.trim(),
+          attachments: quotationAttachment ? [{ fileName: quotationAttachment.name, fileUrl: URL.createObjectURL(quotationAttachment) }] : [],
           items: lines.map((line) => ({ itemCode: line.itemCode, qty: Number(line.quantity) || 1, rate: Number(line.rate) || 0, description: line.description })),
         };
         setDocuments((current) => ({ ...current, quotations: [...current.quotations, quotation] }));
@@ -1208,6 +1215,7 @@ export function FinanceWorkspacePage({
         setCreateRemarks("");
         setCreateMaterialRequestId("");
         setQuotationLines([]);
+        setQuotationAttachment(null);
         return;
       }
       const lines = tab === "quotations" && quotationLines.length
@@ -1229,6 +1237,10 @@ export function FinanceWorkspacePage({
         items,
       };
       if (tab === "quotations") data.supplierId = createSupplier.trim();
+      if (tab === "quotations" && quotationAttachment) {
+        const uploaded = await workshopApi.uploadFile(quotationAttachment, { isPrivate: true });
+        data.attachmentFileId = uploaded.name;
+      }
       if (tab === "requisitions")
         data.remarks = createRemarks.trim() || undefined;
       await workshopApi.accountingCreate(
@@ -1243,6 +1255,7 @@ export function FinanceWorkspacePage({
       setCreateRemarks("");
       setCreateMaterialRequestId("");
       setQuotationLines([]);
+      setQuotationAttachment(null);
       await load();
       if (caseId) await openCase(caseId);
     } catch (cause) {
@@ -1251,6 +1264,30 @@ export function FinanceWorkspacePage({
       );
     } finally {
       setCreateBusy(false);
+    }
+  }
+
+  async function createSupplierRecord() {
+    const name = newSupplierName.trim();
+    if (!name) return;
+    setSupplierCreateBusy(true);
+    setError(null);
+    try {
+      if (demoDataLoaded) {
+        const id = `DEMO-SUPPLIER-${supplierOptions.length + 1}`;
+        setSupplierOptions((current) => [...current, { id, label: name, secondary: "Company" }]);
+        setCreateSupplier(id);
+      } else {
+        const supplier = await workshopApi.accountingCreateSupplier({ name, supplierType: "Company" });
+        setSupplierOptions((current) => [...current.filter((option) => option.id !== supplier.id), { id: supplier.id, label: supplier.name, secondary: "Company" }]);
+        setCreateSupplier(supplier.id);
+      }
+      setNewSupplierName("");
+      setSupplierCreateOpen(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to create supplier");
+    } finally {
+      setSupplierCreateBusy(false);
     }
   }
 
@@ -3249,33 +3286,31 @@ export function FinanceWorkspacePage({
               onChange={(event) => setCreateQty(event.target.value)}
             /> : null}
             {tab === "quotations" ? (
-              <Autocomplete
-                loading={mastersLoading}
-                options={supplierOptions}
-                value={
-                  supplierOptions.find(
-                    (supplier) => supplier.id === createSupplier,
-                  ) || null
-                }
-                onChange={(_, value) => setCreateSupplier(value?.id || "")}
-                getOptionLabel={(option) =>
-                  option.secondary
-                    ? `${option.label} · ${option.secondary}`
-                    : option.label
-                }
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderInput={(params) => (
-                  <TextField {...params} required label="Supplier" />
-                )}
-              />
-            ) : null}
-            {tab === "quotations" ? (
-              <TextField
-                label="Rate"
-                type="number"
-                value={createRate}
-                onChange={(event) => setCreateRate(event.target.value)}
-              />
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ alignItems: { sm: "flex-start" } }}>
+                <Autocomplete
+                  fullWidth
+                  loading={mastersLoading}
+                  options={supplierOptions}
+                  value={
+                    supplierOptions.find(
+                      (supplier) => supplier.id === createSupplier,
+                    ) || null
+                  }
+                  onChange={(_, value) => setCreateSupplier(value?.id || "")}
+                  getOptionLabel={(option) =>
+                    option.secondary
+                      ? `${option.label} · ${option.secondary}`
+                      : option.label
+                  }
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderInput={(params) => (
+                    <TextField {...params} required label="Supplier / vendor" placeholder="Search company supplier" />
+                  )}
+                />
+                <Button variant="outlined" onClick={() => setSupplierCreateOpen(true)} sx={{ whiteSpace: "nowrap", minHeight: 40 }}>
+                  New supplier
+                </Button>
+              </Stack>
             ) : null}
             <TextField
               label="Remarks / description"
@@ -3284,6 +3319,17 @@ export function FinanceWorkspacePage({
               value={createRemarks}
               onChange={(event) => setCreateRemarks(event.target.value)}
             />
+            {tab === "quotations" ? (
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ alignItems: { sm: "center" }, justifyContent: "space-between" }}>
+                <Button component="label" variant="outlined" startIcon={<CloudUpload />}>
+                  {quotationAttachment ? "Replace vendor quotation" : "Attach original vendor quotation"}
+                  <input hidden type="file" accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" onChange={(event) => setQuotationAttachment(event.target.files?.[0] || null)} />
+                </Button>
+                <Typography variant="caption" sx={{ color: colors.slate[600], overflowWrap: "anywhere" }}>
+                  {quotationAttachment ? `${quotationAttachment.name} · ${(quotationAttachment.size / 1024 / 1024).toFixed(2)} MB` : "Optional PDF or image kept with the quotation."}
+                </Typography>
+              </Stack>
+            ) : null}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -3300,6 +3346,36 @@ export function FinanceWorkspacePage({
             onClick={() => void createDocument()}
           >
             {createBusy ? "Creating…" : "Create draft"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={supplierCreateOpen}
+        onClose={() => setSupplierCreateOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Create supplier / vendor</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.5} sx={{ pt: 0.5 }}>
+            <Typography variant="body2" sx={{ color: colors.slate[600] }}>
+              Create the supplier in the selected company context, then it will be selected automatically in this quotation.
+            </Typography>
+            <TextField
+              autoFocus
+              fullWidth
+              required
+              label="Supplier / company name"
+              value={newSupplierName}
+              onChange={(event) => setNewSupplierName(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter") void createSupplierRecord(); }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSupplierCreateOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={supplierCreateBusy || !newSupplierName.trim()} onClick={() => void createSupplierRecord()}>
+            {supplierCreateBusy ? "Creating…" : "Create supplier"}
           </Button>
         </DialogActions>
       </Dialog>

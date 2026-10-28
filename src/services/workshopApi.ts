@@ -2331,6 +2331,9 @@ export const workshopApi = {
   async accountingSuppliers(search?: string): Promise<ApiListResponse<{ id: string; name: string; type?: string }>> {
     return request(`/api/method/workshop.api.accounting.suppliers${buildQuery({ search, pageSize: 100 })}`)
   },
+  async accountingCreateSupplier(data: { name: string; supplierType?: string; country?: string }): Promise<{ id: string; name: string; existing?: boolean }> {
+    return request('/api/method/workshop.api.accounting.create_supplier', { method: 'POST', body: { data } })
+  },
   async accountingAccounts(company?: string): Promise<ApiListResponse<{ id: string; name: string; type?: string; company?: string }>> {
     return request(`/api/method/workshop.api.accounting.accounts${buildQuery({ company, pageSize: 100 })}`)
   },
