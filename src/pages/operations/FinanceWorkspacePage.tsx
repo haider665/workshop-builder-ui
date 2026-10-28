@@ -826,29 +826,39 @@ export function FinanceWorkspacePage({
     setWorkflowBusy(true);
     setError(null);
     try {
-      let lineId = estimateLineId;
-      if (!lineId) {
-        const created = await workshopApi.createEstimateLine({
-          appointmentId: String(selectedCase.appointmentId),
-          partRequestId: selectedCase.partRequestId ? String(selectedCase.partRequestId) : undefined,
-          description: estimateDescription.trim(),
-          partId: estimatePart?.id || undefined,
-          partNumber: estimatePartNumber.trim() || undefined,
-          partName: estimatePartName.trim() || undefined,
-          quantity: Math.max(Number(estimateQuantity) || 1, 1),
+      const contextParts = ((selectedCase.requestContext as { parts?: Array<Record<string, unknown>> } | null)?.parts || []);
+      const parts = contextParts.length ? contextParts : [{}];
+      const lineIds: string[] = [];
+      for (const [index, part] of parts.entries()) {
+        let lineId = index === 0 ? estimateLineId : "";
+        const partRequestId = String(part.partRequestId || part.id || (index === 0 ? selectedCase.partRequestId || "" : ""));
+        const partNumber = String(part.partNumber || (index === 0 ? estimatePartNumber : ""));
+        const partName = String(part.partName || part.name || (index === 0 ? estimatePartName : ""));
+        const quantity = Math.max(Number(part.quantity || (index === 0 ? estimateQuantity : 1)) || 1, 1);
+        if (!lineId) {
+          const created = await workshopApi.createEstimateLine({
+            appointmentId: String(selectedCase.appointmentId),
+            partRequestId: partRequestId || undefined,
+            description: String(partName || estimateDescription).trim(),
+            partId: index === 0 ? estimatePart?.id || undefined : undefined,
+            partNumber: partNumber.trim() || undefined,
+            partName: partName.trim() || undefined,
+            quantity,
+          });
+          lineId = created.id;
+          if (index === 0) setEstimateLineId(lineId);
+        }
+        await workshopApi.priceEstimateLine(lineId, {
+          quantity,
+          sellPrice: Number(estimateSellPrice) || 0,
+          sourcingType: estimateSourcingType,
+          estimatedDeliveryDate: estimateDeliveryDate || undefined,
+          remarks: estimateRemarks.trim() || undefined,
         });
-        lineId = created.id;
-        setEstimateLineId(lineId);
+        lineIds.push(lineId);
       }
-      await workshopApi.priceEstimateLine(lineId, {
-        quantity: Math.max(Number(estimateQuantity) || 1, 1),
-        sellPrice: Number(estimateSellPrice) || 0,
-        sourcingType: estimateSourcingType,
-        estimatedDeliveryDate: estimateDeliveryDate || undefined,
-        remarks: estimateRemarks.trim() || undefined,
-      });
       if (submit && estimateStatus !== "Submitted" && estimateStatus !== "Approved") {
-        await workshopApi.submitEstimateLines(String(selectedCase.appointmentId), [lineId]);
+        await workshopApi.submitEstimateLines(String(selectedCase.appointmentId), lineIds);
       }
       await openCase(String(selectedCase.id));
       await load();
@@ -2797,8 +2807,17 @@ export function FinanceWorkspacePage({
                 <Box sx={{ border: `1px solid ${colors.border.default}`, borderRadius: radii.md, p: 1.5, mb: 1.5 }}>
                   <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Estimate and customer quotation</Typography>
                   <Typography variant="body2" sx={{ color: colors.slate[600], mb: 1.25 }}>
-                    Prepare the estimate from this same SA request. Save it to price the requested part, submit it for review, and let the authorized approver approve it. Approval then performs the stock-first check and links the resulting material request back to this procurement case.
+                    Prepare the estimate from this same SA request. The appointment part lines are carried into one estimator and submitted together for review. Approval then performs the stock-first check and links the resulting material request back to this procurement case.
                   </Typography>
+                  {(() => {
+                    const estimateParts = (selectedCase.requestContext as { parts?: Array<Record<string, unknown>> } | null)?.parts || [];
+                    return estimateParts.length ? (
+                      <Box sx={{ mb: 1.25, p: 1, borderRadius: 1, bgcolor: colors.bg.subtle }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>Items in this estimator ({estimateParts.length})</Typography>
+                        <Typography variant="caption" sx={{ color: colors.slate[600] }}>{estimateParts.map((part) => `${String(part.partName || part.partNumber || "Part")} · Qty ${String(part.quantity || 1)}`).join("  |  ")}</Typography>
+                      </Box>
+                    ) : null;
+                  })()}
                   {!selectedCase.appointmentId ? <Alert severity="warning" sx={{ mb: 1 }}>This case is not linked to an appointment, so an estimate cannot be created yet.</Alert> : null}
                   <Stack spacing={1}>
                     <TextField fullWidth size="small" label="Requested part / estimate description" value={estimateDescription} onChange={(event) => setEstimateDescription(event.target.value)} disabled={estimateStatus === "Approved"} />
