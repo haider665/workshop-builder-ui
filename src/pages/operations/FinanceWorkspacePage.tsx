@@ -544,6 +544,7 @@ export function FinanceWorkspacePage({
   > | null>(null);
   const [documentsDrawerOpen, setDocumentsDrawerOpen] = useState(false);
   const [processBoardOpen, setProcessBoardOpen] = useState(false);
+  const [currentOperationExpanded, setCurrentOperationExpanded] = useState(false);
   const [appointmentContextOpen, setAppointmentContextOpen] = useState(true);
   const [selectedProcessStep, setSelectedProcessStep] = useState(0);
   const [caseActions, setCaseActions] = useState<
@@ -2337,6 +2338,7 @@ export function FinanceWorkspacePage({
           setCaseActions([]);
           setDocumentsDrawerOpen(false);
           setProcessBoardOpen(false);
+          setCurrentOperationExpanded(false);
           setAppointmentContextOpen(true);
           setSelectedProcessStep(0);
         }}
@@ -2355,7 +2357,12 @@ export function FinanceWorkspacePage({
               spacing={2}
               sx={{
                 display: "grid",
-                gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(320px, 0.85fr) minmax(0, 1.6fr)" },
+                gridTemplateColumns: {
+                  xs: "minmax(0, 1fr)",
+                  lg: currentOperationExpanded
+                    ? "minmax(420px, 1.2fr) minmax(0, 1.4fr)"
+                    : "minmax(320px, 0.85fr) minmax(0, 1.6fr)",
+                },
                 alignItems: "start",
                 "@media (min-width: 1200px)": {
                   "& > *:not(#procurement-current-operation):not(#procurement-documents-drawer)": { gridColumn: "2" },
@@ -2741,9 +2748,12 @@ export function FinanceWorkspacePage({
                   zIndex: 1,
                 }}
               >
-                <Typography sx={{ fontWeight: 800, mb: 1 }}>
-                  Current operation
-                </Typography>
+                <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1 }}>
+                  <Typography sx={{ fontWeight: 800 }}>Current operation</Typography>
+                  <Button size="small" variant="outlined" onClick={() => setCurrentOperationExpanded((expanded) => !expanded)}>
+                    {currentOperationExpanded ? "Compact panel" : "Expand panel"}
+                  </Button>
+                </Stack>
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   The next action is controlled by the assigned role and the company approval policy. A disabled action includes the reason it cannot be performed by the current user.
                 </Typography>
