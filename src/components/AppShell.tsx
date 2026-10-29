@@ -47,11 +47,13 @@ import {
   Store,
   Storefront,
   UploadFile,
+  TaskAlt,
 } from '@mui/icons-material'
 import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Role } from '../types/roles'
+import { ALL_ROLES } from '../types/roles'
 import { supportedLocales, useLocalization } from '../i18n/LocalizationContext'
 import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
@@ -222,6 +224,11 @@ export function AppShell() {
       { kind: 'section', label: 'Accounting & Procurement', anyOfRoles: FINANCE_ROLES },
       { kind: 'link', label: 'Procurement Workspace', to: '/procurement', icon: <ShoppingCart />, anyOfRoles: [...new Set([...PARTS_ROLES, ...PROCUREMENT_ROLES])] as Role[] },
       { kind: 'link', label: 'Accounting Workspace', to: '/accounting', icon: <Calculate />, anyOfRoles: ACCOUNTING_ROLES },
+
+      { kind: 'section', label: 'Mock Procurement', anyOfRoles: ALL_ROLES },
+      { kind: 'link', label: 'Part Requests', to: '/mock-procurement/requests', icon: <ReceiptLong />, anyOfRoles: ALL_ROLES },
+      { kind: 'link', label: 'Customer Approval', to: '/mock-procurement/approvals', icon: <TaskAlt />, anyOfRoles: ALL_ROLES },
+      { kind: 'link', label: 'Pipeline', to: '/mock-procurement/pipeline', icon: <ShoppingCart />, anyOfRoles: ALL_ROLES },
 
       {
         kind: 'link',
