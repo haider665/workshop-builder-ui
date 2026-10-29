@@ -9,10 +9,13 @@ import type {
   ProcurementCase,
   PartDisposition,
   CustomerApprovalStatus,
-  ProcurementStep,
   StepRecord,
   Quotation,
   CSDecision,
+  PurchaseOrder,
+  GRN,
+  POStatus,
+  CasePart,
 } from '../types/procurementWorkflow'
 import { NEXT_STEP, PREVIOUS_STEP } from '../types/procurementWorkflow'
 import {
@@ -54,13 +57,21 @@ type MockProcurementState = {
   spawnCustomerApprovals: (requestId: string) => void
   setCustomerApprovalStatus: (approvalId: string, status: CustomerApprovalStatus, note?: string) => void
 
-  // ── Procurement Pipeline actions (Phase B) ──
+  // ── Procurement Pipeline actions ──
   advanceProcurementStep: (caseId: string, record: Omit<StepRecord, 'step'>) => void
   rejectProcurementStep: (caseId: string, note: string, actionByName: string) => void
   addQuotation: (caseId: string, quotation: Omit<Quotation, 'id' | 'submittedAt'>) => void
   updateQuotation: (caseId: string, quotationId: string, updates: Partial<Omit<Quotation, 'id' | 'submittedAt'>>) => void
   removeQuotation: (caseId: string, quotationId: string) => void
   setCSDecision: (caseId: string, decision: Omit<CSDecision, 'decidedAt'>) => void
+
+  // ── PO actions ──
+  generatePurchaseOrders: (caseId: string) => void
+  placeOrder: (caseId: string, poId: string, byName: string, expectedDate?: string) => void
+  updateOrderStatus: (caseId: string, poId: string, status: POStatus, note?: string) => void
+
+  // ── GRN actions ──
+  recordGRN: (caseId: string, grn: Omit<GRN, 'id' | 'grnNumber'>) => void
 }
 
 export const useMockProcurementStore = create<MockProcurementState>((set, get) => ({
@@ -83,14 +94,13 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
                   : {
                       ...li,
                       disposition,
-                      // Reset all disposition-specific fields first
                       pickedFromCounter: disposition === 'in_stock' ? false : undefined,
                       localVendorName: disposition === 'local_vendor' ? (details?.localVendorName ?? '') : undefined,
                       localPrice: disposition === 'local_vendor' ? (details?.localPrice ?? 0) : undefined,
                       localQuantity: disposition === 'local_vendor' ? (details?.localQuantity ?? li.quantity) : undefined,
                       localDeliveryDays: disposition === 'local_vendor' ? (details?.localDeliveryDays ?? 0) : undefined,
                       foreignNote: disposition === 'foreign_vendor' ? (details?.foreignNote ?? '') : undefined,
-                      completed: false, // Reset completion on disposition change
+                      completed: false,
                     },
               ),
             },
@@ -126,7 +136,6 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
       (li) => li.completed && (li.disposition === 'local_vendor' || li.disposition === 'foreign_vendor'),
     )
 
-    // Skip items that already have an approval
     const existingKeys = new Set(state.customerApprovals.map((a) => `${a.partRequestId}:${a.lineItemId}`))
     const newApprovals: MockCustomerApproval[] = needApproval
       .filter((li) => !existingKeys.has(`${requestId}:${li.id}`))
@@ -136,6 +145,8 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
         lineItemId: li.id,
         partName: li.partName,
         partNumber: li.partNumber,
+        alternatePartNumbers: li.alternatePartNumbers,
+        brand: li.brand,
         quantity: li.quantity,
         customerName: req.customerName,
         customerPhone: req.customerPhone,
@@ -170,27 +181,58 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
             },
       )
 
-      // If approved, spawn a procurement case
       let newCases = state.procurementCases
       if (status === 'approved') {
         const approval = updatedApprovals.find((a) => a.id === approvalId)
         if (approval) {
-          const existing = state.procurementCases.find(
-            (c) => c.customerApprovalId === approvalId,
+          // Group: find or create a case for this partRequest
+          const existingCase = state.procurementCases.find(
+            (c) => c.partRequestId === approval.partRequestId,
           )
-          if (!existing) {
+          if (existingCase) {
+            // Add part to existing case if not already there
+            const alreadyHasPart = existingCase.parts.some((p) => p.lineItemId === approval.lineItemId)
+            if (!alreadyHasPart) {
+              const newPart: CasePart = {
+                id: newId(),
+                lineItemId: approval.lineItemId,
+                partName: approval.partName,
+                partNumber: approval.partNumber,
+                alternatePartNumbers: approval.alternatePartNumbers,
+                brand: approval.brand,
+                quantity: approval.quantity,
+                disposition: approval.disposition,
+              }
+              newCases = state.procurementCases.map((c) =>
+                c.id !== existingCase.id
+                  ? c
+                  : {
+                      ...c,
+                      parts: [...c.parts, newPart],
+                      customerApprovalIds: [...c.customerApprovalIds, approvalId],
+                      updatedAt: nowIso(),
+                    },
+              )
+            }
+          } else {
+            // Create new case with this part
             const req = state.partRequests.find((r) => r.id === approval.partRequestId)
             const caseNum = `PC-${String(state.procurementCases.length + 1).padStart(3, '0')}`
             const newCase: ProcurementCase = {
               id: newId(),
               caseNumber: caseNum,
               partRequestId: approval.partRequestId,
-              lineItemId: approval.lineItemId,
-              customerApprovalId: approvalId,
-              partName: approval.partName,
-              partNumber: approval.partNumber,
-              quantity: approval.quantity,
-              disposition: approval.disposition,
+              customerApprovalIds: [approvalId],
+              parts: [{
+                id: newId(),
+                lineItemId: approval.lineItemId,
+                partName: approval.partName,
+                partNumber: approval.partNumber,
+                alternatePartNumbers: approval.alternatePartNumbers,
+                brand: approval.brand,
+                quantity: approval.quantity,
+                disposition: approval.disposition,
+              }],
               vehicleName: approval.vehicleName,
               customerName: approval.customerName,
               vehicleInfo: {
@@ -203,6 +245,8 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
               currentStep: 'store_review',
               status: 'in_progress',
               quotations: [],
+              purchaseOrders: [],
+              grns: [],
               history: [],
               createdAt: nowIso(),
               updatedAt: nowIso(),
@@ -216,7 +260,7 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
     })
   },
 
-  // ── Procurement Pipeline (Phase B) ──
+  // ── Procurement Pipeline ──
 
   advanceProcurementStep: (caseId, record) => {
     set((state) => ({
@@ -229,7 +273,6 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
           history: [...c.history, stepRecord],
           updatedAt: nowIso(),
         }
-        // Attach step record to the appropriate field
         switch (c.currentStep) {
           case 'store_review':
             updated.storeReview = stepRecord
@@ -244,7 +287,6 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
         if (nextStep) {
           updated.currentStep = nextStep
         } else {
-          // Final approval
           updated.status = 'approved'
         }
         return updated
@@ -318,9 +360,109 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
       ),
     }))
   },
+
+  // ── PO ──
+
+  generatePurchaseOrders: (caseId) => {
+    set((state) => ({
+      procurementCases: state.procurementCases.map((c) => {
+        if (c.id !== caseId || !c.csDecision || c.purchaseOrders.length > 0) return c
+        // Group CS decision items by vendor
+        const byVendor = new Map<string, typeof c.csDecision.items>()
+        for (const item of c.csDecision.items) {
+          const list = byVendor.get(item.selectedVendorName) ?? []
+          list.push(item)
+          byVendor.set(item.selectedVendorName, list)
+        }
+        const pos: PurchaseOrder[] = []
+        let poIdx = 1
+        for (const [vendorName, items] of byVendor) {
+          // Find vendor info from quotations
+          const vendorQuot = c.quotations.find((q) => q.vendorName === vendorName)
+          pos.push({
+            id: newId(),
+            poNumber: `${c.caseNumber}-PO-${String(poIdx).padStart(2, '0')}`,
+            vendorName,
+            vendorContact: vendorQuot?.vendorContact,
+            sourcingType: vendorQuot?.sourcingType ?? 'Local',
+            lineItems: items.map((item) => ({
+              casePartId: item.casePartId,
+              partName: item.partName,
+              unitPrice: item.unitPrice,
+              quantity: item.quantity,
+              totalPrice: item.totalPrice,
+            })),
+            grandTotal: items.reduce((sum, i) => sum + i.totalPrice, 0),
+            currency: 'BDT',
+            status: 'draft',
+            createdAt: nowIso(),
+          })
+          poIdx++
+        }
+        return { ...c, purchaseOrders: pos, updatedAt: nowIso() }
+      }),
+    }))
+  },
+
+  placeOrder: (caseId, poId, byName, expectedDate) => {
+    set((state) => ({
+      procurementCases: state.procurementCases.map((c) =>
+        c.id !== caseId
+          ? c
+          : {
+              ...c,
+              purchaseOrders: c.purchaseOrders.map((po) =>
+                po.id !== poId
+                  ? po
+                  : { ...po, status: 'placed' as const, placedAt: nowIso(), placedByName: byName, expectedDeliveryDate: expectedDate },
+              ),
+              updatedAt: nowIso(),
+            },
+      ),
+    }))
+  },
+
+  updateOrderStatus: (caseId, poId, status, note) => {
+    set((state) => ({
+      procurementCases: state.procurementCases.map((c) =>
+        c.id !== caseId
+          ? c
+          : {
+              ...c,
+              purchaseOrders: c.purchaseOrders.map((po) =>
+                po.id !== poId
+                  ? po
+                  : {
+                      ...po,
+                      status,
+                      trackingNote: note ?? po.trackingNote,
+                      deliveredAt: status === 'delivered' ? nowIso() : po.deliveredAt,
+                    },
+              ),
+              updatedAt: nowIso(),
+            },
+      ),
+    }))
+  },
+
+  // ── GRN ──
+
+  recordGRN: (caseId, grn) => {
+    const grnCount = get().procurementCases.find((c) => c.id === caseId)?.grns.length ?? 0
+    const newGRN: GRN = {
+      ...grn,
+      id: newId(),
+      grnNumber: `GRN-${String(grnCount + 1).padStart(3, '0')}`,
+    }
+    set((state) => ({
+      procurementCases: state.procurementCases.map((c) =>
+        c.id !== caseId ? c : { ...c, grns: [...c.grns, newGRN], updatedAt: nowIso() },
+      ),
+    }))
+  },
 }))
 
-// ── Helpers to extract vehicle info from display string ──
+// ── Helpers ──
 
 function extractRegNo(vehicleName: string): string {
   const match = vehicleName.match(/\(([^)]+)\)/)
@@ -333,7 +475,6 @@ function extractMake(vehicleName: string): string {
 
 function extractModel(vehicleName: string): string {
   const parts = vehicleName.split(' ')
-  // Skip make, take until year or parenthesis
   const modelParts: string[] = []
   for (let i = 1; i < parts.length; i++) {
     if (/^\d{4}$/.test(parts[i]) || parts[i].startsWith('(')) break

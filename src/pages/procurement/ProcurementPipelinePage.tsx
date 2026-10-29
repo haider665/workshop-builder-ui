@@ -17,8 +17,8 @@ import { useNavigate } from 'react-router-dom'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { colors, radii } from '../../theme/tokens'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
-import type { ProcurementStep } from '../../types/procurementWorkflow'
-import { PROCUREMENT_STEP_LABELS } from '../../types/procurementWorkflow'
+import type { CasePart, ProcurementStep } from '../../types/procurementWorkflow'
+import { PROCUREMENT_STEP_LABELS, PROCUREMENT_STEPS } from '../../types/procurementWorkflow'
 
 type TabValue = ProcurementStep | 'all' | 'completed'
 
@@ -29,6 +29,8 @@ const TABS: { label: string; value: TabValue }[] = [
   { label: 'CS', value: 'cs' },
   { label: 'Audit', value: 'audit' },
   { label: 'Approval', value: 'approval' },
+  { label: 'PO', value: 'po' },
+  { label: 'GRN', value: 'grn' },
   { label: 'Completed', value: 'completed' },
 ]
 
@@ -38,6 +40,8 @@ const stepChipColor: Record<ProcurementStep, { bgcolor: string; color: string }>
   cs: { bgcolor: '#fef3c7', color: '#92400e' },
   audit: { bgcolor: '#fce7f3', color: '#9d174d' },
   approval: { bgcolor: '#ede9fe', color: '#5b21b6' },
+  po: { bgcolor: '#e0f2fe', color: '#0369a1' },
+  grn: { bgcolor: '#d1fae5', color: '#047857' },
 }
 
 const statusBadge: Record<string, { bgcolor: string; color: string }> = {
@@ -73,13 +77,13 @@ export function ProcurementPipelinePage() {
             Procurement Pipeline
           </Typography>
           <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>
-            Track procurement cases through Store Review → Quotations → CS → Audit → Approval
+            Track procurement cases through Store Review → Quotations → CS → Audit → Approval → PO → GRN
           </Typography>
         </Box>
 
         {/* Summary chips */}
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-          {(['store_review', 'quotations', 'cs', 'audit', 'approval'] as ProcurementStep[]).map((step) => {
+          {PROCUREMENT_STEPS.map((step) => {
             const count = cases.filter((c) => c.currentStep === step && c.status === 'in_progress').length
             return (
               <Chip
@@ -186,10 +190,14 @@ export function ProcurementPipelinePage() {
                       </TableCell>
                       <TableCell>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>
-                          {c.partName}
+                          {c.parts.length > 1
+                            ? `${c.parts[0]?.partName ?? 'Part'} + ${c.parts.length - 1} more`
+                            : (c.parts[0]?.partName ?? '—')}
                         </Typography>
                         <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>
-                          {c.partNumber ? `#${c.partNumber}` : ''} × {c.quantity}
+                          {c.parts.length > 1
+                            ? `${c.parts.reduce((sum, p) => sum + p.quantity, 0)} items total`
+                            : `${c.parts[0]?.partNumber ? `#${c.parts[0].partNumber} · ` : ''}× ${c.parts[0]?.quantity ?? 1}`}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -201,16 +209,40 @@ export function ProcurementPipelinePage() {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          size="small"
-                          label={c.disposition === 'local_vendor' ? 'Local' : 'Foreign'}
-                          sx={{
-                            fontWeight: 700,
-                            fontSize: '0.68rem',
-                            bgcolor: c.disposition === 'local_vendor' ? '#dbeafe' : '#ffedd5',
-                            color: c.disposition === 'local_vendor' ? '#1d4ed8' : '#c2410c',
-                          }}
-                        />
+                        {(() => {
+                          const localCount = c.parts.filter((p) => p.disposition === 'local_vendor').length
+                          const foreignCount = c.parts.filter((p) => p.disposition === 'foreign_vendor').length
+                          let label = '—'
+                          let bgcolor = colors.slate[100]
+                          let color = colors.slate[600]
+
+                          if (localCount > 0 && foreignCount > 0) {
+                            label = `${localCount} Local, ${foreignCount} Foreign`
+                            bgcolor = '#ede9fe'
+                            color = '#6d28d9'
+                          } else if (localCount > 0) {
+                            label = `${localCount} Local`
+                            bgcolor = '#dbeafe'
+                            color = '#1d4ed8'
+                          } else if (foreignCount > 0) {
+                            label = `${foreignCount} Foreign`
+                            bgcolor = '#ffedd5'
+                            color = '#c2410c'
+                          }
+
+                          return (
+                            <Chip
+                              size="small"
+                              label={label}
+                              sx={{
+                                fontWeight: 700,
+                                fontSize: '0.68rem',
+                                bgcolor,
+                                color,
+                              }}
+                            />
+                          )
+                        })()}
                       </TableCell>
                       <TableCell>
                         <Chip

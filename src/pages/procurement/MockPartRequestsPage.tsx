@@ -69,36 +69,73 @@ function LineItemRow({
           opacity: 0.7,
         }}
       >
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          <CheckCircle sx={{ color: '#059669', fontSize: '1.1rem' }} />
-          <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>
-            {item.partName}
-          </Typography>
-          {item.partNumber ? (
-            <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
-              #{item.partNumber}
-            </Typography>
-          ) : null}
-          <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>
-            × {item.quantity}
-          </Typography>
-          <Chip
-            size="small"
-            label={
-              item.disposition === 'in_stock'
-                ? 'Picked from counter'
-                : item.disposition === 'local_vendor'
-                  ? `Local: ${item.localVendorName} — ৳${item.localPrice?.toLocaleString()}`
-                  : 'Foreign vendor required'
-            }
-            sx={{
-              fontWeight: 700,
-              fontSize: '0.7rem',
-              bgcolor: `${dispositionColor[item.disposition]}15`,
-              color: dispositionColor[item.disposition],
-              borderRadius: radii.sm,
-            }}
-          />
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+          <CheckCircle sx={{ color: '#059669', fontSize: '1.1rem', mt: 0.25 }} />
+          <Box sx={{ flex: 1 }}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>
+                {item.partName}
+              </Typography>
+              {item.brand ? (
+                <Chip
+                  size="small"
+                  label={item.brand}
+                  sx={{
+                    fontWeight: 600,
+                    fontSize: '0.68rem',
+                    height: 20,
+                    bgcolor: colors.slate[100],
+                    color: colors.slate[700],
+                    borderRadius: radii.sm,
+                  }}
+                />
+              ) : null}
+              {item.partNumber ? (
+                <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>
+                  #{item.partNumber}
+                </Typography>
+              ) : null}
+              <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>
+                × {item.quantity}{item.unitOfMeasure ? ` ${item.unitOfMeasure}` : ''}
+              </Typography>
+              <Chip
+                size="small"
+                label={
+                  item.disposition === 'in_stock'
+                    ? 'Picked from counter'
+                    : item.disposition === 'local_vendor'
+                      ? `Local: ${item.localVendorName} — ৳${item.localPrice?.toLocaleString()}`
+                      : 'Foreign vendor required'
+                }
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.7rem',
+                  bgcolor: `${dispositionColor[item.disposition]}15`,
+                  color: dispositionColor[item.disposition],
+                  borderRadius: radii.sm,
+                }}
+              />
+            </Stack>
+            {item.alternatePartNumbers && item.alternatePartNumbers.length > 0 ? (
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
+                <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500] }}>Alt:</Typography>
+                {item.alternatePartNumbers.map((alt) => (
+                  <Chip
+                    key={alt}
+                    size="small"
+                    label={alt}
+                    sx={{
+                      fontSize: '0.68rem',
+                      height: 18,
+                      bgcolor: colors.slate[100],
+                      color: colors.slate[600],
+                      borderRadius: radii.sm,
+                    }}
+                  />
+                ))}
+              </Stack>
+            ) : null}
+          </Box>
         </Stack>
       </Box>
     )
@@ -114,33 +151,72 @@ function LineItemRow({
       }}
     >
       <Stack spacing={2}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-          <Typography sx={{ fontWeight: 700, fontSize: '0.88rem', color: colors.slate[900] }}>
-            {item.partName}
-          </Typography>
-          {item.partNumber ? (
-            <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>
-              #{item.partNumber}
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+          <Box>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.88rem', color: colors.slate[900] }}>
+                {item.partName}
+              </Typography>
+              {item.brand ? (
+                <Chip
+                  size="small"
+                  label={item.brand}
+                  sx={{
+                    fontWeight: 600,
+                    fontSize: '0.72rem',
+                    height: 22,
+                    bgcolor: colors.slate[100],
+                    color: colors.slate[700],
+                    borderRadius: radii.sm,
+                  }}
+                />
+              ) : null}
+              {item.partNumber ? (
+                <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>
+                  #{item.partNumber}
+                </Typography>
+              ) : null}
+            </Stack>
+            {item.alternatePartNumbers && item.alternatePartNumbers.length > 0 ? (
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
+                <Typography sx={{ fontSize: '0.7rem', color: colors.slate[500] }}>Alt:</Typography>
+                {item.alternatePartNumbers.map((alt) => (
+                  <Chip
+                    key={alt}
+                    size="small"
+                    label={alt}
+                    sx={{
+                      fontSize: '0.68rem',
+                      height: 18,
+                      bgcolor: colors.slate[100],
+                      color: colors.slate[600],
+                      borderRadius: radii.sm,
+                    }}
+                  />
+                ))}
+              </Stack>
+            ) : null}
+          </Box>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>
+              Qty: {item.quantity}{item.unitOfMeasure ? ` ${item.unitOfMeasure}` : ''}
             </Typography>
-          ) : null}
-          <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>
-            Qty: {item.quantity}
-          </Typography>
-          <TextField
-            select
-            size="small"
-            value={item.disposition}
-            onChange={(e) =>
-              setDisposition(requestId, item.id, e.target.value as PartDisposition)
-            }
-            sx={{ minWidth: 160, '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }}
-          >
-            {DISPOSITION_OPTIONS.map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </MenuItem>
-            ))}
-          </TextField>
+            <TextField
+              select
+              size="small"
+              value={item.disposition}
+              onChange={(e) =>
+                setDisposition(requestId, item.id, e.target.value as PartDisposition)
+              }
+              sx={{ minWidth: 160, '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }}
+            >
+              {DISPOSITION_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
         </Stack>
 
         {item.disposition === 'in_stock' && (

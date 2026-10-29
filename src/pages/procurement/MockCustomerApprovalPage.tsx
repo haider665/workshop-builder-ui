@@ -166,16 +166,53 @@ export function MockCustomerApprovalPage() {
                 </TableHead>
                 <TableBody>
                   {filtered.map((a) => {
-                    const hasCase = procurementCases.some((c) => c.customerApprovalId === a.id)
+                    const hasCase = procurementCases.some((c) => c.customerApprovalIds?.includes(a.id))
                     return (
                       <TableRow key={a.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
                         <TableCell>
                           <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.slate[900] }}>
                             {a.partName}
                           </Typography>
-                          <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>
-                            {a.partNumber ? `#${a.partNumber}` : ''} × {a.quantity}
-                          </Typography>
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', mt: 0.25 }}>
+                            <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>
+                              {a.partNumber ? `#${a.partNumber} · ` : ''}× {a.quantity}
+                            </Typography>
+                            {a.brand ? (
+                              <Chip
+                                size="small"
+                                label={a.brand}
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: '0.68rem',
+                                  height: 18,
+                                  bgcolor: colors.slate[100],
+                                  color: colors.slate[700],
+                                  borderRadius: radii.sm,
+                                }}
+                              />
+                            ) : null}
+                          </Stack>
+                          {a.alternatePartNumbers && a.alternatePartNumbers.length > 0 ? (
+                            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
+                              <Typography sx={{ fontSize: '0.68rem', color: colors.slate[400] }}>
+                                Alt:
+                              </Typography>
+                              {a.alternatePartNumbers.map((alt) => (
+                                <Chip
+                                  key={alt}
+                                  size="small"
+                                  label={alt}
+                                  sx={{
+                                    fontSize: '0.65rem',
+                                    height: 18,
+                                    bgcolor: colors.slate[100],
+                                    color: colors.slate[600],
+                                    borderRadius: radii.sm,
+                                  }}
+                                />
+                              ))}
+                            </Stack>
+                          ) : null}
                         </TableCell>
                         <TableCell>
                           <Typography sx={{ fontSize: '0.82rem', fontWeight: 600 }}>

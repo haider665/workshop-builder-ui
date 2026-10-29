@@ -1,6 +1,6 @@
 // ── Mock Procurement Workflow Types ──
 // Phase A: Part Request Triage + Customer Approval
-// Phase B: Procurement Pipeline (Steps 2–6)
+// Phase B: Procurement Pipeline (Store Review → Quotations → CS → Audit → Approval → PO → GRN)
 
 // ── Step 1: Part Request Triage ──
 
@@ -10,6 +10,9 @@ export type PartLineItem = {
   id: string
   partName: string
   partNumber?: string
+  alternatePartNumbers?: string[]
+  brand?: string
+  unitOfMeasure?: string
   quantity: number
   disposition: PartDisposition
   // For in_stock
@@ -47,6 +50,8 @@ export type MockCustomerApproval = {
   lineItemId: string
   partName: string
   partNumber?: string
+  alternatePartNumbers?: string[]
+  brand?: string
   quantity: number
   customerName: string
   customerPhone: string
@@ -63,9 +68,9 @@ export type MockCustomerApproval = {
   createdAt: string
 }
 
-// ── Steps 2–6: Procurement Case ──
+// ── Steps 2–8: Procurement Pipeline ──
 
-export type ProcurementStep = 'store_review' | 'quotations' | 'cs' | 'audit' | 'approval'
+export type ProcurementStep = 'store_review' | 'quotations' | 'cs' | 'audit' | 'approval' | 'po' | 'grn'
 
 export type StepAction = 'approve' | 'reject' | 'change_request' | 'submit'
 
@@ -78,15 +83,39 @@ export type StepRecord = {
   attachmentUrls?: string[]
 }
 
+// ── Part inside a Procurement Case ──
+
+export type CasePart = {
+  id: string
+  lineItemId: string
+  partName: string
+  partNumber?: string
+  alternatePartNumbers?: string[]
+  brand?: string
+  unitOfMeasure?: string
+  quantity: number
+  disposition: 'local_vendor' | 'foreign_vendor'
+}
+
+// ── Quotation (multi-part per vendor) ──
+
+export type QuotationLineItem = {
+  casePartId: string
+  partName: string
+  unitPrice: number
+  quantity: number
+  totalPrice: number
+  deliveryDays?: number
+  notes?: string
+}
+
 export type Quotation = {
   id: string
   vendorName: string
   vendorContact?: string
   sourcingType: 'Local' | 'Foreign'
-  unitPrice: number
-  quantity: number
-  totalPrice: number
-  deliveryDays?: number
+  lineItems: QuotationLineItem[]
+  grandTotal: number
   currency: string
   notes?: string
   attachmentUrls: string[]
@@ -94,13 +123,83 @@ export type Quotation = {
   submittedAt: string
 }
 
-export type CSDecision = {
+// ── CS Decision (per-part vendor selection) ──
+
+export type CSDecisionItem = {
+  casePartId: string
+  partName: string
   selectedQuotationId: string
   selectedVendorName: string
+  unitPrice: number
+  quantity: number
+  totalPrice: number
+}
+
+export type CSDecision = {
+  items: CSDecisionItem[]
   note: string
   decidedByName: string
   decidedAt: string
 }
+
+// ── Purchase Order ──
+
+export type POLineItem = {
+  casePartId: string
+  partName: string
+  unitPrice: number
+  quantity: number
+  totalPrice: number
+}
+
+export type POStatus = 'draft' | 'placed' | 'in_transit' | 'delivered'
+
+export type PurchaseOrder = {
+  id: string
+  poNumber: string
+  vendorName: string
+  vendorContact?: string
+  sourcingType: 'Local' | 'Foreign'
+  lineItems: POLineItem[]
+  grandTotal: number
+  currency: string
+  status: POStatus
+  placedAt?: string
+  placedByName?: string
+  expectedDeliveryDate?: string
+  deliveredAt?: string
+  trackingNote?: string
+  createdAt: string
+}
+
+// ── GRN (Good Receive Note) ──
+
+export type GRNItemCondition = 'good' | 'damaged' | 'partial'
+
+export type GRNLineItem = {
+  casePartId: string
+  partName: string
+  orderedQty: number
+  receivedQty: number
+  condition: GRNItemCondition
+  notes?: string
+}
+
+export type GRN = {
+  id: string
+  grnNumber: string
+  poId: string
+  poNumber: string
+  vendorName: string
+  lineItems: GRNLineItem[]
+  invoiceAttachmentUrls: string[]
+  invoiceAttachmentNames: string[]
+  receivedByName: string
+  receivedAt: string
+  notes?: string
+}
+
+// ── Vehicle Info ──
 
 export type MockVehicleInfo = {
   registrationNo: string
@@ -114,6 +213,8 @@ export type MockVehicleInfo = {
   customerPhone: string
 }
 
+// ── Procurement Case (multi-part) ──
+
 export type ProcurementCaseStatus = 'in_progress' | 'approved' | 'rejected'
 
 export type ProcurementCase = {
@@ -121,17 +222,12 @@ export type ProcurementCase = {
   caseNumber: string
   // Source
   partRequestId: string
-  lineItemId: string
-  customerApprovalId: string
-  // Part info
-  partName: string
-  partNumber?: string
-  quantity: number
-  disposition: 'local_vendor' | 'foreign_vendor'
+  customerApprovalIds: string[]
+  // Parts (multiple)
+  parts: CasePart[]
   // Display context
   vehicleName: string
   customerName: string
-  // Vehicle info (self-contained mock)
   vehicleInfo: MockVehicleInfo
   // Workflow
   currentStep: ProcurementStep
@@ -142,13 +238,15 @@ export type ProcurementCase = {
   csDecision?: CSDecision
   auditReview?: StepRecord
   managementApproval?: StepRecord
+  purchaseOrders: PurchaseOrder[]
+  grns: GRN[]
   // Trail
   history: StepRecord[]
   createdAt: string
   updatedAt: string
 }
 
-// ── Step label mapping ──
+// ── Step constants ──
 
 export const PROCUREMENT_STEP_LABELS: Record<ProcurementStep, string> = {
   store_review: 'Store Review',
@@ -156,6 +254,8 @@ export const PROCUREMENT_STEP_LABELS: Record<ProcurementStep, string> = {
   cs: 'Comparative Statement',
   audit: 'Audit',
   approval: 'Approval',
+  po: 'Purchase Order',
+  grn: 'GRN',
 }
 
 export const PROCUREMENT_STEPS: ProcurementStep[] = [
@@ -164,6 +264,8 @@ export const PROCUREMENT_STEPS: ProcurementStep[] = [
   'cs',
   'audit',
   'approval',
+  'po',
+  'grn',
 ]
 
 export const PREVIOUS_STEP: Record<ProcurementStep, ProcurementStep | null> = {
@@ -172,6 +274,8 @@ export const PREVIOUS_STEP: Record<ProcurementStep, ProcurementStep | null> = {
   cs: 'quotations',
   audit: 'cs',
   approval: 'audit',
+  po: 'approval',
+  grn: 'po',
 }
 
 export const NEXT_STEP: Record<ProcurementStep, ProcurementStep | null> = {
@@ -179,5 +283,7 @@ export const NEXT_STEP: Record<ProcurementStep, ProcurementStep | null> = {
   quotations: 'cs',
   cs: 'audit',
   audit: 'approval',
-  approval: null,
+  approval: 'po',
+  po: 'grn',
+  grn: null,
 }
