@@ -531,7 +531,7 @@ function POPanel({ pc, userName, navigate }: { pc: ProcurementCase; userName: st
 
               {po.status === 'draft' && (
                 <Stack direction="row" spacing={1.5} sx={{ mt: 2, alignItems: 'center' }}>
-                  <TextField size="small" type="date" label="Expected Delivery" value={expectedDates[po.id] || ''} onChange={(e) => setExpectedDates((p) => ({ ...p, [po.id]: e.target.value }))} InputLabelProps={{ shrink: true }} sx={{ width: 180 }} />
+                  <TextField size="small" type="date" label="Expected Delivery" value={expectedDates[po.id] || ''} onChange={(e) => setExpectedDates((p) => ({ ...p, [po.id]: e.target.value }))} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 180 }} />
                   <Button variant="contained" size="small" startIcon={<LocalShipping />} onClick={() => { placeOrder(pc.id, po.id, userName, expectedDates[po.id]); setSnack(`${po.poNumber} placed`) }}
                     sx={{ bgcolor: '#2563eb', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#1d4ed8' } }}>
                     Place Order

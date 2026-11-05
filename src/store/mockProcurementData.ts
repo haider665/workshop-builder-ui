@@ -4,7 +4,6 @@ import type {
   ProcurementCase,
 } from '../types/procurementWorkflow'
 
-const ts = new Date().toISOString()
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString()
 
 export type MockVendor = {

@@ -216,7 +216,6 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
             }
           } else {
             // Create new case with this part
-            const req = state.partRequests.find((r) => r.id === approval.partRequestId)
             const caseNum = `PC-${String(state.procurementCases.length + 1).padStart(3, '0')}`
             const newCase: ProcurementCase = {
               id: newId(),

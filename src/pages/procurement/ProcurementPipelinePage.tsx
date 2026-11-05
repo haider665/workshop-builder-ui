@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { colors, radii } from '../../theme/tokens'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
-import type { CasePart, ProcurementStep } from '../../types/procurementWorkflow'
+import type { ProcurementStep } from '../../types/procurementWorkflow'
 import { PROCUREMENT_STEP_LABELS, PROCUREMENT_STEPS } from '../../types/procurementWorkflow'
 
 type TabValue = ProcurementStep | 'all' | 'completed'
@@ -213,8 +213,8 @@ export function ProcurementPipelinePage() {
                           const localCount = c.parts.filter((p) => p.disposition === 'local_vendor').length
                           const foreignCount = c.parts.filter((p) => p.disposition === 'foreign_vendor').length
                           let label = '—'
-                          let bgcolor = colors.slate[100]
-                          let color = colors.slate[600]
+                          let bgcolor: string = colors.slate[100]
+                          let color: string = colors.slate[600]
 
                           if (localCount > 0 && foreignCount > 0) {
                             label = `${localCount} Local, ${foreignCount} Foreign`

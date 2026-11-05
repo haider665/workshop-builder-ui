@@ -23,7 +23,6 @@ import {
 } from '@mui/icons-material'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { SectionCard } from '../../components/SectionCard'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { PartDisposition, PartLineItem } from '../../types/procurementWorkflow'
