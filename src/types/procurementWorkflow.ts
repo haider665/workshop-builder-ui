@@ -244,6 +244,8 @@ export type ProcurementCase = {
   history: StepRecord[]
   createdAt: string
   updatedAt: string
+  /** Original server stage, retained while the mock route is being migrated. */
+  backendStage?: string
 }
 
 // ── Step constants ──

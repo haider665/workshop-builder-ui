@@ -12,9 +12,12 @@ import {
   Typography,
 } from '@mui/material'
 import { ShoppingCart } from '@mui/icons-material'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMockProcurementStore } from '../../store/mockProcurementStore'
+import { workshopApi } from '../../services/workshopApi'
+import { mapBackendProcurementCase } from '../../services/procurementAdapter'
+import { useCompanyStore } from '../../store/companyStore'
+import type { ProcurementCase } from '../../types/procurementWorkflow'
 import { colors, radii } from '../../theme/tokens'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import type { ProcurementStep } from '../../types/procurementWorkflow'
@@ -51,9 +54,27 @@ const statusBadge: Record<string, { bgcolor: string; color: string }> = {
 }
 
 export function ProcurementPipelinePage() {
-  const cases = useMockProcurementStore((s) => s.procurementCases)
+  const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
+  const [cases, setCases] = useState<ProcurementCase[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const [tab, setTab] = useState<TabValue>('all')
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    void workshopApi.procurementCases(selectedCompanyId || undefined)
+      .then((response) => {
+        if (!cancelled) setCases(response.data.map(mapBackendProcurementCase))
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Unable to load procurement cases')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedCompanyId])
 
   const filtered = useMemo(() => {
     if (tab === 'all') return cases.filter((c) => c.status === 'in_progress')
@@ -151,7 +172,15 @@ export function ProcurementPipelinePage() {
             </Stack>
           </Box>
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>Loading live procurement cases…</Typography>
+            </Box>
+          ) : error ? (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography sx={{ color: '#b91c1c', fontSize: '0.85rem' }}>{error}</Typography>
+            </Box>
+          ) : filtered.length === 0 ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
               <Typography sx={{ color: colors.slate[400], fontSize: '0.85rem' }}>
                 No cases in this category.

@@ -35,11 +35,13 @@ import {
   LocalShipping,
   Receipt,
 } from '@mui/icons-material'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
+import { workshopApi } from '../../services/workshopApi'
+import { mapBackendProcurementCase } from '../../services/procurementAdapter'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, GRNLineItem } from '../../types/procurementWorkflow'
@@ -805,7 +807,21 @@ export function ProcurementCaseDetailPage() {
   const setCSDecisionStore = useMockProcurementStore((s) => s.setCSDecision)
   const generatePOs = useMockProcurementStore((s) => s.generatePurchaseOrders)
 
-  const pc = cases.find((c) => c.id === caseId)
+  const [backendPc, setBackendPc] = useState<ProcurementCase | null>(null)
+  const [loadingBackend, setLoadingBackend] = useState(true)
+  const [backendError, setBackendError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!caseId) return
+    let cancelled = false
+    setLoadingBackend(true)
+    setBackendError(null)
+    void workshopApi.procurementCase(caseId)
+      .then((data) => { if (!cancelled) setBackendPc(mapBackendProcurementCase(data)) })
+      .catch((cause) => { if (!cancelled) setBackendError(cause instanceof Error ? cause.message : 'Unable to load procurement case') })
+      .finally(() => { if (!cancelled) setLoadingBackend(false) })
+    return () => { cancelled = true }
+  }, [caseId])
+  const pc = backendPc || cases.find((c) => c.id === caseId)
   const [snack, setSnack] = useState<string | null>(null)
   const [actionNote, setActionNote] = useState('')
   const [showReject, setShowReject] = useState(false)
@@ -816,10 +832,14 @@ export function ProcurementCaseDetailPage() {
   const [csSelections, setCsSelections] = useState<Record<string, { quotationId: string; vendorName: string; unitPrice: number; quantity: number; totalPrice: number }>>({})
   const [csNote, setCsNote] = useState('')
 
+  if (loadingBackend) {
+    return <Box sx={{ py: 6, textAlign: 'center' }}><Typography sx={{ color: colors.slate[500] }}>Loading live procurement case…</Typography></Box>
+  }
+
   if (!pc) {
     return (
       <Box sx={{ py: 6, textAlign: 'center' }}>
-        <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: colors.slate[600] }}>Case not found</Typography>
+        <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: colors.slate[600] }}>{backendError || 'Case not found'}</Typography>
         <Button onClick={() => navigate('/mock-procurement/pipeline')} sx={{ mt: 2 }}>Back to Pipeline</Button>
       </Box>
     )
@@ -828,7 +848,51 @@ export function ProcurementCaseDetailPage() {
   const currentIdx = PROCUREMENT_STEPS.indexOf(pc.currentStep)
   const isCompleted = pc.status === 'approved' || pc.status === 'rejected'
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
+    if (backendPc) {
+      try {
+        const stage = backendPc.backendStage
+        let result: Record<string, unknown>
+        if (stage === 'Procurement Review' || stage === 'Requested') {
+          result = await workshopApi.procurementStoreReview(backendPc.id, {
+            storeReviewStatus: 'Local Shortage',
+            procurementType: 'Local',
+            vendorRoute: 'Enlisted Vendor',
+            note: actionNote.trim() || undefined,
+            parts: backendPc.parts.map((part) => ({
+              partRequestId: part.lineItemId,
+              storeReviewStatus: 'Local Shortage' as const,
+              procurementType: 'Local' as const,
+              stockAvailable: 0,
+            })),
+          })
+        } else {
+          const actionByStage: Record<string, string> = {
+            'Quotation Collection': 'complete_quotation_collection',
+            'Audit Verification': 'audit_verify',
+            'GM Approval': 'gm_approve',
+            'Management Approval': 'management_approve',
+            'Supplier Confirmation': 'supplier_confirm',
+            'Audit Physical Review': 'physical_audit_approve',
+            'Procurement File Completion': 'file_complete',
+            'Audit Clearance': 'audit_clear',
+            'Actual Accounts': 'accounts_verify',
+            Reconciliation: 'reconciliation_confirm',
+            'Bill Settlement': 'settle_bill',
+          }
+          const action = actionByStage[stage || '']
+          if (!action) throw new Error(`No live action is available for stage ${stage || 'Unknown'}.`)
+          result = await workshopApi.procurementCaseAction(backendPc.id, action, actionNote.trim() || undefined)
+        }
+        setBackendPc(mapBackendProcurementCase(result))
+        setActionNote('')
+        setSnack('Live procurement case updated')
+        navigate('/mock-procurement/pipeline')
+      } catch (cause) {
+        setSnack(cause instanceof Error ? cause.message : 'Unable to update procurement case')
+      }
+      return
+    }
     // Special: after approval step, also auto-generate POs
     if (pc.currentStep === 'approval') {
       advanceStep(pc.id, { action: 'approve', actionByName: userName, actionDate: new Date().toISOString(), note: actionNote.trim() || undefined })
@@ -842,7 +906,32 @@ export function ProcurementCaseDetailPage() {
     navigate('/mock-procurement/pipeline')
   }
 
-  const handleReject = () => {
+  const handleReject = async () => {
+    if (backendPc) {
+      try {
+        const stage = backendPc.backendStage
+        const actionByStage: Record<string, string> = {
+          'Procurement Review': 'return_to_requester',
+          'Quotation Collection': 'return_to_requester',
+          'Audit Verification': 'audit_reject',
+          'GM Approval': 'gm_reject',
+          'Management Approval': 'management_reject',
+          'Audit Physical Review': 'physical_audit_reject',
+          'Audit Clearance': 'audit_clearance_reject',
+        }
+        const action = actionByStage[stage || '']
+        if (!action) throw new Error(`No live rejection action is available for stage ${stage || 'Unknown'}.`)
+        const result = await workshopApi.procurementCaseAction(backendPc.id, action, rejectNote.trim() || 'Returned for correction')
+        setBackendPc(mapBackendProcurementCase(result))
+        setRejectNote('')
+        setShowReject(false)
+        setSnack('Live procurement case returned')
+        navigate('/mock-procurement/pipeline')
+      } catch (cause) {
+        setSnack(cause instanceof Error ? cause.message : 'Unable to return procurement case')
+      }
+      return
+    }
     rejectStep(pc.id, rejectNote.trim() || 'Rejected', userName)
     setRejectNote('')
     setShowReject(false)
