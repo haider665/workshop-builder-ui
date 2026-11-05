@@ -1849,28 +1849,54 @@ export const useCwStore = create<CWState>((set, get) => ({
   hydrateFromBackend: async () => {
     const generation = ++hydrationGeneration
     set({ hydrationStatus: 'loading' })
-    const fetchAll = async <T,>(
-      loader: (page: number, pageSize: number) => Promise<{ data: T[]; meta: { total: number } }>,
-    ) => {
-      const pageSize = 100
-      const first = await loader(1, pageSize)
-      const total = first.meta.total ?? first.data.length
-      if (first.data.length >= total) return first.data
-      const pageCount = Math.ceil(total / pageSize)
-      const remaining = await Promise.all(
-        Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) => loader(index + 2, pageSize)),
-      )
-      return [first.data, ...remaining.map((page) => page.data)].flat().slice(0, total)
-    }
+    // Publish a small first page immediately, then append remaining pages in
+    // the background. Waiting for every page of every collection made the
+    // whole application look frozen as production data grew.
+    const pageSize = 50
+    type Page<T> = { data: T[]; meta: { total: number } }
 
-    // Safe wrapper — one failing endpoint won't kill the rest
-    const safe = async <T,>(label: string, fn: () => Promise<T[]>): Promise<T[]> => {
+    const safePage = async <T,>(label: string, fn: () => Promise<Page<T>>): Promise<Page<T>> => {
       try {
         return await fn()
       } catch (err) {
         console.warn(`[hydrate] ${label} failed, using empty fallback:`, err)
-        return []
+        return { data: [], meta: { total: 0 } }
       }
+    }
+
+    const appendPage = <T extends { id: string }>(key: keyof CWState, rows: T[]) => {
+      if (!rows.length) return
+      set((state) => {
+        if (generation !== hydrationGeneration) return state
+        const current = (state[key] as unknown as T[]) || []
+        const seen = new Set(current.map((row) => row.id))
+        const merged = [...current]
+        rows.forEach((row) => { if (!seen.has(row.id)) { seen.add(row.id); merged.push(row) } })
+        return { [key]: merged } as Partial<CWState>
+      })
+    }
+
+    const loadRemaining = <T extends { id: string }>(
+      key: keyof CWState,
+      label: string,
+      first: Page<T>,
+      loader: (page: number, pageSize: number) => Promise<Page<T>>,
+    ) => {
+      const total = first.meta.total ?? first.data.length
+      const pageCount = Math.ceil(total / pageSize)
+      if (pageCount <= 1) return
+      void (async () => {
+        for (let page = 2; page <= pageCount; page += 1) {
+          if (generation !== hydrationGeneration) return
+          try {
+            const next = await loader(page, pageSize)
+            appendPage(key, next.data)
+          } catch (err) {
+            console.warn(`[hydrate] ${label} page ${page} failed; keeping loaded data`, err)
+            return
+          }
+        }
+      })()
     }
 
     const [
@@ -1895,52 +1921,74 @@ export const useCwStore = create<CWState>((set, get) => ({
       requisitions,
       estimateLines,
     ] = await Promise.all([
-      safe('shops', async () => (await workshopApi.listShops()).data),
-      safe('bays', () => fetchAll((page, pageSize) => workshopApi.listBays({ page, pageSize }))),
-      safe('roles', async () => (await workshopApi.listRoles(false)).data),
-      safe('users', () => fetchAll((page, pageSize) => workshopApi.listUsers({ page, pageSize }))),
-      safe('customers', () => fetchAll((page, pageSize) => workshopApi.listCustomers({ page, pageSize }))),
-      safe('vehicles', () => fetchAll((page, pageSize) => workshopApi.listVehicles({ page, pageSize }))),
-      safe('appointments', () => fetchAll((page, pageSize) => workshopApi.listAppointments({ page, pageSize }))),
-      safe('concernCategories', () => fetchAll((page, pageSize) => workshopApi.listConcernCategories({ page, pageSize }))),
-      safe('concerns', () => fetchAll((page, pageSize) => workshopApi.listConcerns({ page, pageSize }))),
-      safe('services', () => fetchAll((page, pageSize) => workshopApi.listServices({ page, pageSize }))),
-      safe('teams', () => fetchAll((page, pageSize) => workshopApi.listTeams({ page, pageSize }))),
-      safe('taskTemplates', () => fetchAll((page, pageSize) => workshopApi.listTaskTemplates({ page, pageSize }))),
-      safe('pendingVehicles', () => fetchAll((page, pageSize) => workshopApi.listPendingVehicles({ page, pageSize }))),
-      safe('jobs', () => fetchAll((page, pageSize) => workshopApi.listJobs({ page, pageSize }))),
-      safe('tasks', () => fetchAll((page, pageSize) => workshopApi.listTasks({ page, pageSize }))),
-      safe('callRecords', () => fetchAll((page, pageSize) => workshopApi.listCallRecords({ page, pageSize }))),
-      safe('reminders', () => fetchAll((page, pageSize) => workshopApi.listReminders({ page, pageSize }))),
-      safe('partRequests', () => fetchAll((page, pageSize) => workshopApi.listPartRequests({ page, pageSize }))),
-      safe('requisitions', () => fetchAll((page, pageSize) => workshopApi.listRequisitions({ page, pageSize }))),
-      safe('estimateLines', () => fetchAll((page, pageSize) => workshopApi.listEstimateLines({ page, pageSize }))),
+      safePage('shops', () => workshopApi.listShops()),
+      safePage('bays', () => workshopApi.listBays({ page: 1, pageSize })),
+      safePage('roles', () => workshopApi.listRoles(false)),
+      safePage('users', () => workshopApi.listUsers({ page: 1, pageSize })),
+      safePage('customers', () => workshopApi.listCustomers({ page: 1, pageSize })),
+      safePage('vehicles', () => workshopApi.listVehicles({ page: 1, pageSize })),
+      safePage('appointments', () => workshopApi.listAppointments({ page: 1, pageSize })),
+      safePage('concernCategories', () => workshopApi.listConcernCategories({ page: 1, pageSize })),
+      safePage('concerns', () => workshopApi.listConcerns({ page: 1, pageSize })),
+      safePage('services', () => workshopApi.listServices({ page: 1, pageSize })),
+      safePage('teams', () => workshopApi.listTeams({ page: 1, pageSize })),
+      safePage('taskTemplates', () => workshopApi.listTaskTemplates({ page: 1, pageSize })),
+      safePage('pendingVehicles', () => workshopApi.listPendingVehicles({ page: 1, pageSize })),
+      safePage('jobs', () => workshopApi.listJobs({ page: 1, pageSize })),
+      safePage('tasks', () => workshopApi.listTasks({ page: 1, pageSize })),
+      safePage('callRecords', () => workshopApi.listCallRecords({ page: 1, pageSize })),
+      safePage('reminders', () => workshopApi.listReminders({ page: 1, pageSize })),
+      safePage('partRequests', () => workshopApi.listPartRequests({ page: 1, pageSize })),
+      safePage('requisitions', () => workshopApi.listRequisitions({ page: 1, pageSize })),
+      safePage('estimateLines', () => workshopApi.listEstimateLines({ page: 1, pageSize })),
     ])
 
     if (generation != hydrationGeneration) return
     set({
-      shops,
-      bays,
-      roles,
-      users,
-      customers,
-      vehicles,
-      appointments,
-      concernCategories,
-      concerns,
-      services,
-      teams,
-      taskTemplates,
-      pendingVehicles,
-      jobs,
-      tasks,
-      callRecords,
-      reminders,
-      partRequests,
-      requisitions,
-      estimateLines,
+      shops: shops.data,
+      bays: bays.data,
+      roles: roles.data,
+      users: users.data,
+      customers: customers.data,
+      vehicles: vehicles.data,
+      appointments: appointments.data,
+      concernCategories: concernCategories.data,
+      concerns: concerns.data,
+      services: services.data,
+      teams: teams.data,
+      taskTemplates: taskTemplates.data,
+      pendingVehicles: pendingVehicles.data,
+      jobs: jobs.data,
+      tasks: tasks.data,
+      callRecords: callRecords.data,
+      reminders: reminders.data,
+      partRequests: partRequests.data,
+      requisitions: requisitions.data,
+      estimateLines: estimateLines.data,
       hydrationStatus: 'ready',
     })
+
+    // Continue fetching without blocking route rendering. Each page is appended
+    // as it arrives, so tables/cards can grow progressively while the existing
+    // global API activity indicator remains visible.
+    loadRemaining('bays', 'bays', bays, (page, size) => workshopApi.listBays({ page, pageSize: size }))
+    loadRemaining('users', 'users', users, (page, size) => workshopApi.listUsers({ page, pageSize: size }))
+    loadRemaining('customers', 'customers', customers, (page, size) => workshopApi.listCustomers({ page, pageSize: size }))
+    loadRemaining('vehicles', 'vehicles', vehicles, (page, size) => workshopApi.listVehicles({ page, pageSize: size }))
+    loadRemaining('appointments', 'appointments', appointments, (page, size) => workshopApi.listAppointments({ page, pageSize: size }))
+    loadRemaining('concernCategories', 'concern categories', concernCategories, (page, size) => workshopApi.listConcernCategories({ page, pageSize: size }))
+    loadRemaining('concerns', 'concerns', concerns, (page, size) => workshopApi.listConcerns({ page, pageSize: size }))
+    loadRemaining('services', 'services', services, (page, size) => workshopApi.listServices({ page, pageSize: size }))
+    loadRemaining('teams', 'teams', teams, (page, size) => workshopApi.listTeams({ page, pageSize: size }))
+    loadRemaining('taskTemplates', 'task templates', taskTemplates, (page, size) => workshopApi.listTaskTemplates({ page, pageSize: size }))
+    loadRemaining('pendingVehicles', 'pending vehicles', pendingVehicles, (page, size) => workshopApi.listPendingVehicles({ page, pageSize: size }))
+    loadRemaining('jobs', 'jobs', jobs, (page, size) => workshopApi.listJobs({ page, pageSize: size }))
+    loadRemaining('tasks', 'tasks', tasks, (page, size) => workshopApi.listTasks({ page, pageSize: size }))
+    loadRemaining('callRecords', 'call records', callRecords, (page, size) => workshopApi.listCallRecords({ page, pageSize: size }))
+    loadRemaining('reminders', 'reminders', reminders, (page, size) => workshopApi.listReminders({ page, pageSize: size }))
+    loadRemaining('partRequests', 'part requests', partRequests, (page, size) => workshopApi.listPartRequests({ page, pageSize: size }))
+    loadRemaining('requisitions', 'requisitions', requisitions, (page, size) => workshopApi.listRequisitions({ page, pageSize: size }))
+    loadRemaining('estimateLines', 'estimate lines', estimateLines, (page, size) => workshopApi.listEstimateLines({ page, pageSize: size }))
   },
 
   createShop: (input) => {
