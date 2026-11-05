@@ -38,6 +38,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
+import { FinanceWorkspacePage } from '../operations/FinanceWorkspacePage'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
 import { workshopApi } from '../../services/workshopApi'
@@ -960,6 +961,13 @@ export function ProcurementCaseDetailPage() {
     advanceStep(pc.id, { action: 'submit', actionByName: userName, actionDate: new Date().toISOString(), note: csNote.trim() || `Vendors selected for ${items.length} parts` })
     setSnack('CS Decision submitted')
     navigate('/mock-procurement/pipeline')
+  }
+
+  // Live cases use the already-authorized operational workspace. Keeping this
+  // entry point under /mock-procurement lets us validate the real pipeline
+  // without changing the official navigation until parity is confirmed.
+  if (backendPc) {
+    return <FinanceWorkspacePage initialTab="procurement" workspace="procurement" initialCaseId={backendPc.id} />
   }
 
   return (

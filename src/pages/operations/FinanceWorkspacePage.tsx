@@ -436,9 +436,11 @@ function statusColor(
 export function FinanceWorkspacePage({
   initialTab = "procurement",
   workspace = "procurement",
+  initialCaseId,
 }: {
   initialTab?: TabId;
   workspace?: "procurement" | "accounting";
+  initialCaseId?: string;
 }) {
   const { selectedCompanyId, companies } = useCompanyStore();
   const company = companies.find((item) => item.id === selectedCompanyId);
@@ -1089,6 +1091,9 @@ export function FinanceWorkspacePage({
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    if (initialCaseId && selectedCompanyId && !demoDataLoaded) void openCase(initialCaseId);
+  }, [initialCaseId, selectedCompanyId, demoDataLoaded]);
   useEffect(() => {
     const handler = () => void load();
     window.addEventListener("cw:company-changed", handler);
