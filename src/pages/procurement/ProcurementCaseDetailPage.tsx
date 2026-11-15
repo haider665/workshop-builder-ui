@@ -38,15 +38,31 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
-import { FinanceWorkspacePage } from '../operations/FinanceWorkspacePage'
+import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
+import { workshopApi, type CWMasterDataRequest } from '../../services/workshopApi'
+import { mapBackendProcurementCase } from '../../services/procurementAdapter'
+import { useCompanyStore } from '../../store/companyStore'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
-import { workshopApi } from '../../services/workshopApi'
-import { mapBackendProcurementCase } from '../../services/procurementAdapter'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, GRNLineItem } from '../../types/procurementWorkflow'
 import { PROCUREMENT_STEPS, PROCUREMENT_STEP_LABELS } from '../../types/procurementWorkflow'
+
+async function hydrateBackendProcurementCase(data: Record<string, unknown>): Promise<ProcurementCase> {
+  const mapped = mapBackendProcurementCase(data)
+  const summaries = Array.isArray(data.supplierQuotations) ? data.supplierQuotations as Array<Record<string, unknown>> : []
+  if (!summaries.length) return mapped
+  const full = await Promise.all(summaries.map(async (summary) => {
+    try { return await workshopApi.accountingGet('quotations', String(summary.id)) } catch { return summary }
+  }))
+  mapped.quotations = full.map((quote) => ({
+    id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const,
+    lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>) => ({ casePartId: String(item.itemCode || item.id || ''), partName: String(item.itemName || item.description || item.itemCode || 'Part'), unitPrice: Number(item.rate || 0), quantity: Number(item.qty || 0), totalPrice: Number(item.amount || 0) })),
+    grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || data.updatedAt || new Date().toISOString()),
+  }))
+  return mapped
+}
 
 /* ═══ Helpers ═══ */
 
@@ -194,14 +210,21 @@ function VehicleInfoSection({ pc }: { pc: ProcurementCase }) {
 
 /* ═══ Multi-Part Quotation Dialog ═══ */
 
-function QuotationDialog({ open, onClose, onSave, parts, initial }: {
+function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseId, masterDataRequests, onMasterDataRequested }: {
   open: boolean
   onClose: () => void
-  onSave: (q: Omit<Quotation, 'id' | 'submittedAt'>) => void
+  onSave: (q: Omit<Quotation, 'id' | 'submittedAt'>) => void | Promise<void>
   parts: ProcurementCase['parts']
   initial?: Quotation
+  company?: string | null
+  caseId?: string
+  masterDataRequests?: CWMasterDataRequest[]
+  onMasterDataRequested?: (request: CWMasterDataRequest) => void
 }) {
   const [vendorId, setVendorId] = useState(initial ? MOCK_VENDORS.find((v) => v.name === initial.vendorName)?.id ?? '' : '')
+  const [liveVendors, setLiveVendors] = useState<Array<{ id: string; name: string; type?: string }>>([])
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<QuotationLineItem[]>(
     initial?.lineItems ?? parts.map((p) => ({ casePartId: p.id, partName: p.partName, unitPrice: 0, quantity: p.quantity, totalPrice: 0 })),
   )
@@ -209,8 +232,21 @@ function QuotationDialog({ open, onClose, onSave, parts, initial }: {
   const [files, setFiles] = useState<{ name: string; url: string }[]>(
     initial?.attachmentUrls?.map((url, i) => ({ name: initial.attachmentNames?.[i] ?? `file-${i + 1}`, url })) ?? [],
   )
+  useEffect(() => {
+    if (open) {
+      setSaveError(null)
+      setSaving(false)
+      if (company) {
+        void workshopApi.accountingSuppliers().then((response) => setLiveVendors(response.data)).catch(() => setLiveVendors([]))
+      }
+    }
+  }, [open, company])
   const fileRef = useRef<HTMLInputElement>(null)
-  const selectedVendor = MOCK_VENDORS.find((v) => v.id === vendorId)
+  const selectedLiveVendor = liveVendors.find((v) => v.id === vendorId)
+  const selectedMockVendor = MOCK_VENDORS.find((v) => v.id === vendorId)
+  const selectedVendor = selectedLiveVendor
+    ? { ...selectedLiveVendor, contact: '', phone: '', sourcingType: selectedLiveVendor.type === 'Foreign' ? 'Foreign' as const : 'Local' as const }
+    : selectedMockVendor
 
   const updateLine = (idx: number, field: keyof QuotationLineItem, value: number | string) => {
     setLineItems((prev) => prev.map((li, i) => {
@@ -223,20 +259,28 @@ function QuotationDialog({ open, onClose, onSave, parts, initial }: {
 
   const grandTotal = lineItems.reduce((s, li) => s + (li.totalPrice || 0), 0)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedVendor) return
-    onSave({
-      vendorName: selectedVendor.name,
-      vendorContact: selectedVendor.phone,
-      sourcingType: selectedVendor.sourcingType,
-      lineItems,
-      grandTotal,
-      currency: 'BDT',
-      notes: notes.trim() || undefined,
-      attachmentUrls: files.map((f) => f.url),
-      attachmentNames: files.map((f) => f.name),
-    })
-    onClose()
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await onSave({
+        vendorName: selectedVendor.name,
+        vendorContact: selectedVendor.phone,
+        sourcingType: selectedVendor.sourcingType,
+        lineItems,
+        grandTotal,
+        currency: 'BDT',
+        notes: notes.trim() || undefined,
+        attachmentUrls: files.map((f) => f.url),
+        attachmentNames: files.map((f) => f.name),
+      })
+      onClose()
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Unable to save this quotation.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -244,8 +288,12 @@ function QuotationDialog({ open, onClose, onSave, parts, initial }: {
       <DialogTitle sx={{ fontWeight: 800 }}>{initial ? 'Edit Quotation' : 'Add Quotation'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
+          {saveError ? <Alert severity="error" sx={{ borderRadius: radii.sm }}>{saveError}</Alert> : null}
+          <Alert severity="info" sx={{ borderRadius: radii.sm }}>
+            Parts are preloaded from this appointment. If a part is not yet in the Item master, saving the quotation creates a traceable provisional purchase reference and sends the Item Master request for admin review; quotation and CS work can continue meanwhile.
+          </Alert>
           <TextField select size="small" label="Select Vendor *" value={vendorId} onChange={(e) => setVendorId(e.target.value)} fullWidth>
-            {MOCK_VENDORS.map((v) => (
+            {(company && liveVendors.length ? liveVendors.map((v) => ({ ...v, contact: '', phone: '', sourcingType: v.type === 'Foreign' ? 'Foreign' as const : 'Local' as const })) : MOCK_VENDORS).map((v) => (
               <MenuItem key={v.id} value={v.id}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Typography sx={{ fontSize: '0.85rem' }}>{v.name}</Typography>
@@ -276,7 +324,58 @@ function QuotationDialog({ open, onClose, onSave, parts, initial }: {
               <TableBody>
                 {lineItems.map((li, idx) => (
                   <TableRow key={li.casePartId}>
-                    <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{li.partName}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{li.partName}</Typography>
+                      {(() => {
+                        const part = parts.find((candidate) => candidate.id === li.casePartId)
+                        const existingRequest = (masterDataRequests || []).find((request: CWMasterDataRequest) => {
+                          const context = request.context || {}
+                          return request.targetDoctype === 'Item'
+                            && String(context.partRequestId || '') === String(part?.lineItemId || li.casePartId)
+                            && request.requestedValue.trim().toLowerCase() === li.partName.trim().toLowerCase()
+                        })
+                        if (part?.partNumber) return null
+                        if (existingRequest?.status === 'Pending') {
+                          return <Chip size="small" label="Item master pending approval" sx={{ mt: 0.5, fontSize: '0.65rem', bgcolor: '#fff7ed', color: '#c2410c', fontWeight: 700 }} />
+                        }
+                        if (existingRequest?.status === 'Approved') {
+                          return <Chip size="small" label="Item master approved · refresh to use" sx={{ mt: 0.5, fontSize: '0.65rem', bgcolor: '#ecfdf5', color: '#047857', fontWeight: 700 }} />
+                        }
+                        return (
+                          <RequestMasterDataButton
+                            compact
+                            label={existingRequest?.status === 'Rejected' ? 'Request Item Master again' : 'Request Item Master'}
+                            targetDoctype="Item"
+                            targetField="item_name"
+                            requestedValue={li.partName}
+                            company={company || undefined}
+                            sourceRoute={window.location.pathname}
+                            context={{ procurementCaseId: caseId, partRequestId: part?.lineItemId, partName: li.partName }}
+                            onRequested={async (requestId, requestedValue) => {
+                              // The backend creates a provisional purchase-only Item at request
+                              // time. Refresh the request DTO here so this quotation can use its
+                              // reference immediately, while the admin review remains pending.
+                              try {
+                                const request = await workshopApi.ensureProvisionalItemRequest(requestId)
+                                onMasterDataRequested?.(request)
+                              } catch {
+                                onMasterDataRequested?.({
+                                  id: requestId,
+                                  company,
+                                  targetDoctype: 'Item',
+                                  targetField: 'item_name',
+                                  requestedValue: requestedValue || li.partName,
+                                  context: { procurementCaseId: caseId, partRequestId: part?.lineItemId, partName: li.partName },
+                                  status: 'Pending',
+                                  requestedBy: 'Current user',
+                                  requestedAt: new Date().toISOString(),
+                                })
+                              }
+                            }}
+                          />
+                        )
+                      })()}
+                    </TableCell>
                     <TableCell>
                       <TextField size="small" type="number" value={li.unitPrice || ''} onChange={(e) => updateLine(idx, 'unitPrice', Number(e.target.value))} sx={{ width: 110 }} />
                     </TableCell>
@@ -319,8 +418,8 @@ function QuotationDialog({ open, onClose, onSave, parts, initial }: {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSave} disabled={!vendorId || lineItems.every((li) => !li.unitPrice)}>
-          {initial ? 'Update' : 'Add'}
+        <Button variant="contained" onClick={handleSave} disabled={saving || !vendorId || lineItems.every((li) => !li.unitPrice)}>
+          {saving ? 'Saving…' : initial ? 'Update' : 'Add'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -429,7 +528,7 @@ function CSMatrix({ pc, selections, onSelect }: {
                 <Typography sx={{ fontSize: '0.68rem', color: colors.slate[500] }}>Qty: {part.quantity}</Typography>
               </TableCell>
               {vendors.map((q) => {
-                const li = q.lineItems.find((l) => l.casePartId === part.id)
+                const li = q.lineItems.find((l) => l.casePartId === part.id || l.partName === part.partName || (part.partNumber && l.casePartId === part.partNumber))
                 const isSelected = selections[part.id]?.quotationId === q.id
                 return (
                   <TableCell
@@ -808,20 +907,40 @@ export function ProcurementCaseDetailPage() {
   const setCSDecisionStore = useMockProcurementStore((s) => s.setCSDecision)
   const generatePOs = useMockProcurementStore((s) => s.generatePurchaseOrders)
 
+  const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
   const [backendPc, setBackendPc] = useState<ProcurementCase | null>(null)
-  const [loadingBackend, setLoadingBackend] = useState(true)
+  const [backendMaterialRequestId, setBackendMaterialRequestId] = useState<string | undefined>()
+  const [masterDataRequests, setMasterDataRequests] = useState<CWMasterDataRequest[]>([])
   const [backendError, setBackendError] = useState<string | null>(null)
+  const [approvalQuotationId, setApprovalQuotationId] = useState('')
   useEffect(() => {
-    if (!caseId) return
+    if (!caseId || !selectedCompanyId) return
     let cancelled = false
-    setLoadingBackend(true)
-    setBackendError(null)
     void workshopApi.procurementCase(caseId)
-      .then((data) => { if (!cancelled) setBackendPc(mapBackendProcurementCase(data)) })
-      .catch((cause) => { if (!cancelled) setBackendError(cause instanceof Error ? cause.message : 'Unable to load procurement case') })
-      .finally(() => { if (!cancelled) setLoadingBackend(false) })
+      .then(async (data) => {
+        setBackendMaterialRequestId(String((data as Record<string, unknown>).materialRequestId || '') || undefined)
+        setApprovalQuotationId(String((data as Record<string, unknown>).selectedSupplierQuotationId || ''))
+        const mapped = await hydrateBackendProcurementCase(data as Record<string, unknown>)
+        if (!cancelled) setBackendPc(mapped)
+      })
+      .catch((cause) => { if (!cancelled) setBackendError(cause instanceof Error ? cause.message : 'Unable to load live case') })
     return () => { cancelled = true }
-  }, [caseId])
+  }, [caseId, selectedCompanyId])
+  useEffect(() => {
+    if (!caseId || !selectedCompanyId) return
+    let cancelled = false
+    void workshopApi.listMasterDataRequests({ company: selectedCompanyId, page: 1, pageSize: 100 })
+      .then((response) => {
+        if (!cancelled) {
+          setMasterDataRequests(response.data.filter((request) => {
+            const context = request.context || {}
+            return String(context.procurementCaseId || context.procurement_case_id || '') === caseId
+          }))
+        }
+      })
+      .catch(() => { if (!cancelled) setMasterDataRequests([]) })
+    return () => { cancelled = true }
+  }, [caseId, selectedCompanyId])
   const pc = backendPc || cases.find((c) => c.id === caseId)
   const [snack, setSnack] = useState<string | null>(null)
   const [actionNote, setActionNote] = useState('')
@@ -832,10 +951,6 @@ export function ProcurementCaseDetailPage() {
   // CS selections: casePartId → { quotationId, vendorName, ... }
   const [csSelections, setCsSelections] = useState<Record<string, { quotationId: string; vendorName: string; unitPrice: number; quantity: number; totalPrice: number }>>({})
   const [csNote, setCsNote] = useState('')
-
-  if (loadingBackend) {
-    return <Box sx={{ py: 6, textAlign: 'center' }}><Typography sx={{ color: colors.slate[500] }}>Loading live procurement case…</Typography></Box>
-  }
 
   if (!pc) {
     return (
@@ -852,46 +967,27 @@ export function ProcurementCaseDetailPage() {
   const handleApprove = async () => {
     if (backendPc) {
       try {
-        const stage = backendPc.backendStage
-        let result: Record<string, unknown>
+        const stage = backendPc.backendStage || ''
         if (stage === 'Procurement Review' || stage === 'Requested') {
-          result = await workshopApi.procurementStoreReview(backendPc.id, {
-            storeReviewStatus: 'Local Shortage',
-            procurementType: 'Local',
-            vendorRoute: 'Enlisted Vendor',
-            note: actionNote.trim() || undefined,
-            parts: backendPc.parts.map((part) => ({
-              partRequestId: part.lineItemId,
-              storeReviewStatus: 'Local Shortage' as const,
-              procurementType: 'Local' as const,
-              stockAvailable: 0,
-            })),
-          })
+          const result = await workshopApi.procurementStoreReview(backendPc.id, { storeReviewStatus: 'Local Shortage', procurementType: 'Local', vendorRoute: 'Enlisted Vendor', note: actionNote.trim() || undefined, parts: backendPc.parts.map((part) => ({ partRequestId: part.lineItemId, storeReviewStatus: 'Local Shortage', procurementType: 'Local', stockAvailable: 0 })) })
+          setBackendPc(mapBackendProcurementCase(result))
+        } else if (stage === 'GM Approval') {
+          const quotationId = approvalQuotationId || backendPc.quotations[0]?.id || ''
+          if (!quotationId) throw new Error('Select a supplier quotation before approving.')
+          // Selecting at GM Approval also approves the submitted compare sheet
+          // and moves the case to Management Approval or PO Creation according
+          // to the server-side policy.
+          await workshopApi.procurementSelectQuotation(backendPc.id, quotationId, actionNote.trim() || 'Supplier quotation selected during approval')
+          setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
         } else {
-          const actionByStage: Record<string, string> = {
-            'Quotation Collection': 'complete_quotation_collection',
-            'Audit Verification': 'audit_verify',
-            'GM Approval': 'gm_approve',
-            'Management Approval': 'management_approve',
-            'Supplier Confirmation': 'supplier_confirm',
-            'Audit Physical Review': 'physical_audit_approve',
-            'Procurement File Completion': 'file_complete',
-            'Audit Clearance': 'audit_clear',
-            'Actual Accounts': 'accounts_verify',
-            Reconciliation: 'reconciliation_confirm',
-            'Bill Settlement': 'settle_bill',
-          }
-          const action = actionByStage[stage || '']
+          const actionByStage: Record<string, string> = { 'Quotation Collection': 'complete_quotation_collection', 'Audit Verification': 'audit_verify', 'GM Approval': 'gm_approve', 'Management Approval': 'management_approve', 'Supplier Confirmation': 'supplier_confirm', 'Audit Physical Review': 'physical_audit_approve', 'Procurement File Completion': 'file_complete', 'Audit Clearance': 'audit_clear', 'Actual Accounts': 'accounts_verify', Reconciliation: 'reconciliation_confirm', 'Bill Settlement': 'settle_bill' }
+          const action = actionByStage[stage]
           if (!action) throw new Error(`No live action is available for stage ${stage || 'Unknown'}.`)
-          result = await workshopApi.procurementCaseAction(backendPc.id, action, actionNote.trim() || undefined)
+          await workshopApi.procurementCaseAction(backendPc.id, action, actionNote.trim() || undefined)
+          setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
         }
-        setBackendPc(mapBackendProcurementCase(result))
-        setActionNote('')
-        setSnack('Live procurement case updated')
-        navigate('/mock-procurement/pipeline')
-      } catch (cause) {
-        setSnack(cause instanceof Error ? cause.message : 'Unable to update procurement case')
-      }
+        setActionNote(''); setSnack('Procurement case updated')
+      } catch (cause) { setSnack(cause instanceof Error ? cause.message : 'Unable to update procurement case') }
       return
     }
     // Special: after approval step, also auto-generate POs
@@ -910,27 +1006,12 @@ export function ProcurementCaseDetailPage() {
   const handleReject = async () => {
     if (backendPc) {
       try {
-        const stage = backendPc.backendStage
-        const actionByStage: Record<string, string> = {
-          'Procurement Review': 'return_to_requester',
-          'Quotation Collection': 'return_to_requester',
-          'Audit Verification': 'audit_reject',
-          'GM Approval': 'gm_reject',
-          'Management Approval': 'management_reject',
-          'Audit Physical Review': 'physical_audit_reject',
-          'Audit Clearance': 'audit_clearance_reject',
-        }
-        const action = actionByStage[stage || '']
-        if (!action) throw new Error(`No live rejection action is available for stage ${stage || 'Unknown'}.`)
-        const result = await workshopApi.procurementCaseAction(backendPc.id, action, rejectNote.trim() || 'Returned for correction')
-        setBackendPc(mapBackendProcurementCase(result))
-        setRejectNote('')
-        setShowReject(false)
-        setSnack('Live procurement case returned')
-        navigate('/mock-procurement/pipeline')
-      } catch (cause) {
-        setSnack(cause instanceof Error ? cause.message : 'Unable to return procurement case')
-      }
+        const actionByStage: Record<string, string> = { 'Procurement Review': 'return_to_requester', 'Quotation Collection': 'return_to_requester', 'Audit Verification': 'audit_reject', 'GM Approval': 'gm_reject', 'Management Approval': 'management_reject', 'Audit Physical Review': 'physical_audit_reject', 'Audit Clearance': 'audit_clearance_reject' }
+        const action = actionByStage[backendPc.backendStage || '']
+        if (!action) throw new Error(`No live rejection action is available for stage ${backendPc.backendStage || 'Unknown'}.`)
+        setBackendPc(mapBackendProcurementCase(await workshopApi.procurementCaseAction(backendPc.id, action, rejectNote.trim() || 'Returned for correction')))
+        setRejectNote(''); setShowReject(false); setSnack('Procurement case returned for correction')
+      } catch (cause) { setSnack(cause instanceof Error ? cause.message : 'Unable to return procurement case') }
       return
     }
     rejectStep(pc.id, rejectNote.trim() || 'Rejected', userName)
@@ -940,7 +1021,7 @@ export function ProcurementCaseDetailPage() {
     navigate('/mock-procurement/pipeline')
   }
 
-  const handleCSSubmit = () => {
+  const handleCSSubmit = async () => {
     if (Object.keys(csSelections).length !== pc.parts.length) {
       setSnack('Select a vendor for every part')
       return
@@ -957,17 +1038,34 @@ export function ProcurementCaseDetailPage() {
         totalPrice: sel.totalPrice,
       }
     })
+    if (backendPc) {
+      try {
+        // The comparative statement must preserve every collected offer, not
+        // only the currently recommended cells in the UI. Approval can then
+        // select the winning supplier against the complete evidence set.
+        const quotationIds = [...new Set(pc.quotations.map((quotation) => quotation.id))]
+        const compareSheet = await workshopApi.accountingCreateCompareSheet({
+          company: selectedCompanyId,
+          quotationIds,
+          materialRequestId: backendMaterialRequestId,
+          procurementCaseId: backendPc.id,
+          overrideReason: quotationIds.length < 2 ? (csNote.trim() || 'Single supplier quotation selected for this appointment') : undefined,
+        })
+        const compareSheetId = String(compareSheet.id || '')
+        if (!compareSheetId) throw new Error('Compare sheet was not created.')
+        await workshopApi.accountingSubmit('compare_sheets', compareSheetId, csNote.trim() || 'CS submitted for audit verification')
+        const refreshed = await workshopApi.procurementCase(backendPc.id)
+        setBackendPc(await hydrateBackendProcurementCase(refreshed))
+        setSnack('Comparative statement submitted for audit verification')
+      } catch (cause) {
+        setSnack(cause instanceof Error ? cause.message : 'Unable to create the comparative statement')
+      }
+      return
+    }
     setCSDecisionStore(pc.id, { items, note: csNote.trim() || 'CS decision submitted', decidedByName: userName })
     advanceStep(pc.id, { action: 'submit', actionByName: userName, actionDate: new Date().toISOString(), note: csNote.trim() || `Vendors selected for ${items.length} parts` })
     setSnack('CS Decision submitted')
     navigate('/mock-procurement/pipeline')
-  }
-
-  // Live cases use the already-authorized operational workspace. Keeping this
-  // entry point under /mock-procurement lets us validate the real pipeline
-  // without changing the official navigation until parity is confirmed.
-  if (backendPc) {
-    return <FinanceWorkspacePage initialTab="procurement" workspace="procurement" initialCaseId={backendPc.id} />
   }
 
   return (
@@ -1101,6 +1199,21 @@ export function ProcurementCaseDetailPage() {
                   <QuotationsSummaryTable quotations={pc.quotations} />
                 </SectionCard>
                 {pc.auditReview ? <CompletedStepBadge label="Audit" byName={pc.auditReview.actionByName} date={pc.auditReview.actionDate} note={pc.auditReview.note} /> : null}
+                <TextField
+                  select
+                  size="small"
+                  label="Approved supplier quotation *"
+                  value={approvalQuotationId}
+                  onChange={(event) => setApprovalQuotationId(event.target.value)}
+                  fullWidth
+                  helperText="The approver selects the winning quotation after Audit endorses the compare sheet."
+                >
+                  {pc.quotations.map((quotation) => (
+                    <MenuItem key={quotation.id} value={quotation.id}>
+                      {quotation.vendorName} · ৳{quotation.grandTotal.toLocaleString()}
+                    </MenuItem>
+                  ))}
+                </TextField>
                 <Divider />
                 <TextField size="small" label="Approval note (optional)" value={actionNote} onChange={(e) => setActionNote(e.target.value)} multiline minRows={2} fullWidth />
                 <Stack direction="row" spacing={1.5}>
@@ -1135,8 +1248,78 @@ export function ProcurementCaseDetailPage() {
         </Dialog>
 
         {/* Quotation Dialog */}
-        <QuotationDialog open={quotationDialog} onClose={() => setQuotationDialog(false)} parts={pc.parts} initial={editQuotation}
-          onSave={(q) => { if (editQuotation) updateQuotation(pc.id, editQuotation.id, q); else addQuotation(pc.id, q) }} />
+        <QuotationDialog open={quotationDialog} onClose={() => setQuotationDialog(false)} parts={pc.parts} initial={editQuotation} company={selectedCompanyId} caseId={pc.id} masterDataRequests={masterDataRequests}
+          onMasterDataRequested={(request) => setMasterDataRequests((current) => [...current, request])}
+          onSave={async (q) => {
+            if (backendPc) {
+              const suppliers = await workshopApi.accountingSuppliers(q.vendorName)
+              let supplier = suppliers.data.find((row) => row.name.toLowerCase() === q.vendorName.toLowerCase())
+              if (!supplier) {
+                const created = await workshopApi.accountingCreateSupplier({ name: q.vendorName, supplierType: 'Company' })
+                supplier = { id: created.id, name: created.name }
+              }
+              const itemRows = await Promise.all(q.lineItems.map(async (line) => {
+                const part = pc.parts.find((candidate) => candidate.id === line.casePartId)
+                const search = part?.partNumber || part?.partName || line.partName
+                const itemResponse = await workshopApi.accountingItems(search)
+                let item = itemResponse.data.find((row) => row.itemCode === part?.partNumber) || itemResponse.data[0]
+                if (!item) {
+                  const request = masterDataRequests.find((candidate) => {
+                    const context = candidate.context || {}
+                    return candidate.targetDoctype === 'Item'
+                      && String(context.partRequestId || '') === String(part?.lineItemId || line.casePartId)
+                      && candidate.requestedValue.trim().toLowerCase() === line.partName.trim().toLowerCase()
+                  })
+                  if (request) {
+                    const ensured = request.context?.masterDataId
+                      ? request
+                      : await workshopApi.ensureProvisionalItemRequest(request.id)
+                    setMasterDataRequests((current) => current.map((candidate) => candidate.id === ensured.id ? ensured : candidate))
+                    const provisionalCode = String(ensured.context?.masterDataId || '')
+                    if (provisionalCode) {
+                      const provisionalResponse = await workshopApi.accountingItems(provisionalCode)
+                      item = provisionalResponse.data.find((row) => row.itemCode === provisionalCode) || provisionalResponse.data[0]
+                    }
+                  }
+                  // Do not make quotation collection depend on a separate button click.
+                  // If the requested part has no Item master request yet, create the pending
+                  // request and provisional purchase reference inline, then continue saving
+                  // the quotation and CS. Admin approval can complete the master record later.
+                  if (!item) {
+                    const createdRequest = await workshopApi.createMasterDataRequest({
+                      targetDoctype: 'Item',
+                      targetField: 'item_name',
+                      requestedValue: line.partName,
+                      company: selectedCompanyId,
+                      sourceRoute: window.location.pathname,
+                      context: { procurementCaseId: backendPc.id, partRequestId: part?.lineItemId, partName: line.partName },
+                    })
+                    const ensured = createdRequest.context?.masterDataId
+                      ? createdRequest
+                      : await workshopApi.ensureProvisionalItemRequest(createdRequest.id)
+                    setMasterDataRequests((current) => [...current.filter((candidate) => candidate.id !== ensured.id), ensured])
+                    const provisionalCode = String(ensured.context?.masterDataId || '')
+                    if (provisionalCode) {
+                      const provisionalResponse = await workshopApi.accountingItems(provisionalCode)
+                      item = provisionalResponse.data.find((row) => row.itemCode === provisionalCode) || provisionalResponse.data[0]
+                    }
+                  }
+                }
+                if (!item) throw new Error(`No purchasable Item master record found for ${line.partName}.`)
+                return { itemCode: item.itemCode, qty: line.quantity, rate: line.unitPrice, description: line.partName }
+              }))
+              const createdQuotation = await workshopApi.accountingCreate('quotations', { company: selectedCompanyId, supplierId: supplier.id, items: itemRows, remarks: q.notes })
+              await workshopApi.procurementAttachQuotation(backendPc.id, String(createdQuotation.id), 'Quotation collected from the mock procurement workflow')
+              const refreshed = await workshopApi.procurementCase(backendPc.id)
+              const mapped = mapBackendProcurementCase(refreshed)
+              const summaries = Array.isArray((refreshed as Record<string, unknown>).supplierQuotations) ? (refreshed as Record<string, unknown>).supplierQuotations as Array<Record<string, unknown>> : []
+              const full = await Promise.all(summaries.map(async (summary) => { try { return await workshopApi.accountingGet('quotations', String(summary.id)) } catch { return summary } }))
+              mapped.quotations = full.map((quote) => ({ id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const, lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>) => ({ casePartId: String(item.itemCode || item.id || ''), partName: String(item.itemName || item.description || item.itemCode || 'Part'), unitPrice: Number(item.rate || 0), quantity: Number(item.qty || 0), totalPrice: Number(item.amount || 0) })), grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || new Date().toISOString()) }))
+              setBackendPc(mapped)
+              setSnack('Supplier quotation saved to this procurement case')
+            } else if (editQuotation) updateQuotation(pc.id, editQuotation.id, q)
+            else addQuotation(pc.id, q)
+          }} />
 
         {/* History */}
         <SectionCard title="History" icon={<History />} defaultCollapsed>

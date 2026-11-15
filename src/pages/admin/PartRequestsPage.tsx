@@ -152,6 +152,18 @@ export function PartRequestsPage() {
     }
   }
 
+  // Temporary operational bypass while the procurement workflow is being completed.
+  // This deliberately uses the existing status endpoint so it can be removed from
+  // the UI later without changing the procurement contracts.
+  async function fulfillForNow(pr: CWPartRequest) {
+    try {
+      await useCwStore.getState().setPartRequestStatus(pr.id, 'Fulfilled')
+      toast.success(`${pr.partName} fulfilled for now. The appointment can continue.`)
+    } catch (error) {
+      toast.error(error, 'Failed to fulfil the part request.')
+    }
+  }
+
   async function sendToEstimator(pr: CWPartRequest) {
     const part = activePartOptions.find((p) => p.partNumber === pr.partNumber)
     if (!part) {
@@ -405,6 +417,18 @@ export function PartRequestsPage() {
                                 <TableCell align="right" sx={{ pr: 3 }}>
                                   {(pr.status === 'Requested' || (pr.status === 'Rejected' && !pr.partNumber)) && !isEditing && (
                                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                                      {pr.status === 'Requested' && (
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          color="success"
+                                          startIcon={<Inventory2 />}
+                                          onClick={() => void fulfillForNow(pr)}
+                                          sx={{ fontWeight: 700, borderRadius: '10px' }}
+                                        >
+                                          Fulfil for now
+                                        </Button>
+                                      )}
                                       <Button size="small" variant="contained" onClick={() => startEdit(pr.id)} sx={btnSx}>
                                         Label
                                       </Button>
@@ -420,6 +444,18 @@ export function PartRequestsPage() {
                                         </Button>
                                       )}
                                     </Stack>
+                                  )}
+                                  {pr.status === 'Labeled' && !isEditing && (
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      color="success"
+                                      startIcon={<Inventory2 />}
+                                      onClick={() => void fulfillForNow(pr)}
+                                      sx={{ fontWeight: 700, borderRadius: '10px' }}
+                                    >
+                                      Fulfil for now
+                                    </Button>
                                   )}
                                   {pr.status === 'Rejected' && pr.partNumber && !isEditing && (
                                     <Button

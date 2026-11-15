@@ -69,6 +69,8 @@ const EstimatorPage = lazy(() => import('../pages/parts/EstimatorPage').then((mo
 const TestDrivesPage = lazy(() => import('../pages/test-drives/TestDrivesPage').then((module) => ({ default: module.TestDrivesPage })))
 const ServiceOrdersPage = lazy(() => import('../pages/service-orders/ServiceOrdersPage').then((module) => ({ default: module.ServiceOrdersPage })))
 const FinanceWorkspacePage = lazy(() => import('../pages/operations/FinanceWorkspacePage').then((module) => ({ default: module.FinanceWorkspacePage })))
+const MockPartRequestsPage = lazy(() => import('../pages/procurement/MockPartRequestsPage').then((module) => ({ default: module.MockPartRequestsPage })))
+const MockCustomerApprovalPage = lazy(() => import('../pages/procurement/MockCustomerApprovalPage').then((module) => ({ default: module.MockCustomerApprovalPage })))
 const ProcurementPipelinePage = lazy(() => import('../pages/procurement/ProcurementPipelinePage').then((module) => ({ default: module.ProcurementPipelinePage })))
 const ProcurementCaseDetailPage = lazy(() => import('../pages/procurement/ProcurementCaseDetailPage').then((module) => ({ default: module.ProcurementCaseDetailPage })))
 
@@ -221,10 +223,9 @@ export function AppRouter() {
 
           <Route path="/notifications" element={<NotificationsPage />} />
 
-          {/* Procurement integration sandbox: these paths now exercise the live
-              backend while the official navigation remains unchanged. */}
-          <Route path="/mock-procurement/requests" element={<PartRequestsPage />} />
-          <Route path="/mock-procurement/approvals" element={<FinanceWorkspacePage workspace="procurement" initialTab="procurement" />} />
+          {/* Mock Procurement — no role gating */}
+          <Route path="/mock-procurement/requests" element={<MockPartRequestsPage />} />
+          <Route path="/mock-procurement/approvals" element={<MockCustomerApprovalPage />} />
           <Route path="/mock-procurement/pipeline" element={<ProcurementPipelinePage />} />
           <Route path="/mock-procurement/pipeline/:caseId" element={<ProcurementCaseDetailPage />} />
 

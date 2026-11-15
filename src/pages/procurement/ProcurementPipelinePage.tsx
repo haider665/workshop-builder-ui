@@ -14,6 +14,7 @@ import {
 import { ShoppingCart } from '@mui/icons-material'
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { workshopApi } from '../../services/workshopApi'
 import { mapBackendProcurementCase } from '../../services/procurementAdapter'
 import { useCompanyStore } from '../../store/companyStore'
@@ -22,6 +23,7 @@ import { colors, radii } from '../../theme/tokens'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
 import type { ProcurementStep } from '../../types/procurementWorkflow'
 import { PROCUREMENT_STEP_LABELS, PROCUREMENT_STEPS } from '../../types/procurementWorkflow'
+import type { CWMasterDataRequest } from '../../services/workshopApi'
 
 type TabValue = ProcurementStep | 'all' | 'completed'
 
@@ -54,33 +56,56 @@ const statusBadge: Record<string, { bgcolor: string; color: string }> = {
 }
 
 export function ProcurementPipelinePage() {
+  const mockCases = useMockProcurementStore((s) => s.procurementCases)
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
-  const [cases, setCases] = useState<ProcurementCase[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [liveCases, setLiveCases] = useState<ProcurementCase[] | null>(null)
+  const [masterDataRequests, setMasterDataRequests] = useState<CWMasterDataRequest[]>([])
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const [tab, setTab] = useState<TabValue>('all')
 
   useEffect(() => {
+    if (!selectedCompanyId) return
     let cancelled = false
     setLoading(true)
-    setError(null)
-    void workshopApi.procurementCases(selectedCompanyId || undefined)
-      .then((response) => {
-        if (!cancelled) setCases(response.data.map(mapBackendProcurementCase))
+    void Promise.all([
+      workshopApi.procurementCases(selectedCompanyId),
+      // Keep reviewed requests in the case list as well: approval/rejection is
+      // part of the procurement audit trail and determines the next action.
+      workshopApi.listMasterDataRequests({ company: selectedCompanyId, page: 1, pageSize: 100 }),
+    ])
+      .then(([caseResponse, requestResponse]) => {
+        if (cancelled) return
+        setLiveCases(caseResponse.data.map(mapBackendProcurementCase))
+        setMasterDataRequests(requestResponse.data.filter((request) => !request.company || request.company === selectedCompanyId))
       })
-      .catch((cause) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Unable to load procurement cases')
-      })
+      .catch(() => { if (!cancelled) { setLiveCases(null); setMasterDataRequests([]) } })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [selectedCompanyId])
+
+  // Keep the demo data visible when the backend has no cases yet; once a real
+  // case exists for the selected company, this exact mock layout shows it.
+  const cases = liveCases && liveCases.length ? liveCases : mockCases
 
   const filtered = useMemo(() => {
     if (tab === 'all') return cases.filter((c) => c.status === 'in_progress')
     if (tab === 'completed') return cases.filter((c) => c.status === 'approved' || c.status === 'rejected')
     return cases.filter((c) => c.currentStep === tab && c.status === 'in_progress')
   }, [cases, tab])
+
+  const requestsByCase = useMemo(() => {
+    const grouped = new Map<string, CWMasterDataRequest[]>()
+    masterDataRequests.forEach((request) => {
+      const context = request.context || {}
+      const caseId = String(context.procurementCaseId || context.procurement_case_id || '')
+      if (!caseId) return
+      const current = grouped.get(caseId) || []
+      current.push(request)
+      grouped.set(caseId, current)
+    })
+    return grouped
+  }, [masterDataRequests])
 
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -173,13 +198,7 @@ export function ProcurementPipelinePage() {
           </Box>
 
           {loading ? (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>Loading live procurement cases…</Typography>
-            </Box>
-          ) : error ? (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography sx={{ color: '#b91c1c', fontSize: '0.85rem' }}>{error}</Typography>
-            </Box>
+            <Box sx={{ p: 2, textAlign: 'center' }}><Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>Loading company procurement cases…</Typography></Box>
           ) : filtered.length === 0 ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
               <Typography sx={{ color: colors.slate[400], fontSize: '0.85rem' }}>
@@ -228,6 +247,21 @@ export function ProcurementPipelinePage() {
                             ? `${c.parts.reduce((sum, p) => sum + p.quantity, 0)} items total`
                             : `${c.parts[0]?.partNumber ? `#${c.parts[0].partNumber} · ` : ''}× ${c.parts[0]?.quantity ?? 1}`}
                         </Typography>
+                        {(requestsByCase.get(c.id) || []).map((request) => (
+                          <Chip
+                            key={request.id}
+                            size="small"
+                            label={`Item request ${request.status.toLowerCase()} · ${request.requestedValue}`}
+                            sx={{
+                              mt: 0.6,
+                              mr: 0.4,
+                              maxWidth: 260,
+                              fontSize: '0.63rem',
+                              bgcolor: request.status === 'Approved' ? '#ecfdf5' : request.status === 'Rejected' ? '#fef2f2' : '#fff7ed',
+                              color: request.status === 'Approved' ? '#047857' : request.status === 'Rejected' ? '#b91c1c' : '#c2410c',
+                            }}
+                          />
+                        ))}
                       </TableCell>
                       <TableCell>
                         <Typography sx={{ fontSize: '0.82rem', color: colors.slate[600] }}>

@@ -21,9 +21,11 @@ import {
   Public,
   ReceiptLong,
 } from '@mui/icons-material'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
+import { workshopApi } from '../../services/workshopApi'
+import { useCompanyStore } from '../../store/companyStore'
 import { colors, radii, shadows } from '../../theme/tokens'
 import type { PartDisposition, PartLineItem } from '../../types/procurementWorkflow'
 
@@ -44,9 +46,11 @@ const dispositionColor: Record<PartDisposition, string> = {
 function LineItemRow({
   item,
   requestId,
+  onFulfill,
 }: {
   item: PartLineItem
   requestId: string
+  onFulfill?: () => Promise<void>
 }) {
   const setDisposition = useMockProcurementStore((s) => s.setLineItemDisposition)
   const markCompleted = useMockProcurementStore((s) => s.markLineItemCompleted)
@@ -223,7 +227,7 @@ function LineItemRow({
             variant="contained"
             size="small"
             startIcon={<Inventory />}
-            onClick={() => markCompleted(requestId, item.id)}
+            onClick={() => { markCompleted(requestId, item.id); void onFulfill?.() }}
             sx={{
               alignSelf: 'flex-start',
               bgcolor: '#059669',
@@ -285,6 +289,7 @@ function LineItemRow({
                   localDeliveryDays: localDays,
                 })
                 markCompleted(requestId, item.id)
+                void onFulfill?.()
               }}
               sx={{
                 alignSelf: 'flex-start',
@@ -321,6 +326,7 @@ function LineItemRow({
                   foreignNote: foreignNote.trim(),
                 })
                 markCompleted(requestId, item.id)
+                void onFulfill?.()
               }}
               sx={{
                 alignSelf: 'flex-start',
@@ -346,6 +352,56 @@ export function MockPartRequestsPage() {
   const spawnApprovals = useMockProcurementStore((s) => s.spawnCustomerApprovals)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [snack, setSnack] = useState<string | null>(null)
+  const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
+  const [liveRequestIds, setLiveRequestIds] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!selectedCompanyId) return
+    let cancelled = false
+    void Promise.all([
+      workshopApi.listPartRequests({ page: 1, pageSize: 100 }),
+      workshopApi.procurementCases(selectedCompanyId).catch(() => ({ data: [] as Array<{ id: string; appointmentId?: string }> })),
+    ]).then(async ([response, casesResponse]) => {
+      if (cancelled || !response.data.length) return
+      const caseByAppointment = new Map(
+        casesResponse.data
+          .filter((item) => item.appointmentId)
+          .map((item) => [String(item.appointmentId), item.id]),
+      )
+      const grouped = new Map<string, typeof response.data>()
+      response.data.forEach((row) => grouped.set(row.appointmentId, [...(grouped.get(row.appointmentId) || []), row]))
+      const mapped = await Promise.all([...grouped.entries()].map(async ([appointmentId, rows]) => {
+        // The part-request endpoint intentionally returns only request data.
+        // Hydrate the appointment's customer and vehicle here so the mock
+        // workflow remains the same appointment-centred file used by the
+        // real procurement case screen.
+        const appointment = await workshopApi.getAppointment(appointmentId).catch(() => null)
+        const [customer, vehicle] = appointment
+          ? await Promise.all([
+              appointment.customerId ? workshopApi.getCustomer(appointment.customerId).catch(() => null) : Promise.resolve(null),
+              appointment.vehicleId ? workshopApi.getVehicle(appointment.vehicleId).catch(() => null) : Promise.resolve(null),
+            ])
+          : [null, null]
+        return {
+          id: appointmentId,
+          procurementCaseId: caseByAppointment.get(appointmentId),
+          requestNumber: appointmentId,
+          vehicleName: vehicle ? [vehicle.registrationNo, vehicle.make, vehicle.model].filter(Boolean).join(' · ') : 'Appointment vehicle',
+          customerName: customer?.fullName || 'Workshop customer',
+          customerPhone: customer?.phone || '',
+          requestedByName: rows[0].requestedBy,
+          requestedAt: rows[0].createdAt,
+          notes: appointment?.concerns || appointment?.notes || undefined,
+          lineItems: rows.map((row) => ({ id: row.id, partName: row.partName, partNumber: row.partNumber, quantity: row.quantity || 1, disposition: 'pending' as const, completed: row.status === 'Fulfilled' || row.status === 'Rejected' })),
+        }
+      }))
+      const ids = Object.fromEntries(response.data.map((row) => [row.id, row.id]))
+      // Keep the established visual component and hydrate its data from the API.
+      useMockProcurementStore.setState({ partRequests: mapped })
+      setLiveRequestIds(ids)
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [selectedCompanyId])
 
   return (
     <Box sx={{ py: { xs: 3, md: 4 }, px: { xs: 2, sm: 3, md: 4 } }}>
@@ -443,6 +499,19 @@ export function MockPartRequestsPage() {
                     </Typography>
                   </Stack>
                   <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                    {req.procurementCaseId ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          navigate(`/mock-procurement/pipeline/${req.procurementCaseId}`)
+                        }}
+                        sx={{ textTransform: 'none', fontWeight: 700, borderRadius: radii.sm }}
+                      >
+                        Open procurement case
+                      </Button>
+                    ) : null}
                     <Chip
                       size="small"
                       label={`${completedCount}/${total} completed`}
@@ -469,7 +538,10 @@ export function MockPartRequestsPage() {
                     ) : null}
 
                     {req.lineItems.map((li) => (
-                      <LineItemRow key={li.id} item={li} requestId={req.id} />
+                      <LineItemRow key={li.id} item={li} requestId={req.id} onFulfill={liveRequestIds[li.id] ? async () => {
+                        await workshopApi.setPartRequestStatus(liveRequestIds[li.id], 'Fulfilled')
+                        setSnack('Part request fulfilled and saved')
+                      } : undefined} />
                     ))}
 
                     {allCompleted && hasNonStockCompleted ? (

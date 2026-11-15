@@ -30,6 +30,8 @@ export type PartLineItem = {
 
 export type MockPartRequest = {
   id: string
+  /** Live procurement case opened for this appointment, when available. */
+  procurementCaseId?: string
   requestNumber: string
   vehicleName: string
   customerName: string

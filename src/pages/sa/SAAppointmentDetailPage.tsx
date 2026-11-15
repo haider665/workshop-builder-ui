@@ -98,6 +98,7 @@ export function SAAppointmentDetailPage() {
   const users = useCwStore((s) => s.users)
   const sessionUser = useSessionStore((s) => s.user)
   const canAdminEdit = Boolean(sessionUser?.isAdministrator || sessionUser?.isWorkshopAdmin || sessionUser?.roles.includes('Admin'))
+  const canAccountsSettle = Boolean(sessionUser?.isAdministrator || sessionUser?.roles.some((role) => ['Accounts', 'Accounts User', 'Accounts Manager', 'System Manager'].includes(role)))
   const services = useCwStore((s) => s.services)
   const submitInspection = useCwStore((s) => s.submitInspection)
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
@@ -294,9 +295,6 @@ export function SAAppointmentDetailPage() {
   const canAssignQC = isServiceComplete
   // SA can send payment WA after QC approves
   const canSendPaymentWA = isQCApproved
-  // SA can confirm payment
-  const canConfirmPayment = isPaymentPending
-
   const currentBillingOrder = billingOrder ?? {
     id: linkedAppointment?.serviceOrderId ?? '',
     salesOrderId: linkedAppointment?.salesOrderId,
@@ -304,6 +302,13 @@ export function SAAppointmentDetailPage() {
     billingStatus: undefined,
     billingError: undefined,
   }
+  // Payment confirmation is an Accounts action, and only becomes actionable
+  // after a customer Sales Invoice has actually been submitted.  A linked
+  // draft (or a stale appointment DTO) must not expose a button that can only
+  // fail with CUSTOMER_INVOICE_REQUIRED.
+  const hasSubmittedCustomerInvoice = currentBillingOrder.billingStatus === 'Invoiced' && Boolean(currentBillingOrder.salesInvoiceId)
+  const canConfirmPayment = isPaymentPending && canAccountsSettle && hasSubmittedCustomerInvoice
+  const paymentNeedsAccounts = isPaymentPending && (!canAccountsSettle || !hasSubmittedCustomerInvoice)
 
   function handleSubmitInspection() {
     const invalidNotApplicable = inspChecks.find((check) => check.result === 'Not Applicable' && !check.notApplicableReason?.trim())
@@ -889,6 +894,16 @@ export function SAAppointmentDetailPage() {
               sx={{ fontWeight: 900, borderRadius: radii.md }}>
               Payment Received — Issue Gate Pass
             </Button>
+          </SectionCard>
+        )}
+
+        {paymentNeedsAccounts && (
+          <SectionCard title="Payment pending Accounts settlement" icon={<Payment sx={{ fontSize: '1rem' }} />}>
+            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>
+              {!hasSubmittedCustomerInvoice
+                ? 'Accounts must submit the customer Sales Invoice first. After posting it, record the allocated Payment Entry and approve Payment Confirmation before the gate pass can be issued.'
+                : 'Accounts must record the allocated Payment Entry and approve Payment Confirmation before the gate pass can be issued.'}
+            </Typography>
           </SectionCard>
         )}
 

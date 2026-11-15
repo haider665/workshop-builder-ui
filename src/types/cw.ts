@@ -593,6 +593,8 @@ export type CWAppointment = {
   serviceOrderId?: string
   salesOrderId?: string
   salesInvoiceId?: string
+  salesInvoiceDocstatus?: number | null
+  billingStatus?: string
   gatePassIssuedAt?: string
   releasedAt?: string
   createdAt: string

@@ -132,6 +132,7 @@ export function AppointmentDetailPage() {
   const users = useCwStore((s) => s.users)
   const sessionUser = useSessionStore((s) => s.user)
   const canAdminEdit = Boolean(sessionUser?.roles.includes('Admin'))
+  const canAccountsSettle = Boolean(sessionUser?.isAdministrator || sessionUser?.roles.some((role) => ['Accounts', 'Accounts User', 'Accounts Manager', 'System Manager'].includes(role)))
   const bays = useCwStore((s) => s.bays)
   const catalogServices = useCwStore((s) => s.services)
   const partRequests = useCwStore((s) => s.partRequests)
@@ -397,7 +398,14 @@ export function AppointmentDetailPage() {
   const canApprove = isCustomerNotified || isServiceApprovalPending
   const canAssignQC = isServiceComplete
   const canSendPaymentWA = isQCApproved
-  const canConfirmPayment = isPaymentPending
+
+  // The release endpoint intentionally rejects payment until Accounts has
+  // posted the customer invoice. Keep the action out of the active state
+  // while the invoice is missing, rather than showing a button that can only
+  // return CUSTOMER_INVOICE_REQUIRED.
+  const hasSubmittedCustomerInvoice = appt.salesInvoiceDocstatus === 1 && Boolean(appt.salesInvoiceId)
+  const canConfirmPayment = isPaymentPending && canAccountsSettle && hasSubmittedCustomerInvoice
+  const paymentNeedsAccounts = isPaymentPending && (!canAccountsSettle || !hasSubmittedCustomerInvoice)
 
   function openWhatsApp(purpose: 'concern-approval' | 'service-approval' | 'payment') {
     setWaDialogPurpose(purpose)
@@ -952,6 +960,17 @@ export function AppointmentDetailPage() {
               sx={{ bgcolor: colors.status.success, fontWeight: 800, borderRadius: '10px', px: 3, '&:hover': { bgcolor: '#059669' } }}>
               Payment Received — Issue Gate Pass
             </Button>
+          </ActionCard>
+        )}
+
+        {paymentNeedsAccounts && (
+          <ActionCard borderColor={colors.status.warning}>
+            <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.warning, fontSize: '0.95rem' }}>
+              Payment pending Accounts settlement
+            </Typography>
+            <Typography sx={{ color: colors.slate[600], fontSize: '0.85rem' }}>
+              Accounts must submit the customer Sales Invoice, record the allocated Payment Entry, and approve Payment Confirmation before the gate pass can be issued.
+            </Typography>
           </ActionCard>
         )}
 

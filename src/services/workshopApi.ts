@@ -1387,7 +1387,7 @@ export const workshopApi = {
     return request<ApiListResponse<Record<string, unknown>>>(`/api/method/workshop.api.test_drives.list${buildQuery(params)}`)
   },
 
-  async listServiceOrders(params: { company: string; shopId?: string; appointmentId?: string; status?: string; page?: number; pageSize?: number }): Promise<ApiListResponse<Record<string, unknown>>> {
+  async listServiceOrders(params: { company: string; shopId?: string; appointmentId?: string; status?: string; search?: string; page?: number; pageSize?: number }): Promise<ApiListResponse<Record<string, unknown>>> {
     return request<ApiListResponse<Record<string, unknown>>>(`/api/method/workshop.api.service_orders.list${buildQuery(params)}`)
   },
 
@@ -1415,6 +1415,9 @@ export const workshopApi = {
 
   async submitServiceOrder(id: string): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.submit', { method: 'POST', body: { id } })
+  },
+  async prepareServiceOrderSalesOrder(id: string): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.prepare_sales_order', { method: 'POST', body: { id } })
   },
 
   async amendServiceOrder(id: string, reason: string): Promise<Record<string, unknown>> {
@@ -2234,7 +2237,10 @@ export const workshopApi = {
   async createMasterDataRequest(input: { targetDoctype: string; targetField: string; requestedValue: string; company?: string; sourceRoute?: string; context?: Record<string, unknown> }): Promise<CWMasterDataRequest> {
     return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.create', { method: 'POST', body: { data: input } })
   },
-  async listMasterDataRequests(params: { status?: string; mine?: boolean; search?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
+  async ensureProvisionalItemRequest(id: string): Promise<CWMasterDataRequest> {
+    return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.ensure_provisional_item', { method: 'POST', body: { data: { id } } })
+  },
+  async listMasterDataRequests(params: { company?: string; status?: string; mine?: boolean; search?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
     return request<ApiListResponse<CWMasterDataRequest>>(`/api/method/workshop.api.master_data_requests.list${buildQuery(params)}`)
   },
   async masterDataRequestFields(doctype: string): Promise<{ data: Array<{ fieldname: string; label: string; fieldtype: string; options?: string | null; choices?: string[]; required: boolean; default?: unknown }> }> {
@@ -2262,7 +2268,7 @@ export const workshopApi = {
   async procurementInbox(company?: string): Promise<{ data: Array<{ id: string; case?: Record<string, unknown>; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string; checklist?: Array<{ label?: string; ready?: boolean }> }>; meta?: { total?: number } }> {
     return request(`/api/method/workshop.api.accounting.procurement_cases.inbox${buildQuery({ company, pageSize: 100 })}`)
   },
-  async procurementCases(company?: string): Promise<ApiListResponse<{ id: string; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string; company?: string }>> {
+  async procurementCases(company?: string): Promise<ApiListResponse<{ id: string; title?: string; stage?: string; status?: string; owner?: string; updatedAt?: string; company?: string; appointmentId?: string | null }>> {
     return request(`/api/method/workshop.api.accounting.procurement_cases.list${buildQuery({ company, pageSize: 100 })}`)
   },
   async procurementCase(id: string): Promise<Record<string, unknown>> {
@@ -2310,7 +2316,7 @@ export const workshopApi = {
   async accountingCreate(module: 'requisitions' | 'quotations', data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request(`/api/method/workshop.api.accounting.${module}.create`, { method: 'POST', body: { data } })
   },
-  async accountingCreateCompareSheet(data: { company: string; quotationIds: string[]; materialRequestId?: string; overrideReason?: string }): Promise<Record<string, unknown>> {
+  async accountingCreateCompareSheet(data: { company: string; quotationIds: string[]; materialRequestId?: string; procurementCaseId?: string; overrideReason?: string }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.compare_sheets.create_from_quotations', { method: 'POST', body: { data } })
   },
   async accountingCreatePurchaseOrder(data: { compareSheetId: string; transactionDate?: string; scheduleDate?: string }): Promise<Record<string, unknown>> {

@@ -65,6 +65,17 @@ export function mapBackendProcurementCase(source: BackendCase): ProcurementCase 
     ? contextual.parts
     : [{ id: source.partRequestId || source.id, lineItemId: source.partRequestId || source.id, partName: source.title || 'Requested part', quantity: 1, disposition: source.procurementType === 'Foreign' ? 'foreign_vendor' : 'local_vendor', unitOfMeasure: 'pcs' }]
   const status = source.status === 'Completed' ? 'approved' : source.status === 'Rejected' ? 'rejected' : 'in_progress'
+  const quotations = (source.supplierQuotations || []).map((quote: BackendCase) => ({
+    id: quote.id,
+    vendorName: quote.supplierName || quote.supplierId || 'Supplier',
+    sourcingType: 'Local' as const,
+    lineItems: [],
+    grandTotal: Number(quote.grandTotal || 0),
+    currency: quote.currency || 'BDT',
+    attachmentUrls: [],
+    attachmentNames: [],
+    submittedAt: quote.createdAt || source.updatedAt || new Date().toISOString(),
+  }))
   return {
     id: source.id,
     caseNumber: source.id,
@@ -76,7 +87,7 @@ export function mapBackendProcurementCase(source: BackendCase): ProcurementCase 
     vehicleInfo: contextual.vehicleInfo,
     currentStep: stepFor(source.currentStage),
     status,
-    quotations: [],
+    quotations,
     purchaseOrders: [],
     grns: [],
     history: [],

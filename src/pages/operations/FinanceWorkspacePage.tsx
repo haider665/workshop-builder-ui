@@ -511,6 +511,11 @@ export function FinanceWorkspacePage({
       appointmentId?: string;
       requestedAmount?: number;
       outstandingAmount?: number;
+      serviceOrderId?: string;
+      serviceOrderStatus?: string;
+      salesOrderId?: string;
+      salesOrderStatus?: string;
+      salesOrderDocstatus?: number;
       requestedByUserId?: string;
       requestedAt?: string;
       reviewedByUserId?: string;
@@ -2331,6 +2336,11 @@ export function FinanceWorkspacePage({
                         ? ` · Reviewed by ${item.reviewedByUserId}`
                         : ""}
                     </Typography>
+                    {item.type === "Sales Order Approval" ? (
+                      <Typography variant="caption" sx={{ display: "block", mt: 0.5, fontWeight: 700 }}>
+                        Sales Order: {item.salesOrderId || "being prepared"} · {item.salesOrderStatus || "Draft"}
+                      </Typography>
+                    ) : null}
                   </Box>
                   <Chip
                     size="small"
