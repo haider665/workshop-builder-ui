@@ -46,24 +46,62 @@ import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
-import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, GRNLineItem } from '../../types/procurementWorkflow'
+import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision, GRNLineItem } from '../../types/procurementWorkflow'
 import { PROCUREMENT_STEPS, PROCUREMENT_STEP_LABELS } from '../../types/procurementWorkflow'
 
 async function hydrateBackendProcurementCase(data: Record<string, unknown>): Promise<ProcurementCase> {
   const mapped = mapBackendProcurementCase(data)
   const summaries = Array.isArray(data.supplierQuotations) ? data.supplierQuotations as Array<Record<string, unknown>> : []
-  if (!summaries.length) return mapped
-  const full = await Promise.all(summaries.map(async (summary) => {
-    try { return await workshopApi.accountingGet('quotations', String(summary.id)) } catch { return summary }
-  }))
-  mapped.quotations = full.map((quote) => ({
-    id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const,
-    // Supplier quotations are created from the appointment's preselected part
-    // rows. Preserve that positional relationship so duplicate requested names
-    // (for example two separate "test" lines) remain distinct in the CS matrix.
-    lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>, index: number) => mapQuotationLine(item, mapped.parts[index]?.id)),
-    grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || data.updatedAt || new Date().toISOString()),
-  }))
+  if (summaries.length) {
+    const full = await Promise.all(summaries.map(async (summary) => {
+      try { return await workshopApi.accountingGet('quotations', String(summary.id)) } catch { return summary }
+    }))
+    mapped.quotations = full.map((quote) => ({
+      id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const,
+      // Supplier quotations are created from the appointment's preselected part
+      // rows. Preserve that positional relationship so duplicate requested names
+      // (for example two separate "test" lines) remain distinct in the CS matrix.
+      lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>, index: number) => mapQuotationLine(item, mapped.parts[index]?.id)),
+      grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || data.updatedAt || new Date().toISOString()),
+    }))
+  }
+  // CS selections are stored in the compare-sheet snapshot. Rehydrate them
+  // into the case DTO so the Audit screen can show the prior decision after a
+  // refresh instead of relying on the in-memory mock store.
+  const compareSheetId = String(data.compareSheetId || '')
+  if (compareSheetId) {
+    try {
+      const compareSheet = await workshopApi.accountingGet('compare_sheets', compareSheetId)
+      const snapshotItems = Array.isArray(compareSheet.items) ? compareSheet.items as Array<Record<string, unknown>> : []
+      const decidedItems: CSDecisionItem[] = snapshotItems.flatMap((item, index) => {
+        const selectedQuotationId = String(item.selectedSupplierQuotationId || '')
+        if (!selectedQuotationId) return []
+        const quotation = mapped.quotations.find((candidate) => candidate.id === selectedQuotationId)
+        const quantity = Number(item.qty || mapped.parts[index]?.quantity || 1)
+        const unitPrice = Number(item.selectedRate || item.lowestRate || 0)
+        return [{
+          casePartId: mapped.parts[index]?.id || String(item.itemCode || `part-${index}`),
+          partName: String(item.description || item.itemName || mapped.parts[index]?.partName || 'Requested part'),
+          selectedQuotationId,
+          selectedVendorName: String(item.selectedVendorName || quotation?.vendorName || 'Supplier'),
+          unitPrice,
+          quantity,
+          totalPrice: Number(item.selectedTotal || unitPrice * quantity),
+        }]
+      })
+      if (decidedItems.length) {
+        const csDecision: CSDecision = {
+          items: decidedItems,
+          note: String(compareSheet.approvalReason || 'CS decision submitted'),
+          decidedByName: String(compareSheet.approvedByUserId || 'CS team'),
+          decidedAt: String(compareSheet.updatedAt || data.updatedAt || new Date().toISOString()),
+        }
+        mapped.csDecision = csDecision
+      }
+    } catch {
+      // Older cases may not have a readable compare sheet; retain the case data.
+    }
+  }
   return mapped
 }
 
@@ -163,6 +201,27 @@ function CSDecisionSummary({ pc }: { pc: ProcurementCase }) {
         </TableBody>
       </Table>
       {pc.csDecision.note ? <Typography sx={{ mt: 1, fontSize: '0.78rem', color: colors.slate[600], fontStyle: 'italic' }}>&quot;{pc.csDecision.note}&quot;</Typography> : null}
+    </Box>
+  )
+}
+
+/** The audit record is intentionally shown separately from the CS decision.
+ *  CS remains the original green decision; audit recommendations are evidence
+ *  for the approver and are never silently substituted for that decision. */
+function AuditDecisionSummary({ pc }: { pc: ProcurementCase }) {
+  if (!pc.auditReview) return null
+  return (
+    <Box sx={{ p: 2, borderRadius: radii.sm, bgcolor: '#fff1f2', border: '1px solid #fecdd3' }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
+        <History sx={{ color: '#dc2626', fontSize: '1rem' }} />
+        <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#b91c1c' }}>Audit decision and recommendations</Typography>
+        <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>
+          by {pc.auditReview.actionByName} · {new Date(pc.auditReview.actionDate).toLocaleString()}
+        </Typography>
+      </Stack>
+      <Typography sx={{ fontSize: '0.8rem', color: '#991b1b', whiteSpace: 'pre-wrap' }}>
+        {pc.auditReview.note || 'Audit completed without additional recommendations.'}
+      </Typography>
     </Box>
   )
 }
@@ -539,12 +598,57 @@ function QuotationsSummaryTable({ quotations, editable, onEdit, onRemove }: {
   )
 }
 
+type AuditPriceSuggestion = {
+  quotationId: string
+  vendorName: string
+  partName: string
+  casePartId: string
+  originalUnitPrice: number
+  suggestedUnitPrice: number
+  quantity: number
+}
+
+type DecisionSelection = {
+  quotationId: string
+  vendorName: string
+  unitPrice: number
+  quantity: number
+  totalPrice: number
+}
+
+function auditSelectionsFromReview(pc: ProcurementCase): Record<string, DecisionSelection> {
+  const note = pc.auditReview?.note || ''
+  const section = note.split('Audit suggestions:')[1]?.split('\n')[0]
+  if (!section) return {}
+  const usedParts = new Set<string>()
+  const selections: Record<string, DecisionSelection> = {}
+  section.split(';').forEach((entry) => {
+    const match = entry.trim().match(/^(.+?)\s*→\s*(.+?)\s*·\s*৳([\d,]+)/)
+    if (!match) return
+    const [, partName, vendorName, totalText] = match
+    const part = pc.parts.find((candidate) => !usedParts.has(candidate.id) && candidate.partName.trim() === partName.trim())
+    const quotation = pc.quotations.find((candidate) => candidate.vendorName.trim() === vendorName.trim())
+    if (!part || !quotation) return
+    const line = quotation.lineItems.find((candidate) => candidate.casePartId === part.id) || quotation.lineItems[pc.parts.indexOf(part)]
+    if (!line) return
+    const totalPrice = Number(totalText.replace(/,/g, ''))
+    usedParts.add(part.id)
+    selections[part.id] = { quotationId: quotation.id, vendorName: quotation.vendorName, unitPrice: totalPrice / Math.max(1, line.quantity), quantity: line.quantity, totalPrice }
+  })
+  return selections
+}
+
 /* ═══ CS Comparison Matrix ═══ */
 
-function CSMatrix({ pc, selections, onSelect }: {
+function CSMatrix({ pc, selections, referenceSelections, existingSelections, onSelect, auditMode = false, auditPriceSuggestions = {}, onSuggestPrice }: {
   pc: ProcurementCase
   selections: Record<string, { quotationId: string; vendorName: string; unitPrice: number; quantity: number; totalPrice: number }>
+  referenceSelections?: Record<string, DecisionSelection>
+  existingSelections?: Record<string, DecisionSelection>
   onSelect: (casePartId: string, quotationId: string, vendorName: string, unitPrice: number, quantity: number, totalPrice: number) => void
+  auditMode?: boolean
+  auditPriceSuggestions?: Record<string, AuditPriceSuggestion>
+  onSuggestPrice?: (key: string, suggestion: AuditPriceSuggestion | null) => void
 }) {
   const vendors = pc.quotations
   if (!vendors.length || !pc.parts.length) return <Alert severity="warning" sx={{ borderRadius: radii.sm }}>No quotations to compare.</Alert>
@@ -581,6 +685,15 @@ function CSMatrix({ pc, selections, onSelect }: {
                   || q.lineItems[partIndex]
                   || q.lineItems.find((line) => line.partName === part.partName || (part.partNumber && line.casePartId === part.partNumber))
                 const isSelected = selections[part.id]?.quotationId === q.id
+                const auditReference = referenceSelections?.[part.id]
+                const isAuditReference = Boolean(auditReference && auditReference.quotationId === q.id)
+                const existingDecision = existingSelections?.[part.id]
+                const isExistingDecision = Boolean(existingDecision && existingDecision.quotationId === q.id)
+                const priorDecision = auditMode ? pc.csDecision?.items?.find((item) => item.casePartId === part.id) : undefined
+                const isPriorDecision = Boolean(priorDecision && priorDecision.selectedQuotationId === q.id)
+                const suggestionKey = `${q.id}:${part.id}`
+                const suggestion = auditPriceSuggestions[suggestionKey]
+                const isAuditRecommendation = Boolean(auditMode && (isSelected || suggestion))
                 return (
                   <TableCell
                     key={q.id}
@@ -588,22 +701,47 @@ function CSMatrix({ pc, selections, onSelect }: {
                     sx={{
                       textAlign: 'center',
                       cursor: li ? 'pointer' : 'default',
-                      bgcolor: isSelected ? '#eff6ff' : 'transparent',
-                      border: isSelected ? '2px solid #2563eb' : '2px solid transparent',
+                      bgcolor: isPriorDecision || isExistingDecision ? '#ecfdf5' : isAuditReference || isAuditRecommendation ? '#fff1f2' : isSelected ? '#eff6ff' : 'transparent',
+                      border: isPriorDecision || isExistingDecision ? '2px solid #16a34a' : isAuditReference || isAuditRecommendation ? '2px solid #dc2626' : isSelected ? '2px solid #2563eb' : '2px solid transparent',
                       borderRadius: radii.sm,
-                      '&:hover': li ? { bgcolor: isSelected ? '#eff6ff' : colors.slate[50] } : {},
+                      '&:hover': li ? { bgcolor: isPriorDecision ? '#ecfdf5' : isAuditRecommendation ? '#fff1f2' : isSelected ? '#eff6ff' : colors.slate[50] } : {},
                     }}
                   >
                     {li ? (
                       <Box>
-                        <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: isSelected ? '#1d4ed8' : colors.slate[900] }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: isPriorDecision || isExistingDecision ? '#15803d' : isAuditReference || isAuditRecommendation ? '#dc2626' : isSelected ? '#1d4ed8' : colors.slate[900] }}>
                           ৳{li.unitPrice.toLocaleString()}
                         </Typography>
                         <Typography sx={{ fontSize: '0.68rem', color: colors.slate[500] }}>
                           Total: ৳{li.totalPrice.toLocaleString()}
                         </Typography>
                         {li.deliveryDays ? <Typography sx={{ fontSize: '0.65rem', color: colors.slate[400] }}>{li.deliveryDays} {li.deliveryUnit || 'Days'} delivery</Typography> : null}
-                        {isSelected ? <CheckCircle sx={{ color: '#2563eb', fontSize: '0.9rem', mt: 0.25 }} /> : null}
+                        {isPriorDecision || isExistingDecision ? <Chip size="small" label="Existing CS decision" sx={{ mt: 0.5, height: 18, fontSize: '0.58rem', fontWeight: 700, color: '#15803d', bgcolor: '#bbf7d0' }} /> : null}
+                        {(isAuditReference || (auditMode && isSelected)) && !isPriorDecision ? <Chip size="small" label="Audit recommendation" sx={{ mt: 0.5, height: 18, fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', bgcolor: '#fee2e2' }} /> : null}
+                        {isSelected && !isPriorDecision ? <CheckCircle sx={{ color: '#2563eb', fontSize: '0.9rem', mt: 0.25 }} /> : null}
+                        {auditMode && onSuggestPrice ? (
+                          <>
+                            <TextField
+                              size="small"
+                              type="number"
+                              label="Audit suggestion"
+                              placeholder={String(li.unitPrice)}
+                              value={suggestion?.suggestedUnitPrice ?? ''}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) => {
+                                const raw = event.target.value
+                                const value = Number(raw)
+                                if (!raw || !Number.isFinite(value)) {
+                                  onSuggestPrice(suggestionKey, null)
+                                } else {
+                                  onSuggestPrice(suggestionKey, { quotationId: q.id, vendorName: q.vendorName, partName: part.partName, casePartId: part.id, originalUnitPrice: li.unitPrice, suggestedUnitPrice: value, quantity: li.quantity })
+                                }
+                              }}
+                              sx={{ width: 132, mt: 0.75, '& .MuiInputLabel-root': { color: '#dc2626', fontSize: '0.68rem' }, '& .MuiOutlinedInput-root': { bgcolor: '#fff', '& fieldset': { borderColor: '#fca5a5' } } }}
+                            />
+                            {suggestion ? <Typography sx={{ mt: 0.25, fontSize: '0.65rem', fontWeight: 700, color: '#dc2626' }}>Suggested total: ৳{(suggestion.suggestedUnitPrice * suggestion.quantity).toLocaleString()}</Typography> : null}
+                          </>
+                        ) : null}
                       </Box>
                     ) : (
                       <Typography sx={{ fontSize: '0.75rem', color: colors.slate[300] }}>—</Typography>
@@ -1000,7 +1138,24 @@ export function ProcurementCaseDetailPage() {
   const [editQuotation, setEditQuotation] = useState<Quotation | undefined>(undefined)
   // CS selections: casePartId → { quotationId, vendorName, ... }
   const [csSelections, setCsSelections] = useState<Record<string, { quotationId: string; vendorName: string; unitPrice: number; quantity: number; totalPrice: number }>>({})
+  // Audit may recommend a different quotation per requested part. The final
+  // approver still makes the commercial decision; these recommendations are
+  // included in the immutable audit action note.
+  const [auditSelections, setAuditSelections] = useState<Record<string, { quotationId: string; vendorName: string; unitPrice: number; quantity: number; totalPrice: number }>>({})
+  const [auditPriceSuggestions, setAuditPriceSuggestions] = useState<Record<string, AuditPriceSuggestion>>({})
+  const [approvalSelections, setApprovalSelections] = useState<Record<string, DecisionSelection>>({})
   const [csNote, setCsNote] = useState('')
+
+  useEffect(() => {
+    if (!pc?.csDecision || Object.keys(approvalSelections).length) return
+    setApprovalSelections(Object.fromEntries(pc.csDecision.items.map((item) => [item.casePartId, {
+      quotationId: item.selectedQuotationId,
+      vendorName: item.selectedVendorName,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      totalPrice: item.totalPrice,
+    }])))
+  }, [pc?.id, pc?.csDecision, approvalSelections])
 
   if (!pc) {
     return (
@@ -1013,6 +1168,16 @@ export function ProcurementCaseDetailPage() {
 
   const currentIdx = PROCUREMENT_STEPS.indexOf(pc.currentStep)
   const isCompleted = pc.status === 'approved' || pc.status === 'rejected'
+  const persistedAuditSelections = auditSelectionsFromReview(pc)
+  const existingCSSelections: Record<string, DecisionSelection> = Object.fromEntries(
+    (pc.csDecision?.items || []).map((item) => [item.casePartId, {
+      quotationId: item.selectedQuotationId,
+      vendorName: item.selectedVendorName,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      totalPrice: item.totalPrice,
+    }]),
+  )
 
   const handleApprove = async () => {
     if (backendPc) {
@@ -1022,18 +1187,29 @@ export function ProcurementCaseDetailPage() {
           const result = await workshopApi.procurementStoreReview(backendPc.id, { storeReviewStatus: 'Local Shortage', procurementType: 'Local', vendorRoute: 'Enlisted Vendor', note: actionNote.trim() || undefined, parts: backendPc.parts.map((part) => ({ partRequestId: part.lineItemId, storeReviewStatus: 'Local Shortage', procurementType: 'Local', stockAvailable: 0 })) })
           setBackendPc(mapBackendProcurementCase(result))
         } else if (stage === 'GM Approval') {
-          const quotationId = approvalQuotationId || backendPc.quotations[0]?.id || ''
+          const finalSelections = Object.entries(approvalSelections).map(([casePartId, selection]) => ({ casePartId, ...selection }))
+          const quotationId = finalSelections[0]?.quotationId || approvalQuotationId || backendPc.quotations[0]?.id || ''
           if (!quotationId) throw new Error('Select a supplier quotation before approving.')
+          const finalDecisionNote = finalSelections.length
+            ? `Final CS decision: ${finalSelections.map((selection) => `${backendPc.parts.find((part) => part.id === selection.casePartId)?.partName || 'Part'} → ${selection.vendorName} · ৳${selection.totalPrice.toLocaleString()}`).join('; ')}`
+            : ''
           // Selecting at GM Approval also approves the submitted compare sheet
           // and moves the case to Management Approval or PO Creation according
           // to the server-side policy.
-          await workshopApi.procurementSelectQuotation(backendPc.id, quotationId, actionNote.trim() || 'Supplier quotation selected during approval')
+          await workshopApi.procurementSelectQuotation(backendPc.id, quotationId, [actionNote.trim(), finalDecisionNote].filter(Boolean).join('\n') || 'Supplier quotation selected during approval', finalSelections)
           setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
         } else {
           const actionByStage: Record<string, string> = { 'Quotation Collection': 'complete_quotation_collection', 'Audit Verification': 'audit_verify', 'GM Approval': 'gm_approve', 'Management Approval': 'management_approve', 'Supplier Confirmation': 'supplier_confirm', 'Audit Physical Review': 'physical_audit_approve', 'Procurement File Completion': 'file_complete', 'Audit Clearance': 'audit_clear', 'Actual Accounts': 'accounts_verify', Reconciliation: 'reconciliation_confirm', 'Bill Settlement': 'settle_bill' }
           const action = actionByStage[stage]
           if (!action) throw new Error(`No live action is available for stage ${stage || 'Unknown'}.`)
-          await workshopApi.procurementCaseAction(backendPc.id, action, actionNote.trim() || undefined)
+          const auditSuggestion = stage === 'Audit Verification' && Object.keys(auditSelections).length
+            ? `Audit suggestions: ${Object.entries(auditSelections).map(([partId, selection]) => `${pc.parts.find((part) => part.id === partId)?.partName || 'Part'} → ${selection.vendorName} · ৳${selection.totalPrice.toLocaleString()}`).join('; ')}`
+            : ''
+          const auditPriceCorrection = stage === 'Audit Verification' && Object.keys(auditPriceSuggestions).length
+            ? `Audit price corrections: ${Object.values(auditPriceSuggestions).map((suggestion) => `${suggestion.vendorName} / ${suggestion.partName}: ৳${suggestion.originalUnitPrice.toLocaleString()} → ৳${suggestion.suggestedUnitPrice.toLocaleString()} × ${suggestion.quantity}`).join('; ')}`
+            : ''
+          const note = [actionNote.trim(), auditSuggestion, auditPriceCorrection].filter(Boolean).join('\n') || undefined
+          await workshopApi.procurementCaseAction(backendPc.id, action, note)
           setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
         }
         setActionNote(''); setSnack('Procurement case updated')
@@ -1099,6 +1275,7 @@ export function ProcurementCaseDetailPage() {
           quotationIds,
           materialRequestId: backendMaterialRequestId,
           procurementCaseId: backendPc.id,
+          selections: items,
           overrideReason: quotationIds.length < 2 ? (csNote.trim() || 'Single supplier quotation selected for this appointment') : undefined,
         })
         const compareSheetId = String(compareSheet.id || '')
@@ -1153,14 +1330,14 @@ export function ProcurementCaseDetailPage() {
         <VehicleInfoSection pc={pc} />
 
         {/* Accumulated completed steps */}
-        {pc.storeReview && currentIdx > 0 ? <CompletedStepBadge label="Store Review" byName={pc.storeReview.actionByName} date={pc.storeReview.actionDate} note={pc.storeReview.note} /> : null}
-        {currentIdx > 1 && pc.currentStep !== 'approval' && !isCompleted ? (
+        {pc.storeReview && currentIdx > 0 && pc.currentStep !== 'approval' ? <CompletedStepBadge label="Store Review" byName={pc.storeReview.actionByName} date={pc.storeReview.actionDate} note={pc.storeReview.note} /> : null}
+        {currentIdx > 1 && pc.currentStep !== 'approval' && pc.currentStep !== 'audit' && !isCompleted ? (
           <SectionCard title={`Quotations (${pc.quotations.length})`} icon={<Add />} defaultCollapsed>
             <QuotationsSummaryTable quotations={pc.quotations} />
           </SectionCard>
         ) : null}
-        {pc.csDecision && currentIdx > 2 ? <CSDecisionSummary pc={pc} /> : null}
-        {pc.auditReview && currentIdx > 3 ? <CompletedStepBadge label="Audit Review" byName={pc.auditReview.actionByName} date={pc.auditReview.actionDate} note={pc.auditReview.note} /> : null}
+        {pc.csDecision && currentIdx > 2 && pc.currentStep !== 'approval' ? <CSDecisionSummary pc={pc} /> : null}
+        {pc.auditReview && currentIdx > 3 && pc.currentStep !== 'approval' ? <CompletedStepBadge label="Audit Review" byName={pc.auditReview.actionByName} date={pc.auditReview.actionDate} note={pc.auditReview.note} /> : null}
         {pc.managementApproval && currentIdx > 4 ? <CompletedStepBadge label="Approval" byName={pc.managementApproval.actionByName} date={pc.managementApproval.actionDate} note={pc.managementApproval.note} /> : null}
 
         {/* ═══ Active Step Panel ═══ */}
@@ -1240,11 +1417,33 @@ export function ProcurementCaseDetailPage() {
             {/* Audit */}
             {pc.currentStep === 'audit' && (
               <Stack spacing={2}>
-                <Alert severity="info" sx={{ borderRadius: radii.sm }}>Review parts, selected vendors from CS decision, and quotation attachments.</Alert>
-                <CSDecisionSummary pc={pc} />
-                <SectionCard title={`All Quotations & Attachments (${pc.quotations.length})`} icon={<AttachFile />} defaultCollapsed>
+                <Alert severity="info" sx={{ borderRadius: radii.sm }}>Review every quotation and attachment. You may add a late quotation, compare each product amount, and record an audit suggestion before sending the verified file to approval.</Alert>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.88rem' }}>Audit comparison and recommendation</Typography>
+                  <Button size="small" startIcon={<Add />} variant="contained" onClick={() => { setEditQuotation(undefined); setQuotationDialog(true) }} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Add Quotation</Button>
+                </Stack>
+                <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>Green marks the existing CS decision. Click a quotation cell to record an audit recommendation, or enter a red suggested unit price directly in that same cell. The next-stage approver decides whether to accept any audit change.</Typography>
+                <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+                  <Chip size="small" label="Existing CS decision" sx={{ fontWeight: 700, color: '#15803d', bgcolor: '#bbf7d0' }} />
+                  <Chip size="small" label="Audit suggestion / change" sx={{ fontWeight: 700, color: '#dc2626', bgcolor: '#fee2e2' }} />
+                </Stack>
+                <CSMatrix
+                  pc={pc}
+                  selections={auditSelections}
+                  auditMode
+                  auditPriceSuggestions={auditPriceSuggestions}
+                  onSuggestPrice={(key, suggestion) => setAuditPriceSuggestions((current) => {
+                  const next = { ...current }
+                  if (suggestion) next[key] = suggestion
+                  else delete next[key]
+                  return next
+                })}
+                  onSelect={(casePartId, quotationId, vendorName, unitPrice, quantity, totalPrice) => setAuditSelections((current) => ({ ...current, [casePartId]: { quotationId, vendorName, unitPrice, quantity, totalPrice } }))}
+                />
+                <SectionCard title={`All Quotations & Attachments (${pc.quotations.length})`} icon={<AttachFile />} defaultCollapsed={false}>
                   <QuotationsSummaryTable quotations={pc.quotations} />
                 </SectionCard>
+                {Object.keys(auditSelections).length ? <Alert severity="success" sx={{ borderRadius: radii.sm }}>Audit suggestions recorded for {Object.keys(auditSelections).length} of {pc.parts.length} parts. Add a note if any quote needs clarification.</Alert> : null}
                 <TextField size="small" label="Audit note (optional)" value={actionNote} onChange={(e) => setActionNote(e.target.value)} multiline minRows={2} fullWidth />
                 <Stack direction="row" spacing={1.5}>
                   <Button variant="contained" onClick={handleApprove} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Approve</Button>
@@ -1259,29 +1458,32 @@ export function ProcurementCaseDetailPage() {
                 <Alert severity="info" sx={{ borderRadius: radii.sm }}>Final approval. Review all information below.</Alert>
                 {pc.storeReview ? <CompletedStepBadge label="Store Review" byName={pc.storeReview.actionByName} date={pc.storeReview.actionDate} note={pc.storeReview.note} /> : null}
                 <CSDecisionSummary pc={pc} />
-                <SectionCard title={`All Quotations (${pc.quotations.length})`} icon={<AttachFile />} defaultCollapsed>
-                  <QuotationsSummaryTable quotations={pc.quotations} />
-                </SectionCard>
-                {pc.auditReview ? <CompletedStepBadge label="Audit" byName={pc.auditReview.actionByName} date={pc.auditReview.actionDate} note={pc.auditReview.note} /> : null}
-                <TextField
-                  select
-                  size="small"
-                  label="Approved supplier quotation *"
-                  value={approvalQuotationId}
-                  onChange={(event) => setApprovalQuotationId(event.target.value)}
-                  fullWidth
-                  helperText="The approver selects the winning quotation after Audit endorses the compare sheet."
-                >
-                  {pc.quotations.map((quotation) => (
-                    <MenuItem key={quotation.id} value={quotation.id}>
-                      {quotation.vendorName} · ৳{quotation.grandTotal.toLocaleString()}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <AuditDecisionSummary pc={pc} />
+                <Box sx={{ p: 2, borderRadius: radii.sm, bgcolor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                  <Typography sx={{ fontWeight: 800, color: '#1d4ed8', fontSize: '0.9rem', mb: 0.5 }}>Final CS decision</Typography>
+                  <Typography sx={{ fontSize: '0.78rem', color: colors.slate[600] }}>
+                    Select one quotation per part. The green CS decision and red audit recommendations remain unchanged above; this matrix records the final approver&apos;s decision.
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>
+                  Compare every vendor quotation below and choose the final vendor and amount for each requested part.
+                </Typography>
+                <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+                  <Chip size="small" label="Existing CS decision" sx={{ fontWeight: 700, color: '#15803d', bgcolor: '#bbf7d0' }} />
+                  <Chip size="small" label="Audit recommendation" sx={{ fontWeight: 700, color: '#dc2626', bgcolor: '#fee2e2' }} />
+                  <Chip size="small" label="Final selection" sx={{ fontWeight: 700, color: '#1d4ed8', bgcolor: '#dbeafe' }} />
+                </Stack>
+                <CSMatrix
+                  pc={pc}
+                  selections={approvalSelections}
+                  referenceSelections={persistedAuditSelections}
+                  existingSelections={existingCSSelections}
+                  onSelect={(casePartId, quotationId, vendorName, unitPrice, quantity, totalPrice) => setApprovalSelections((current) => ({ ...current, [casePartId]: { quotationId, vendorName, unitPrice, quantity, totalPrice } }))}
+                />
                 <Divider />
                 <TextField size="small" label="Approval note (optional)" value={actionNote} onChange={(e) => setActionNote(e.target.value)} multiline minRows={2} fullWidth />
                 <Stack direction="row" spacing={1.5}>
-                  <Button variant="contained" onClick={handleApprove} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Final Approve ✓</Button>
+                  <Button variant="contained" onClick={handleApprove} disabled={Object.keys(approvalSelections).length !== pc.parts.length} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Final Approve ✓</Button>
                   <Button variant="outlined" color="error" onClick={() => setShowReject(true)} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Reject</Button>
                 </Stack>
               </Stack>

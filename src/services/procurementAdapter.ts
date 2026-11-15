@@ -76,6 +76,18 @@ export function mapBackendProcurementCase(source: BackendCase): ProcurementCase 
     attachmentNames: [],
     submittedAt: quote.createdAt || source.updatedAt || new Date().toISOString(),
   }))
+  const activities = Array.isArray(source.activity) ? source.activity as BackendCase[] : []
+  const auditActivity = [...activities].reverse().find((activity) => {
+    const action = String(activity.action || '').toLowerCase()
+    return action.includes('audit_verified') || action.includes('audit_verify') || action.includes('audit endorsed')
+  })
+  const auditReview = auditActivity ? {
+    step: 'audit' as const,
+    action: 'approve' as const,
+    actionByName: String(auditActivity.actorRole || auditActivity.actorId || 'Audit team'),
+    actionDate: String(auditActivity.eventAt || source.updatedAt || new Date().toISOString()),
+    note: String(auditActivity.comment || auditActivity.payload?.note || ''),
+  } : undefined
   return {
     id: source.id,
     caseNumber: source.id,
@@ -88,6 +100,7 @@ export function mapBackendProcurementCase(source: BackendCase): ProcurementCase 
     currentStep: stepFor(source.currentStage),
     status,
     quotations,
+    auditReview,
     purchaseOrders: [],
     grns: [],
     history: [],
