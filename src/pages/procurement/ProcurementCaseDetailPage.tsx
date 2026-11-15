@@ -236,11 +236,21 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
     if (open) {
       setSaveError(null)
       setSaving(false)
+      setVendorId(initial ? MOCK_VENDORS.find((vendor) => vendor.name === initial.vendorName)?.id ?? '' : '')
+      setLineItems(initial?.lineItems ?? parts.map((part) => ({ casePartId: part.id, partName: part.partName, unitPrice: 0, quantity: part.quantity, totalPrice: 0 })))
+      setNotes(initial?.notes ?? '')
+      setFiles(initial?.attachmentUrls?.map((url, index) => ({ name: initial.attachmentNames?.[index] ?? `file-${index + 1}`, url })) ?? [])
       if (company) {
         void workshopApi.accountingSuppliers().then((response) => setLiveVendors(response.data)).catch(() => setLiveVendors([]))
       }
     }
-  }, [open, company])
+  }, [open, company, initial, parts])
+  useEffect(() => {
+    if (!open || !initial || !liveVendors.length) return
+    if (liveVendors.some((vendor) => vendor.id === vendorId)) return
+    const matchingVendor = liveVendors.find((vendor) => vendor.name.trim().toLowerCase() === initial.vendorName.trim().toLowerCase())
+    if (matchingVendor) setVendorId(matchingVendor.id)
+  }, [open, initial, liveVendors, vendorId])
   const fileRef = useRef<HTMLInputElement>(null)
   const selectedLiveVendor = liveVendors.find((v) => v.id === vendorId)
   const selectedMockVendor = MOCK_VENDORS.find((v) => v.id === vendorId)
@@ -903,7 +913,6 @@ export function ProcurementCaseDetailPage() {
   const rejectStep = useMockProcurementStore((s) => s.rejectProcurementStep)
   const addQuotation = useMockProcurementStore((s) => s.addQuotation)
   const updateQuotation = useMockProcurementStore((s) => s.updateQuotation)
-  const removeQuotation = useMockProcurementStore((s) => s.removeQuotation)
   const setCSDecisionStore = useMockProcurementStore((s) => s.setCSDecision)
   const generatePOs = useMockProcurementStore((s) => s.generatePurchaseOrders)
 
@@ -1137,7 +1146,21 @@ export function ProcurementCaseDetailPage() {
                   <Typography sx={{ fontWeight: 700, fontSize: '0.88rem' }}>Quotations ({pc.quotations.length})</Typography>
                   <Button size="small" startIcon={<Add />} variant="contained" onClick={() => { setEditQuotation(undefined); setQuotationDialog(true) }} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Add Quotation</Button>
                 </Stack>
-                <QuotationsSummaryTable quotations={pc.quotations} editable onEdit={(q) => { setEditQuotation(q); setQuotationDialog(true) }} onRemove={(id) => removeQuotation(pc.id, id)} />
+                <QuotationsSummaryTable
+                  quotations={pc.quotations}
+                  editable
+                  onEdit={(q) => { setEditQuotation(q); setQuotationDialog(true) }}
+                  onRemove={async (id) => {
+                    if (!backendPc) return
+                    try {
+                      await workshopApi.procurementRemoveQuotation(backendPc.id, id)
+                      setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
+                      setSnack('Quotation removed from this procurement case')
+                    } catch (cause) {
+                      setSnack(cause instanceof Error ? cause.message : 'Unable to remove quotation')
+                    }
+                  }}
+                />
                 <Divider />
                 <TextField size="small" label="Submission note (optional)" value={actionNote} onChange={(e) => setActionNote(e.target.value)} multiline minRows={2} fullWidth />
                 <Stack direction="row" spacing={1.5}>
@@ -1308,8 +1331,12 @@ export function ProcurementCaseDetailPage() {
                 if (!item) throw new Error(`No purchasable Item master record found for ${line.partName}.`)
                 return { itemCode: item.itemCode, qty: line.quantity, rate: line.unitPrice, description: line.partName }
               }))
-              const createdQuotation = await workshopApi.accountingCreate('quotations', { company: selectedCompanyId, supplierId: supplier.id, items: itemRows, remarks: q.notes })
-              await workshopApi.procurementAttachQuotation(backendPc.id, String(createdQuotation.id), 'Quotation collected from the mock procurement workflow')
+              const createdQuotation = editQuotation
+                ? await workshopApi.accountingUpdate('quotations', editQuotation.id, { supplierId: supplier.id, items: itemRows, terms: q.notes })
+                : await workshopApi.accountingCreate('quotations', { company: selectedCompanyId, supplierId: supplier.id, items: itemRows, remarks: q.notes })
+              if (!editQuotation) {
+                await workshopApi.procurementAttachQuotation(backendPc.id, String(createdQuotation.id), 'Quotation collected from the mock procurement workflow')
+              }
               const refreshed = await workshopApi.procurementCase(backendPc.id)
               const mapped = mapBackendProcurementCase(refreshed)
               const summaries = Array.isArray((refreshed as Record<string, unknown>).supplierQuotations) ? (refreshed as Record<string, unknown>).supplierQuotations as Array<Record<string, unknown>> : []

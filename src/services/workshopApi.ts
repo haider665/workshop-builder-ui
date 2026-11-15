@@ -2292,6 +2292,9 @@ export const workshopApi = {
   async procurementAttachQuotation(id: string, supplierQuotationId: string, reason?: string): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.attach_quotation', { method: 'POST', body: { id, data: { supplierQuotationId, reason } } })
   },
+  async procurementRemoveQuotation(id: string, supplierQuotationId: string, reason?: string): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.procurement_cases.remove_quotation', { method: 'POST', body: { id, data: { supplierQuotationId, reason: reason || 'Quotation removed from procurement case' } } })
+  },
   async procurementSelectQuotation(id: string, supplierQuotationId: string, reason: string): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.select_quotation', { method: 'POST', body: { id, data: { supplierQuotationId, reason } } })
   },
@@ -2315,6 +2318,9 @@ export const workshopApi = {
   },
   async accountingCreate(module: 'requisitions' | 'quotations', data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request(`/api/method/workshop.api.accounting.${module}.create`, { method: 'POST', body: { data } })
+  },
+  async accountingUpdate(module: 'quotations', id: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return request(`/api/method/workshop.api.accounting.${module}.update`, { method: 'POST', body: { id, data } })
   },
   async accountingCreateCompareSheet(data: { company: string; quotationIds: string[]; materialRequestId?: string; procurementCaseId?: string; overrideReason?: string }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.compare_sheets.create_from_quotations', { method: 'POST', body: { data } })
