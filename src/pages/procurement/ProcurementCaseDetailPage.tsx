@@ -58,10 +58,23 @@ async function hydrateBackendProcurementCase(data: Record<string, unknown>): Pro
   }))
   mapped.quotations = full.map((quote) => ({
     id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const,
-    lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>) => ({ casePartId: String(item.itemCode || item.id || ''), partName: String(item.itemName || item.description || item.itemCode || 'Part'), unitPrice: Number(item.rate || 0), quantity: Number(item.qty || 0), totalPrice: Number(item.amount || 0) })),
+    lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>) => mapQuotationLine(item)),
     grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || data.updatedAt || new Date().toISOString()),
   }))
   return mapped
+}
+
+function mapQuotationLine(item: Record<string, unknown>): QuotationLineItem {
+  const unitPrice = Number(item.rate ?? 0)
+  const quantity = Number(item.qty ?? 0)
+  const persistedTotal = item.amount ?? item.baseAmount
+  return {
+    casePartId: String(item.itemCode || item.id || ''),
+    partName: String(item.itemName || item.description || item.itemCode || 'Part'),
+    unitPrice,
+    quantity,
+    totalPrice: Number(persistedTotal ?? unitPrice * quantity),
+  }
 }
 
 /* ═══ Helpers ═══ */
@@ -1341,7 +1354,7 @@ export function ProcurementCaseDetailPage() {
               const mapped = mapBackendProcurementCase(refreshed)
               const summaries = Array.isArray((refreshed as Record<string, unknown>).supplierQuotations) ? (refreshed as Record<string, unknown>).supplierQuotations as Array<Record<string, unknown>> : []
               const full = await Promise.all(summaries.map(async (summary) => { try { return await workshopApi.accountingGet('quotations', String(summary.id)) } catch { return summary } }))
-              mapped.quotations = full.map((quote) => ({ id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const, lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>) => ({ casePartId: String(item.itemCode || item.id || ''), partName: String(item.itemName || item.description || item.itemCode || 'Part'), unitPrice: Number(item.rate || 0), quantity: Number(item.qty || 0), totalPrice: Number(item.amount || 0) })), grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || new Date().toISOString()) }))
+              mapped.quotations = full.map((quote) => ({ id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const, lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>) => mapQuotationLine(item)), grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || new Date().toISOString()) }))
               setBackendPc(mapped)
               setSnack('Supplier quotation saved to this procurement case')
             } else if (editQuotation) updateQuotation(pc.id, editQuotation.id, q)
