@@ -58,22 +58,34 @@ async function hydrateBackendProcurementCase(data: Record<string, unknown>): Pro
   }))
   mapped.quotations = full.map((quote) => ({
     id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const,
-    lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>) => mapQuotationLine(item)),
+    // Supplier quotations are created from the appointment's preselected part
+    // rows. Preserve that positional relationship so duplicate requested names
+    // (for example two separate "test" lines) remain distinct in the CS matrix.
+    lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>, index: number) => mapQuotationLine(item, mapped.parts[index]?.id)),
     grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || data.updatedAt || new Date().toISOString()),
   }))
   return mapped
 }
 
-function mapQuotationLine(item: Record<string, unknown>): QuotationLineItem {
+function mapQuotationLine(item: Record<string, unknown>, fallbackCasePartId?: string): QuotationLineItem {
   const unitPrice = Number(item.rate ?? 0)
   const quantity = Number(item.qty ?? 0)
   const persistedTotal = item.amount ?? item.baseAmount
+  const rawDescription = String(item.description || '')
+  const deliveryMatch = rawDescription.match(/\s*·\s*Delivery:\s*([\d.]+)\s+(Hours|Days|Week|Month|Year)\s*$/i)
+  const requestedName = rawDescription.replace(/\s*·\s*Delivery:\s*[\d.]+\s+(Hours|Days|Week|Month|Year)\s*$/i, '').trim()
+  const deliveryUnit = deliveryMatch?.[2]
+  const normalizedUnit = deliveryUnit ? (deliveryUnit.charAt(0).toUpperCase() + deliveryUnit.slice(1).toLowerCase()) as QuotationLineItem['deliveryUnit'] : undefined
   return {
-    casePartId: String(item.itemCode || item.id || ''),
-    partName: String(item.itemName || item.description || item.itemCode || 'Part'),
+    casePartId: fallbackCasePartId || String(item.itemCode || item.id || ''),
+    // ERPNext's item_name is the catalogue name; description retains the
+    // requested appointment text and is the reliable identity for CS display.
+    partName: requestedName || String(item.itemName || item.itemCode || 'Part'),
     unitPrice,
     quantity,
     totalPrice: Number(persistedTotal ?? unitPrice * quantity),
+    deliveryDays: deliveryMatch ? Number(deliveryMatch[1]) : undefined,
+    deliveryUnit: normalizedUnit,
   }
 }
 
@@ -239,7 +251,7 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<QuotationLineItem[]>(
-    initial?.lineItems ?? parts.map((p) => ({ casePartId: p.id, partName: p.partName, unitPrice: 0, quantity: p.quantity, totalPrice: 0 })),
+    initial?.lineItems ?? parts.map((p) => ({ casePartId: p.id, partName: p.partName, unitPrice: 0, quantity: p.quantity, totalPrice: 0, deliveryUnit: 'Days' as const })),
   )
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [files, setFiles] = useState<{ name: string; url: string }[]>(
@@ -250,7 +262,7 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
       setSaveError(null)
       setSaving(false)
       setVendorId(initial ? MOCK_VENDORS.find((vendor) => vendor.name === initial.vendorName)?.id ?? '' : '')
-      setLineItems(initial?.lineItems ?? parts.map((part) => ({ casePartId: part.id, partName: part.partName, unitPrice: 0, quantity: part.quantity, totalPrice: 0 })))
+      setLineItems(initial?.lineItems ?? parts.map((part) => ({ casePartId: part.id, partName: part.partName, unitPrice: 0, quantity: part.quantity, totalPrice: 0, deliveryUnit: 'Days' as const })))
       setNotes(initial?.notes ?? '')
       setFiles(initial?.attachmentUrls?.map((url, index) => ({ name: initial.attachmentNames?.[index] ?? `file-${index + 1}`, url })) ?? [])
       if (company) {
@@ -407,7 +419,16 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.85rem' }}>৳{(li.totalPrice || 0).toLocaleString()}</TableCell>
                     <TableCell>
-                      <TextField size="small" type="number" value={li.deliveryDays || ''} onChange={(e) => updateLine(idx, 'deliveryDays', Number(e.target.value))} sx={{ width: 80 }} placeholder="days" />
+                      <Stack direction="row" spacing={0.5}>
+                        <TextField size="small" type="number" value={li.deliveryDays || ''} onChange={(e) => updateLine(idx, 'deliveryDays', Number(e.target.value))} sx={{ width: 80 }} placeholder="time" />
+                        <TextField select size="small" value={li.deliveryUnit || 'Days'} onChange={(e) => updateLine(idx, 'deliveryUnit', e.target.value)} sx={{ width: 100 }} aria-label="Delivery unit">
+                          <MenuItem value="Hours">Hours</MenuItem>
+                          <MenuItem value="Days">Days</MenuItem>
+                          <MenuItem value="Week">Week</MenuItem>
+                          <MenuItem value="Month">Month</MenuItem>
+                          <MenuItem value="Year">Year</MenuItem>
+                        </TextField>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -551,7 +572,14 @@ function CSMatrix({ pc, selections, onSelect }: {
                 <Typography sx={{ fontSize: '0.68rem', color: colors.slate[500] }}>Qty: {part.quantity}</Typography>
               </TableCell>
               {vendors.map((q) => {
-                const li = q.lineItems.find((l) => l.casePartId === part.id || l.partName === part.partName || (part.partNumber && l.casePartId === part.partNumber))
+                // casePartId is assigned from the appointment part order when
+                // the quote is hydrated. Name/number fallback keeps older
+                // quotations visible, while occurrence matching prevents the
+                // first duplicate name from being reused for every row.
+                const partIndex = pc.parts.findIndex((candidate) => candidate.id === part.id)
+                const li = q.lineItems.find((line) => line.casePartId === part.id)
+                  || q.lineItems[partIndex]
+                  || q.lineItems.find((line) => line.partName === part.partName || (part.partNumber && line.casePartId === part.partNumber))
                 const isSelected = selections[part.id]?.quotationId === q.id
                 return (
                   <TableCell
@@ -574,7 +602,7 @@ function CSMatrix({ pc, selections, onSelect }: {
                         <Typography sx={{ fontSize: '0.68rem', color: colors.slate[500] }}>
                           Total: ৳{li.totalPrice.toLocaleString()}
                         </Typography>
-                        {li.deliveryDays ? <Typography sx={{ fontSize: '0.65rem', color: colors.slate[400] }}>{li.deliveryDays}d delivery</Typography> : null}
+                        {li.deliveryDays ? <Typography sx={{ fontSize: '0.65rem', color: colors.slate[400] }}>{li.deliveryDays} {li.deliveryUnit || 'Days'} delivery</Typography> : null}
                         {isSelected ? <CheckCircle sx={{ color: '#2563eb', fontSize: '0.9rem', mt: 0.25 }} /> : null}
                       </Box>
                     ) : (
@@ -1342,7 +1370,8 @@ export function ProcurementCaseDetailPage() {
                   }
                 }
                 if (!item) throw new Error(`No purchasable Item master record found for ${line.partName}.`)
-                return { itemCode: item.itemCode, qty: line.quantity, rate: line.unitPrice, description: line.partName }
+                const delivery = line.deliveryDays && line.deliveryUnit ? ` · Delivery: ${line.deliveryDays} ${line.deliveryUnit}` : ''
+                return { itemCode: item.itemCode, qty: line.quantity, rate: line.unitPrice, description: `${line.partName}${delivery}` }
               }))
               const createdQuotation = editQuotation
                 ? await workshopApi.accountingUpdate('quotations', editQuotation.id, { supplierId: supplier.id, items: itemRows, terms: q.notes })
@@ -1354,7 +1383,7 @@ export function ProcurementCaseDetailPage() {
               const mapped = mapBackendProcurementCase(refreshed)
               const summaries = Array.isArray((refreshed as Record<string, unknown>).supplierQuotations) ? (refreshed as Record<string, unknown>).supplierQuotations as Array<Record<string, unknown>> : []
               const full = await Promise.all(summaries.map(async (summary) => { try { return await workshopApi.accountingGet('quotations', String(summary.id)) } catch { return summary } }))
-              mapped.quotations = full.map((quote) => ({ id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const, lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>) => mapQuotationLine(item)), grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || new Date().toISOString()) }))
+              mapped.quotations = full.map((quote) => ({ id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const, lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>, index: number) => mapQuotationLine(item, mapped.parts[index]?.id)), grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || new Date().toISOString()) }))
               setBackendPc(mapped)
               setSnack('Supplier quotation saved to this procurement case')
             } else if (editQuotation) updateQuotation(pc.id, editQuotation.id, q)

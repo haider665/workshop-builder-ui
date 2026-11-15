@@ -108,6 +108,8 @@ export type QuotationLineItem = {
   quantity: number
   totalPrice: number
   deliveryDays?: number
+  /** Unit for the delivery lead time entered by the supplier. */
+  deliveryUnit?: 'Hours' | 'Days' | 'Week' | 'Month' | 'Year'
   notes?: string
 }
 
