@@ -15,6 +15,16 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        '/files': {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/private/files': {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
     optimizeDeps: {

@@ -33,6 +33,7 @@ import {
   History,
   Inventory,
   LocalShipping,
+  Receipt,
 } from '@mui/icons-material'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -45,7 +46,7 @@ import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
-import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision } from '../../types/procurementWorkflow'
+import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision, GRNLineItem } from '../../types/procurementWorkflow'
 import { PROCUREMENT_STEPS, PROCUREMENT_STEP_LABELS } from '../../types/procurementWorkflow'
 
 async function hydrateBackendProcurementCase(data: Record<string, unknown>): Promise<ProcurementCase> {
@@ -973,6 +974,10 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
   const [busy, setBusy] = useState(false)
   const [snack, setSnack] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [activePoId, setActivePoId] = useState('')
+  const [grnLines, setGrnLines] = useState<GRNLineItem[]>([])
+  const [grnNote, setGrnNote] = useState('')
+  const [invoiceFiles, setInvoiceFiles] = useState<Array<{ name: string; file: File }>>([])
 
   const run = async (action: () => Promise<unknown>, success: string) => {
     setBusy(true)
@@ -988,7 +993,64 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
     }
   }
 
-  const grnByPoId = new Map(pc.grns.map((grn) => [grn.poId, grn]))
+  const grnPoIds = new Set(pc.grns.map((grn) => grn.poId))
+  const deliveredPOs = pc.purchaseOrders.filter((po) => po.status === 'delivered' || grnPoIds.has(po.id))
+  const pendingPOs = deliveredPOs.filter((po) => !grnPoIds.has(po.id))
+  const activePO = pendingPOs.find((po) => po.id === activePoId) ?? pendingPOs[0]
+  const awaitingDelivery = pc.purchaseOrders.filter((po) => po.status !== 'delivered' && !grnPoIds.has(po.id))
+  const allReceived = pc.purchaseOrders.length > 0 && pc.purchaseOrders.every((po) => pc.grns.some((grn) => grn.poId === po.id && grn.status === 'submitted'))
+
+  useEffect(() => {
+    if (!activePO) {
+      setGrnLines([])
+      setGrnNote('')
+      setInvoiceFiles([])
+      return
+    }
+    setGrnLines(activePO.lineItems.map((line) => ({
+      casePartId: line.casePartId,
+      partName: line.partName,
+      orderedQty: line.quantity,
+      receivedQty: line.quantity,
+      condition: 'good' as const,
+    })))
+    setGrnNote('')
+    setInvoiceFiles([])
+  }, [activePO])
+
+  const handleRecordGRN = async () => {
+    if (!activePO) return
+    setBusy(true)
+    setError(null)
+    let createdId = ''
+    try {
+      const uploaded = await Promise.all(invoiceFiles.map((file) => workshopApi.uploadFile(file.file, { isPrivate: true })))
+      const receipt = await workshopApi.accountingCreateReceipt({
+        purchaseOrderId: activePO.id,
+        items: grnLines.map((line) => ({
+          purchaseOrderItemId: line.casePartId,
+          receivedQty: line.receivedQty,
+          condition: line.condition,
+        })),
+        notes: grnNote.trim() || undefined,
+        attachmentFileIds: uploaded.map((file) => file.name),
+      })
+      createdId = String(receipt.id || '')
+      if (createdId) await workshopApi.accountingSubmit('receipts', createdId)
+      await onChanged()
+      setSnack(`GRN recorded for ${activePO.poNumber}`)
+      const nextPo = pendingPOs.find((po) => po.id !== activePO.id)
+      setActivePoId(nextPo?.id ?? '')
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unable to record the goods receipt'
+      setError(createdId
+        ? `${message} Draft ${createdId} was saved; use Submit GRN below when ready.`
+        : message)
+      if (createdId) await onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <Stack spacing={2}>
@@ -998,74 +1060,110 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
       {error ? <Alert severity="error" sx={{ borderRadius: radii.sm }}>{error}</Alert> : null}
 
       {!pc.purchaseOrders.length ? <Alert severity="warning" sx={{ borderRadius: radii.sm }}>A submitted Purchase Order is required before goods can be received.</Alert> : null}
+      {allReceived ? <Alert severity="success" sx={{ borderRadius: radii.sm }}>All purchase orders have been received. The procurement case is ready for audit and invoice processing.</Alert> : null}
+      {awaitingDelivery.length ? (
+        <Alert severity="info" sx={{ borderRadius: radii.sm }}>
+          Mark {awaitingDelivery.map((po) => po.poNumber).join(', ')} delivered before recording the goods receipt.
+        </Alert>
+      ) : null}
 
-      {pc.purchaseOrders.map((po) => {
-        const grn = grnByPoId.get(po.id)
-        return (
-          <Box key={po.id} sx={{ p: 2.5, borderRadius: radii.md, border: `1px solid ${grn?.status === 'submitted' ? '#bbf7d0' : colors.border.default}`, bgcolor: grn?.status === 'submitted' ? '#f0fdf4' : colors.bg.card }}>
-            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <Typography sx={{ fontWeight: 800, fontSize: '0.95rem' }}>{grn?.grnNumber || po.poNumber}</Typography>
-                <Chip size="small" label={po.vendorName} sx={{ fontWeight: 600, fontSize: '0.7rem' }} />
-              </Stack>
-              <Chip
-                size="small"
-                label={grn ? (grn.status || 'draft').toUpperCase() : po.status === 'delivered' ? 'READY TO RECEIVE' : 'AWAITING DELIVERY'}
-                sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: grn?.status === 'submitted' ? '#d1fae5' : colors.slate[100], color: grn?.status === 'submitted' ? '#047857' : colors.slate[600] }}
-              />
-            </Stack>
-
-            {grn ? (
-              <>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Part</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Ordered</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Received</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {grn.lineItems.map((li, index) => (
-                      <TableRow key={`${li.casePartId}-${index}`}>
-                        <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{li.partName}</TableCell>
-                        <TableCell>{li.orderedQty}</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>{li.receivedQty}</TableCell>
-                      </TableRow>
+      {pc.grns.length > 0 ? (
+        <SectionCard title={`Recorded GRNs (${pc.grns.length})`} icon={<Receipt />}>
+          <Stack spacing={1.5} sx={{ p: 2 }}>
+            {pc.grns.map((grn) => (
+              <Box key={grn.id} sx={{ p: 2, borderRadius: radii.sm, border: `1px solid ${grn.status === 'submitted' ? '#bbf7d0' : '#fde68a'}`, bgcolor: grn.status === 'submitted' ? '#f0fdf4' : '#fffbeb' }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap' }}>
+                  <CheckCircle sx={{ color: grn.status === 'submitted' ? '#059669' : '#d97706', fontSize: '1rem' }} />
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: grn.status === 'submitted' ? '#047857' : '#92400e' }}>{grn.grnNumber} — {grn.vendorName}</Typography>
+                  <Chip size="small" label={(grn.status || 'draft').toUpperCase()} sx={{ fontWeight: 700, fontSize: '0.62rem', bgcolor: grn.status === 'submitted' ? '#d1fae5' : '#fef3c7', color: grn.status === 'submitted' ? '#047857' : '#92400e' }} />
+                  <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>by {grn.receivedByName} · {new Date(grn.receivedAt).toLocaleString()}</Typography>
+                </Stack>
+                {grn.lineItems.map((line, index) => (
+                  <Typography key={`${line.casePartId}-${index}`} sx={{ fontSize: '0.78rem', color: colors.slate[700], pl: 3 }}>
+                    {line.partName}: received {line.receivedQty}/{line.orderedQty} — {line.condition}
+                  </Typography>
+                ))}
+                {grn.notes ? <Typography sx={{ fontSize: '0.76rem', color: colors.slate[600], pl: 3, mt: 0.5 }}>Note: {grn.notes}</Typography> : null}
+                {grn.invoiceAttachmentNames.length > 0 ? (
+                  <Stack direction="row" spacing={1} sx={{ pl: 3, mt: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <AttachFile sx={{ fontSize: '0.8rem', color: colors.slate[400] }} />
+                    {grn.invoiceAttachmentNames.map((name, index) => (
+                      <Typography key={`${name}-${index}`} component="a" href={grn.invoiceAttachmentUrls[index]} target="_blank" rel="noreferrer" sx={{ fontSize: '0.72rem', color: '#2563eb', textDecoration: 'underline' }}>{name}</Typography>
                     ))}
-                  </TableBody>
-                </Table>
-                <Typography sx={{ mt: 1.5, fontSize: '0.75rem', color: colors.slate[500] }}>
-                  Recorded by {grn.receivedByName} · {new Date(grn.receivedAt).toLocaleString()}
-                </Typography>
+                  </Stack>
+                ) : null}
                 {grn.status === 'draft' ? (
-                  <Button
-                    variant="contained"
-                    disabled={busy}
-                    onClick={() => void run(() => workshopApi.accountingSubmit('receipts', grn.id), 'GRN submitted')}
-                    sx={{ mt: 2, bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}
-                  >
+                  <Button size="small" variant="contained" disabled={busy} onClick={() => void run(() => workshopApi.accountingSubmit('receipts', grn.id), 'GRN submitted')} sx={{ mt: 1.5, bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>
                     Submit GRN
                   </Button>
-                ) : (
-                  <Alert severity="success" sx={{ mt: 2, borderRadius: radii.sm }}>Goods received against {po.poNumber}.</Alert>
-                )}
-              </>
-            ) : po.status === 'delivered' ? (
-              <Button
-                variant="contained"
-                disabled={busy}
-                onClick={() => void run(() => workshopApi.accountingCreateReceipt({ purchaseOrderId: po.id }), 'Draft GRN created')}
-                sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}
-              >
-                Create GRN
+                ) : null}
+              </Box>
+            ))}
+          </Stack>
+        </SectionCard>
+      ) : null}
+
+      {pendingPOs.length > 0 && activePO ? (
+        <Box sx={{ p: 2.5, borderRadius: radii.md, border: `1px solid ${colors.border.default}`, bgcolor: colors.bg.card }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.95rem' }}>Record GRN for {activePO.poNumber} — {activePO.vendorName}</Typography>
+            {pendingPOs.length > 1 ? <Chip size="small" label={`${pendingPOs.findIndex((po) => po.id === activePO.id) + 1} of ${pendingPOs.length}`} sx={{ fontWeight: 700, fontSize: '0.65rem' }} /> : null}
+          </Stack>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Part</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Ordered</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', width: 90 }}>Received</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', width: 130 }}>Condition</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {grnLines.map((line, index) => (
+                <TableRow key={`${line.casePartId}-${index}`}>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{line.partName}</TableCell>
+                  <TableCell>{line.orderedQty}</TableCell>
+                  <TableCell>
+                    <TextField size="small" type="number" value={line.receivedQty} onChange={(event) => setGrnLines((previous) => previous.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, receivedQty: Number(event.target.value) } : candidate))} slotProps={{ htmlInput: { min: 0, max: line.orderedQty, step: 'any' } }} sx={{ width: 78 }} />
+                  </TableCell>
+                  <TableCell>
+                    <TextField select size="small" value={line.condition} onChange={(event) => setGrnLines((previous) => previous.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, condition: event.target.value as GRNLineItem['condition'] } : candidate))} sx={{ width: 120 }}>
+                      <MenuItem value="good">Good</MenuItem>
+                      <MenuItem value="damaged">Damaged</MenuItem>
+                      <MenuItem value="partial">Partial</MenuItem>
+                    </TextField>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            <TextField size="small" label="Note (optional)" value={grnNote} onChange={(event) => setGrnNote(event.target.value)} multiline minRows={2} fullWidth />
+            <Box>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: colors.slate[600], mb: 0.5 }}>Invoice Attachment</Typography>
+              <Button component="label" variant="outlined" size="small" startIcon={<AttachFile />} disabled={busy} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>
+                Upload Invoice
+                <input type="file" multiple hidden onChange={(event) => {
+                  const selected = Array.from(event.target.files ?? []).map((file) => ({ name: file.name, file }))
+                  setInvoiceFiles((previous) => [...previous, ...selected])
+                  event.target.value = ''
+                }} />
               </Button>
-            ) : (
-              <Alert severity="info" sx={{ borderRadius: radii.sm }}>Mark {po.poNumber} delivered before recording goods receipt.</Alert>
-            )}
-          </Box>
-        )
-      })}
+              {invoiceFiles.map((file, index) => (
+                <Stack key={`${file.name}-${index}`} direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center' }}>
+                  <AttachFile sx={{ fontSize: '0.8rem', color: colors.slate[400] }} />
+                  <Typography sx={{ fontSize: '0.78rem', flex: 1 }}>{file.name}</Typography>
+                  <IconButton size="small" disabled={busy} onClick={() => setInvoiceFiles((previous) => previous.filter((_, candidateIndex) => candidateIndex !== index))}><Delete sx={{ fontSize: '0.85rem', color: '#ef4444' }} /></IconButton>
+                </Stack>
+              ))}
+            </Box>
+            <Button variant="contained" disabled={busy || grnLines.every((line) => line.receivedQty <= 0)} onClick={() => void handleRecordGRN()}
+              sx={{ alignSelf: 'flex-start', bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>
+              {busy ? 'Recording…' : 'Record GRN'}
+            </Button>
+          </Stack>
+        </Box>
+      ) : null}
     </Stack>
   )
 }

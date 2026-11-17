@@ -105,7 +105,7 @@ export function mapBackendPurchaseOrder(
     vendorName: text(source.supplierName) || text(source.supplierId) || 'Supplier',
     sourcingType: procurementType === 'Foreign' ? 'Foreign' : 'Local',
     lineItems: items.map((item, index) => ({
-      casePartId: text(item.itemCode) || text(item.id) || `po-item-${index}`,
+      casePartId: text(item.id) || text(item.itemCode) || `po-item-${index}`,
       partName: text(item.description) || text(item.itemName) || text(item.itemCode) || 'Part',
       unitPrice: numberValue(item.rate),
       quantity: numberValue(item.qty),
@@ -122,8 +122,14 @@ export function mapBackendPurchaseOrder(
   }
 }
 
+function grnCondition(value: unknown): GRN['lineItems'][number]['condition'] {
+  const normalized = String(value || '').toLowerCase()
+  return normalized === 'damaged' || normalized === 'partial' ? normalized : 'good'
+}
+
 export function mapBackendPurchaseReceipt(source: BackendCase, purchaseOrder?: PurchaseOrder): GRN {
   const items = records(source.items)
+  const attachments = records(source.attachments)
   const poId = purchaseOrder?.id || text(items[0]?.purchaseOrderId) || ''
   return {
     id: text(source.id) || '',
@@ -133,19 +139,22 @@ export function mapBackendPurchaseReceipt(source: BackendCase, purchaseOrder?: P
     vendorName: text(source.supplierName) || text(source.supplierId) || purchaseOrder?.vendorName || 'Supplier',
     lineItems: items.map((item, index) => {
       const casePartId = text(item.purchaseOrderItemId) || text(item.itemCode) || `receipt-item-${index}`
-      const orderedQty = purchaseOrder?.lineItems[index]?.quantity ?? numberValue(item.qty)
+      const orderedQty = purchaseOrder?.lineItems.find((line) => line.casePartId === casePartId)?.quantity
+        ?? purchaseOrder?.lineItems[index]?.quantity
+        ?? numberValue(item.qty)
       return {
         casePartId,
         partName: text(item.description) || text(item.itemName) || text(item.itemCode) || 'Part',
         orderedQty,
-        receivedQty: numberValue(item.qty),
-        condition: 'good' as const,
+        receivedQty: numberValue(item.receivedQty ?? item.qty),
+        condition: grnCondition(item.condition),
       }
     }),
-    invoiceAttachmentUrls: [],
-    invoiceAttachmentNames: [],
+    invoiceAttachmentUrls: attachments.map((file) => text(file.fileUrl) || '').filter(Boolean),
+    invoiceAttachmentNames: attachments.map((file, index) => text(file.fileName) || `file-${index + 1}`),
     receivedByName: text(source.owner) || 'Store Keeper',
     receivedAt: text(source.updatedAt) || text(source.postingDate) || new Date().toISOString(),
+    notes: text(source.remarks),
     status: numberValue(source.docstatus) === 1 ? 'submitted' : 'draft',
     docstatus: numberValue(source.docstatus),
   }

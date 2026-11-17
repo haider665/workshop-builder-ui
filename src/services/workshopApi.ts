@@ -2360,7 +2360,7 @@ export const workshopApi = {
   async accountingMarkPurchaseOrderDelivered(id: string): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.purchase_orders.mark_delivered', { method: 'POST', body: { data: { id } } })
   },
-  async accountingCreateReceipt(data: { purchaseOrderId: string; postingDate?: string }): Promise<Record<string, unknown>> {
+  async accountingCreateReceipt(data: { purchaseOrderId: string; postingDate?: string; items?: Array<{ purchaseOrderItemId: string; receivedQty: number; condition: 'good' | 'damaged' | 'partial' }>; notes?: string; attachmentFileIds?: string[] }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.receipts.create_from_purchase_order', { method: 'POST', body: { data } })
   },
   async accountingCreateInvoice(data: { purchaseReceiptId: string; postingDate?: string; dueDate?: string }): Promise<Record<string, unknown>> {
