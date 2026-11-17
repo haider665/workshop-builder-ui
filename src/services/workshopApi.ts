@@ -1923,7 +1923,7 @@ export const workshopApi = {
     return request(`/api/method/workshop.api.reports.financial_snapshot${buildQuery(params)}`)
   },
 
-  async getAppointmentActivityReport(params: { fromDate?: string; toDate?: string; search?: string; page?: number; pageSize?: number } = {}): Promise<{ data: Array<Record<string, any>>; meta: { page: number; pageSize: number; total: number }; summary: Record<string, any> }> {
+  async getAppointmentActivityReport(params: { fromDate?: string; toDate?: string; search?: string; page?: number; pageSize?: number } = {}): Promise<{ data: Array<Record<string, unknown>>; meta: { page: number; pageSize: number; total: number }; summary: Record<string, unknown> }> {
     return request(`/api/method/workshop.api.reports.appointment_activity_report${buildQuery(params)}`)
   },
 
@@ -2234,6 +2234,29 @@ export const workshopApi = {
     })
   },
 
+  async savePartRequestTriage(id: string, input: {
+    disposition: import('../types/procurementWorkflow').PartDisposition
+    localVendorName?: string
+    localPrice?: number
+    localQuantity?: number
+    localDeliveryDays?: number
+    foreignNote?: string
+    stockAvailable?: number
+    note?: string
+  }): Promise<import('../types/procurementWorkflow').LivePartRequest> {
+    return request<import('../types/procurementWorkflow').LivePartRequest>('/api/method/workshop.api.part_requests.save_triage', {
+      method: 'POST',
+      body: { id, data: input },
+    })
+  },
+
+  async setPartRequestCustomerApproval(id: string, input: { status: 'Pending' | 'Approved' | 'Rejected'; note?: string }): Promise<import('../types/procurementWorkflow').LivePartRequest> {
+    return request<import('../types/procurementWorkflow').LivePartRequest>('/api/method/workshop.api.part_requests.set_customer_approval', {
+      method: 'POST',
+      body: { id, data: input },
+    })
+  },
+
   async createMasterDataRequest(input: { targetDoctype: string; targetField: string; requestedValue: string; company?: string; sourceRoute?: string; context?: Record<string, unknown> }): Promise<CWMasterDataRequest> {
     return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.create', { method: 'POST', body: { data: input } })
   },
@@ -2327,6 +2350,15 @@ export const workshopApi = {
   },
   async accountingCreatePurchaseOrder(data: { compareSheetId: string; transactionDate?: string; scheduleDate?: string }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.purchase_orders.create_from_compare_sheet', { method: 'POST', body: { data } })
+  },
+  async accountingPlacePurchaseOrder(id: string, expectedDeliveryDate?: string): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.purchase_orders.place', { method: 'POST', body: { data: { id, expectedDeliveryDate } } })
+  },
+  async accountingMarkPurchaseOrderInTransit(id: string): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.purchase_orders.mark_in_transit', { method: 'POST', body: { data: { id } } })
+  },
+  async accountingMarkPurchaseOrderDelivered(id: string): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.purchase_orders.mark_delivered', { method: 'POST', body: { data: { id } } })
   },
   async accountingCreateReceipt(data: { purchaseOrderId: string; postingDate?: string }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.receipts.create_from_purchase_order', { method: 'POST', body: { data } })

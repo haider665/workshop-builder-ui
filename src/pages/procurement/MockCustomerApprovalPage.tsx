@@ -20,11 +20,12 @@ import {
   Typography,
 } from '@mui/material'
 import { TaskAlt } from '@mui/icons-material'
-import { useState, useMemo } from 'react'
-import { useMockProcurementStore } from '../../store/mockProcurementStore'
+import { useEffect, useState, useMemo } from 'react'
+import { workshopApi } from '../../services/workshopApi'
+import { useCompanyStore } from '../../store/companyStore'
 import { colors, radii } from '../../theme/tokens'
 import { tableSectionSx, headerCellSx, bodyCellSx, tableHeaderSx, tableHeaderIconSx, tableHeaderTitleSx } from '../../theme/tableStyles'
-import type { CustomerApprovalStatus, MockCustomerApproval } from '../../types/procurementWorkflow'
+import type { CustomerApprovalStatus, LivePartRequest, MockCustomerApproval } from '../../types/procurementWorkflow'
 
 const STATUS_TABS: { label: string; value: CustomerApprovalStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -40,31 +41,108 @@ const statusChipSx: Record<CustomerApprovalStatus, { bgcolor: string; color: str
 }
 
 export function MockCustomerApprovalPage() {
-  const approvals = useMockProcurementStore((s) => s.customerApprovals)
-  const setStatus = useMockProcurementStore((s) => s.setCustomerApprovalStatus)
-  const procurementCases = useMockProcurementStore((s) => s.procurementCases)
-
+  const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
+  const [approvals, setApprovals] = useState<MockCustomerApproval[]>([])
   const [tab, setTab] = useState<CustomerApprovalStatus | 'all'>('all')
   const [snack, setSnack] = useState<string | null>(null)
+  const [snackError, setSnackError] = useState(false)
   const [rejectDialog, setRejectDialog] = useState<MockCustomerApproval | null>(null)
   const [rejectNote, setRejectNote] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    if (!selectedCompanyId) return
+    let cancelled = false
+    void workshopApi.listPartRequests({ page: 1, pageSize: 100 }).then(async (response) => {
+      if (cancelled) return
+      const rows = (response.data as LivePartRequest[]).filter(
+        (row) => row.triageCompleted && (row.disposition === 'local_vendor' || row.disposition === 'foreign_vendor'),
+      )
+      const appointmentIds = [...new Set(rows.map((row) => row.appointmentId))]
+      const contexts = new Map<string, { customerName: string; customerPhone: string; vehicleName: string }>()
+      await Promise.all(appointmentIds.map(async (appointmentId) => {
+        const appointment = await workshopApi.getAppointment(appointmentId).catch(() => null)
+        const [customer, vehicle] = appointment
+          ? await Promise.all([
+              appointment.customerId ? workshopApi.getCustomer(appointment.customerId).catch(() => null) : Promise.resolve(null),
+              appointment.vehicleId ? workshopApi.getVehicle(appointment.vehicleId).catch(() => null) : Promise.resolve(null),
+            ])
+          : [null, null]
+        contexts.set(appointmentId, {
+          customerName: customer?.fullName || 'Workshop customer',
+          customerPhone: customer?.phone || '',
+          vehicleName: vehicle ? [vehicle.registrationNo, vehicle.make, vehicle.model].filter(Boolean).join(' · ') : 'Appointment vehicle',
+        })
+      }))
+      const mapped: MockCustomerApproval[] = rows.map((row) => {
+        const context = contexts.get(row.appointmentId)
+        const status: CustomerApprovalStatus = row.customerApprovalStatus === 'approved'
+          ? 'approved'
+          : row.customerApprovalStatus === 'rejected'
+            ? 'rejected'
+            : 'pending'
+        return {
+          id: row.id,
+          partRequestId: row.id,
+          lineItemId: row.id,
+          partName: row.partName,
+          partNumber: row.partNumber,
+          quantity: row.quantity ?? 1,
+          customerName: context?.customerName || 'Workshop customer',
+          customerPhone: context?.customerPhone || '',
+          vehicleName: context?.vehicleName || 'Appointment vehicle',
+          disposition: row.disposition as 'local_vendor' | 'foreign_vendor',
+          estimatedPrice: row.localPrice,
+          estimatedDeliveryDays: row.localDeliveryDays,
+          vendorName: row.localVendorName,
+          foreignNote: row.foreignNote,
+          status,
+          approvedAt: status === 'approved' ? row.customerApprovalDecidedAt : undefined,
+          rejectedAt: status === 'rejected' ? row.customerApprovalDecidedAt : undefined,
+          rejectionNote: row.customerApprovalNote,
+          createdAt: row.createdAt,
+        }
+      })
+      if (!cancelled) setApprovals(mapped)
+    }).catch(() => {
+      if (!cancelled) setApprovals([])
+    })
+    return () => { cancelled = true }
+  }, [selectedCompanyId, refreshKey])
 
   const filtered = useMemo(
     () => (tab === 'all' ? approvals : approvals.filter((a) => a.status === tab)),
     [approvals, tab],
   )
 
-  const handleApprove = (approval: MockCustomerApproval) => {
-    setStatus(approval.id, 'approved')
-    setSnack(`Approved: ${approval.partName} — procurement case created`)
+  const handleApprove = async (approval: MockCustomerApproval) => {
+    try {
+      await workshopApi.setPartRequestCustomerApproval(approval.id, { status: 'Approved' })
+      setSnackError(false)
+      setSnack(`Approved: ${approval.partName}`)
+      setRefreshKey((key) => key + 1)
+    } catch (error) {
+      setSnackError(true)
+      setSnack(error instanceof Error ? error.message : 'Could not approve part request')
+    }
   }
 
-  const handleRejectConfirm = () => {
+  const handleRejectConfirm = async () => {
     if (!rejectDialog) return
-    setStatus(rejectDialog.id, 'rejected', rejectNote.trim() || undefined)
-    setSnack(`Rejected: ${rejectDialog.partName}`)
-    setRejectDialog(null)
-    setRejectNote('')
+    try {
+      await workshopApi.setPartRequestCustomerApproval(rejectDialog.id, {
+        status: 'Rejected',
+        note: rejectNote.trim() || undefined,
+      })
+      setSnackError(false)
+      setSnack(`Rejected: ${rejectDialog.partName}`)
+      setRefreshKey((key) => key + 1)
+      setRejectDialog(null)
+      setRejectNote('')
+    } catch (error) {
+      setSnackError(true)
+      setSnack(error instanceof Error ? error.message : 'Could not reject part request')
+    }
   }
 
   return (
@@ -93,7 +171,7 @@ export function MockCustomerApprovalPage() {
           autoHideDuration={3000}
           anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         >
-          <Alert onClose={() => setSnack(null)} severity="success" variant="filled" sx={{ width: '100%' }}>
+          <Alert onClose={() => setSnack(null)} severity={snackError ? 'error' : 'success'} variant="filled" sx={{ width: '100%' }}>
             {snack}
           </Alert>
         </Snackbar>
@@ -166,7 +244,6 @@ export function MockCustomerApprovalPage() {
                 </TableHead>
                 <TableBody>
                   {filtered.map((a) => {
-                    const hasCase = procurementCases.some((c) => c.customerApprovalIds?.includes(a.id))
                     return (
                       <TableRow key={a.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
                         <TableCell>
@@ -292,7 +369,7 @@ export function MockCustomerApprovalPage() {
                               <Button
                                 size="small"
                                 variant="contained"
-                                onClick={() => handleApprove(a)}
+                                onClick={() => { void handleApprove(a) }}
                                 sx={{
                                   bgcolor: '#059669',
                                   fontWeight: 700,
@@ -323,9 +400,9 @@ export function MockCustomerApprovalPage() {
                                 Reject
                               </Button>
                             </Stack>
-                          ) : a.status === 'approved' && hasCase ? (
+                          ) : a.status === 'approved' ? (
                             <Typography sx={{ fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}>
-                              ✓ Case created
+                              ✓ Customer approved
                             </Typography>
                           ) : (
                             <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>
@@ -363,7 +440,7 @@ export function MockCustomerApprovalPage() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setRejectDialog(null)}>Cancel</Button>
-            <Button variant="contained" color="error" onClick={handleRejectConfirm}>
+            <Button variant="contained" color="error" onClick={() => { void handleRejectConfirm() }}>
               Reject
             </Button>
           </DialogActions>

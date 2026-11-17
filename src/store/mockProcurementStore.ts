@@ -5,24 +5,15 @@
 import { create } from 'zustand'
 import type {
   MockPartRequest,
-  MockCustomerApproval,
   ProcurementCase,
-  PartDisposition,
-  CustomerApprovalStatus,
   StepRecord,
   Quotation,
   CSDecision,
   PurchaseOrder,
   GRN,
   POStatus,
-  CasePart,
 } from '../types/procurementWorkflow'
 import { NEXT_STEP, PREVIOUS_STEP } from '../types/procurementWorkflow'
-import {
-  MOCK_PART_REQUESTS,
-  MOCK_CUSTOMER_APPROVALS,
-  MOCK_PROCUREMENT_CASES,
-} from './mockProcurementData'
 
 function newId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
@@ -35,27 +26,7 @@ function nowIso() {
 
 type MockProcurementState = {
   partRequests: MockPartRequest[]
-  customerApprovals: MockCustomerApproval[]
   procurementCases: ProcurementCase[]
-
-  // ── Step 1: Triage actions ──
-  setLineItemDisposition: (
-    requestId: string,
-    lineItemId: string,
-    disposition: PartDisposition,
-    details?: {
-      localVendorName?: string
-      localPrice?: number
-      localQuantity?: number
-      localDeliveryDays?: number
-      foreignNote?: string
-    },
-  ) => void
-  markLineItemCompleted: (requestId: string, lineItemId: string) => void
-
-  // ── Customer Approval actions ──
-  spawnCustomerApprovals: (requestId: string) => void
-  setCustomerApprovalStatus: (approvalId: string, status: CustomerApprovalStatus, note?: string) => void
 
   // ── Procurement Pipeline actions ──
   advanceProcurementStep: (caseId: string, record: Omit<StepRecord, 'step'>) => void
@@ -75,189 +46,8 @@ type MockProcurementState = {
 }
 
 export const useMockProcurementStore = create<MockProcurementState>((set, get) => ({
-  partRequests: MOCK_PART_REQUESTS,
-  customerApprovals: MOCK_CUSTOMER_APPROVALS,
-  procurementCases: MOCK_PROCUREMENT_CASES,
-
-  // ── Step 1: Triage ──
-
-  setLineItemDisposition: (requestId, lineItemId, disposition, details) => {
-    set((state) => ({
-      partRequests: state.partRequests.map((req) =>
-        req.id !== requestId
-          ? req
-          : {
-              ...req,
-              lineItems: req.lineItems.map((li) =>
-                li.id !== lineItemId
-                  ? li
-                  : {
-                      ...li,
-                      disposition,
-                      pickedFromCounter: disposition === 'in_stock' ? false : undefined,
-                      localVendorName: disposition === 'local_vendor' ? (details?.localVendorName ?? '') : undefined,
-                      localPrice: disposition === 'local_vendor' ? (details?.localPrice ?? 0) : undefined,
-                      localQuantity: disposition === 'local_vendor' ? (details?.localQuantity ?? li.quantity) : undefined,
-                      localDeliveryDays: disposition === 'local_vendor' ? (details?.localDeliveryDays ?? 0) : undefined,
-                      foreignNote: disposition === 'foreign_vendor' ? (details?.foreignNote ?? '') : undefined,
-                      completed: false,
-                    },
-              ),
-            },
-      ),
-    }))
-  },
-
-  markLineItemCompleted: (requestId, lineItemId) => {
-    set((state) => ({
-      partRequests: state.partRequests.map((req) =>
-        req.id !== requestId
-          ? req
-          : {
-              ...req,
-              lineItems: req.lineItems.map((li) =>
-                li.id !== lineItemId
-                  ? li
-                  : { ...li, completed: true, pickedFromCounter: li.disposition === 'in_stock' ? true : li.pickedFromCounter },
-              ),
-            },
-      ),
-    }))
-  },
-
-  // ── Customer Approval ──
-
-  spawnCustomerApprovals: (requestId) => {
-    const state = get()
-    const req = state.partRequests.find((r) => r.id === requestId)
-    if (!req) return
-
-    const needApproval = req.lineItems.filter(
-      (li) => li.completed && (li.disposition === 'local_vendor' || li.disposition === 'foreign_vendor'),
-    )
-
-    const existingKeys = new Set(state.customerApprovals.map((a) => `${a.partRequestId}:${a.lineItemId}`))
-    const newApprovals: MockCustomerApproval[] = needApproval
-      .filter((li) => !existingKeys.has(`${requestId}:${li.id}`))
-      .map((li) => ({
-        id: newId(),
-        partRequestId: requestId,
-        lineItemId: li.id,
-        partName: li.partName,
-        partNumber: li.partNumber,
-        alternatePartNumbers: li.alternatePartNumbers,
-        brand: li.brand,
-        quantity: li.quantity,
-        customerName: req.customerName,
-        customerPhone: req.customerPhone,
-        vehicleName: req.vehicleName,
-        disposition: li.disposition as 'local_vendor' | 'foreign_vendor',
-        estimatedPrice: li.localPrice,
-        estimatedDeliveryDays: li.localDeliveryDays,
-        vendorName: li.localVendorName,
-        foreignNote: li.foreignNote,
-        status: 'pending' as const,
-        createdAt: nowIso(),
-      }))
-
-    if (newApprovals.length > 0) {
-      set((state) => ({
-        customerApprovals: [...state.customerApprovals, ...newApprovals],
-      }))
-    }
-  },
-
-  setCustomerApprovalStatus: (approvalId, status, note) => {
-    set((state) => {
-      const updatedApprovals = state.customerApprovals.map((a) =>
-        a.id !== approvalId
-          ? a
-          : {
-              ...a,
-              status,
-              approvedAt: status === 'approved' ? nowIso() : a.approvedAt,
-              rejectedAt: status === 'rejected' ? nowIso() : a.rejectedAt,
-              rejectionNote: status === 'rejected' ? note : a.rejectionNote,
-            },
-      )
-
-      let newCases = state.procurementCases
-      if (status === 'approved') {
-        const approval = updatedApprovals.find((a) => a.id === approvalId)
-        if (approval) {
-          // Group: find or create a case for this partRequest
-          const existingCase = state.procurementCases.find(
-            (c) => c.partRequestId === approval.partRequestId,
-          )
-          if (existingCase) {
-            // Add part to existing case if not already there
-            const alreadyHasPart = existingCase.parts.some((p) => p.lineItemId === approval.lineItemId)
-            if (!alreadyHasPart) {
-              const newPart: CasePart = {
-                id: newId(),
-                lineItemId: approval.lineItemId,
-                partName: approval.partName,
-                partNumber: approval.partNumber,
-                alternatePartNumbers: approval.alternatePartNumbers,
-                brand: approval.brand,
-                quantity: approval.quantity,
-                disposition: approval.disposition,
-              }
-              newCases = state.procurementCases.map((c) =>
-                c.id !== existingCase.id
-                  ? c
-                  : {
-                      ...c,
-                      parts: [...c.parts, newPart],
-                      customerApprovalIds: [...c.customerApprovalIds, approvalId],
-                      updatedAt: nowIso(),
-                    },
-              )
-            }
-          } else {
-            // Create new case with this part
-            const caseNum = `PC-${String(state.procurementCases.length + 1).padStart(3, '0')}`
-            const newCase: ProcurementCase = {
-              id: newId(),
-              caseNumber: caseNum,
-              partRequestId: approval.partRequestId,
-              customerApprovalIds: [approvalId],
-              parts: [{
-                id: newId(),
-                lineItemId: approval.lineItemId,
-                partName: approval.partName,
-                partNumber: approval.partNumber,
-                alternatePartNumbers: approval.alternatePartNumbers,
-                brand: approval.brand,
-                quantity: approval.quantity,
-                disposition: approval.disposition,
-              }],
-              vehicleName: approval.vehicleName,
-              customerName: approval.customerName,
-              vehicleInfo: {
-                registrationNo: extractRegNo(approval.vehicleName),
-                make: extractMake(approval.vehicleName),
-                model: extractModel(approval.vehicleName),
-                customerName: approval.customerName,
-                customerPhone: approval.customerPhone,
-              },
-              currentStep: 'store_review',
-              status: 'in_progress',
-              quotations: [],
-              purchaseOrders: [],
-              grns: [],
-              history: [],
-              createdAt: nowIso(),
-              updatedAt: nowIso(),
-            }
-            newCases = [...state.procurementCases, newCase]
-          }
-        }
-      }
-
-      return { customerApprovals: updatedApprovals, procurementCases: newCases }
-    })
-  },
+  partRequests: [],
+  procurementCases: [],
 
   // ── Procurement Pipeline ──
 
@@ -460,24 +250,3 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
     }))
   },
 }))
-
-// ── Helpers ──
-
-function extractRegNo(vehicleName: string): string {
-  const match = vehicleName.match(/\(([^)]+)\)/)
-  return match ? match[1] : 'N/A'
-}
-
-function extractMake(vehicleName: string): string {
-  return vehicleName.split(' ')[0] || 'Unknown'
-}
-
-function extractModel(vehicleName: string): string {
-  const parts = vehicleName.split(' ')
-  const modelParts: string[] = []
-  for (let i = 1; i < parts.length; i++) {
-    if (/^\d{4}$/.test(parts[i]) || parts[i].startsWith('(')) break
-    modelParts.push(parts[i])
-  }
-  return modelParts.join(' ') || 'Unknown'
-}

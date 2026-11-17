@@ -2,6 +2,37 @@
 // Phase A: Part Request Triage + Customer Approval
 // Phase B: Procurement Pipeline (Store Review → Quotations → CS → Audit → Approval → PO → GRN)
 
+import type { CWPartRequest } from './cw'
+
+// ── Live Phase A bridge ──
+
+export type LiveCustomerApprovalStatus = 'not_required' | 'pending' | 'approved' | 'rejected'
+
+/**
+ * Server-backed part request used by the Phase A screens. The public
+ * `CWPartRequest` contract stays unchanged; these additive fields are mapped
+ * from `workshop.api.mappers.part_request_to_dto`.
+ */
+export type LivePartRequest = CWPartRequest & {
+  companyId?: string
+  storeReviewStatus?: 'Pending' | 'Stock Available' | 'Local Shortage' | 'Foreign Required'
+  procurementType?: 'Local' | 'Foreign'
+  stockAvailable?: number
+  storeReviewNote?: string
+  triageCompleted?: boolean
+  disposition?: PartDisposition
+  pickedFromCounter?: boolean
+  localVendorName?: string
+  localPrice?: number
+  localQuantity?: number
+  localDeliveryDays?: number
+  foreignNote?: string
+  customerApprovalStatus?: LiveCustomerApprovalStatus
+  customerApprovalNote?: string
+  customerApprovalDecidedBy?: string
+  customerApprovalDecidedAt?: string
+}
+
 // ── Step 1: Part Request Triage ──
 
 export type PartDisposition = 'pending' | 'in_stock' | 'local_vendor' | 'foreign_vendor'
@@ -201,6 +232,8 @@ export type GRN = {
   receivedByName: string
   receivedAt: string
   notes?: string
+  status?: 'draft' | 'submitted'
+  docstatus?: number
 }
 
 // ── Vehicle Info ──
@@ -250,6 +283,8 @@ export type ProcurementCase = {
   updatedAt: string
   /** Original server stage, retained while the mock route is being migrated. */
   backendStage?: string
+  /** Approved compare sheet used to create the standard Purchase Order. */
+  compareSheetId?: string
 }
 
 // ── Step constants ──

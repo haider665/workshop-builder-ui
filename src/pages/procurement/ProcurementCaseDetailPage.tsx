@@ -33,20 +33,19 @@ import {
   History,
   Inventory,
   LocalShipping,
-  Receipt,
 } from '@mui/icons-material'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { workshopApi, type CWMasterDataRequest } from '../../services/workshopApi'
-import { mapBackendProcurementCase } from '../../services/procurementAdapter'
+import { mapBackendProcurementCase, mapBackendPurchaseOrder, mapBackendPurchaseReceipt } from '../../services/procurementAdapter'
 import { useCompanyStore } from '../../store/companyStore'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
-import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision, GRNLineItem } from '../../types/procurementWorkflow'
+import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision } from '../../types/procurementWorkflow'
 import { PROCUREMENT_STEPS, PROCUREMENT_STEP_LABELS } from '../../types/procurementWorkflow'
 
 async function hydrateBackendProcurementCase(data: Record<string, unknown>): Promise<ProcurementCase> {
@@ -100,6 +99,38 @@ async function hydrateBackendProcurementCase(data: Record<string, unknown>): Pro
       }
     } catch {
       // Older cases may not have a readable compare sheet; retain the case data.
+    }
+  }
+  const purchaseOrderId = String(data.purchaseOrderId || '')
+  const purchaseReceiptId = String(data.purchaseReceiptId || '')
+  const purchaseOrderIds = Array.isArray(data.purchaseOrderIds) && data.purchaseOrderIds.length
+    ? data.purchaseOrderIds.map(String)
+    : purchaseOrderId ? [purchaseOrderId] : []
+  const purchaseReceiptIds = Array.isArray(data.purchaseReceiptIds) && data.purchaseReceiptIds.length
+    ? data.purchaseReceiptIds.map(String)
+    : purchaseReceiptId ? [purchaseReceiptId] : []
+  if (purchaseOrderIds.length || purchaseReceiptIds.length) {
+    try {
+      const [orders, receipts] = await Promise.all([
+        Promise.all(purchaseOrderIds.map((id) => workshopApi.accountingGet('purchase_orders', id).catch(() => null))),
+        Promise.all(purchaseReceiptIds.map((id) => workshopApi.accountingGet('receipts', id).catch(() => null))),
+      ])
+      const orderRows = orders.filter((row): row is Record<string, unknown> => Boolean(row))
+      const receiptRows = receipts.filter((row): row is Record<string, unknown> => Boolean(row))
+      const receiptOrderId = (receipt: Record<string, unknown>) => {
+        const items = Array.isArray(receipt.items) ? receipt.items as Array<Record<string, unknown>> : []
+        return String(items[0]?.purchaseOrderId || receipt.purchaseOrderId || '')
+      }
+      mapped.purchaseOrders = orderRows.map((order) => {
+        const receipt = receiptRows.find((row) => receiptOrderId(row) === String(order.id)) || null
+        return mapBackendPurchaseOrder(order, String(data.procurementType || ''), receipt)
+      })
+      mapped.grns = receiptRows.map((receipt) => {
+        const order = mapped.purchaseOrders.find((candidate) => candidate.id === receiptOrderId(receipt))
+        return mapBackendPurchaseReceipt(receipt, order)
+      })
+    } catch {
+      // Keep the case usable if linked commercial documents are unavailable.
     }
   }
   return mapped
@@ -759,16 +790,25 @@ function CSMatrix({ pc, selections, referenceSelections, existingSelections, onS
 
 /* ═══ PO Panel ═══ */
 
-function POPanel({ pc, userName, navigate }: { pc: ProcurementCase; userName: string; navigate: (path: string) => void }) {
-  const generatePOs = useMockProcurementStore((s) => s.generatePurchaseOrders)
-  const placeOrder = useMockProcurementStore((s) => s.placeOrder)
-  const updateStatus = useMockProcurementStore((s) => s.updateOrderStatus)
-  const advanceStep = useMockProcurementStore((s) => s.advanceProcurementStep)
-  const [expectedDates, setExpectedDates] = useState<Record<string, string>>({})
+function POPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
   const [snack, setSnack] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [etas, setEtas] = useState<Record<string, string>>({})
 
-  const allPlaced = pc.purchaseOrders.length > 0 && pc.purchaseOrders.every((po) => po.status !== 'draft')
-  const allDelivered = pc.purchaseOrders.length > 0 && pc.purchaseOrders.every((po) => po.status === 'delivered')
+  const run = async (action: () => Promise<unknown>, success: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await action()
+      await onChanged()
+      setSnack(success)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to update the purchase order')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const statusColors: Record<string, { bgcolor: string; color: string }> = {
     draft: { bgcolor: colors.slate[100], color: colors.slate[600] },
@@ -776,18 +816,28 @@ function POPanel({ pc, userName, navigate }: { pc: ProcurementCase; userName: st
     in_transit: { bgcolor: '#fef3c7', color: '#92400e' },
     delivered: { bgcolor: '#d1fae5', color: '#047857' },
   }
+  const allPlaced = pc.purchaseOrders.length > 0 && pc.purchaseOrders.every((po) => po.status !== 'draft')
+  const allDelivered = pc.purchaseOrders.length > 0 && pc.purchaseOrders.every((po) => po.status === 'delivered')
 
   return (
     <Stack spacing={2}>
       <Snackbar open={Boolean(snack)} onClose={() => setSnack(null)} autoHideDuration={3000} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <Alert onClose={() => setSnack(null)} severity="success" variant="filled">{snack}</Alert>
       </Snackbar>
+      {error ? <Alert severity="error" sx={{ borderRadius: radii.sm }}>{error}</Alert> : null}
 
       {pc.purchaseOrders.length === 0 ? (
         <Stack spacing={2}>
-          <Alert severity="info" sx={{ borderRadius: radii.sm }}>Generate Purchase Orders from the CS decision. One PO per vendor.</Alert>
-          <Button variant="contained" onClick={() => { generatePOs(pc.id); setSnack('Purchase Orders generated') }}
-            sx={{ alignSelf: 'flex-start', bgcolor: '#2563eb', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#1d4ed8' } }}>
+          <Alert severity="info" sx={{ borderRadius: radii.sm }}>
+            Generate the standard Purchase Orders from the approved comparative statement. One PO is created per selected vendor.
+          </Alert>
+          {!pc.compareSheetId ? <Alert severity="warning" sx={{ borderRadius: radii.sm }}>This case has no approved compare sheet linked yet.</Alert> : null}
+          <Button
+            variant="contained"
+            disabled={busy || !pc.compareSheetId}
+            onClick={() => void run(() => workshopApi.accountingCreatePurchaseOrder({ compareSheetId: pc.compareSheetId! }), 'Purchase Orders generated')}
+            sx={{ alignSelf: 'flex-start', bgcolor: '#2563eb', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#1d4ed8' } }}
+          >
             Generate Purchase Orders
           </Button>
         </Stack>
@@ -806,8 +856,8 @@ function POPanel({ pc, userName, navigate }: { pc: ProcurementCase; userName: st
 
               <Table size="small">
                 <TableBody>
-                  {po.lineItems.map((li) => (
-                    <TableRow key={li.casePartId}>
+                  {po.lineItems.map((li, index) => (
+                    <TableRow key={`${li.casePartId}-${index}`}>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{li.partName}</TableCell>
                       <TableCell>৳{li.unitPrice.toLocaleString()} × {li.quantity}</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>৳{li.totalPrice.toLocaleString()}</TableCell>
@@ -820,74 +870,97 @@ function POPanel({ pc, userName, navigate }: { pc: ProcurementCase; userName: st
                 </TableBody>
               </Table>
 
-              {po.status === 'draft' && (
-                <Stack direction="row" spacing={1.5} sx={{ mt: 2, alignItems: 'center' }}>
-                  <TextField size="small" type="date" label="Expected Delivery" value={expectedDates[po.id] || ''} onChange={(e) => setExpectedDates((p) => ({ ...p, [po.id]: e.target.value }))} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 180 }} />
-                  <Button variant="contained" size="small" startIcon={<LocalShipping />} onClick={() => { placeOrder(pc.id, po.id, userName, expectedDates[po.id]); setSnack(`${po.poNumber} placed`) }}
-                    sx={{ bgcolor: '#2563eb', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#1d4ed8' } }}>
+              {po.status === 'draft' ? (
+                <Stack direction="row" spacing={1.5} sx={{ mt: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <TextField
+                    size="small"
+                    type="date"
+                    label="Expected Delivery (ETA)"
+                    value={etas[po.id] || ''}
+                    onChange={(event) => setEtas((previous) => ({ ...previous, [po.id]: event.target.value }))}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                    sx={{ width: 200 }}
+                  />
+                  <Button
+                    variant="contained"
+                    disabled={busy}
+                    startIcon={<LocalShipping />}
+                    onClick={() => void run(() => workshopApi.accountingPlacePurchaseOrder(po.id, etas[po.id] || undefined), `${po.poNumber} placed`)}
+                    sx={{ bgcolor: '#2563eb', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#1d4ed8' } }}
+                  >
                     Place Order
                   </Button>
                 </Stack>
-              )}
+              ) : null}
 
-              {(po.status === 'placed' || po.status === 'in_transit') && (
+              {po.status !== 'draft' ? (
                 <Stack spacing={1} sx={{ mt: 2 }}>
                   {po.placedByName ? <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>Placed by {po.placedByName} · {po.placedAt ? new Date(po.placedAt).toLocaleString() : ''}</Typography> : null}
-                  {po.expectedDeliveryDate ? <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>Expected: {po.expectedDeliveryDate}</Typography> : null}
-                  {/* Delivery tracker */}
-                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-                    {['placed', 'in_transit', 'delivered'].map((s, i, arr) => {
-                      const idx = arr.indexOf(po.status)
-                      const done = i <= idx
+                  {po.expectedDeliveryDate ? <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500] }}>ETA: {po.expectedDeliveryDate}</Typography> : null}
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                    {(['placed', 'in_transit', 'delivered'] as const).map((step, index, steps) => {
+                      const done = index <= steps.indexOf(po.status as 'placed' | 'in_transit' | 'delivered')
                       return (
-                        <Stack key={s} direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                        <Stack key={step} direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                           <Box sx={{ width: 24, height: 24, borderRadius: '50%', bgcolor: done ? '#059669' : colors.slate[200], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {done ? <CheckCircle sx={{ fontSize: '0.9rem', color: '#fff' }} /> : <Typography sx={{ fontSize: '0.6rem', color: colors.slate[500] }}>{i + 1}</Typography>}
+                            {done ? <CheckCircle sx={{ fontSize: '0.9rem', color: '#fff' }} /> : <Typography sx={{ fontSize: '0.6rem', color: colors.slate[500] }}>{index + 1}</Typography>}
                           </Box>
                           <Typography sx={{ fontSize: '0.68rem', fontWeight: done ? 700 : 400, color: done ? '#047857' : colors.slate[400] }}>
-                            {s === 'placed' ? 'Placed' : s === 'in_transit' ? 'In Transit' : 'Delivered'}
+                            {step === 'placed' ? 'Placed' : step === 'in_transit' ? 'In Transit' : 'Delivered'}
                           </Typography>
-                          {i < arr.length - 1 ? <Box sx={{ width: 20, height: 2, bgcolor: done ? '#059669' : colors.slate[200] }} /> : null}
+                          {index < steps.length - 1 ? <Box sx={{ width: 20, height: 2, bgcolor: done ? '#059669' : colors.slate[200] }} /> : null}
                         </Stack>
                       )
                     })}
                   </Stack>
-                  <Stack direction="row" spacing={1}>
-                    {po.status === 'placed' && (
-                      <Button size="small" variant="outlined" onClick={() => { updateStatus(pc.id, po.id, 'in_transit'); setSnack(`${po.poNumber} → In Transit`) }} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>
-                        Mark In Transit
-                      </Button>
-                    )}
-                    {po.status === 'in_transit' && (
-                      <Button size="small" variant="contained" onClick={() => { updateStatus(pc.id, po.id, 'delivered'); setSnack(`${po.poNumber} → Delivered`) }}
-                        sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>
-                        Mark Delivered
-                      </Button>
-                    )}
-                  </Stack>
+                  {po.status === 'placed' ? (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={busy}
+                      onClick={() => void run(() => workshopApi.accountingMarkPurchaseOrderInTransit(po.id), `${po.poNumber} → In Transit`)}
+                      sx={{ alignSelf: 'flex-start', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}
+                    >
+                      Mark In Transit
+                    </Button>
+                  ) : null}
+                  {po.status === 'in_transit' ? (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={busy}
+                      onClick={() => void run(() => workshopApi.accountingMarkPurchaseOrderDelivered(po.id), `${po.poNumber} → Delivered`)}
+                      sx={{ alignSelf: 'flex-start', bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}
+                    >
+                      Mark Delivered
+                    </Button>
+                  ) : null}
+                  {po.status === 'delivered' ? (
+                    <Box sx={{ p: 1, borderRadius: radii.sm, bgcolor: '#f0fdf4' }}>
+                      <Typography sx={{ fontSize: '0.78rem', color: '#047857', fontWeight: 600 }}>
+                        Delivered {po.deliveredAt ? new Date(po.deliveredAt).toLocaleString() : ''}
+                      </Typography>
+                    </Box>
+                  ) : null}
                 </Stack>
-              )}
-
-              {po.status === 'delivered' && (
-                <Box sx={{ mt: 1.5, p: 1, borderRadius: radii.sm, bgcolor: '#f0fdf4' }}>
-                  <Typography sx={{ fontSize: '0.78rem', color: '#047857', fontWeight: 600 }}>✓ Delivered {po.deliveredAt ? new Date(po.deliveredAt).toLocaleString() : ''}</Typography>
-                </Box>
-              )}
+              ) : null}
             </Box>
           ))}
 
-          {allPlaced && !allDelivered && (
-            <Alert severity="info" sx={{ borderRadius: radii.sm }}>Waiting for all orders to be delivered before GRN can be recorded.</Alert>
-          )}
-          {allDelivered && (
-            <Button variant="contained" size="large" onClick={() => {
-              advanceStep(pc.id, { action: 'approve', actionByName: userName, actionDate: new Date().toISOString(), note: `All ${pc.purchaseOrders.length} POs delivered` })
-              navigate('/mock-procurement/pipeline')
-            }}
-              sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>
-              All Delivered — Proceed to GRN →
+          {allPlaced && !allDelivered ? (
+            <Alert severity="info" sx={{ borderRadius: radii.sm }}>Waiting for all orders to be delivered before goods receipt can be recorded.</Alert>
+          ) : null}
+          {allDelivered ? (
+            <Button
+              variant="contained"
+              size="large"
+              disabled={busy}
+              onClick={() => void run(() => workshopApi.procurementCaseAction(pc.id, 'supplier_confirm', 'All purchase orders delivered.'), 'All orders delivered — proceed to GRN')}
+              sx={{ alignSelf: 'flex-start', bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}
+            >
+              All Delivered — Proceed to GRN
             </Button>
-          )}
+          ) : null}
         </Stack>
       )}
     </Stack>
@@ -896,166 +969,106 @@ function POPanel({ pc, userName, navigate }: { pc: ProcurementCase; userName: st
 
 /* ═══ GRN Panel ═══ */
 
-function GRNPanel({ pc, userName, navigate }: { pc: ProcurementCase; userName: string; navigate: (path: string) => void }) {
-  const recordGRN = useMockProcurementStore((s) => s.recordGRN)
-  const advanceStep = useMockProcurementStore((s) => s.advanceProcurementStep)
+function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
   const [snack, setSnack] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  // Build GRN forms per delivered PO
-  const deliveredPOs = pc.purchaseOrders.filter((po) => po.status === 'delivered')
-  const existingGRNPoIds = new Set(pc.grns.map((g) => g.poId))
-  const pendingPOs = deliveredPOs.filter((po) => !existingGRNPoIds.has(po.id))
-
-  const [activePoId, setActivePoId] = useState(pendingPOs[0]?.id ?? '')
-  const activePO = pc.purchaseOrders.find((po) => po.id === activePoId)
-  const [grnLines, setGrnLines] = useState<GRNLineItem[]>(
-    activePO?.lineItems.map((li) => ({ casePartId: li.casePartId, partName: li.partName, orderedQty: li.quantity, receivedQty: li.quantity, condition: 'good' as const })) ?? [],
-  )
-  const [grnNote, setGrnNote] = useState('')
-  const [invoiceFiles, setInvoiceFiles] = useState<{ name: string; url: string }[]>([])
-
-  const allGRNsRecorded = deliveredPOs.length > 0 && pendingPOs.length === 0
-
-  const handleRecordGRN = () => {
-    if (!activePO) return
-    recordGRN(pc.id, {
-      poId: activePO.id,
-      poNumber: activePO.poNumber,
-      vendorName: activePO.vendorName,
-      lineItems: grnLines,
-      invoiceAttachmentUrls: invoiceFiles.map((f) => f.url),
-      invoiceAttachmentNames: invoiceFiles.map((f) => f.name),
-      receivedByName: userName,
-      receivedAt: nowIso(),
-      notes: grnNote.trim() || undefined,
-    })
-    setGrnNote('')
-    setInvoiceFiles([])
-
-    // Check if this was the last pending PO
-    const remainingAfter = pendingPOs.filter((po) => po.id !== activePO.id)
-    if (remainingAfter.length === 0) {
-      // All GRNs recorded — complete the step
-      advanceStep(pc.id, { action: 'approve', actionByName: userName, actionDate: new Date().toISOString(), note: `All GRNs recorded` })
-      navigate('/mock-procurement/pipeline')
-    } else {
-      // Move to next pending PO
-      setSnack(`GRN recorded for ${activePO.poNumber}`)
-      const nextPo = remainingAfter[0]
-      setActivePoId(nextPo.id)
-      const nextPoData = pc.purchaseOrders.find((po) => po.id === nextPo.id)
-      setGrnLines(nextPoData?.lineItems.map((li) => ({ casePartId: li.casePartId, partName: li.partName, orderedQty: li.quantity, receivedQty: li.quantity, condition: 'good' as const })) ?? [])
+  const run = async (action: () => Promise<unknown>, success: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await action()
+      await onChanged()
+      setSnack(success)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to update the goods receipt')
+    } finally {
+      setBusy(false)
     }
   }
 
-  const handleCompleteGRN = () => {
-    advanceStep(pc.id, { action: 'approve', actionByName: userName, actionDate: new Date().toISOString(), note: `All ${pc.grns.length + (allGRNsRecorded ? 0 : 1)} GRNs recorded` })
-    navigate('/mock-procurement/pipeline')
-  }
+  const grnByPoId = new Map(pc.grns.map((grn) => [grn.poId, grn]))
 
   return (
     <Stack spacing={2}>
       <Snackbar open={Boolean(snack)} onClose={() => setSnack(null)} autoHideDuration={3000} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <Alert onClose={() => setSnack(null)} severity="success" variant="filled">{snack}</Alert>
       </Snackbar>
+      {error ? <Alert severity="error" sx={{ borderRadius: radii.sm }}>{error}</Alert> : null}
 
-      {/* Existing GRNs */}
-      {pc.grns.length > 0 && (
-        <SectionCard title={`Recorded GRNs (${pc.grns.length})`} icon={<Receipt />}>
-          <Stack spacing={1.5} sx={{ p: 2 }}>
-            {pc.grns.map((grn) => (
-              <Box key={grn.id} sx={{ p: 2, borderRadius: radii.sm, border: '1px solid #bbf7d0', bgcolor: '#f0fdf4' }}>
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
-                  <CheckCircle sx={{ color: '#059669', fontSize: '1rem' }} />
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#047857' }}>{grn.grnNumber} — {grn.vendorName}</Typography>
-                  <Typography sx={{ fontSize: '0.72rem', color: colors.slate[500] }}>by {grn.receivedByName} · {new Date(grn.receivedAt).toLocaleString()}</Typography>
-                </Stack>
-                {grn.lineItems.map((li) => (
-                  <Typography key={li.casePartId} sx={{ fontSize: '0.78rem', color: colors.slate[700], pl: 3 }}>
-                    {li.partName}: received {li.receivedQty}/{li.orderedQty} — {li.condition}
-                  </Typography>
-                ))}
-                {grn.invoiceAttachmentNames.length > 0 ? (
-                  <Stack direction="row" spacing={1} sx={{ pl: 3, mt: 0.5 }}>
-                    <AttachFile sx={{ fontSize: '0.8rem', color: colors.slate[400] }} />
-                    {grn.invoiceAttachmentNames.map((name, i) => (
-                      <Typography key={i} component="a" href={grn.invoiceAttachmentUrls[i]} target="_blank" sx={{ fontSize: '0.72rem', color: '#2563eb', textDecoration: 'underline' }}>{name}</Typography>
+      {!pc.purchaseOrders.length ? <Alert severity="warning" sx={{ borderRadius: radii.sm }}>A submitted Purchase Order is required before goods can be received.</Alert> : null}
+
+      {pc.purchaseOrders.map((po) => {
+        const grn = grnByPoId.get(po.id)
+        return (
+          <Box key={po.id} sx={{ p: 2.5, borderRadius: radii.md, border: `1px solid ${grn?.status === 'submitted' ? '#bbf7d0' : colors.border.default}`, bgcolor: grn?.status === 'submitted' ? '#f0fdf4' : colors.bg.card }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Typography sx={{ fontWeight: 800, fontSize: '0.95rem' }}>{grn?.grnNumber || po.poNumber}</Typography>
+                <Chip size="small" label={po.vendorName} sx={{ fontWeight: 600, fontSize: '0.7rem' }} />
+              </Stack>
+              <Chip
+                size="small"
+                label={grn ? (grn.status || 'draft').toUpperCase() : po.status === 'delivered' ? 'READY TO RECEIVE' : 'AWAITING DELIVERY'}
+                sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: grn?.status === 'submitted' ? '#d1fae5' : colors.slate[100], color: grn?.status === 'submitted' ? '#047857' : colors.slate[600] }}
+              />
+            </Stack>
+
+            {grn ? (
+              <>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Part</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Ordered</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Received</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {grn.lineItems.map((li, index) => (
+                      <TableRow key={`${li.casePartId}-${index}`}>
+                        <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{li.partName}</TableCell>
+                        <TableCell>{li.orderedQty}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>{li.receivedQty}</TableCell>
+                      </TableRow>
                     ))}
-                  </Stack>
-                ) : null}
-              </Box>
-            ))}
-          </Stack>
-        </SectionCard>
-      )}
-
-      {/* Pending GRN form */}
-      {pendingPOs.length > 0 && activePO ? (
-        <Box sx={{ p: 2.5, borderRadius: radii.md, border: `1px solid ${colors.border.default}`, bgcolor: colors.bg.card }}>
-          <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', mb: 2 }}>Record GRN for {activePO.poNumber} — {activePO.vendorName}</Typography>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Part</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Ordered</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', width: 80 }}>Received</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', width: 130 }}>Condition</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {grnLines.map((li, idx) => (
-                <TableRow key={li.casePartId}>
-                  <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{li.partName}</TableCell>
-                  <TableCell>{li.orderedQty}</TableCell>
-                  <TableCell>
-                    <TextField size="small" type="number" value={li.receivedQty} onChange={(e) => setGrnLines((p) => p.map((l, i) => i === idx ? { ...l, receivedQty: Number(e.target.value) } : l))} sx={{ width: 70 }} />
-                  </TableCell>
-                  <TableCell>
-                    <TextField select size="small" value={li.condition} onChange={(e) => setGrnLines((p) => p.map((l, i) => i === idx ? { ...l, condition: e.target.value as GRNLineItem['condition'] } : l))} sx={{ width: 120 }}>
-                      <MenuItem value="good">Good</MenuItem>
-                      <MenuItem value="damaged">Damaged</MenuItem>
-                      <MenuItem value="partial">Partial</MenuItem>
-                    </TextField>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <Stack spacing={1.5} sx={{ mt: 2 }}>
-            <TextField size="small" label="Note (optional)" value={grnNote} onChange={(e) => setGrnNote(e.target.value)} multiline minRows={2} fullWidth />
-            <Box>
-              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: colors.slate[600], mb: 0.5 }}>Invoice Attachment</Typography>
-              <Button component="label" variant="outlined" size="small" startIcon={<AttachFile />} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>
-                Upload Invoice
-                <input type="file" multiple hidden onChange={(e) => { const nf = Array.from(e.target.files ?? []).map((f) => ({ name: f.name, url: URL.createObjectURL(f) })); setInvoiceFiles((p) => [...p, ...nf]); e.target.value = '' }} />
+                  </TableBody>
+                </Table>
+                <Typography sx={{ mt: 1.5, fontSize: '0.75rem', color: colors.slate[500] }}>
+                  Recorded by {grn.receivedByName} · {new Date(grn.receivedAt).toLocaleString()}
+                </Typography>
+                {grn.status === 'draft' ? (
+                  <Button
+                    variant="contained"
+                    disabled={busy}
+                    onClick={() => void run(() => workshopApi.accountingSubmit('receipts', grn.id), 'GRN submitted')}
+                    sx={{ mt: 2, bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}
+                  >
+                    Submit GRN
+                  </Button>
+                ) : (
+                  <Alert severity="success" sx={{ mt: 2, borderRadius: radii.sm }}>Goods received against {po.poNumber}.</Alert>
+                )}
+              </>
+            ) : po.status === 'delivered' ? (
+              <Button
+                variant="contained"
+                disabled={busy}
+                onClick={() => void run(() => workshopApi.accountingCreateReceipt({ purchaseOrderId: po.id }), 'Draft GRN created')}
+                sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}
+              >
+                Create GRN
               </Button>
-              {invoiceFiles.map((f, i) => (
-                <Stack key={i} direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center' }}>
-                  <AttachFile sx={{ fontSize: '0.8rem', color: colors.slate[400] }} />
-                  <Typography sx={{ fontSize: '0.78rem', flex: 1 }}>{f.name}</Typography>
-                  <IconButton size="small" onClick={() => setInvoiceFiles((p) => p.filter((_, j) => j !== i))}><Delete sx={{ fontSize: '0.85rem', color: '#ef4444' }} /></IconButton>
-                </Stack>
-              ))}
-            </Box>
-            <Button variant="contained" onClick={handleRecordGRN}
-              sx={{ alignSelf: 'flex-start', bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>
-              Record GRN
-            </Button>
-          </Stack>
-        </Box>
-      ) : null}
-
-      {allGRNsRecorded && (
-        <Button variant="contained" size="large" onClick={handleCompleteGRN}
-          sx={{ bgcolor: colors.slate[900], fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: colors.slate[800] } }}>
-          Complete — All Goods Received ✓
-        </Button>
-      )}
+            ) : (
+              <Alert severity="info" sx={{ borderRadius: radii.sm }}>Mark {po.poNumber} delivered before recording goods receipt.</Alert>
+            )}
+          </Box>
+        )
+      })}
     </Stack>
   )
 }
-
-function nowIso() { return new Date().toISOString() }
 
 /* ═══ History ═══ */
 
@@ -1101,6 +1114,10 @@ export function ProcurementCaseDetailPage() {
   const [masterDataRequests, setMasterDataRequests] = useState<CWMasterDataRequest[]>([])
   const [backendError, setBackendError] = useState<string | null>(null)
   const [approvalQuotationId, setApprovalQuotationId] = useState('')
+  const refreshBackendCase = async () => {
+    if (!backendPc) return
+    setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
+  }
   useEffect(() => {
     if (!caseId || !selectedCompanyId) return
     let cancelled = false
@@ -1490,10 +1507,10 @@ export function ProcurementCaseDetailPage() {
             )}
 
             {/* PO */}
-            {pc.currentStep === 'po' && <POPanel pc={pc} userName={userName} navigate={navigate} />}
+            {pc.currentStep === 'po' && <POPanel pc={pc} onChanged={refreshBackendCase} />}
 
             {/* GRN */}
-            {pc.currentStep === 'grn' && <GRNPanel pc={pc} userName={userName} navigate={navigate} />}
+            {pc.currentStep === 'grn' && <GRNPanel pc={pc} onChanged={refreshBackendCase} />}
           </Box>
         ) : (
           <Alert severity={pc.status === 'approved' ? 'success' : 'error'} sx={{ borderRadius: radii.md, fontWeight: 700 }}>

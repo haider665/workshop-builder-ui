@@ -14,7 +14,6 @@ import {
 import { ShoppingCart } from '@mui/icons-material'
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { workshopApi } from '../../services/workshopApi'
 import { mapBackendProcurementCase } from '../../services/procurementAdapter'
 import { useCompanyStore } from '../../store/companyStore'
@@ -55,8 +54,9 @@ const statusBadge: Record<string, { bgcolor: string; color: string }> = {
   rejected: { bgcolor: '#fee2e2', color: '#b91c1c' },
 }
 
+const EMPTY_CASES: ProcurementCase[] = []
+
 export function ProcurementPipelinePage() {
-  const mockCases = useMockProcurementStore((s) => s.procurementCases)
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
   const [liveCases, setLiveCases] = useState<ProcurementCase[] | null>(null)
   const [masterDataRequests, setMasterDataRequests] = useState<CWMasterDataRequest[]>([])
@@ -86,7 +86,7 @@ export function ProcurementPipelinePage() {
 
   // Keep the demo data visible when the backend has no cases yet; once a real
   // case exists for the selected company, this exact mock layout shows it.
-  const cases = liveCases && liveCases.length ? liveCases : mockCases
+  const cases = liveCases ?? EMPTY_CASES
 
   const filtered = useMemo(() => {
     if (tab === 'all') return cases.filter((c) => c.status === 'in_progress')

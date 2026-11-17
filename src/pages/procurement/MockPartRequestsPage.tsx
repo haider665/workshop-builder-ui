@@ -27,7 +27,7 @@ import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { workshopApi } from '../../services/workshopApi'
 import { useCompanyStore } from '../../store/companyStore'
 import { colors, radii, shadows } from '../../theme/tokens'
-import type { PartDisposition, PartLineItem } from '../../types/procurementWorkflow'
+import type { LivePartRequest, PartDisposition, PartLineItem } from '../../types/procurementWorkflow'
 
 const DISPOSITION_OPTIONS: { value: PartDisposition; label: string }[] = [
   { value: 'pending', label: 'Pending' },
@@ -43,23 +43,57 @@ const dispositionColor: Record<PartDisposition, string> = {
   foreign_vendor: '#d97706',
 }
 
+function lineItemFromServer(row: LivePartRequest): PartLineItem {
+  return {
+    id: row.id,
+    partName: row.partName,
+    partNumber: row.partNumber,
+    quantity: row.quantity ?? 1,
+    disposition: row.disposition ?? 'pending',
+    pickedFromCounter: row.pickedFromCounter,
+    localVendorName: row.localVendorName,
+    localPrice: row.localPrice,
+    localQuantity: row.localQuantity,
+    localDeliveryDays: row.localDeliveryDays,
+    foreignNote: row.foreignNote,
+    completed: Boolean(row.triageCompleted) || row.status === 'Fulfilled' || row.status === 'Rejected',
+  }
+}
+
+type TriageSave = {
+  disposition: PartDisposition
+  localVendorName?: string
+  localPrice?: number
+  localQuantity?: number
+  localDeliveryDays?: number
+  foreignNote?: string
+}
+
 function LineItemRow({
   item,
-  requestId,
-  onFulfill,
+  onSave,
 }: {
   item: PartLineItem
-  requestId: string
-  onFulfill?: () => Promise<void>
+  onSave?: (details: TriageSave) => Promise<void>
 }) {
-  const setDisposition = useMockProcurementStore((s) => s.setLineItemDisposition)
-  const markCompleted = useMockProcurementStore((s) => s.markLineItemCompleted)
+  const [selectedDisposition, setSelectedDisposition] = useState<PartDisposition>(item.disposition)
+  const [saving, setSaving] = useState(false)
 
   const [localVendorName, setLocalVendorName] = useState(item.localVendorName ?? '')
   const [localPrice, setLocalPrice] = useState(item.localPrice ?? 0)
   const [localQty, setLocalQty] = useState(item.localQuantity ?? item.quantity)
   const [localDays, setLocalDays] = useState(item.localDeliveryDays ?? 0)
   const [foreignNote, setForeignNote] = useState(item.foreignNote ?? '')
+
+  const save = async (details: TriageSave) => {
+    if (!onSave) return
+    setSaving(true)
+    try {
+      await onSave(details)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (item.completed) {
     return (
@@ -207,10 +241,8 @@ function LineItemRow({
             <TextField
               select
               size="small"
-              value={item.disposition}
-              onChange={(e) =>
-                setDisposition(requestId, item.id, e.target.value as PartDisposition)
-              }
+              value={selectedDisposition}
+              onChange={(e) => setSelectedDisposition(e.target.value as PartDisposition)}
               sx={{ minWidth: 160, '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }}
             >
               {DISPOSITION_OPTIONS.map((opt) => (
@@ -222,12 +254,13 @@ function LineItemRow({
           </Stack>
         </Stack>
 
-        {item.disposition === 'in_stock' && (
+        {selectedDisposition === 'in_stock' && (
           <Button
             variant="contained"
             size="small"
             startIcon={<Inventory />}
-            onClick={() => { markCompleted(requestId, item.id); void onFulfill?.() }}
+            disabled={saving}
+            onClick={() => void save({ disposition: 'in_stock' })}
             sx={{
               alignSelf: 'flex-start',
               bgcolor: '#059669',
@@ -241,7 +274,7 @@ function LineItemRow({
           </Button>
         )}
 
-        {item.disposition === 'local_vendor' && (
+        {selectedDisposition === 'local_vendor' && (
           <Stack spacing={1.5}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <TextField
@@ -280,16 +313,15 @@ function LineItemRow({
               variant="contained"
               size="small"
               startIcon={<LocalShipping />}
-              disabled={!localVendorName.trim() || !localPrice}
+              disabled={saving || !localVendorName.trim() || !localPrice}
               onClick={() => {
-                setDisposition(requestId, item.id, 'local_vendor', {
+                void save({
+                  disposition: 'local_vendor',
                   localVendorName: localVendorName.trim(),
                   localPrice,
                   localQuantity: localQty,
                   localDeliveryDays: localDays,
                 })
-                markCompleted(requestId, item.id)
-                void onFulfill?.()
               }}
               sx={{
                 alignSelf: 'flex-start',
@@ -305,7 +337,7 @@ function LineItemRow({
           </Stack>
         )}
 
-        {item.disposition === 'foreign_vendor' && (
+        {selectedDisposition === 'foreign_vendor' && (
           <Stack spacing={1.5}>
             <TextField
               size="small"
@@ -320,13 +352,12 @@ function LineItemRow({
               variant="contained"
               size="small"
               startIcon={<Public />}
-              disabled={!foreignNote.trim()}
+              disabled={saving || !foreignNote.trim()}
               onClick={() => {
-                setDisposition(requestId, item.id, 'foreign_vendor', {
+                void save({
+                  disposition: 'foreign_vendor',
                   foreignNote: foreignNote.trim(),
                 })
-                markCompleted(requestId, item.id)
-                void onFulfill?.()
               }}
               sx={{
                 alignSelf: 'flex-start',
@@ -349,11 +380,33 @@ function LineItemRow({
 export function MockPartRequestsPage() {
   const navigate = useNavigate()
   const partRequests = useMockProcurementStore((s) => s.partRequests)
-  const spawnApprovals = useMockProcurementStore((s) => s.spawnCustomerApprovals)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [snack, setSnack] = useState<string | null>(null)
+  const [snackError, setSnackError] = useState(false)
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
-  const [liveRequestIds, setLiveRequestIds] = useState<Record<string, string>>({})
+
+  const handleSave = async (requestId: string, partRequestId: string, details: TriageSave) => {
+    try {
+      const updated = await workshopApi.savePartRequestTriage(partRequestId, details)
+      useMockProcurementStore.setState((state) => ({
+        partRequests: state.partRequests.map((request) =>
+          request.id !== requestId
+            ? request
+            : {
+                ...request,
+                lineItems: request.lineItems.map((line) =>
+                  line.id !== partRequestId ? line : lineItemFromServer(updated),
+                ),
+              },
+        ),
+      }))
+      setSnackError(false)
+      setSnack(details.disposition === 'in_stock' ? 'Part picked from stock and saved' : 'Triage saved')
+    } catch (error) {
+      setSnackError(true)
+      setSnack(error instanceof Error ? error.message : 'Could not save triage')
+    }
+  }
 
   useEffect(() => {
     if (!selectedCompanyId) return
@@ -362,14 +415,19 @@ export function MockPartRequestsPage() {
       workshopApi.listPartRequests({ page: 1, pageSize: 100 }),
       workshopApi.procurementCases(selectedCompanyId).catch(() => ({ data: [] as Array<{ id: string; appointmentId?: string }> })),
     ]).then(async ([response, casesResponse]) => {
-      if (cancelled || !response.data.length) return
+      if (cancelled) return
+      const liveRows = response.data as LivePartRequest[]
+      if (!liveRows.length) {
+        useMockProcurementStore.setState({ partRequests: [] })
+        return
+      }
       const caseByAppointment = new Map(
         casesResponse.data
           .filter((item) => item.appointmentId)
           .map((item) => [String(item.appointmentId), item.id]),
       )
-      const grouped = new Map<string, typeof response.data>()
-      response.data.forEach((row) => grouped.set(row.appointmentId, [...(grouped.get(row.appointmentId) || []), row]))
+      const grouped = new Map<string, LivePartRequest[]>()
+      liveRows.forEach((row) => grouped.set(row.appointmentId, [...(grouped.get(row.appointmentId) || []), row]))
       const mapped = await Promise.all([...grouped.entries()].map(async ([appointmentId, rows]) => {
         // The part-request endpoint intentionally returns only request data.
         // Hydrate the appointment's customer and vehicle here so the mock
@@ -392,14 +450,14 @@ export function MockPartRequestsPage() {
           requestedByName: rows[0].requestedBy,
           requestedAt: rows[0].createdAt,
           notes: appointment?.concerns || appointment?.notes || undefined,
-          lineItems: rows.map((row) => ({ id: row.id, partName: row.partName, partNumber: row.partNumber, quantity: row.quantity || 1, disposition: 'pending' as const, completed: row.status === 'Fulfilled' || row.status === 'Rejected' })),
+          lineItems: rows.map(lineItemFromServer),
         }
       }))
-      const ids = Object.fromEntries(response.data.map((row) => [row.id, row.id]))
       // Keep the established visual component and hydrate its data from the API.
       useMockProcurementStore.setState({ partRequests: mapped })
-      setLiveRequestIds(ids)
-    }).catch(() => undefined)
+    }).catch(() => {
+      if (!cancelled) useMockProcurementStore.setState({ partRequests: [] })
+    })
     return () => { cancelled = true }
   }, [selectedCompanyId])
 
@@ -437,7 +495,7 @@ export function MockPartRequestsPage() {
           autoHideDuration={3000}
           anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         >
-          <Alert onClose={() => setSnack(null)} severity="success" variant="filled" sx={{ width: '100%' }}>
+          <Alert onClose={() => setSnack(null)} severity={snackError ? 'error' : 'success'} variant="filled" sx={{ width: '100%' }}>
             {snack}
           </Alert>
         </Snackbar>
@@ -538,20 +596,18 @@ export function MockPartRequestsPage() {
                     ) : null}
 
                     {req.lineItems.map((li) => (
-                      <LineItemRow key={li.id} item={li} requestId={req.id} onFulfill={liveRequestIds[li.id] ? async () => {
-                        await workshopApi.setPartRequestStatus(liveRequestIds[li.id], 'Fulfilled')
-                        setSnack('Part request fulfilled and saved')
-                      } : undefined} />
+                      <LineItemRow
+                        key={li.id}
+                        item={li}
+                        onSave={(details) => handleSave(req.id, li.id, details)}
+                      />
                     ))}
 
                     {allCompleted && hasNonStockCompleted ? (
                       <Button
                         variant="contained"
                         size="large"
-                        onClick={() => {
-                          spawnApprovals(req.id)
-                          setSnack(`Customer approvals created for ${req.requestNumber}`)
-                        }}
+                        onClick={() => navigate('/mock-procurement/approvals')}
                         sx={{
                           mt: 1,
                           bgcolor: colors.slate[900],
@@ -561,7 +617,7 @@ export function MockPartRequestsPage() {
                           '&:hover': { bgcolor: colors.slate[800] },
                         }}
                       >
-                        Send for Customer Approval
+                        Review Customer Approvals
                       </Button>
                     ) : null}
 
