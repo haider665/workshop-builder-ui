@@ -1087,6 +1087,10 @@ function SettlementPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: ()
       setError('Select a submitted GRN before creating the supplier invoice.')
       return
     }
+    if (billDate && dueDate && dueDate < billDate) {
+      setError('Due date cannot be before the supplier bill date.')
+      return
+    }
     await run(() => workshopApi.accountingCreateInvoice({
       purchaseReceiptId: receiptId,
       billNo: billNo.trim() || undefined,
@@ -1141,8 +1145,12 @@ function SettlementPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: ()
               ) : null}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                 <TextField size="small" label="Supplier Bill No." value={billNo} onChange={(event) => setBillNo(event.target.value)} fullWidth />
-                <TextField size="small" type="date" label="Bill Date" value={billDate} onChange={(event) => setBillDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
-                <TextField size="small" type="date" label="Due Date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
+                <TextField size="small" type="date" label="Bill Date" value={billDate} onChange={(event) => {
+                  const nextBillDate = event.target.value
+                  setBillDate(nextBillDate)
+                  if (nextBillDate && dueDate && dueDate < nextBillDate) setDueDate(nextBillDate)
+                }} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
+                <TextField size="small" type="date" label="Due Date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: billDate || undefined } }} />
               </Stack>
               <TextField select size="small" label="VAT / Tax" value={taxTemplate} onChange={(event) => setTaxTemplate(event.target.value)} helperText="Choose a company purchase tax template, or keep No VAT.">
                 <MenuItem value="">No VAT / No Tax</MenuItem>
