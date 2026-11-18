@@ -1,4 +1,4 @@
-import type { GRN, ProcurementCase, ProcurementStep, PurchaseOrder } from '../types/procurementWorkflow'
+import type { GRN, ProcurementCase, ProcurementStep, PurchaseOrder, SupplierInvoice, SupplierPayment } from '../types/procurementWorkflow'
 
 type BackendCase = Record<string, unknown>
 
@@ -160,6 +160,49 @@ export function mapBackendPurchaseReceipt(source: BackendCase, purchaseOrder?: P
   }
 }
 
+export function mapBackendSupplierInvoice(source: BackendCase): SupplierInvoice {
+  const taxes = records(source.taxes)
+  return {
+    id: text(source.id) || '',
+    status: text(source.status),
+    docstatus: numberValue(source.docstatus),
+    supplierName: text(source.supplierName) || text(source.supplierId),
+    billNo: text(source.billNo),
+    billDate: text(source.billDate),
+    postingDate: text(source.postingDate),
+    dueDate: text(source.dueDate),
+    currency: text(source.currency) || 'BDT',
+    netTotal: numberValue(source.netTotal),
+    totalTaxesAndCharges: numberValue(source.totalTaxesAndCharges),
+    grandTotal: numberValue(source.grandTotal) || numberValue(source.totalAmount),
+    outstandingAmount: numberValue(source.outstandingAmount),
+    taxesAndCharges: text(source.taxesAndCharges),
+    taxCategory: text(source.taxCategory),
+    taxes: taxes.map((line) => ({
+      accountHead: text(line.accountHead),
+      description: text(line.description),
+      chargeType: text(line.chargeType),
+      rate: numberValue(line.rate),
+      taxAmount: numberValue(line.taxAmount),
+    })),
+  }
+}
+
+export function mapBackendSupplierPayment(source: BackendCase): SupplierPayment {
+  return {
+    id: text(source.id) || '',
+    status: text(source.status),
+    docstatus: numberValue(source.docstatus),
+    paymentType: text(source.paymentType),
+    amount: numberValue(source.paidAmount) || numberValue(source.receivedAmount) || numberValue(source.amount),
+    paidAmount: numberValue(source.paidAmount),
+    modeOfPayment: text(source.modeOfPayment),
+    referenceNo: text(source.referenceNo),
+    referenceDate: text(source.referenceDate),
+    postingDate: text(source.postingDate),
+  }
+}
+
 export function mapBackendProcurementCase(source: BackendCase): ProcurementCase {
   const contextual = requestContextCaseData(source)
   const parts = contextual.parts.length
@@ -216,5 +259,7 @@ export function mapBackendProcurementCase(source: BackendCase): ProcurementCase 
     updatedAt: text(source.updatedAt) || new Date().toISOString(),
     backendStage: text(source.currentStage),
     compareSheetId: text(source.compareSheetId),
+    purchaseInvoiceId: text(source.purchaseInvoiceId),
+    paymentEntryId: text(source.paymentEntryId),
   }
 }

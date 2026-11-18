@@ -2363,11 +2363,17 @@ export const workshopApi = {
   async accountingCreateReceipt(data: { purchaseOrderId: string; postingDate?: string; items?: Array<{ purchaseOrderItemId: string; receivedQty: number; condition: 'good' | 'damaged' | 'partial' }>; notes?: string; attachmentFileIds?: string[] }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.receipts.create_from_purchase_order', { method: 'POST', body: { data } })
   },
-  async accountingCreateInvoice(data: { purchaseReceiptId: string; postingDate?: string; dueDate?: string }): Promise<Record<string, unknown>> {
+  async accountingCreateInvoice(data: { purchaseReceiptId: string; postingDate?: string; dueDate?: string; billNo?: string; billDate?: string; taxesAndCharges?: string; taxCategory?: string }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.invoices.create_from_receipt', { method: 'POST', body: { data } })
+  },
+  async accountingPurchaseOptions(company?: string): Promise<{ taxTemplates?: Array<{ id: string; name: string }>; taxCategories?: Array<{ id: string; name: string }>; bankAccounts?: Array<{ id: string; name: string }> }> {
+    return request(`/api/method/workshop.api.accountant.purchases.options${buildQuery({ company })}`)
   },
   async accountingCreatePayment(data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.payments.create', { method: 'POST', body: { data } })
+  },
+  async accountingCreatePaymentForInvoice(data: { purchaseInvoiceId: string; amount?: number; modeOfPayment?: string; paidFrom?: string; referenceNo?: string; referenceDate?: string; postingDate?: string }): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.payments.create_for_invoice', { method: 'POST', body: { data } })
   },
   async accountingItems(search?: string): Promise<ApiListResponse<{ id: string; itemCode: string; itemName: string; uom?: string }>> {
     return request(`/api/method/workshop.api.accounting.items${buildQuery({ search, pageSize: 100 })}`)

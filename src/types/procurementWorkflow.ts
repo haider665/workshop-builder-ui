@@ -252,6 +252,46 @@ export type MockVehicleInfo = {
 
 // ── Procurement Case (multi-part) ──
 
+export type SupplierInvoiceTaxLine = {
+  accountHead?: string
+  description?: string
+  chargeType?: string
+  rate: number
+  taxAmount: number
+}
+
+export type SupplierInvoice = {
+  id: string
+  status?: string
+  docstatus?: number
+  supplierName?: string
+  billNo?: string
+  billDate?: string
+  postingDate?: string
+  dueDate?: string
+  currency?: string
+  netTotal: number
+  totalTaxesAndCharges: number
+  grandTotal: number
+  outstandingAmount: number
+  taxesAndCharges?: string
+  taxCategory?: string
+  taxes: SupplierInvoiceTaxLine[]
+}
+
+export type SupplierPayment = {
+  id: string
+  status?: string
+  docstatus?: number
+  paymentType?: string
+  amount: number
+  paidAmount?: number
+  modeOfPayment?: string
+  referenceNo?: string
+  referenceDate?: string
+  postingDate?: string
+}
+
 export type ProcurementCaseStatus = 'in_progress' | 'approved' | 'rejected'
 
 export type ProcurementCase = {
@@ -277,6 +317,10 @@ export type ProcurementCase = {
   managementApproval?: StepRecord
   purchaseOrders: PurchaseOrder[]
   grns: GRN[]
+  purchaseInvoiceId?: string
+  paymentEntryId?: string
+  supplierInvoice?: SupplierInvoice
+  supplierPayment?: SupplierPayment
   // Trail
   history: StepRecord[]
   createdAt: string

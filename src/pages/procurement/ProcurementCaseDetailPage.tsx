@@ -40,7 +40,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
 import { workshopApi, type CWMasterDataRequest } from '../../services/workshopApi'
-import { mapBackendProcurementCase, mapBackendPurchaseOrder, mapBackendPurchaseReceipt } from '../../services/procurementAdapter'
+import { mapBackendProcurementCase, mapBackendPurchaseOrder, mapBackendPurchaseReceipt, mapBackendSupplierInvoice, mapBackendSupplierPayment } from '../../services/procurementAdapter'
 import { useCompanyStore } from '../../store/companyStore'
 import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
@@ -132,6 +132,20 @@ async function hydrateBackendProcurementCase(data: Record<string, unknown>): Pro
       })
     } catch {
       // Keep the case usable if linked commercial documents are unavailable.
+    }
+  }
+  const purchaseInvoiceId = String(data.purchaseInvoiceId || '')
+  const paymentEntryId = String(data.paymentEntryId || '')
+  if (purchaseInvoiceId || paymentEntryId) {
+    try {
+      const [invoice, payment] = await Promise.all([
+        purchaseInvoiceId ? workshopApi.accountingGet('invoices', purchaseInvoiceId).catch(() => null) : Promise.resolve(null),
+        paymentEntryId ? workshopApi.accountingGet('payments', paymentEntryId).catch(() => null) : Promise.resolve(null),
+      ])
+      if (invoice) mapped.supplierInvoice = mapBackendSupplierInvoice(invoice)
+      if (payment) mapped.supplierPayment = mapBackendSupplierPayment(payment)
+    } catch {
+      // Keep the case usable if supplier settlement documents are unavailable.
     }
   }
   return mapped
@@ -970,6 +984,256 @@ function POPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Prom
 
 /* ═══ GRN Panel ═══ */
 
+const POST_GRN_STAGES = new Set([
+  'Audit Physical Review',
+  'Procurement File Completion',
+  'Audit Clearance',
+  'Actual Accounts',
+  'Reconciliation',
+  'Bill Settlement',
+  'Paid / Closed',
+])
+
+const SETTLEMENT_ACTIONS: Record<string, { action: string; label: string }> = {
+  'Audit Physical Review': { action: 'physical_audit_approve', label: 'Approve Physical Audit' },
+  'Procurement File Completion': { action: 'file_complete', label: 'Complete Procurement File' },
+  'Audit Clearance': { action: 'audit_clear', label: 'Clear Audit File' },
+  'Actual Accounts': { action: 'accounts_verify', label: 'Verify Accounts & Post Invoice' },
+  Reconciliation: { action: 'reconciliation_confirm', label: 'Confirm Reconciliation' },
+  'Bill Settlement': { action: 'settle_bill', label: 'Settle Bill & Close Case' },
+}
+
+function todayInput() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function SettlementPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Promise<void> }) {
+  const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
+  const stage = pc.backendStage || ''
+  const invoice = pc.supplierInvoice
+  const payment = pc.supplierPayment
+  const submittedGrns = pc.grns.filter((grn) => grn.status === 'submitted')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const [receiptId, setReceiptId] = useState('')
+  const [billNo, setBillNo] = useState('')
+  const [billDate, setBillDate] = useState(todayInput())
+  const [dueDate, setDueDate] = useState(todayInput())
+  const [taxTemplate, setTaxTemplate] = useState('')
+  const [taxTemplates, setTaxTemplates] = useState<Array<{ id: string; name: string }>>([])
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMode, setPaymentMode] = useState('')
+  const [paymentModes, setPaymentModes] = useState<Array<{ id: string; name: string }>>([])
+  const [paidFrom, setPaidFrom] = useState('')
+  const [bankAccounts, setBankAccounts] = useState<Array<{ id: string; name: string }>>([])
+  const [paymentReference, setPaymentReference] = useState('')
+  const [paymentDate, setPaymentDate] = useState(todayInput())
+
+  useEffect(() => {
+    setReceiptId((current) => current || submittedGrns[0]?.id || '')
+  }, [submittedGrns])
+
+  useEffect(() => {
+    if (paymentAmount || !invoice) return
+    setPaymentAmount(String(invoice.outstandingAmount || invoice.grandTotal || ''))
+  }, [invoice, paymentAmount])
+
+  useEffect(() => {
+    if (!selectedCompanyId || invoice) return
+    let cancelled = false
+    void workshopApi.accountingPurchaseOptions(selectedCompanyId)
+      .then((options) => { if (!cancelled) setTaxTemplates(options.taxTemplates || []) })
+      .catch(() => { if (!cancelled) setTaxTemplates([]) })
+    return () => { cancelled = true }
+  }, [selectedCompanyId, invoice])
+
+  useEffect(() => {
+    if (!selectedCompanyId || payment) return
+    let cancelled = false
+    void Promise.all([
+      workshopApi.accountingPaymentModes(),
+      workshopApi.accountingAccounts(selectedCompanyId),
+    ]).then(([modes, accounts]) => {
+      if (cancelled) return
+      setPaymentModes(modes.data || [])
+      setBankAccounts((accounts.data || []).filter((account) => account.type === 'Bank' || account.type === 'Cash'))
+    }).catch(() => {
+      if (!cancelled) {
+        setPaymentModes([])
+        setBankAccounts([])
+      }
+    })
+    return () => { cancelled = true }
+  }, [selectedCompanyId, payment])
+
+  const run = async (action: () => Promise<unknown>, success: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await action()
+      await onChanged()
+      setMessage(success)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to complete the accounting action')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const createInvoice = async () => {
+    if (!receiptId) {
+      setError('Select a submitted GRN before creating the supplier invoice.')
+      return
+    }
+    await run(() => workshopApi.accountingCreateInvoice({
+      purchaseReceiptId: receiptId,
+      billNo: billNo.trim() || undefined,
+      billDate: billDate || undefined,
+      dueDate: dueDate || undefined,
+      taxesAndCharges: taxTemplate,
+    }), 'Supplier invoice created as a draft')
+  }
+
+  const createPayment = async () => {
+    if (!invoice) {
+      setError('Create and post the supplier invoice before payment.')
+      return
+    }
+    if (!paymentReference.trim()) {
+      setError('Payment reference number is required.')
+      return
+    }
+    await run(() => workshopApi.accountingCreatePaymentForInvoice({
+      purchaseInvoiceId: invoice.id,
+      amount: Number(paymentAmount) || undefined,
+      modeOfPayment: paymentMode || undefined,
+      paidFrom: paidFrom || undefined,
+      referenceNo: paymentReference.trim(),
+      referenceDate: paymentDate || undefined,
+    }), 'Supplier payment draft created')
+  }
+
+  const stageAction = SETTLEMENT_ACTIONS[stage]
+  const stageActionBlocked = stageAction ? (
+    (stageAction.action === 'file_complete' && !invoice)
+    || (stageAction.action === 'accounts_verify' && !invoice)
+    || (['reconciliation_confirm', 'settle_bill'].includes(stageAction.action) && !payment)
+  ) : false
+
+  if (!POST_GRN_STAGES.has(stage)) return null
+
+  return (
+    <SectionCard title="Supplier Invoice & Settlement" icon={<Receipt />} defaultCollapsed={false}>
+      <Stack spacing={2} sx={{ p: 2 }}>
+        {message ? <Alert severity="success" onClose={() => setMessage(null)}>{message}</Alert> : null}
+        {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
+
+        {!invoice && stage === 'Procurement File Completion' ? (
+          <Box sx={{ p: 2, borderRadius: radii.sm, border: `1px solid ${colors.border.default}` }}>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mb: 1.5 }}>Create Supplier Invoice</Typography>
+            <Stack spacing={1.5}>
+              {submittedGrns.length > 1 ? (
+                <TextField select size="small" label="Submitted GRN" value={receiptId} onChange={(event) => setReceiptId(event.target.value)}>
+                  {submittedGrns.map((grn) => <MenuItem key={grn.id} value={grn.id}>{grn.grnNumber} · {grn.vendorName}</MenuItem>)}
+                </TextField>
+              ) : null}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                <TextField size="small" label="Supplier Bill No." value={billNo} onChange={(event) => setBillNo(event.target.value)} fullWidth />
+                <TextField size="small" type="date" label="Bill Date" value={billDate} onChange={(event) => setBillDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
+                <TextField size="small" type="date" label="Due Date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
+              </Stack>
+              <TextField select size="small" label="VAT / Tax" value={taxTemplate} onChange={(event) => setTaxTemplate(event.target.value)} helperText="Choose a company purchase tax template, or keep No VAT.">
+                <MenuItem value="">No VAT / No Tax</MenuItem>
+                {taxTemplates.map((template) => <MenuItem key={template.id} value={template.id}>{template.name}</MenuItem>)}
+              </TextField>
+              <Button variant="contained" disabled={busy} onClick={() => void createInvoice()} sx={{ alignSelf: 'flex-start', bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>
+                {busy ? 'Creating…' : 'Create Supplier Invoice'}
+              </Button>
+            </Stack>
+          </Box>
+        ) : null}
+
+        {invoice ? (
+          <Box sx={{ p: 2, borderRadius: radii.sm, border: '1px solid #bfdbfe', bgcolor: '#eff6ff' }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: '#1d4ed8' }}>Supplier Invoice {invoice.id}</Typography>
+              <Chip size="small" label={(invoice.status || 'Draft').toUpperCase()} sx={{ fontWeight: 700, fontSize: '0.65rem' }} />
+            </Stack>
+            <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600], mt: 0.5 }}>
+              {invoice.billNo ? `Bill ${invoice.billNo}` : 'Supplier bill'} {invoice.billDate ? `· ${invoice.billDate}` : ''} · Due {invoice.dueDate || '—'}
+            </Typography>
+            <Stack direction="row" spacing={2} sx={{ mt: 1.25, flexWrap: 'wrap' }}>
+              <Typography sx={{ fontSize: '0.8rem' }}>Net: <b>৳{invoice.netTotal.toLocaleString()}</b></Typography>
+              <Typography sx={{ fontSize: '0.8rem' }}>Tax: <b>৳{invoice.totalTaxesAndCharges.toLocaleString()}</b></Typography>
+              <Typography sx={{ fontSize: '0.8rem' }}>Total: <b>৳{invoice.grandTotal.toLocaleString()}</b></Typography>
+              <Typography sx={{ fontSize: '0.8rem' }}>Outstanding: <b>৳{invoice.outstandingAmount.toLocaleString()}</b></Typography>
+            </Stack>
+            {invoice.taxes.length ? (
+              <Stack spacing={0.5} sx={{ mt: 1 }}>
+                {invoice.taxes.map((tax, index) => (
+                  <Typography key={`${tax.accountHead}-${index}`} sx={{ fontSize: '0.76rem', color: colors.slate[600] }}>
+                    {tax.description || tax.accountHead || 'Tax'}: {tax.rate}% — ৳{tax.taxAmount.toLocaleString()}
+                  </Typography>
+                ))}
+              </Stack>
+            ) : <Typography sx={{ fontSize: '0.76rem', color: colors.slate[500], mt: 1 }}>No VAT/tax applied.</Typography>}
+          </Box>
+        ) : null}
+
+        {invoice && !payment && stage === 'Reconciliation' ? (
+          <Box sx={{ p: 2, borderRadius: radii.sm, border: `1px solid ${colors.border.default}` }}>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mb: 1.5 }}>Create Supplier Payment</Typography>
+            <Stack spacing={1.5}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                <TextField size="small" type="number" label="Amount" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} fullWidth />
+                <TextField select size="small" label="Payment Mode" value={paymentMode} onChange={(event) => setPaymentMode(event.target.value)} fullWidth>
+                  <MenuItem value="">Default</MenuItem>
+                  {paymentModes.map((mode) => <MenuItem key={mode.id} value={mode.name}>{mode.name}</MenuItem>)}
+                </TextField>
+                <TextField select size="small" label="Paid From" value={paidFrom} onChange={(event) => setPaidFrom(event.target.value)} fullWidth>
+                  <MenuItem value="">Company default</MenuItem>
+                  {bankAccounts.map((account) => <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>)}
+                </TextField>
+              </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                <TextField size="small" label="Bank / Payment Reference" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} fullWidth />
+                <TextField size="small" type="date" label="Reference Date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
+              </Stack>
+              <Button variant="contained" disabled={busy} onClick={() => void createPayment()} sx={{ alignSelf: 'flex-start', bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>
+                {busy ? 'Creating…' : 'Create Payment Draft'}
+              </Button>
+            </Stack>
+          </Box>
+        ) : null}
+
+        {payment ? (
+          <Alert severity={payment.docstatus === 1 ? 'success' : 'info'}>
+            Payment {payment.id} · ৳{payment.amount.toLocaleString()} · {(payment.status || 'Draft')}
+            {payment.referenceNo ? ` · Ref ${payment.referenceNo}` : ''}
+          </Alert>
+        ) : null}
+
+        {stageAction ? (
+          <Stack spacing={1.25}>
+            <TextField size="small" label="Action note / reason" value={note} onChange={(event) => setNote(event.target.value)} multiline minRows={2} fullWidth />
+            <Button
+              variant="contained"
+              disabled={busy || stageActionBlocked}
+              onClick={() => void run(() => workshopApi.procurementCaseAction(pc.id, stageAction.action, note.trim() || undefined), `${stageAction.label} complete`)}
+              sx={{ alignSelf: 'flex-start', bgcolor: '#2563eb', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#1d4ed8' } }}
+            >
+              {busy ? 'Working…' : stageAction.label}
+            </Button>
+            {stageActionBlocked ? <Typography sx={{ fontSize: '0.76rem', color: '#b45309' }}>Complete the supplier invoice/payment step above before this action.</Typography> : null}
+          </Stack>
+        ) : null}
+      </Stack>
+    </SectionCard>
+  )
+}
+
 function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Promise<void> }) {
   const [busy, setBusy] = useState(false)
   const [snack, setSnack] = useState<string | null>(null)
@@ -1164,6 +1428,7 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
           </Stack>
         </Box>
       ) : null}
+      <SettlementPanel pc={pc} onChanged={onChanged} />
     </Stack>
   )
 }
