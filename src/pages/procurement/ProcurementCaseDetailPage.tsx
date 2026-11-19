@@ -1575,7 +1575,7 @@ export function ProcurementCaseDetailPage() {
           const result = await workshopApi.procurementStoreReview(backendPc.id, { storeReviewStatus: 'Local Shortage', procurementType: 'Local', vendorRoute: 'Enlisted Vendor', note: actionNote.trim() || undefined, parts: backendPc.parts.map((part) => ({ partRequestId: part.lineItemId, storeReviewStatus: 'Local Shortage', procurementType: 'Local', stockAvailable: 0 })) })
           setBackendPc(mapBackendProcurementCase(result))
         } else if (stage === 'GM Approval') {
-          const finalSelections = Object.entries(approvalSelections).map(([casePartId, selection]) => ({ casePartId, ...selection }))
+          const finalSelections = Object.entries(approvalSelections).map(([casePartId, selection]) => ({ casePartId, partName: backendPc.parts.find((part) => part.id === casePartId)?.partName || '', ...selection }))
           const quotationId = finalSelections[0]?.quotationId || approvalQuotationId || backendPc.quotations[0]?.id || ''
           if (!quotationId) throw new Error('Select a supplier quotation before approving.')
           const finalDecisionNote = finalSelections.length
