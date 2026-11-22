@@ -1432,7 +1432,7 @@ export const workshopApi = {
     return request<Record<string, unknown>>('/api/method/workshop.api.service_orders.create_job_scope', { method: 'POST', body: { id } })
   },
 
-  async requestFinancialClearance(input: { appointmentId: string; serviceOrderId?: string; type: string; requestedAmount?: number; outstandingAmount?: number; note?: string; idempotencyKey?: string }): Promise<Record<string, unknown>> {
+  async requestFinancialClearance(input: { appointmentId: string; serviceOrderId?: string; type: string; requestedAmount?: number; outstandingAmount?: number; note?: string; idempotencyKey?: string; resubmit?: boolean }): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>('/api/method/workshop.api.financial_clearances.request', { method: 'POST', body: { data: input } })
   },
 
@@ -2201,6 +2201,7 @@ export const workshopApi = {
     appointmentId: string
     concernItemId?: string
     partName: string
+    partNumber?: string
     quantity?: number
     requestedBy: string
   }): Promise<import('../types/cw').CWPartRequest> {
@@ -2236,6 +2237,8 @@ export const workshopApi = {
 
   async savePartRequestTriage(id: string, input: {
     disposition: import('../types/procurementWorkflow').PartDisposition
+    partName?: string
+    partNumber?: string
     localVendorName?: string
     localPrice?: number
     localQuantity?: number
@@ -2327,10 +2330,13 @@ export const workshopApi = {
   async saveProcurementApprovalPolicy(data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.approval_policies.save', { method: 'POST', body: { data } })
   },
-  async financialClearances(company?: string): Promise<ApiListResponse<{ id: string; type?: string; status?: string; appointmentId?: string; requestedAmount?: number; outstandingAmount?: number; requestedByUserId?: string; requestedAt?: string; reviewedByUserId?: string; reviewedAt?: string; reviewNote?: string }>> {
+  async financialClearances(company?: string): Promise<ApiListResponse<{ id: string; type?: string; status?: string; appointmentId?: string; requestedAmount?: number; outstandingAmount?: number; requestedByUserId?: string; requestedAt?: string; reviewedByUserId?: string; reviewedAt?: string; reviewNote?: string; details?: Record<string, unknown> }>> {
     return request(`/api/method/workshop.api.financial_clearances.list${buildQuery({ company, pageSize: 100 })}`)
   },
   async approveFinancialClearance(id: string, note?: string) { return request(`/api/method/workshop.api.financial_clearances.approve`, { method: 'POST', body: { id, data: { note } } }) },
+  async submitWorkshopClearanceInvoice(id: string) { return request(`/api/method/workshop.api.financial_clearances.submit_linked_invoice`, { method: 'POST', body: { id, data: {} } }) },
+  async recordWorkshopClearancePayment(id: string, data: Record<string, unknown>) { return request(`/api/method/workshop.api.financial_clearances.record_linked_payment`, { method: 'POST', body: { id, data } }) },
+  async applyWorkshopClearanceException(id: string, data: Record<string, unknown>) { return request(`/api/method/workshop.api.financial_clearances.apply_exception`, { method: 'POST', body: { id, data } }) },
   async rejectFinancialClearance(id: string, note: string) { return request(`/api/method/workshop.api.financial_clearances.reject`, { method: 'POST', body: { id, data: { note } } }) },
   async returnFinancialClearance(id: string, note: string) { return request(`/api/method/workshop.api.financial_clearances.return_for_correction`, { method: 'POST', body: { id, data: { note } } }) },
   async accountingList(module: 'requisitions' | 'quotations' | 'compare_sheets' | 'purchase_orders' | 'receipts' | 'invoices' | 'payments' | 'journals', company?: string): Promise<ApiListResponse<Record<string, unknown>>> {
@@ -2396,6 +2402,9 @@ export const workshopApi = {
   accountingPrintUrl(module: string, id: string): string {
     const doctype: Record<string, string> = { requisitions: 'Material Request', quotations: 'Supplier Quotation', compare_sheets: 'CW Compare Sheet', purchase_orders: 'Purchase Order', receipts: 'Purchase Receipt', invoices: 'Purchase Invoice', payments: 'Payment Entry', journals: 'Journal Entry' }
     return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.document?doctype=${encodeURIComponent(doctype[module] || module)}&name=${encodeURIComponent(id)}`
+  },
+  procurementQuotationPacketPrintUrl(caseId: string): string {
+    return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.procurement_quotation_packet?id=${encodeURIComponent(caseId)}`
   },
   async accountingSubmit(module: 'requisitions' | 'quotations' | 'compare_sheets' | 'purchase_orders' | 'receipts' | 'invoices' | 'payments' | 'journals', id: string, reason?: string) {
     return request(`/api/method/workshop.api.accounting.${module}.submit`, { method: 'POST', body: { id, data: { reason } } })

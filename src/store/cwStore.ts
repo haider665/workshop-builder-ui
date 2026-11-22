@@ -557,6 +557,7 @@ export type CreatePartRequestInput = {
   appointmentId: string
   concernItemId?: string
   partName: string
+  partNumber?: string
   quantity?: number
   requestedBy: string
 }
@@ -4529,6 +4530,7 @@ export const useCwStore = create<CWState>((set, get) => ({
       appointmentId: input.appointmentId,
       concernItemId: input.concernItemId,
       partName: input.partName.trim(),
+      partNumber: input.partNumber?.trim() || undefined,
       quantity: input.quantity,
       status: 'Requested',
       requestedBy: input.requestedBy,

@@ -152,9 +152,9 @@ export function SEAppointmentDetailPage() {
   const [addServiceRemark, setAddServiceRemark] = useState('')
 
   // Part request form (per-concern)
-  const [partRequestForm, setPartRequestForm] = useState<Record<string, { name: string; qty: string }>>({})
+  const [partRequestForm, setPartRequestForm] = useState<Record<string, { name: string; partNumber: string; qty: string }>>({})
   // Queued parts waiting to be sent in one batch
-  const [pendingPartsQueue, setPendingPartsQueue] = useState<{ concernItemId: string; concernName: string; partName: string; quantity: number }[]>([])
+  const [pendingPartsQueue, setPendingPartsQueue] = useState<{ concernItemId: string; concernName: string; partName: string; partNumber: string; quantity: number }[]>([])
   const [serviceShopFilter, setServiceShopFilter] = useState('')
   const [concernServiceShopFilter, setConcernServiceShopFilter] = useState<Record<string, string>>({})
   const [concernAddServiceId, setConcernAddServiceId] = useState<Record<string, string>>({})
@@ -353,7 +353,7 @@ export function SEAppointmentDetailPage() {
             <Stack spacing={2}>
               {myConcerns.map((c) => {
                 const concernParts = partRequests.filter((pr) => pr.appointmentId === appointmentId && pr.concernItemId === c.id)
-                const prForm = partRequestForm[c.id] ?? { name: '', qty: '1' }
+                const prForm = partRequestForm[c.id] ?? { name: '', partNumber: '', qty: '1' }
                 const isConcernDone = c.workStatus === 'Completed'
                 return (
                 <ItemCard key={c.id} done={isConcernDone}>
@@ -510,6 +510,13 @@ export function SEAppointmentDetailPage() {
                           placeholder="e.g. Brake Pad Set"
                         />
                         <TextField
+                          size="small" label="Part Number (optional)"
+                          value={prForm.partNumber}
+                          onChange={(e) => setPartRequestForm((prev) => ({ ...prev, [c.id]: { ...prForm, partNumber: e.target.value } }))}
+                          sx={{ minWidth: 180, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
+                          placeholder="e.g. BRK-PAD-F-2847"
+                        />
+                        <TextField
                           size="small" label="Qty" type="number"
                           value={prForm.qty}
                           onChange={(e) => setPartRequestForm((prev) => ({ ...prev, [c.id]: { ...prForm, qty: e.target.value } }))}
@@ -524,9 +531,10 @@ export function SEAppointmentDetailPage() {
                               concernItemId: c.id,
                               concernName: c.concernName,
                               partName: prForm.name.trim(),
+                              partNumber: prForm.partNumber.trim(),
                               quantity: Number(prForm.qty) || 1,
                             }])
-                            setPartRequestForm((prev) => ({ ...prev, [c.id]: { name: '', qty: '1' } }))
+                            setPartRequestForm((prev) => ({ ...prev, [c.id]: { name: '', partNumber: '', qty: '1' } }))
                           }}
                           disabled={!prForm.name.trim()}
                           sx={{ ...actionBtnSx, bgcolor: colors.accent.purple, '&:hover': { bgcolor: '#7c3aed' } }}
@@ -542,7 +550,7 @@ export function SEAppointmentDetailPage() {
                             <Box key={idx} sx={{ p: 1, bgcolor: '#fef3c7', borderRadius: radii.sm, border: '1px dashed #f59e0b' }}>
                               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: colors.slate[800] }}>
-                                  {p.partName} × {p.quantity}
+                                  {p.partName}{p.partNumber ? ` · #${p.partNumber}` : ''} × {p.quantity}
                                 </Typography>
                                 <Chip
                                   size="small" label="Queued" color="warning"
@@ -575,6 +583,7 @@ export function SEAppointmentDetailPage() {
                       appointmentId: appt!.id,
                       concernItemId: p.concernItemId,
                       partName: p.partName,
+                      partNumber: p.partNumber || undefined,
                       quantity: p.quantity,
                       requestedBy: 'SE',
                     })

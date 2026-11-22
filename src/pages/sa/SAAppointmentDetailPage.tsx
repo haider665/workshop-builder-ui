@@ -196,6 +196,14 @@ export function SAAppointmentDetailPage() {
     billingStatus?: string
     billingError?: string
   } | null>(null)
+  const [gatepassRequest, setGatepassRequest] = useState<{
+    id: string
+    status?: string
+    reviewNote?: string
+    details?: Record<string, unknown>
+  } | null>(null)
+  const [gatepassNote, setGatepassNote] = useState('')
+  const [gatepassSaving, setGatepassSaving] = useState(false)
 
   useEffect(() => {
     if (!appt?.companyId || !appt.id) return
@@ -224,6 +232,21 @@ export function SAAppointmentDetailPage() {
         // The appointment remains usable when billing is not yet available.
         if (!cancelled) setBillingOrder(null)
       })
+    return () => { cancelled = true }
+  }, [appt?.companyId, appt?.id, linkedAppointment?.salesInvoiceId, linkedAppointment?.salesOrderId, linkedAppointment?.serviceOrderId])
+
+  useEffect(() => {
+    if (!appt?.companyId || !appt.id) return
+    let cancelled = false
+    workshopApi.financialClearances(appt.companyId)
+      .then((response) => {
+        if (cancelled) return
+        const row = (response.data ?? [])
+          .filter((item) => item.type === 'Gatepass Settlement' && item.appointmentId === appt.id)
+          .sort((left, right) => String(right.requestedAt || '').localeCompare(String(left.requestedAt || '')))[0]
+        setGatepassRequest(row ? { id: row.id, status: row.status, reviewNote: row.reviewNote, details: row.details } : null)
+      })
+      .catch(() => { if (!cancelled) setGatepassRequest(null) })
     return () => { cancelled = true }
   }, [appt?.companyId, appt?.id])
 
@@ -309,6 +332,10 @@ export function SAAppointmentDetailPage() {
   const hasSubmittedCustomerInvoice = currentBillingOrder.billingStatus === 'Invoiced' && Boolean(currentBillingOrder.salesInvoiceId)
   const canConfirmPayment = isPaymentPending && canAccountsSettle && hasSubmittedCustomerInvoice
   const paymentNeedsAccounts = isPaymentPending && (!canAccountsSettle || !hasSubmittedCustomerInvoice)
+  const gatepassStatus = gatepassRequest?.status ?? ''
+  const gatepassNeedsResubmission = ['Rejected', 'Returned for Correction'].includes(gatepassStatus)
+  const canSubmitGatepass = isQCApproved && (!gatepassRequest || gatepassNeedsResubmission)
+  const gatepassPending = isQCApproved && gatepassStatus === 'Requested'
 
   function handleSubmitInspection() {
     const invalidNotApplicable = inspChecks.find((check) => check.result === 'Not Applicable' && !check.notApplicableReason?.trim())
@@ -427,6 +454,31 @@ export function SAAppointmentDetailPage() {
       toast.success('Payment confirmed by Accounts. Gate-pass processing can continue.')
     } catch (cause) {
       toast.error(cause, 'Payment cannot be confirmed until the submitted invoice is fully settled.')
+    }
+  }
+
+  async function handleSubmitGatepass() {
+    if (!appt) return
+    setGatepassSaving(true)
+    try {
+      const result = await workshopApi.requestFinancialClearance({
+        appointmentId: appt.id,
+        serviceOrderId: linkedAppointment?.serviceOrderId || undefined,
+        type: 'Gatepass Settlement',
+        note: gatepassNote.trim() || undefined,
+        resubmit: gatepassNeedsResubmission,
+      }) as { id?: unknown; status?: unknown; reviewNote?: unknown }
+      setGatepassRequest({
+        id: String(result.id ?? gatepassRequest?.id ?? ''),
+        status: result.status ? String(result.status) : 'Requested',
+        reviewNote: result.reviewNote ? String(result.reviewNote) : undefined,
+      })
+      setGatepassNote('')
+      toast.success(gatepassNeedsResubmission ? 'Gatepass settlement request resubmitted to Accounts.' : 'Gatepass settlement request sent to Accounts.')
+    } catch (cause) {
+      toast.error(cause, 'Unable to send the gatepass settlement request.')
+    } finally {
+      setGatepassSaving(false)
     }
   }
 
@@ -881,6 +933,39 @@ export function SAAppointmentDetailPage() {
               sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5 }}>
               Compose WhatsApp (Payment)
             </Button>
+          </SectionCard>
+        )}
+
+        {canSubmitGatepass && (
+          <SectionCard title="Gatepass settlement request" icon={<AssignmentTurnedIn sx={{ fontSize: '1rem' }} />}>
+            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 1.5 }}>
+              Send one request to The Accountant with the completed jobs, QC result, Sales Order, Sales Invoice and settlement status. Accounts will post the invoice, record payment or an approved credit/waiver, and accept or reject the gatepass request.
+            </Typography>
+            {gatepassNeedsResubmission && gatepassRequest?.reviewNote ? (
+              <Alert severity="warning" sx={{ mb: 1.5, borderRadius: radii.md, fontSize: '0.82rem' }}>
+                Previous request returned: {gatepassRequest.reviewNote}
+              </Alert>
+            ) : null}
+            <TextField
+              fullWidth
+              size="small"
+              label="Note for Accounts (optional)"
+              value={gatepassNote}
+              onChange={(event) => setGatepassNote(event.target.value)}
+              sx={{ mb: 1.5 }}
+            />
+            <Button variant="contained" color="primary" size="large" onClick={() => void handleSubmitGatepass()} disabled={gatepassSaving}
+              sx={{ fontWeight: 900, borderRadius: radii.md }}>
+              {gatepassSaving ? 'Sending…' : gatepassNeedsResubmission ? 'Resubmit gatepass request' : 'Submit gatepass settlement request'}
+            </Button>
+          </SectionCard>
+        )}
+
+        {gatepassPending && (
+          <SectionCard title="Gatepass settlement with Accounts" icon={<AssignmentTurnedIn sx={{ fontSize: '1rem' }} />}>
+            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>
+              Request {gatepassRequest?.id} is awaiting Accounts review. The gate pass is issued when the request is accepted after settlement.
+            </Typography>
           </SectionCard>
         )}
 

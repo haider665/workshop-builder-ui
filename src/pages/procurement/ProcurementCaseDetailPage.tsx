@@ -33,6 +33,7 @@ import {
   History,
   Inventory,
   LocalShipping,
+  Print,
   Receipt,
 } from '@mui/icons-material'
 import { useEffect, useRef, useState } from 'react'
@@ -577,11 +578,12 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
 
 /* ═══ Quotations Summary Table ═══ */
 
-function QuotationsSummaryTable({ quotations, editable, onEdit, onRemove }: {
+function QuotationsSummaryTable({ quotations, editable, onEdit, onRemove, onPrint }: {
   quotations: Quotation[]
   editable?: boolean
   onEdit?: (q: Quotation) => void
   onRemove?: (id: string) => void
+  onPrint?: (q: Quotation) => void
 }) {
   if (!quotations.length) return <Alert severity="warning" sx={{ borderRadius: radii.sm }}>No quotations.</Alert>
   return (
@@ -594,6 +596,7 @@ function QuotationsSummaryTable({ quotations, editable, onEdit, onRemove }: {
             <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Parts</TableCell>
             <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Grand Total</TableCell>
             <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Proof</TableCell>
+            {onPrint ? <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Print</TableCell> : null}
             {editable ? <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Actions</TableCell> : null}
           </TableRow>
         </TableHead>
@@ -628,6 +631,11 @@ function QuotationsSummaryTable({ quotations, editable, onEdit, onRemove }: {
                   </Stack>
                 ) : <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>—</Typography>}
               </TableCell>
+              {onPrint ? (
+                <TableCell>
+                  <Button size="small" startIcon={<Print sx={{ fontSize: '0.9rem' }} />} onClick={() => onPrint(q)} sx={{ fontSize: '0.7rem', minWidth: 0, textTransform: 'none' }}>Print</Button>
+                </TableCell>
+              ) : null}
               {editable ? (
                 <TableCell>
                   <Stack direction="row" spacing={0.5}>
@@ -1556,6 +1564,27 @@ export function ProcurementCaseDetailPage() {
 
   const currentIdx = PROCUREMENT_STEPS.indexOf(pc.currentStep)
   const isCompleted = pc.status === 'approved' || pc.status === 'rejected'
+  const printQuotation = (quotation: Quotation) => {
+    if (!backendPc) {
+      setSnack('Printing is available for saved procurement cases')
+      return
+    }
+    window.open(workshopApi.accountingPrintUrl('quotations', quotation.id), '_blank', 'noopener,noreferrer')
+  }
+  const printCompareSheet = () => {
+    if (!backendPc?.compareSheetId) {
+      setSnack('Submit a comparative statement before printing it')
+      return
+    }
+    window.open(workshopApi.accountingPrintUrl('compare_sheets', backendPc.compareSheetId), '_blank', 'noopener,noreferrer')
+  }
+  const printComparisonPacket = () => {
+    if (!backendPc) {
+      setSnack('Printing is available for saved procurement cases')
+      return
+    }
+    window.open(workshopApi.procurementQuotationPacketPrintUrl(backendPc.id), '_blank', 'noopener,noreferrer')
+  }
   const persistedAuditSelections = auditSelectionsFromReview(pc)
   const existingCSSelections: Record<string, DecisionSelection> = Object.fromEntries(
     (pc.csDecision?.items || []).map((item) => [item.casePartId, {
@@ -1706,6 +1735,12 @@ export function ProcurementCaseDetailPage() {
               {pc.parts.map((p) => p.partName).join(', ')} — {pc.customerName}
             </Typography>
           </Box>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+            <Button size="small" startIcon={<Print sx={{ fontSize: '1rem' }} />} variant="outlined" onClick={printComparisonPacket}
+              sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Print Comparison Packet</Button>
+            <Button size="small" startIcon={<Print sx={{ fontSize: '1rem' }} />} variant="outlined" onClick={printCompareSheet}
+              sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Print Compare Sheet</Button>
+          </Stack>
         </Stack>
 
         {/* Step Progress */}
@@ -1721,7 +1756,7 @@ export function ProcurementCaseDetailPage() {
         {pc.storeReview && currentIdx > 0 && pc.currentStep !== 'approval' ? <CompletedStepBadge label="Store Review" byName={pc.storeReview.actionByName} date={pc.storeReview.actionDate} note={pc.storeReview.note} /> : null}
         {currentIdx > 1 && pc.currentStep !== 'approval' && pc.currentStep !== 'audit' && !isCompleted ? (
           <SectionCard title={`Quotations (${pc.quotations.length})`} icon={<Add />} defaultCollapsed>
-            <QuotationsSummaryTable quotations={pc.quotations} />
+            <QuotationsSummaryTable quotations={pc.quotations} onPrint={backendPc ? printQuotation : undefined} />
           </SectionCard>
         ) : null}
         {pc.csDecision && currentIdx > 2 && pc.currentStep !== 'approval' ? <CSDecisionSummary pc={pc} /> : null}
@@ -1755,6 +1790,7 @@ export function ProcurementCaseDetailPage() {
                 <QuotationsSummaryTable
                   quotations={pc.quotations}
                   editable
+                  onPrint={backendPc ? printQuotation : undefined}
                   onEdit={(q) => { setEditQuotation(q); setQuotationDialog(true) }}
                   onRemove={async (id) => {
                     if (!backendPc) return
@@ -1829,7 +1865,7 @@ export function ProcurementCaseDetailPage() {
                   onSelect={(casePartId, quotationId, vendorName, unitPrice, quantity, totalPrice) => setAuditSelections((current) => ({ ...current, [casePartId]: { quotationId, vendorName, unitPrice, quantity, totalPrice } }))}
                 />
                 <SectionCard title={`All Quotations & Attachments (${pc.quotations.length})`} icon={<AttachFile />} defaultCollapsed={false}>
-                  <QuotationsSummaryTable quotations={pc.quotations} />
+                  <QuotationsSummaryTable quotations={pc.quotations} onPrint={backendPc ? printQuotation : undefined} />
                 </SectionCard>
                 {Object.keys(auditSelections).length ? <Alert severity="success" sx={{ borderRadius: radii.sm }}>Audit suggestions recorded for {Object.keys(auditSelections).length} of {pc.parts.length} parts. Add a note if any quote needs clarification.</Alert> : null}
                 <TextField size="small" label="Audit note (optional)" value={actionNote} onChange={(e) => setActionNote(e.target.value)} multiline minRows={2} fullWidth />

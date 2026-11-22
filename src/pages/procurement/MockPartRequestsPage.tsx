@@ -62,12 +62,16 @@ function lineItemFromServer(row: LivePartRequest): PartLineItem {
 
 type TriageSave = {
   disposition: PartDisposition
+  partName: string
+  partNumber?: string
   localVendorName?: string
   localPrice?: number
   localQuantity?: number
   localDeliveryDays?: number
   foreignNote?: string
 }
+
+type TriageDetails = Omit<TriageSave, 'partName' | 'partNumber'>
 
 function LineItemRow({
   item,
@@ -78,6 +82,8 @@ function LineItemRow({
 }) {
   const [selectedDisposition, setSelectedDisposition] = useState<PartDisposition>(item.disposition)
   const [saving, setSaving] = useState(false)
+  const [partName, setPartName] = useState(item.partName)
+  const [partNumber, setPartNumber] = useState(item.partNumber ?? '')
 
   const [localVendorName, setLocalVendorName] = useState(item.localVendorName ?? '')
   const [localPrice, setLocalPrice] = useState(item.localPrice ?? 0)
@@ -85,11 +91,15 @@ function LineItemRow({
   const [localDays, setLocalDays] = useState(item.localDeliveryDays ?? 0)
   const [foreignNote, setForeignNote] = useState(item.foreignNote ?? '')
 
-  const save = async (details: TriageSave) => {
+  const save = async (details: TriageDetails) => {
     if (!onSave) return
     setSaving(true)
     try {
-      await onSave(details)
+      await onSave({
+        ...details,
+        partName: partName.trim(),
+        partNumber: partNumber.trim() || undefined,
+      })
     } finally {
       setSaving(false)
     }
@@ -188,11 +198,40 @@ function LineItemRow({
       }}
     >
       <Stack spacing={2}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+          <TextField
+            size="small"
+            label="Part Number (optional)"
+            value={partNumber}
+            onChange={(e) => setPartNumber(e.target.value)}
+            placeholder="e.g. BRK-PAD-F-2847"
+            sx={{ flex: 1, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
+          />
+          <TextField
+            size="small"
+            label="Part Name"
+            value={partName}
+            onChange={(e) => setPartName(e.target.value)}
+            required
+            error={!partName.trim()}
+            helperText={!partName.trim() ? 'Part name is required' : undefined}
+            sx={{ flex: 2, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={saving || !partName.trim()}
+            onClick={() => void save({ disposition: selectedDisposition })}
+            sx={{ height: 40, textTransform: 'none', fontWeight: 700, borderRadius: radii.sm }}
+          >
+            Save Part Details
+          </Button>
+        </Stack>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
           <Box>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
               <Typography sx={{ fontWeight: 700, fontSize: '0.88rem', color: colors.slate[900] }}>
-                {item.partName}
+                {partName}
               </Typography>
               {item.brand ? (
                 <Chip
@@ -208,9 +247,9 @@ function LineItemRow({
                   }}
                 />
               ) : null}
-              {item.partNumber ? (
+              {partNumber ? (
                 <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>
-                  #{item.partNumber}
+                  #{partNumber}
                 </Typography>
               ) : null}
             </Stack>
@@ -259,7 +298,7 @@ function LineItemRow({
             variant="contained"
             size="small"
             startIcon={<Inventory />}
-            disabled={saving}
+            disabled={saving || !partName.trim()}
             onClick={() => void save({ disposition: 'in_stock' })}
             sx={{
               alignSelf: 'flex-start',
@@ -313,7 +352,7 @@ function LineItemRow({
               variant="contained"
               size="small"
               startIcon={<LocalShipping />}
-              disabled={saving || !localVendorName.trim() || !localPrice}
+              disabled={saving || !partName.trim() || !localVendorName.trim() || !localPrice}
               onClick={() => {
                 void save({
                   disposition: 'local_vendor',
@@ -352,7 +391,7 @@ function LineItemRow({
               variant="contained"
               size="small"
               startIcon={<Public />}
-              disabled={saving || !foreignNote.trim()}
+              disabled={saving || !partName.trim() || !foreignNote.trim()}
               onClick={() => {
                 void save({
                   disposition: 'foreign_vendor',
@@ -401,7 +440,13 @@ export function MockPartRequestsPage() {
         ),
       }))
       setSnackError(false)
-      setSnack(details.disposition === 'in_stock' ? 'Part picked from stock and saved' : 'Triage saved')
+      setSnack(
+        details.disposition === 'in_stock'
+          ? 'Part picked from stock and saved'
+          : details.disposition === 'pending'
+            ? 'Part details saved'
+            : 'Triage saved',
+      )
     } catch (error) {
       setSnackError(true)
       setSnack(error instanceof Error ? error.message : 'Could not save triage')
