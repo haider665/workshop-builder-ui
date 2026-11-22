@@ -2,12 +2,14 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   IconButton,
   MenuItem,
   Snackbar,
@@ -21,12 +23,14 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import {
   ArrowBack,
   Add,
   AttachFile,
+  Cancel,
   CheckCircle,
   Delete,
   DirectionsCar,
@@ -62,7 +66,7 @@ async function hydrateBackendProcurementCase(data: Record<string, unknown>): Pro
       // Supplier quotations are created from the appointment's preselected part
       // rows. Preserve that positional relationship so duplicate requested names
       // (for example two separate "test" lines) remain distinct in the CS matrix.
-      lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>, index: number) => mapQuotationLine(item, mapped.parts[index]?.id)),
+      lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>, index: number) => mapQuotationLine(item, mapped.parts[index]?.id, mapped.parts)),
       grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || data.updatedAt || new Date().toISOString()),
     }))
   }
@@ -78,11 +82,13 @@ async function hydrateBackendProcurementCase(data: Record<string, unknown>): Pro
         const selectedQuotationId = String(item.selectedSupplierQuotationId || '')
         if (!selectedQuotationId) return []
         const quotation = mapped.quotations.find((candidate) => candidate.id === selectedQuotationId)
-        const quantity = Number(item.qty || mapped.parts[index]?.quantity || 1)
+        const partRequestId = String(item.partRequestId || item.cwPartRequest || '')
+        const part = mapped.parts.find((candidate) => candidate.lineItemId === partRequestId) || mapped.parts[index]
+        const quantity = Number(item.qty || part?.quantity || 1)
         const unitPrice = Number(item.selectedRate || item.lowestRate || 0)
         return [{
-          casePartId: mapped.parts[index]?.id || String(item.itemCode || `part-${index}`),
-          partName: String(item.description || item.itemName || mapped.parts[index]?.partName || 'Requested part'),
+          casePartId: part?.id || String(item.itemCode || `part-${index}`),
+          partName: String(item.description || item.itemName || part?.partName || 'Requested part'),
           selectedQuotationId,
           selectedVendorName: String(item.selectedVendorName || quotation?.vendorName || 'Supplier'),
           unitPrice,
@@ -152,17 +158,18 @@ async function hydrateBackendProcurementCase(data: Record<string, unknown>): Pro
   return mapped
 }
 
-function mapQuotationLine(item: Record<string, unknown>, fallbackCasePartId?: string): QuotationLineItem {
+function mapQuotationLine(item: Record<string, unknown>, fallbackCasePartId?: string, caseParts?: ProcurementCase['parts']): QuotationLineItem {
   const unitPrice = Number(item.rate ?? 0)
   const quantity = Number(item.qty ?? 0)
   const persistedTotal = item.amount ?? item.baseAmount
+  const partRequestId = String(item.partRequestId || item.cwPartRequest || '')
   const rawDescription = String(item.description || '')
   const deliveryMatch = rawDescription.match(/\s*·\s*Delivery:\s*([\d.]+)\s+(Hours|Days|Week|Month|Year)\s*$/i)
   const requestedName = rawDescription.replace(/\s*·\s*Delivery:\s*[\d.]+\s+(Hours|Days|Week|Month|Year)\s*$/i, '').trim()
   const deliveryUnit = deliveryMatch?.[2]
   const normalizedUnit = deliveryUnit ? (deliveryUnit.charAt(0).toUpperCase() + deliveryUnit.slice(1).toLowerCase()) as QuotationLineItem['deliveryUnit'] : undefined
   return {
-    casePartId: fallbackCasePartId || String(item.itemCode || item.id || ''),
+    casePartId: partRequestId ? caseParts?.find((part) => part.lineItemId === partRequestId)?.id || partRequestId : fallbackCasePartId || String(item.itemCode || item.id || ''),
     // ERPNext's item_name is the catalogue name; description retains the
     // requested appointment text and is the reliable identity for CS display.
     partName: requestedName || String(item.itemName || item.itemCode || 'Part'),
@@ -275,7 +282,25 @@ function AuditDecisionSummary({ pc }: { pc: ProcurementCase }) {
 
 /* ═══ Parts Details Table ═══ */
 
-function PartsDetailsSection({ pc }: { pc: ProcurementCase }) {
+function ExcludedPartMarker() {
+  return (
+    <Tooltip title="Excluded from procurement at Store Review">
+      <Chip
+        size="small"
+        icon={<Cancel sx={{ fontSize: '0.9rem !important', color: '#dc2626 !important' }} />}
+        label="Not procured"
+        sx={{ fontWeight: 700, fontSize: '0.65rem', bgcolor: '#fee2e2', color: '#b91c1c' }}
+      />
+    </Tooltip>
+  )
+}
+
+function PartsDetailsSection({ pc, selectionMode, selections, onSelectionChange }: {
+  pc: ProcurementCase
+  selectionMode?: boolean
+  selections?: Record<string, boolean>
+  onSelectionChange?: (partId: string, included: boolean) => void
+}) {
   return (
     <SectionCard title={`Parts (${pc.parts.length})`} icon={<Inventory />}>
       <Box sx={{ overflowX: 'auto' }}>
@@ -288,6 +313,7 @@ function PartsDetailsSection({ pc }: { pc: ProcurementCase }) {
               <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Brand</TableCell>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Qty</TableCell>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Type</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Procurement</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -308,6 +334,24 @@ function PartsDetailsSection({ pc }: { pc: ProcurementCase }) {
                 <TableCell sx={{ fontSize: '0.8rem' }}>{p.quantity} {p.unitOfMeasure || 'pcs'}</TableCell>
                 <TableCell>
                   <Chip size="small" label={p.disposition === 'local_vendor' ? 'Local' : 'Foreign'} sx={{ fontWeight: 700, fontSize: '0.65rem', bgcolor: p.disposition === 'local_vendor' ? '#dbeafe' : '#ffedd5', color: p.disposition === 'local_vendor' ? '#1d4ed8' : '#c2410c' }} />
+                </TableCell>
+                <TableCell>
+                  {selectionMode ? (
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={selections?.[p.id] !== false}
+                          onChange={(event) => onSelectionChange?.(p.id, event.target.checked)}
+                          sx={{ color: '#dc2626', '&.Mui-checked': { color: '#059669' } }}
+                        />
+                      }
+                      label={selections?.[p.id] === false ? 'Exclude' : 'Include'}
+                      sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.75rem', fontWeight: 700 } }}
+                    />
+                  ) : p.includeInProcurement === false ? <ExcludedPartMarker /> : (
+                    <Chip size="small" label="Included" sx={{ fontWeight: 700, fontSize: '0.65rem', bgcolor: '#d1fae5', color: '#047857' }} />
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -352,13 +396,14 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
   masterDataRequests?: CWMasterDataRequest[]
   onMasterDataRequested?: (request: CWMasterDataRequest) => void
 }) {
+  const includedPartIds = new Set(parts.map((part) => part.id))
+  const defaultLines = () => parts.map((part) => ({ casePartId: part.id, partName: part.partName, unitPrice: 0, quantity: part.quantity, totalPrice: 0, deliveryUnit: 'Days' as const }))
+  const initialLines = initial?.lineItems.filter((line) => includedPartIds.has(line.casePartId)) ?? defaultLines()
   const [vendorId, setVendorId] = useState(initial ? MOCK_VENDORS.find((v) => v.name === initial.vendorName)?.id ?? '' : '')
   const [liveVendors, setLiveVendors] = useState<Array<{ id: string; name: string; type?: string }>>([])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [lineItems, setLineItems] = useState<QuotationLineItem[]>(
-    initial?.lineItems ?? parts.map((p) => ({ casePartId: p.id, partName: p.partName, unitPrice: 0, quantity: p.quantity, totalPrice: 0, deliveryUnit: 'Days' as const })),
-  )
+  const [lineItems, setLineItems] = useState<QuotationLineItem[]>(initialLines)
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [files, setFiles] = useState<{ name: string; url: string }[]>(
     initial?.attachmentUrls?.map((url, i) => ({ name: initial.attachmentNames?.[i] ?? `file-${i + 1}`, url })) ?? [],
@@ -368,7 +413,8 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
       setSaveError(null)
       setSaving(false)
       setVendorId(initial ? MOCK_VENDORS.find((vendor) => vendor.name === initial.vendorName)?.id ?? '' : '')
-      setLineItems(initial?.lineItems ?? parts.map((part) => ({ casePartId: part.id, partName: part.partName, unitPrice: 0, quantity: part.quantity, totalPrice: 0, deliveryUnit: 'Days' as const })))
+      const openPartIds = new Set(parts.map((part) => part.id))
+      setLineItems(initial?.lineItems.filter((line) => openPartIds.has(line.casePartId)) ?? parts.map((part) => ({ casePartId: part.id, partName: part.partName, unitPrice: 0, quantity: part.quantity, totalPrice: 0, deliveryUnit: 'Days' as const })))
       setNotes(initial?.notes ?? '')
       setFiles(initial?.attachmentUrls?.map((url, index) => ({ name: initial.attachmentNames?.[index] ?? `file-${index + 1}`, url })) ?? [])
       if (company) {
@@ -674,16 +720,17 @@ function auditSelectionsFromReview(pc: ProcurementCase): Record<string, Decision
   const note = pc.auditReview?.note || ''
   const section = note.split('Audit suggestions:')[1]?.split('\n')[0]
   if (!section) return {}
+  const parts = pc.parts.filter((part) => part.includeInProcurement !== false)
   const usedParts = new Set<string>()
   const selections: Record<string, DecisionSelection> = {}
   section.split(';').forEach((entry) => {
     const match = entry.trim().match(/^(.+?)\s*→\s*(.+?)\s*·\s*৳([\d,]+)/)
     if (!match) return
     const [, partName, vendorName, totalText] = match
-    const part = pc.parts.find((candidate) => !usedParts.has(candidate.id) && candidate.partName.trim() === partName.trim())
+    const part = parts.find((candidate) => !usedParts.has(candidate.id) && candidate.partName.trim() === partName.trim())
     const quotation = pc.quotations.find((candidate) => candidate.vendorName.trim() === vendorName.trim())
     if (!part || !quotation) return
-    const line = quotation.lineItems.find((candidate) => candidate.casePartId === part.id) || quotation.lineItems[pc.parts.indexOf(part)]
+    const line = quotation.lineItems.find((candidate) => candidate.casePartId === part.id) || quotation.lineItems[parts.indexOf(part)]
     if (!line) return
     const totalPrice = Number(totalText.replace(/,/g, ''))
     usedParts.add(part.id)
@@ -705,7 +752,8 @@ function CSMatrix({ pc, selections, referenceSelections, existingSelections, onS
   onSuggestPrice?: (key: string, suggestion: AuditPriceSuggestion | null) => void
 }) {
   const vendors = pc.quotations
-  if (!vendors.length || !pc.parts.length) return <Alert severity="warning" sx={{ borderRadius: radii.sm }}>No quotations to compare.</Alert>
+  const parts = pc.parts.filter((part) => part.includeInProcurement !== false)
+  if (!vendors.length || !parts.length) return <Alert severity="warning" sx={{ borderRadius: radii.sm }}>No quotations to compare.</Alert>
 
   return (
     <Box sx={{ overflowX: 'auto' }}>
@@ -723,7 +771,7 @@ function CSMatrix({ pc, selections, referenceSelections, existingSelections, onS
           </TableRow>
         </TableHead>
         <TableBody>
-          {pc.parts.map((part) => (
+          {parts.map((part) => (
             <TableRow key={part.id}>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.82rem', position: 'sticky', left: 0, bgcolor: colors.bg.card, zIndex: 1 }}>
                 {part.partName}
@@ -734,7 +782,7 @@ function CSMatrix({ pc, selections, referenceSelections, existingSelections, onS
                 // the quote is hydrated. Name/number fallback keeps older
                 // quotations visible, while occurrence matching prevents the
                 // first duplicate name from being reused for every row.
-                const partIndex = pc.parts.findIndex((candidate) => candidate.id === part.id)
+                const partIndex = parts.findIndex((candidate) => candidate.id === part.id)
                 const li = q.lineItems.find((line) => line.casePartId === part.id)
                   || q.lineItems[partIndex]
                   || q.lineItems.find((line) => line.partName === part.partName || (part.partNumber && line.casePartId === part.partNumber))
@@ -1486,6 +1534,7 @@ export function ProcurementCaseDetailPage() {
   const updateQuotation = useMockProcurementStore((s) => s.updateQuotation)
   const setCSDecisionStore = useMockProcurementStore((s) => s.setCSDecision)
   const generatePOs = useMockProcurementStore((s) => s.generatePurchaseOrders)
+  const setProcurementPartSelection = useMockProcurementStore((s) => s.setProcurementPartSelection)
 
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
   const [backendPc, setBackendPc] = useState<ProcurementCase | null>(null)
@@ -1528,6 +1577,7 @@ export function ProcurementCaseDetailPage() {
   const pc = backendPc || cases.find((c) => c.id === caseId)
   const [snack, setSnack] = useState<string | null>(null)
   const [actionNote, setActionNote] = useState('')
+  const [storeReviewSelections, setStoreReviewSelections] = useState<Record<string, boolean>>({})
   const [showReject, setShowReject] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
   const [quotationDialog, setQuotationDialog] = useState(false)
@@ -1544,14 +1594,18 @@ export function ProcurementCaseDetailPage() {
 
   useEffect(() => {
     if (!pc?.csDecision || Object.keys(approvalSelections).length) return
-    setApprovalSelections(Object.fromEntries(pc.csDecision.items.map((item) => [item.casePartId, {
+    setApprovalSelections(Object.fromEntries(pc.csDecision.items.filter((item) => pc.parts.some((part) => part.id === item.casePartId && part.includeInProcurement !== false)).map((item) => [item.casePartId, {
       quotationId: item.selectedQuotationId,
       vendorName: item.selectedVendorName,
       unitPrice: item.unitPrice,
       quantity: item.quantity,
       totalPrice: item.totalPrice,
     }])))
-  }, [pc?.id, pc?.csDecision, approvalSelections])
+  }, [pc?.id, pc?.parts, pc?.csDecision, approvalSelections])
+
+  useEffect(() => {
+    setStoreReviewSelections(Object.fromEntries((pc?.parts || []).map((part) => [part.id, part.includeInProcurement !== false])))
+  }, [pc?.id, pc?.parts])
 
   if (!pc) {
     return (
@@ -1564,6 +1618,8 @@ export function ProcurementCaseDetailPage() {
 
   const currentIdx = PROCUREMENT_STEPS.indexOf(pc.currentStep)
   const isCompleted = pc.status === 'approved' || pc.status === 'rejected'
+  const procurementParts = pc.parts.filter((part) => part.includeInProcurement !== false)
+  const hasIncludedPart = Object.values(storeReviewSelections).some(Boolean)
   const printQuotation = (quotation: Quotation) => {
     if (!backendPc) {
       setSnack('Printing is available for saved procurement cases')
@@ -1601,10 +1657,26 @@ export function ProcurementCaseDetailPage() {
       try {
         const stage = backendPc.backendStage || ''
         if (stage === 'Procurement Review' || stage === 'Requested') {
-          const result = await workshopApi.procurementStoreReview(backendPc.id, { storeReviewStatus: 'Local Shortage', procurementType: 'Local', vendorRoute: 'Enlisted Vendor', note: actionNote.trim() || undefined, parts: backendPc.parts.map((part) => ({ partRequestId: part.lineItemId, storeReviewStatus: 'Local Shortage', procurementType: 'Local', stockAvailable: 0 })) })
-          setBackendPc(mapBackendProcurementCase(result))
+          if (!hasIncludedPart) throw new Error('Select at least one part for procurement.')
+          await workshopApi.procurementStoreReview(backendPc.id, {
+            storeReviewStatus: 'Local Shortage',
+            procurementType: 'Local',
+            vendorRoute: 'Enlisted Vendor',
+            note: actionNote.trim() || undefined,
+            parts: backendPc.parts.map((part) => {
+              const status = part.disposition === 'foreign_vendor' ? 'Foreign Required' : 'Local Shortage'
+              return {
+                partRequestId: part.lineItemId,
+                storeReviewStatus: status,
+                procurementType: status === 'Foreign Required' ? 'Foreign' : 'Local',
+                stockAvailable: 0,
+                includeInProcurement: storeReviewSelections[part.id] !== false,
+              }
+            }),
+          })
+          setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
         } else if (stage === 'GM Approval') {
-          const finalSelections = Object.entries(approvalSelections).map(([casePartId, selection]) => ({ casePartId, partName: backendPc.parts.find((part) => part.id === casePartId)?.partName || '', ...selection }))
+          const finalSelections = Object.entries(approvalSelections).filter(([casePartId]) => procurementParts.some((part) => part.id === casePartId)).map(([casePartId, selection]) => ({ casePartId, partName: backendPc.parts.find((part) => part.id === casePartId)?.partName || '', ...selection }))
           const quotationId = finalSelections[0]?.quotationId || approvalQuotationId || backendPc.quotations[0]?.id || ''
           if (!quotationId) throw new Error('Select a supplier quotation before approving.')
           const finalDecisionNote = finalSelections.length
@@ -1632,6 +1704,13 @@ export function ProcurementCaseDetailPage() {
         setActionNote(''); setSnack('Procurement case updated')
       } catch (cause) { setSnack(cause instanceof Error ? cause.message : 'Unable to update procurement case') }
       return
+    }
+    if (pc.currentStep === 'store_review') {
+      if (!hasIncludedPart) {
+        setSnack('Select at least one part for procurement.')
+        return
+      }
+      setProcurementPartSelection(pc.id, storeReviewSelections)
     }
     // Special: after approval step, also auto-generate POs
     if (pc.currentStep === 'approval') {
@@ -1665,12 +1744,12 @@ export function ProcurementCaseDetailPage() {
   }
 
   const handleCSSubmit = async () => {
-    if (Object.keys(csSelections).length !== pc.parts.length) {
-      setSnack('Select a vendor for every part')
+    if (Object.keys(csSelections).length !== procurementParts.length) {
+      setSnack('Select a vendor for every part included in procurement')
       return
     }
-    const items: CSDecisionItem[] = Object.entries(csSelections).map(([casePartId, sel]) => {
-      const part = pc.parts.find((p) => p.id === casePartId)
+    const items: CSDecisionItem[] = Object.entries(csSelections).filter(([casePartId]) => procurementParts.some((part) => part.id === casePartId)).map(([casePartId, sel]) => {
+      const part = procurementParts.find((p) => p.id === casePartId)
       return {
         casePartId,
         partName: part?.partName ?? '',
@@ -1749,7 +1828,12 @@ export function ProcurementCaseDetailPage() {
         </Box>
 
         {/* Parts Details — always visible */}
-        <PartsDetailsSection pc={pc} />
+        <PartsDetailsSection
+          pc={pc}
+          selectionMode={pc.currentStep === 'store_review' && !isCompleted}
+          selections={storeReviewSelections}
+          onSelectionChange={(partId, included) => setStoreReviewSelections((current) => ({ ...current, [partId]: included }))}
+        />
         <VehicleInfoSection pc={pc} />
 
         {/* Accumulated completed steps */}
@@ -1771,10 +1855,13 @@ export function ProcurementCaseDetailPage() {
             {/* Store Review */}
             {pc.currentStep === 'store_review' && (
               <Stack spacing={2}>
-                <Alert severity="info" sx={{ borderRadius: radii.sm }}>Review parts and vehicle info. Confirm stock unavailability.</Alert>
+                <Alert severity="info" sx={{ borderRadius: radii.sm }}>Select the parts that should go to procurement. Unselected parts stay on the case as <b>Not procured</b> with a red cross and are excluded from quotations.</Alert>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: hasIncludedPart ? '#047857' : '#b91c1c' }}>
+                  {Object.values(storeReviewSelections).filter(Boolean).length} of {pc.parts.length} parts selected for procurement
+                </Typography>
                 <TextField size="small" label="Note (optional)" value={actionNote} onChange={(e) => setActionNote(e.target.value)} multiline minRows={2} fullWidth />
                 <Stack direction="row" spacing={1.5}>
-                  <Button variant="contained" onClick={handleApprove} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Approve & Send to Quotations</Button>
+                  <Button variant="contained" disabled={!hasIncludedPart} onClick={handleApprove} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Approve & Send to Quotations</Button>
                   <Button variant="outlined" color="error" onClick={() => setShowReject(true)} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Reject</Button>
                 </Stack>
               </Stack>
@@ -1821,7 +1908,7 @@ export function ProcurementCaseDetailPage() {
                   <Box sx={{ p: 1.5, borderRadius: radii.sm, bgcolor: colors.slate[50] }}>
                     <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', mb: 0.5 }}>Selection Summary:</Typography>
                     {Object.entries(csSelections).map(([partId, sel]) => {
-                      const part = pc.parts.find((p) => p.id === partId)
+                      const part = procurementParts.find((p) => p.id === partId)
                       return <Typography key={partId} sx={{ fontSize: '0.78rem', color: colors.slate[700] }}>{part?.partName}: <b>{sel.vendorName}</b> — ৳{sel.totalPrice.toLocaleString()}</Typography>
                     })}
                     <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mt: 0.5, color: '#059669' }}>
@@ -1832,7 +1919,7 @@ export function ProcurementCaseDetailPage() {
                 <Divider />
                 <TextField size="small" label="Decision note" value={csNote} onChange={(e) => setCsNote(e.target.value)} multiline minRows={2} fullWidth />
                 <Stack direction="row" spacing={1.5}>
-                  <Button variant="contained" onClick={handleCSSubmit} disabled={Object.keys(csSelections).length !== pc.parts.length} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Submit CS Decision</Button>
+                  <Button variant="contained" onClick={handleCSSubmit} disabled={Object.keys(csSelections).length !== procurementParts.length} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Submit CS Decision</Button>
                   <Button variant="outlined" color="error" onClick={() => setShowReject(true)} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Reject</Button>
                 </Stack>
               </Stack>
@@ -1867,7 +1954,7 @@ export function ProcurementCaseDetailPage() {
                 <SectionCard title={`All Quotations & Attachments (${pc.quotations.length})`} icon={<AttachFile />} defaultCollapsed={false}>
                   <QuotationsSummaryTable quotations={pc.quotations} onPrint={backendPc ? printQuotation : undefined} />
                 </SectionCard>
-                {Object.keys(auditSelections).length ? <Alert severity="success" sx={{ borderRadius: radii.sm }}>Audit suggestions recorded for {Object.keys(auditSelections).length} of {pc.parts.length} parts. Add a note if any quote needs clarification.</Alert> : null}
+                {Object.keys(auditSelections).length ? <Alert severity="success" sx={{ borderRadius: radii.sm }}>Audit suggestions recorded for {Object.keys(auditSelections).length} of {procurementParts.length} parts. Add a note if any quote needs clarification.</Alert> : null}
                 <TextField size="small" label="Audit note (optional)" value={actionNote} onChange={(e) => setActionNote(e.target.value)} multiline minRows={2} fullWidth />
                 <Stack direction="row" spacing={1.5}>
                   <Button variant="contained" onClick={handleApprove} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Approve</Button>
@@ -1907,7 +1994,7 @@ export function ProcurementCaseDetailPage() {
                 <Divider />
                 <TextField size="small" label="Approval note (optional)" value={actionNote} onChange={(e) => setActionNote(e.target.value)} multiline minRows={2} fullWidth />
                 <Stack direction="row" spacing={1.5}>
-                  <Button variant="contained" onClick={handleApprove} disabled={Object.keys(approvalSelections).length !== pc.parts.length} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Final Approve ✓</Button>
+                  <Button variant="contained" onClick={handleApprove} disabled={Object.keys(approvalSelections).length !== procurementParts.length} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#047857' } }}>Final Approve ✓</Button>
                   <Button variant="outlined" color="error" onClick={() => setShowReject(true)} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Reject</Button>
                 </Stack>
               </Stack>
@@ -1938,7 +2025,7 @@ export function ProcurementCaseDetailPage() {
         </Dialog>
 
         {/* Quotation Dialog */}
-        <QuotationDialog open={quotationDialog} onClose={() => setQuotationDialog(false)} parts={pc.parts} initial={editQuotation} company={selectedCompanyId} caseId={pc.id} masterDataRequests={masterDataRequests}
+        <QuotationDialog open={quotationDialog} onClose={() => setQuotationDialog(false)} parts={procurementParts} initial={editQuotation} company={selectedCompanyId} caseId={pc.id} masterDataRequests={masterDataRequests}
           onMasterDataRequested={(request) => setMasterDataRequests((current) => [...current, request])}
           onSave={async (q) => {
             if (backendPc) {
@@ -1949,7 +2036,7 @@ export function ProcurementCaseDetailPage() {
                 supplier = { id: created.id, name: created.name }
               }
               const itemRows = await Promise.all(q.lineItems.map(async (line) => {
-                const part = pc.parts.find((candidate) => candidate.id === line.casePartId)
+                const part = procurementParts.find((candidate) => candidate.id === line.casePartId)
                 const search = part?.partNumber || part?.partName || line.partName
                 const itemResponse = await workshopApi.accountingItems(search)
                 let item = itemResponse.data.find((row) => row.itemCode === part?.partNumber) || itemResponse.data[0]
@@ -1997,7 +2084,7 @@ export function ProcurementCaseDetailPage() {
                 }
                 if (!item) throw new Error(`No purchasable Item master record found for ${line.partName}.`)
                 const delivery = line.deliveryDays && line.deliveryUnit ? ` · Delivery: ${line.deliveryDays} ${line.deliveryUnit}` : ''
-                return { itemCode: item.itemCode, qty: line.quantity, rate: line.unitPrice, description: `${line.partName}${delivery}` }
+                return { itemCode: item.itemCode, qty: line.quantity, rate: line.unitPrice, description: `${line.partName}${delivery}`, partRequestId: part?.lineItemId }
               }))
               const createdQuotation = editQuotation
                 ? await workshopApi.accountingUpdate('quotations', editQuotation.id, { supplierId: supplier.id, items: itemRows, terms: q.notes })
@@ -2009,7 +2096,7 @@ export function ProcurementCaseDetailPage() {
               const mapped = mapBackendProcurementCase(refreshed)
               const summaries = Array.isArray((refreshed as Record<string, unknown>).supplierQuotations) ? (refreshed as Record<string, unknown>).supplierQuotations as Array<Record<string, unknown>> : []
               const full = await Promise.all(summaries.map(async (summary) => { try { return await workshopApi.accountingGet('quotations', String(summary.id)) } catch { return summary } }))
-              mapped.quotations = full.map((quote) => ({ id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const, lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>, index: number) => mapQuotationLine(item, mapped.parts[index]?.id)), grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || new Date().toISOString()) }))
+              mapped.quotations = full.map((quote) => ({ id: String(quote.id), vendorName: String(quote.supplierName || quote.supplierId || 'Supplier'), sourcingType: 'Local' as const, lineItems: (Array.isArray(quote.items) ? quote.items : []).map((item: Record<string, unknown>, index: number) => mapQuotationLine(item, mapped.parts[index]?.id, mapped.parts)), grandTotal: Number(quote.grandTotal || quote.totalAmount || 0), currency: String(quote.currency || 'BDT'), attachmentUrls: [], attachmentNames: [], submittedAt: String(quote.createdAt || new Date().toISOString()) }))
               setBackendPc(mapped)
               setSnack('Supplier quotation saved to this procurement case')
             } else if (editQuotation) updateQuotation(pc.id, editQuotation.id, q)

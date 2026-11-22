@@ -50,6 +50,7 @@ function lineItemFromServer(row: LivePartRequest): PartLineItem {
     partNumber: row.partNumber,
     quantity: row.quantity ?? 1,
     disposition: row.disposition ?? 'pending',
+    includeInProcurement: row.includeInProcurement !== false,
     pickedFromCounter: row.pickedFromCounter,
     localVendorName: row.localVendorName,
     localPrice: row.localPrice,

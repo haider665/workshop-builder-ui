@@ -15,6 +15,7 @@ export type LiveCustomerApprovalStatus = 'not_required' | 'pending' | 'approved'
  */
 export type LivePartRequest = CWPartRequest & {
   companyId?: string
+  includeInProcurement?: boolean
   storeReviewStatus?: 'Pending' | 'Stock Available' | 'Local Shortage' | 'Foreign Required'
   procurementType?: 'Local' | 'Foreign'
   stockAvailable?: number
@@ -46,6 +47,7 @@ export type PartLineItem = {
   unitOfMeasure?: string
   quantity: number
   disposition: PartDisposition
+  includeInProcurement?: boolean
   // For in_stock
   pickedFromCounter?: boolean
   // For local_vendor (rough quote for customer)
@@ -128,6 +130,7 @@ export type CasePart = {
   unitOfMeasure?: string
   quantity: number
   disposition: 'local_vendor' | 'foreign_vendor'
+  includeInProcurement?: boolean
 }
 
 // ── Quotation (multi-part per vendor) ──

@@ -2239,6 +2239,7 @@ export const workshopApi = {
     disposition: import('../types/procurementWorkflow').PartDisposition
     partName?: string
     partNumber?: string
+    includeInProcurement?: boolean
     localVendorName?: string
     localPrice?: number
     localQuantity?: number
@@ -2306,7 +2307,7 @@ export const workshopApi = {
   async procurementCaseAction(id: string, action: string, note?: string): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.action', { method: 'POST', body: { id, data: { action, note } } })
   },
-  async procurementStoreReview(id: string, input: { storeReviewStatus: 'Stock Available' | 'Local Shortage' | 'Foreign Required'; procurementType: 'Local' | 'Foreign'; vendorRoute: 'Enlisted Vendor' | 'Non-enlisted Vendor' | 'Single Vendor'; note?: string; parts?: Array<{ partRequestId: string; storeReviewStatus: 'Stock Available' | 'Local Shortage' | 'Foreign Required'; procurementType: 'Local' | 'Foreign'; stockAvailable?: number; note?: string }> }): Promise<Record<string, unknown>> {
+  async procurementStoreReview(id: string, input: { storeReviewStatus: 'Stock Available' | 'Local Shortage' | 'Foreign Required'; procurementType: 'Local' | 'Foreign'; vendorRoute: 'Enlisted Vendor' | 'Non-enlisted Vendor' | 'Single Vendor'; note?: string; parts?: Array<{ partRequestId: string; storeReviewStatus: 'Stock Available' | 'Local Shortage' | 'Foreign Required'; procurementType: 'Local' | 'Foreign'; stockAvailable?: number; includeInProcurement?: boolean; note?: string }> }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.store_review', { method: 'POST', body: { id, data: input } })
   },
   async procurementForeignMilestone(id: string, input: { customerConfirmation?: 'Not Required' | 'Pending' | 'Confirmed' | 'Rejected'; advanceStatus?: 'Not Required' | 'Pending' | 'Confirmed' | 'Partially Paid' | 'Paid'; advanceAmount?: number; shipmentEta?: string; note?: string }): Promise<Record<string, unknown>> {

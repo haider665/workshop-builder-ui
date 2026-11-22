@@ -30,6 +30,7 @@ type MockProcurementState = {
 
   // ── Procurement Pipeline actions ──
   advanceProcurementStep: (caseId: string, record: Omit<StepRecord, 'step'>) => void
+  setProcurementPartSelection: (caseId: string, selections: Record<string, boolean>) => void
   rejectProcurementStep: (caseId: string, note: string, actionByName: string) => void
   addQuotation: (caseId: string, quotation: Omit<Quotation, 'id' | 'submittedAt'>) => void
   updateQuotation: (caseId: string, quotationId: string, updates: Partial<Omit<Quotation, 'id' | 'submittedAt'>>) => void
@@ -79,6 +80,19 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
           updated.status = 'approved'
         }
         return updated
+      }),
+    }))
+  },
+
+  setProcurementPartSelection: (caseId, selections) => {
+    set((state) => ({
+      procurementCases: state.procurementCases.map((c) => c.id !== caseId ? c : {
+        ...c,
+        parts: c.parts.map((part) => ({
+          ...part,
+          includeInProcurement: selections[part.lineItemId] ?? selections[part.id] ?? part.includeInProcurement ?? true,
+        })),
+        updatedAt: nowIso(),
       }),
     }))
   },

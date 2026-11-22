@@ -35,6 +35,14 @@ function numberValue(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function booleanValue(value: unknown, fallback = true): boolean {
+  if (value === undefined || value === null || value === '') return fallback
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') return ['1', 'true', 'yes'].includes(value.trim().toLowerCase())
+  return Boolean(value)
+}
+
 function record(value: unknown): BackendCase {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as BackendCase : {}
 }
@@ -75,6 +83,7 @@ function requestContextCaseData(source: BackendCase): Pick<ProcurementCase, 'veh
       partNumber: text(part.partNumber),
       quantity: numberValue(part.quantity),
       disposition: part.procurementType === 'Foreign' ? 'foreign_vendor' as const : 'local_vendor' as const,
+      includeInProcurement: booleanValue(part.includeInProcurement, true),
       unitOfMeasure: 'pcs',
     })),
   }
