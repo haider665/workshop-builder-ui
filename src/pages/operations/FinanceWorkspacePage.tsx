@@ -33,6 +33,7 @@ import {
   ShoppingCart,
 } from "@mui/icons-material";
 import { workshopApi } from "../../services/workshopApi";
+import type { ProcurementApprovalPolicy, ProcurementApprovalStep } from "../../types/procurementWorkflow";
 import { useCompanyStore } from "../../store/companyStore";
 import { colors, pageLayout, radii, shadows } from "../../theme/tokens";
 
@@ -584,7 +585,7 @@ export function FinanceWorkspacePage({
   const [mastersLoading, setMastersLoading] = useState(false);
   const [accountOptions, setAccountOptions] = useState<MasterOption[]>([]);
   const [modeOptions, setModeOptions] = useState<MasterOption[]>([]);
-  const [policy, setPolicy] = useState<Record<string, unknown> | null>(null);
+  const [policy, setPolicy] = useState<ProcurementApprovalPolicy | null>(null);
   const [policyBusy, setPolicyBusy] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -1423,8 +1424,47 @@ export function FinanceWorkspacePage({
     }
   }
 
-  const setPolicyValue = (key: string, value: unknown) =>
+  const setPolicyValue = <K extends keyof ProcurementApprovalPolicy>(
+    key: K,
+    value: ProcurementApprovalPolicy[K],
+  ) =>
     setPolicy((current) => (current ? { ...current, [key]: value } : current));
+
+  const setApprovalStep = <K extends keyof ProcurementApprovalStep>(
+    index: number,
+    key: K,
+    value: ProcurementApprovalStep[K],
+  ) =>
+    setPolicy((current) => {
+      if (!current) return current;
+      const steps = [...(current.approvalSteps || [])];
+      steps[index] = { ...steps[index], [key]: value };
+      return { ...current, approvalSteps: steps };
+    });
+
+  const addApprovalStep = () =>
+    setPolicy((current) => {
+      if (!current) return current;
+      const steps = [...(current.approvalSteps || [])];
+      steps.push({
+        stage: "GM Approval",
+        authorizedUserId: "",
+        minAmount: 0,
+        sequence: steps.length + 1,
+        acknowledgement: "",
+      });
+      return { ...current, approvalSteps: steps };
+    });
+
+  const removeApprovalStep = (index: number) =>
+    setPolicy((current) => {
+      if (!current) return current;
+      const steps = (current.approvalSteps || []).filter((_, stepIndex) => stepIndex !== index);
+      return {
+        ...current,
+        approvalSteps: steps.map((step, stepIndex) => ({ ...step, sequence: stepIndex + 1 })),
+      };
+    });
 
   async function createCompareSheet() {
     if (!selectedCompanyId || compareSelection.length === 0) return;
@@ -1910,7 +1950,160 @@ export function FinanceWorkspacePage({
             </Box>
             {policy ? (
               <>
-                <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <Stack spacing={2}>
+                  <Box sx={{ p: 2, borderRadius: radii.sm, border: `1px solid ${colors.border.default}` }}>
+                    <Typography sx={{ fontWeight: 700, mb: 1 }}>
+                      Policy acknowledgement and named approvers
+                    </Typography>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={Boolean(policy.enabled)}
+                          onChange={(e) => setPolicyValue("enabled", e.target.checked)}
+                        />
+                      }
+                      label="Policy enabled"
+                    />
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      size="small"
+                      label="Acknowledgement text shown on cases"
+                      value={String(policy.acknowledgement || "")}
+                      onChange={(e) => setPolicyValue("acknowledgement", e.target.value)}
+                      sx={{ mb: 1.5 }}
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={Boolean(policy.specialCaseEnabled)}
+                          onChange={(e) => setPolicyValue("specialCaseEnabled", e.target.checked)}
+                        />
+                      }
+                      label="Special-case approval routing"
+                    />
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        label="Special-case minimum amount"
+                        value={String(policy.specialCaseMinAmount ?? 0)}
+                        onChange={(e) => setPolicyValue("specialCaseMinAmount", Number(e.target.value) || 0)}
+                      />
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Special-case approver user ID"
+                        value={String(policy.specialCaseApprover || "")}
+                        onChange={(e) => setPolicyValue("specialCaseApprover", e.target.value)}
+                      />
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Special-case audit approver user ID"
+                        value={String(policy.specialCaseAuditApprover || "")}
+                        onChange={(e) => setPolicyValue("specialCaseAuditApprover", e.target.value)}
+                      />
+                    </Stack>
+                  </Box>
+
+                  <Box sx={{ p: 2, borderRadius: radii.sm, border: `1px solid ${colors.border.default}` }}>
+                    <Typography sx={{ fontWeight: 700, mb: 1 }}>
+                      Receiving and returns controls
+                    </Typography>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ flexWrap: "wrap" }}>
+                      <FormControlLabel
+                        control={<Switch checked={policy.allowDeliveredProductSelection !== false} onChange={(e) => setPolicyValue("allowDeliveredProductSelection", e.target.checked)} />}
+                        label="Allow delivered product selection"
+                      />
+                      <FormControlLabel
+                        control={<Switch checked={policy.allowPartialReceive !== false} onChange={(e) => setPolicyValue("allowPartialReceive", e.target.checked)} />}
+                        label="Allow partial receipt"
+                      />
+                      <FormControlLabel
+                        control={<Switch checked={policy.allowSingleProductReturn !== false} onChange={(e) => setPolicyValue("allowSingleProductReturn", e.target.checked)} />}
+                        label="Single-product returns"
+                      />
+                      <FormControlLabel
+                        control={<Switch checked={policy.allowIndividualItemReturn !== false} onChange={(e) => setPolicyValue("allowIndividualItemReturn", e.target.checked)} />}
+                        label="Individual-item returns"
+                      />
+                      <FormControlLabel
+                        control={<Switch checked={policy.allowCreditNoteReturn !== false} onChange={(e) => setPolicyValue("allowCreditNoteReturn", e.target.checked)} />}
+                        label="Credit-note returns"
+                      />
+                      <FormControlLabel
+                        control={<Switch checked={policy.allowDirectReturn !== false} onChange={(e) => setPolicyValue("allowDirectReturn", e.target.checked)} />}
+                        label="Direct returns"
+                      />
+                    </Stack>
+                  </Box>
+
+                  <Box sx={{ p: 2, borderRadius: radii.sm, border: `1px solid ${colors.border.default}` }}>
+                    <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                      <Typography sx={{ fontWeight: 700 }}>Approval steps</Typography>
+                      <Button size="small" onClick={addApprovalStep}>Add approval step</Button>
+                    </Stack>
+                    {!(policy.approvalSteps || []).length ? (
+                      <Typography variant="body2" sx={{ color: colors.slate[600] }}>
+                        No named approval steps. The role-based approval gates below remain active.
+                      </Typography>
+                    ) : (
+                      <Stack spacing={1.5}>
+                        {(policy.approvalSteps || []).map((step, index) => (
+                          <Stack key={index} direction={{ xs: "column", md: "row" }} spacing={1.5} sx={{ p: 1.5, borderRadius: radii.sm, bgcolor: '#f8fafc' }}>
+                            <TextField
+                              select
+                              size="small"
+                              label="Stage"
+                              value={step.stage}
+                              onChange={(e) => setApprovalStep(index, "stage", e.target.value)}
+                              sx={{ minWidth: 170 }}
+                            >
+                              <MenuItem value="Audit Verification">Audit Verification</MenuItem>
+                              <MenuItem value="GM Approval">GM Approval</MenuItem>
+                              <MenuItem value="Management Approval">Management Approval</MenuItem>
+                            </TextField>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="Authorized user ID"
+                              value={String(step.authorizedUserId || "")}
+                              onChange={(e) => setApprovalStep(index, "authorizedUserId", e.target.value)}
+                            />
+                            <TextField
+                              size="small"
+                              type="number"
+                              label="Minimum amount"
+                              value={String(step.minAmount ?? 0)}
+                              onChange={(e) => setApprovalStep(index, "minAmount", Number(e.target.value) || 0)}
+                              sx={{ width: 150 }}
+                            />
+                            <TextField
+                              size="small"
+                              type="number"
+                              label="Sequence"
+                              value={String(step.sequence ?? index + 1)}
+                              onChange={(e) => setApprovalStep(index, "sequence", Number(e.target.value) || index + 1)}
+                              sx={{ width: 110 }}
+                            />
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="Acknowledgement"
+                              value={String(step.acknowledgement || "")}
+                              onChange={(e) => setApprovalStep(index, "acknowledgement", e.target.value)}
+                            />
+                            <Button size="small" color="error" onClick={() => removeApprovalStep(index)}>Remove</Button>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                   <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontWeight: 700, mb: 1 }}>
                       Approval gates
@@ -2076,6 +2269,7 @@ export function FinanceWorkspacePage({
                   >
                     {policyBusy ? "Saving…" : "Save policy"}
                   </Button>
+                </Stack>
                 </Stack>
               </>
             ) : (

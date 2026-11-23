@@ -1,3 +1,5 @@
+import type { ProcurementApprovalPolicy, ProcurementDecisionRecord, SupplierReturn } from '../types/procurementWorkflow'
+
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const apiBaseUrl = configuredApiBaseUrl
 
@@ -2304,8 +2306,11 @@ export const workshopApi = {
   async procurementCaseActions(id: string): Promise<{ caseId: string; stage: string; actions: Array<{ action: string; label: string; allowed: boolean; requiresReason: boolean; disabledReason?: string | null; toStage: string }> }> {
     return request(`/api/method/workshop.api.accounting.procurement_cases.available_actions${buildQuery({ id })}`)
   },
-  async procurementCaseAction(id: string, action: string, note?: string): Promise<Record<string, unknown>> {
-    return request('/api/method/workshop.api.accounting.procurement_cases.action', { method: 'POST', body: { id, data: { action, note } } })
+  async procurementCaseAction(id: string, action: string, note?: string, extra?: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.procurement_cases.action', { method: 'POST', body: { id, data: { action, note, ...(extra || {}) } } })
+  },
+  async procurementSubmitCsProposal(id: string, data: { items: Array<Record<string, unknown>>; note?: string }): Promise<ProcurementDecisionRecord & Record<string, unknown>> {
+    return request('/api/method/workshop.api.accounting.procurement_cases.submit_cs_proposal', { method: 'POST', body: { id, data } })
   },
   async procurementStoreReview(id: string, input: { storeReviewStatus: 'Stock Available' | 'Local Shortage' | 'Foreign Required'; procurementType: 'Local' | 'Foreign'; vendorRoute: 'Enlisted Vendor' | 'Non-enlisted Vendor' | 'Single Vendor'; note?: string; parts?: Array<{ partRequestId: string; storeReviewStatus: 'Stock Available' | 'Local Shortage' | 'Foreign Required'; procurementType: 'Local' | 'Foreign'; stockAvailable?: number; includeInProcurement?: boolean; note?: string }> }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.store_review', { method: 'POST', body: { id, data: input } })
@@ -2325,10 +2330,13 @@ export const workshopApi = {
   async procurementSelectQuotation(id: string, supplierQuotationId: string, reason: string, finalSelections?: Array<Record<string, unknown>>): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.procurement_cases.select_quotation', { method: 'POST', body: { id, data: { supplierQuotationId, reason, finalSelections } } })
   },
-  async procurementApprovalPolicies(company?: string): Promise<{ data: Array<Record<string, unknown>>; defaults?: Array<Record<string, unknown>> }> {
+  async procurementApprovalPolicies(company?: string): Promise<{ data: ProcurementApprovalPolicy[]; defaults?: ProcurementApprovalPolicy[] }> {
     return request(`/api/method/workshop.api.accounting.approval_policies.list${buildQuery({ company })}`)
   },
-  async saveProcurementApprovalPolicy(data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async procurementApprovalPolicyPreview(company: string, amount: number): Promise<{ requiredStages: string[]; skippedStages: string[]; specialCase: boolean }> {
+    return request(`/api/method/workshop.api.accounting.approval_policies.preview${buildQuery({ company, amount })}`)
+  },
+  async saveProcurementApprovalPolicy(data: ProcurementApprovalPolicy): Promise<ProcurementApprovalPolicy> {
     return request('/api/method/workshop.api.accounting.approval_policies.save', { method: 'POST', body: { data } })
   },
   async financialClearances(company?: string): Promise<ApiListResponse<{ id: string; type?: string; status?: string; appointmentId?: string; requestedAmount?: number; outstandingAmount?: number; requestedByUserId?: string; requestedAt?: string; reviewedByUserId?: string; reviewedAt?: string; reviewNote?: string; details?: Record<string, unknown> }>> {
@@ -2369,6 +2377,12 @@ export const workshopApi = {
   },
   async accountingCreateReceipt(data: { purchaseOrderId: string; postingDate?: string; items?: Array<{ purchaseOrderItemId: string; receivedQty: number; condition: 'good' | 'damaged' | 'partial' }>; notes?: string; attachmentFileIds?: string[] }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.receipts.create_from_purchase_order', { method: 'POST', body: { data } })
+  },
+  async supplierReturns(company?: string, procurementCaseId?: string): Promise<ApiListResponse<SupplierReturn>> {
+    return request(`/api/method/workshop.api.accounting.supplier_returns.list${buildQuery({ company, procurementCaseId, pageSize: 100 })}`)
+  },
+  async createSupplierReturn(data: { receiptId: string; mode: 'Single Product' | 'Individual Item' | 'Credit Note' | 'Direct Return'; items: Array<{ purchaseReceiptItemId: string; qty: number }>; invoiceId?: string; reason?: string; postingDate?: string; submit?: boolean }): Promise<SupplierReturn> {
+    return request('/api/method/workshop.api.accounting.supplier_returns.create_from_receipt', { method: 'POST', body: { data } })
   },
   async accountingCreateInvoice(data: { purchaseReceiptId: string; postingDate?: string; dueDate?: string; billNo?: string; billDate?: string; taxesAndCharges?: string; taxCategory?: string }): Promise<Record<string, unknown>> {
     return request('/api/method/workshop.api.accounting.invoices.create_from_receipt', { method: 'POST', body: { data } })

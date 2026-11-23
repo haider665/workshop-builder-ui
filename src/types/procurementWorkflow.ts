@@ -180,6 +180,100 @@ export type CSDecision = {
   decidedAt: string
 }
 
+export type ProcurementDecisionItem = CSDecisionItem & {
+  partRequestId?: string | null
+}
+
+export type ProcurementDecisionRecord = {
+  items: ProcurementDecisionItem[]
+  note?: string
+  decidedByUserId?: string
+  decidedByRole?: string
+  decidedAt?: string
+  priceSuggestions?: AuditPriceSuggestion[]
+}
+
+export type AuditPriceSuggestion = {
+  casePartId: string
+  partRequestId?: string | null
+  partName: string
+  selectedQuotationId: string
+  vendorName: string
+  originalUnitPrice: number
+  suggestedUnitPrice: number
+  quantity: number
+}
+
+export type ProcurementApprovalStep = {
+  stage: 'Audit Verification' | 'GM Approval' | 'Management Approval' | string
+  authorizedUserId: string
+  minAmount: number
+  sequence: number
+  acknowledgement?: string
+}
+
+export type ProcurementApprovalPolicy = {
+  id?: string | null
+  name?: string
+  companyId: string
+  enabled: boolean
+  acknowledgement?: string
+  specialCaseEnabled?: boolean
+  specialCaseMinAmount?: number
+  specialCaseApprover?: string | null
+  specialCaseAuditApprover?: string | null
+  approvalSteps?: ProcurementApprovalStep[]
+  allowDeliveredProductSelection?: boolean
+  allowPartialReceive?: boolean
+  allowSingleProductReturn?: boolean
+  allowIndividualItemReturn?: boolean
+  allowCreditNoteReturn?: boolean
+  allowDirectReturn?: boolean
+  requireGmApproval?: boolean
+  gmMinAmount?: number
+  requireAuditVerification?: boolean
+  auditVerificationMinAmount?: number
+  requireManagementApproval?: boolean
+  managementMinAmount?: number
+  requirePhysicalAudit?: boolean
+  physicalAuditMinAmount?: number
+  requireAuditClearance?: boolean
+  auditClearanceMinAmount?: number
+  localEnlistedCsMinAmount?: number
+  localEnlistedManagementMinAmount?: number
+  localNonEnlistedCsMinAmount?: number
+  localNonEnlistedManagementMinAmount?: number
+  foreignCsMinAmount?: number
+  foreignManagementMinAmount?: number
+  routeThresholdsConfigured?: boolean
+  notes?: string
+}
+
+export type ProcurementPolicySettings = Pick<
+  ProcurementApprovalPolicy,
+  'allowDeliveredProductSelection' | 'allowPartialReceive' | 'allowSingleProductReturn' |
+  'allowIndividualItemReturn' | 'allowCreditNoteReturn' | 'allowDirectReturn' |
+  'specialCaseEnabled' | 'specialCaseMinAmount'
+>
+
+export type SupplierReturn = {
+  id: string
+  receiptId: string
+  procurementCaseId?: string | null
+  mode: 'Single Product' | 'Individual Item' | 'Credit Note' | 'Direct Return' | string
+  creditNoteId?: string | null
+  status?: string
+  docstatus?: number
+  postingDate?: string
+  items: Array<{
+    id?: string
+    itemCode: string
+    itemName?: string
+    qty: number
+    sourceReceiptItemId?: string | null
+  }>
+}
+
 // ── Purchase Order ──
 
 export type POLineItem = {
@@ -216,6 +310,7 @@ export type GRNItemCondition = 'good' | 'damaged' | 'partial'
 
 export type GRNLineItem = {
   casePartId: string
+  sourceReceiptItemId?: string | null
   partName: string
   orderedQty: number
   receivedQty: number
@@ -332,6 +427,13 @@ export type ProcurementCase = {
   backendStage?: string
   /** Approved compare sheet used to create the standard Purchase Order. */
   compareSheetId?: string
+  csProposal?: ProcurementDecisionRecord
+  auditDecision?: ProcurementDecisionRecord
+  stageDecisions?: Record<string, ProcurementDecisionRecord>
+  policyAcknowledgement?: string | null
+  assignedApproverUserId?: string | null
+  policySettings?: ProcurementPolicySettings
+  supplierReturns?: SupplierReturn[]
 }
 
 // ── Step constants ──

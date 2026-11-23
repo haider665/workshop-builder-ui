@@ -51,7 +51,7 @@ import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
-import type { ProcurementCase, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision, GRNLineItem } from '../../types/procurementWorkflow'
+import type { AuditPriceSuggestion, ProcurementCase, ProcurementDecisionItem, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision, GRNLineItem, SupplierReturn } from '../../types/procurementWorkflow'
 import { PROCUREMENT_STEPS, PROCUREMENT_STEP_LABELS } from '../../types/procurementWorkflow'
 
 async function hydrateBackendProcurementCase(data: Record<string, unknown>): Promise<ProcurementCase> {
@@ -154,6 +154,20 @@ async function hydrateBackendProcurementCase(data: Record<string, unknown>): Pro
     } catch {
       // Keep the case usable if supplier settlement documents are unavailable.
     }
+  }
+  try {
+    const returns = await workshopApi.supplierReturns(undefined, mapped.id)
+    mapped.supplierReturns = (returns.data || []).map((row) => ({
+      id: String(row.id), receiptId: String(row.receiptId || ''), procurementCaseId: row.procurementCaseId,
+      mode: String(row.mode), creditNoteId: row.creditNoteId, status: row.status, docstatus: row.docstatus,
+      postingDate: row.postingDate,
+      items: (row.items || []).map((item) => ({
+        id: item.id, itemCode: String(item.itemCode), itemName: item.itemName,
+        qty: Number(item.qty), sourceReceiptItemId: item.sourceReceiptItemId,
+      })),
+    })) as SupplierReturn[]
+  } catch {
+    mapped.supplierReturns = []
   }
   return mapped
 }
@@ -698,16 +712,6 @@ function QuotationsSummaryTable({ quotations, editable, onEdit, onRemove, onPrin
   )
 }
 
-type AuditPriceSuggestion = {
-  quotationId: string
-  vendorName: string
-  partName: string
-  casePartId: string
-  originalUnitPrice: number
-  suggestedUnitPrice: number
-  quantity: number
-}
-
 type DecisionSelection = {
   quotationId: string
   vendorName: string
@@ -717,6 +721,15 @@ type DecisionSelection = {
 }
 
 function auditSelectionsFromReview(pc: ProcurementCase): Record<string, DecisionSelection> {
+  if (pc.auditDecision?.items?.length) {
+    return Object.fromEntries(pc.auditDecision.items.map((item) => [item.casePartId, {
+      quotationId: item.selectedQuotationId,
+      vendorName: item.selectedVendorName,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      totalPrice: item.totalPrice,
+    }]))
+  }
   const note = pc.auditReview?.note || ''
   const section = note.split('Audit suggestions:')[1]?.split('\n')[0]
   if (!section) return {}
@@ -836,7 +849,7 @@ function CSMatrix({ pc, selections, referenceSelections, existingSelections, onS
                                 if (!raw || !Number.isFinite(value)) {
                                   onSuggestPrice(suggestionKey, null)
                                 } else {
-                                  onSuggestPrice(suggestionKey, { quotationId: q.id, vendorName: q.vendorName, partName: part.partName, casePartId: part.id, originalUnitPrice: li.unitPrice, suggestedUnitPrice: value, quantity: li.quantity })
+                                  onSuggestPrice(suggestionKey, { selectedQuotationId: q.id, vendorName: q.vendorName, partName: part.partName, casePartId: part.id, originalUnitPrice: li.unitPrice, suggestedUnitPrice: value, quantity: li.quantity })
                                 }
                               }}
                               sx={{ width: 132, mt: 0.75, '& .MuiInputLabel-root': { color: '#dc2626', fontSize: '0.68rem' }, '& .MuiOutlinedInput-root': { bgcolor: '#fff', '& fieldset': { borderColor: '#fca5a5' } } }}
@@ -1327,6 +1340,9 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
   const activePO = pendingPOs.find((po) => po.id === activePoId) ?? pendingPOs[0]
   const awaitingDelivery = pc.purchaseOrders.filter((po) => po.status !== 'delivered' && !grnPoIds.has(po.id))
   const allReceived = pc.purchaseOrders.length > 0 && pc.purchaseOrders.every((po) => pc.grns.some((grn) => grn.poId === po.id && grn.status === 'submitted'))
+  const selectionLocked = pc.policySettings?.allowDeliveredProductSelection === false
+  const partialLocked = pc.policySettings?.allowPartialReceive === false
+  const receiptLocked = selectionLocked || partialLocked
 
   useEffect(() => {
     if (!activePO) {
@@ -1339,12 +1355,12 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
       casePartId: line.casePartId,
       partName: line.partName,
       orderedQty: line.quantity,
-      receivedQty: line.quantity,
-      condition: 'good' as const,
+      receivedQty: receiptLocked ? line.quantity : line.quantity,
+      condition: receiptLocked ? 'good' as const : 'good' as const,
     })))
     setGrnNote('')
     setInvoiceFiles([])
-  }, [activePO])
+  }, [activePO, receiptLocked])
 
   const handleRecordGRN = async () => {
     if (!activePO) return
@@ -1389,6 +1405,7 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
 
       {!pc.purchaseOrders.length ? <Alert severity="warning" sx={{ borderRadius: radii.sm }}>A submitted Purchase Order is required before goods can be received.</Alert> : null}
       {allReceived ? <Alert severity="success" sx={{ borderRadius: radii.sm }}>All purchase orders have been received. The procurement case is ready for audit and invoice processing.</Alert> : null}
+      {receiptLocked ? <Alert severity="info" sx={{ borderRadius: radii.sm }}>The company policy requires all delivered products to be received together and without partial quantities. Quantities are locked to the Purchase Order.</Alert> : null}
       {awaitingDelivery.length ? (
         <Alert severity="info" sx={{ borderRadius: radii.sm }}>
           Mark {awaitingDelivery.map((po) => po.poNumber).join(', ')} delivered before recording the goods receipt.
@@ -1452,10 +1469,10 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
                   <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{line.partName}</TableCell>
                   <TableCell>{line.orderedQty}</TableCell>
                   <TableCell>
-                    <TextField size="small" type="number" value={line.receivedQty} onChange={(event) => setGrnLines((previous) => previous.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, receivedQty: Number(event.target.value) } : candidate))} slotProps={{ htmlInput: { min: 0, max: line.orderedQty, step: 'any' } }} sx={{ width: 78 }} />
+                    <TextField size="small" type="number" disabled={receiptLocked} value={line.receivedQty} onChange={(event) => setGrnLines((previous) => previous.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, receivedQty: Number(event.target.value) } : candidate))} slotProps={{ htmlInput: { min: partialLocked ? line.orderedQty : 0, max: line.orderedQty, step: 'any' } }} sx={{ width: 78 }} />
                   </TableCell>
                   <TableCell>
-                    <TextField select size="small" value={line.condition} onChange={(event) => setGrnLines((previous) => previous.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, condition: event.target.value as GRNLineItem['condition'] } : candidate))} sx={{ width: 120 }}>
+                    <TextField select size="small" disabled={selectionLocked} value={line.condition} onChange={(event) => setGrnLines((previous) => previous.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, condition: event.target.value as GRNLineItem['condition'] } : candidate))} sx={{ width: 120 }}>
                       <MenuItem value="good">Good</MenuItem>
                       <MenuItem value="damaged">Damaged</MenuItem>
                       <MenuItem value="partial">Partial</MenuItem>
@@ -1492,8 +1509,119 @@ function GRNPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Pro
           </Stack>
         </Box>
       ) : null}
+      <SupplierReturnPanel pc={pc} onChanged={onChanged} />
       <SettlementPanel pc={pc} onChanged={onChanged} />
     </Stack>
+  )
+}
+
+function SupplierReturnPanel({ pc, onChanged }: { pc: ProcurementCase; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'Single Product' | 'Individual Item' | 'Credit Note' | 'Direct Return'>('Individual Item')
+  const [activeReceiptId, setActiveReceiptId] = useState('')
+  const [qtyByItem, setQtyByItem] = useState<Record<string, number>>({})
+  const [reason, setReason] = useState('')
+
+  const submittedReceipts = pc.grns.filter((grn) => grn.status === 'submitted')
+  const activeReceipt = submittedReceipts.find((grn) => grn.id === activeReceiptId) || submittedReceipts[0]
+  const modeOptions = [
+    { value: 'Single Product' as const, enabled: pc.policySettings?.allowSingleProductReturn !== false },
+    { value: 'Individual Item' as const, enabled: pc.policySettings?.allowIndividualItemReturn !== false },
+    { value: 'Credit Note' as const, enabled: pc.policySettings?.allowCreditNoteReturn !== false },
+    { value: 'Direct Return' as const, enabled: pc.policySettings?.allowDirectReturn !== false },
+  ].filter((option) => option.enabled)
+
+  useEffect(() => {
+    if (!activeReceipt) { setQtyByItem({}); return }
+    setQtyByItem(Object.fromEntries(activeReceipt.lineItems.map((line) => [line.sourceReceiptItemId || line.casePartId, line.receivedQty])))
+  }, [activeReceipt])
+
+  useEffect(() => {
+    if (modeOptions.length && !modeOptions.some((option) => option.value === mode)) setMode(modeOptions[0].value)
+  }, [mode, modeOptions])
+
+  const createReturn = async () => {
+    if (!activeReceipt) return
+    setBusy(true)
+    setError(null)
+    try {
+      const items = activeReceipt.lineItems.flatMap((line) => {
+        const id = line.sourceReceiptItemId || line.casePartId
+        const qty = Number(qtyByItem[id] || 0)
+        return id && qty > 0 ? [{ purchaseReceiptItemId: id, qty }] : []
+      })
+      if (!items.length) throw new Error('Enter a positive return quantity for at least one received line.')
+      if (mode === 'Credit Note' && !pc.purchaseInvoiceId) throw new Error('A supplier invoice is required before a credit note return can be created.')
+      await workshopApi.createSupplierReturn({
+        receiptId: activeReceipt.id,
+        mode,
+        items,
+        invoiceId: mode === 'Credit Note' ? pc.purchaseInvoiceId : undefined,
+        reason: reason.trim() || `${mode} return for ${activeReceipt.grnNumber}`,
+        submit: true,
+      })
+      setReason('')
+      await onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to create the supplier return')
+    } finally { setBusy(false) }
+  }
+
+  if (!submittedReceipts.length || !pc.policySettings) return null
+  return (
+    <SectionCard title={`Supplier returns (${pc.supplierReturns?.length || 0})`} icon={<LocalShipping />}>
+      <Stack spacing={2} sx={{ p: 2 }}>
+        {!modeOptions.length ? <Alert severity="info" sx={{ borderRadius: radii.sm }}>All supplier return modes are disabled by the company procurement policy.</Alert> : null}
+        {pc.supplierReturns?.length ? (
+          <Stack spacing={1}>
+            {pc.supplierReturns.map((row) => (
+              <Typography key={row.id} sx={{ fontSize: '0.78rem', color: colors.slate[700] }}>
+                {row.id} · {row.mode} · {row.status || 'Draft'} · receipt {row.receiptId}
+                {row.creditNoteId ? ` · credit note ${row.creditNoteId}` : ''}
+              </Typography>
+            ))}
+          </Stack>
+        ) : null}
+        {activeReceipt && modeOptions.length ? (
+          <Box sx={{ p: 2, borderRadius: radii.sm, border: `1px solid ${colors.border.default}` }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+              <TextField select size="small" label="Return mode" value={mode} onChange={(event) => setMode(event.target.value as typeof mode)} sx={{ minWidth: 170 }}>
+                {modeOptions.map((option) => <MenuItem key={option.value} value={option.value}>{option.value}</MenuItem>)}
+              </TextField>
+              {submittedReceipts.length > 1 ? (
+                <TextField select size="small" label="Receipt" value={activeReceipt.id} onChange={(event) => setActiveReceiptId(event.target.value)} sx={{ minWidth: 200 }}>
+                  {submittedReceipts.map((grn) => <MenuItem key={grn.id} value={grn.id}>{grn.grnNumber}</MenuItem>)}
+                </TextField>
+              ) : null}
+            </Stack>
+            <Table size="small">
+              <TableHead><TableRow><TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Part</TableCell><TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', width: 110 }}>Return qty</TableCell></TableRow></TableHead>
+              <TableBody>
+                {activeReceipt.lineItems.map((line) => {
+                  const key = line.sourceReceiptItemId || line.casePartId
+                  return (
+                    <TableRow key={key}>
+                      <TableCell sx={{ fontSize: '0.8rem' }}>{line.partName}</TableCell>
+                      <TableCell>
+                        <TextField size="small" type="number" value={qtyByItem[key] || 0} onChange={(event) => setQtyByItem((current) => ({ ...current, [key]: Number(event.target.value) }))} slotProps={{ htmlInput: { min: 0, max: line.receivedQty, step: 'any' } }} sx={{ width: 92 }} />
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+            {error ? <Alert severity="error" sx={{ mt: 1.5, borderRadius: radii.sm }}>{error}</Alert> : null}
+            <Stack spacing={1.5} sx={{ mt: 2 }}>
+              <TextField size="small" label="Return reason (optional)" value={reason} onChange={(event) => setReason(event.target.value)} multiline minRows={2} fullWidth />
+              <Button variant="contained" disabled={busy} onClick={() => void createReturn()} sx={{ alignSelf: 'flex-start', bgcolor: '#dc2626', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm, '&:hover': { bgcolor: '#b91c1c' } }}>
+                {busy ? 'Creating…' : 'Create Supplier Return'}
+              </Button>
+            </Stack>
+          </Box>
+        ) : null}
+      </Stack>
+    </SectionCard>
   )
 }
 
@@ -1538,7 +1666,6 @@ export function ProcurementCaseDetailPage() {
 
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
   const [backendPc, setBackendPc] = useState<ProcurementCase | null>(null)
-  const [backendMaterialRequestId, setBackendMaterialRequestId] = useState<string | undefined>()
   const [masterDataRequests, setMasterDataRequests] = useState<CWMasterDataRequest[]>([])
   const [backendError, setBackendError] = useState<string | null>(null)
   const [approvalQuotationId, setApprovalQuotationId] = useState('')
@@ -1551,7 +1678,6 @@ export function ProcurementCaseDetailPage() {
     let cancelled = false
     void workshopApi.procurementCase(caseId)
       .then(async (data) => {
-        setBackendMaterialRequestId(String((data as Record<string, unknown>).materialRequestId || '') || undefined)
         setApprovalQuotationId(String((data as Record<string, unknown>).selectedSupplierQuotationId || ''))
         const mapped = await hydrateBackendProcurementCase(data as Record<string, unknown>)
         if (!cancelled) setBackendPc(mapped)
@@ -1604,6 +1730,22 @@ export function ProcurementCaseDetailPage() {
   }, [pc?.id, pc?.parts, pc?.csDecision, approvalSelections])
 
   useEffect(() => {
+    if (!pc?.auditDecision) return
+    if (!Object.keys(auditSelections).length && pc.auditDecision.items?.length) {
+      setAuditSelections(Object.fromEntries(pc.auditDecision.items.map((item) => [item.casePartId, {
+        quotationId: item.selectedQuotationId,
+        vendorName: item.selectedVendorName,
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+        totalPrice: item.totalPrice,
+      }])))
+    }
+    if (!Object.keys(auditPriceSuggestions).length && pc.auditDecision.priceSuggestions?.length) {
+      setAuditPriceSuggestions(Object.fromEntries(pc.auditDecision.priceSuggestions.map((suggestion) => [suggestion.casePartId, suggestion])))
+    }
+  }, [pc?.id, pc?.auditDecision, auditSelections, auditPriceSuggestions])
+
+  useEffect(() => {
     setStoreReviewSelections(Object.fromEntries((pc?.parts || []).map((part) => [part.id, part.includeInProcurement !== false])))
   }, [pc?.id, pc?.parts])
 
@@ -1651,6 +1793,18 @@ export function ProcurementCaseDetailPage() {
       totalPrice: item.totalPrice,
     }]),
   )
+  const toDecisionItems = (selections: Record<string, DecisionSelection>): ProcurementDecisionItem[] => Object.entries(selections)
+    .filter(([casePartId]) => procurementParts.some((part) => part.id === casePartId))
+    .map(([casePartId, selection]) => ({
+      casePartId,
+      partRequestId: pc.parts.find((part) => part.id === casePartId)?.lineItemId || null,
+      partName: pc.parts.find((part) => part.id === casePartId)?.partName || '',
+      selectedQuotationId: selection.quotationId,
+      selectedVendorName: selection.vendorName,
+      unitPrice: selection.unitPrice,
+      quantity: selection.quantity,
+      totalPrice: selection.totalPrice,
+    }))
 
   const handleApprove = async () => {
     if (backendPc) {
@@ -1675,30 +1829,39 @@ export function ProcurementCaseDetailPage() {
             }),
           })
           setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
-        } else if (stage === 'GM Approval') {
-          const finalSelections = Object.entries(approvalSelections).filter(([casePartId]) => procurementParts.some((part) => part.id === casePartId)).map(([casePartId, selection]) => ({ casePartId, partName: backendPc.parts.find((part) => part.id === casePartId)?.partName || '', ...selection }))
-          const quotationId = finalSelections[0]?.quotationId || approvalQuotationId || backendPc.quotations[0]?.id || ''
+        } else if (stage === 'GM Approval' || stage === 'Management Approval') {
+          const finalSelections = toDecisionItems(approvalSelections)
+          const quotationId = finalSelections[0]?.selectedQuotationId || approvalQuotationId || backendPc.quotations[0]?.id || ''
           if (!quotationId) throw new Error('Select a supplier quotation before approving.')
-          const finalDecisionNote = finalSelections.length
-            ? `Final CS decision: ${finalSelections.map((selection) => `${backendPc.parts.find((part) => part.id === selection.casePartId)?.partName || 'Part'} → ${selection.vendorName} · ৳${selection.totalPrice.toLocaleString()}`).join('; ')}`
-            : ''
-          // Selecting at GM Approval also approves the submitted compare sheet
-          // and moves the case to Management Approval or PO Creation according
-          // to the server-side policy.
+          if (!finalSelections.length) throw new Error('Select a final vendor and rate for every part.')
+          const finalDecisionNote = `Final CS decision: ${finalSelections.map((selection) => `${selection.partName} → ${selection.selectedVendorName} · ৳${selection.totalPrice.toLocaleString()}`).join('; ')}`
           await workshopApi.procurementSelectQuotation(backendPc.id, quotationId, [actionNote.trim(), finalDecisionNote].filter(Boolean).join('\n') || 'Supplier quotation selected during approval', finalSelections)
           setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
         } else {
-          const actionByStage: Record<string, string> = { 'Quotation Collection': 'complete_quotation_collection', 'Audit Verification': 'audit_verify', 'GM Approval': 'gm_approve', 'Management Approval': 'management_approve', 'Supplier Confirmation': 'supplier_confirm', 'Audit Physical Review': 'physical_audit_approve', 'Procurement File Completion': 'file_complete', 'Audit Clearance': 'audit_clear', 'Actual Accounts': 'accounts_verify', Reconciliation: 'reconciliation_confirm', 'Bill Settlement': 'settle_bill' }
+          const actionByStage: Record<string, string> = { 'Quotation Collection': 'complete_quotation_collection', 'Audit Verification': 'audit_verify', 'Supplier Confirmation': 'supplier_confirm', 'Audit Physical Review': 'physical_audit_approve', 'Procurement File Completion': 'file_complete', 'Audit Clearance': 'audit_clear', 'Actual Accounts': 'accounts_verify', Reconciliation: 'reconciliation_confirm', 'Bill Settlement': 'settle_bill' }
           const action = actionByStage[stage]
           if (!action) throw new Error(`No live action is available for stage ${stage || 'Unknown'}.`)
-          const auditSuggestion = stage === 'Audit Verification' && Object.keys(auditSelections).length
-            ? `Audit suggestions: ${Object.entries(auditSelections).map(([partId, selection]) => `${pc.parts.find((part) => part.id === partId)?.partName || 'Part'} → ${selection.vendorName} · ৳${selection.totalPrice.toLocaleString()}`).join('; ')}`
-            : ''
-          const auditPriceCorrection = stage === 'Audit Verification' && Object.keys(auditPriceSuggestions).length
-            ? `Audit price corrections: ${Object.values(auditPriceSuggestions).map((suggestion) => `${suggestion.vendorName} / ${suggestion.partName}: ৳${suggestion.originalUnitPrice.toLocaleString()} → ৳${suggestion.suggestedUnitPrice.toLocaleString()} × ${suggestion.quantity}`).join('; ')}`
-            : ''
-          const note = [actionNote.trim(), auditSuggestion, auditPriceCorrection].filter(Boolean).join('\n') || undefined
-          await workshopApi.procurementCaseAction(backendPc.id, action, note)
+          const note = actionNote.trim() || undefined
+          let extra: Record<string, unknown> | undefined
+          if (stage === 'Audit Verification') {
+            const items = toDecisionItems(auditSelections)
+            const priceSuggestions: AuditPriceSuggestion[] = Object.entries(auditPriceSuggestions).map(([casePartId, suggestion]) => {
+              const part = pc.parts.find((candidate) => candidate.id === casePartId)
+              const selection = auditSelections[casePartId]
+              return {
+                casePartId,
+                partRequestId: part?.lineItemId || null,
+                partName: part?.partName || suggestion.partName,
+                selectedQuotationId: suggestion.selectedQuotationId || selection?.quotationId || '',
+                vendorName: suggestion.vendorName || selection?.vendorName || 'Supplier',
+                originalUnitPrice: suggestion.originalUnitPrice,
+                suggestedUnitPrice: suggestion.suggestedUnitPrice,
+                quantity: suggestion.quantity || selection?.quantity || part?.quantity || 1,
+              }
+            })
+            extra = { auditDecision: { items, priceSuggestions, note } }
+          }
+          await workshopApi.procurementCaseAction(backendPc.id, action, note, extra)
           setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
         }
         setActionNote(''); setSnack('Procurement case updated')
@@ -1762,26 +1925,11 @@ export function ProcurementCaseDetailPage() {
     })
     if (backendPc) {
       try {
-        // The comparative statement must preserve every collected offer, not
-        // only the currently recommended cells in the UI. Approval can then
-        // select the winning supplier against the complete evidence set.
-        const quotationIds = [...new Set(pc.quotations.map((quotation) => quotation.id))]
-        const compareSheet = await workshopApi.accountingCreateCompareSheet({
-          company: selectedCompanyId,
-          quotationIds,
-          materialRequestId: backendMaterialRequestId,
-          procurementCaseId: backendPc.id,
-          selections: items,
-          overrideReason: quotationIds.length < 2 ? (csNote.trim() || 'Single supplier quotation selected for this appointment') : undefined,
-        })
-        const compareSheetId = String(compareSheet.id || '')
-        if (!compareSheetId) throw new Error('Compare sheet was not created.')
-        await workshopApi.accountingSubmit('compare_sheets', compareSheetId, csNote.trim() || 'CS submitted for audit verification')
-        const refreshed = await workshopApi.procurementCase(backendPc.id)
-        setBackendPc(await hydrateBackendProcurementCase(refreshed))
-        setSnack('Comparative statement submitted for audit verification')
+        await workshopApi.procurementSubmitCsProposal(backendPc.id, { items, note: csNote.trim() || undefined })
+        setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
+        setSnack('CS proposal submitted for audit verification')
       } catch (cause) {
-        setSnack(cause instanceof Error ? cause.message : 'Unable to create the comparative statement')
+        setSnack(cause instanceof Error ? cause.message : 'Unable to submit the CS proposal')
       }
       return
     }
@@ -1851,6 +1999,12 @@ export function ProcurementCaseDetailPage() {
         {!isCompleted ? (
           <Box sx={{ p: 3, borderRadius: radii.md, border: '2px solid #2563eb', bgcolor: '#f8faff', boxShadow: shadows.elevated }}>
             <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#1d4ed8', mb: 2 }}>Action: {PROCUREMENT_STEP_LABELS[pc.currentStep]}</Typography>
+            {backendPc?.policyAcknowledgement ? (
+              <Alert severity="info" sx={{ borderRadius: radii.sm, mb: 1.5 }}>
+                Policy acknowledgement: {backendPc.policyAcknowledgement}
+                {backendPc.assignedApproverUserId ? ` · Assigned approver: ${backendPc.assignedApproverUserId}` : ''}
+              </Alert>
+            ) : null}
 
             {/* Store Review */}
             {pc.currentStep === 'store_review' && (

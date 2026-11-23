@@ -1,4 +1,4 @@
-import type { GRN, ProcurementCase, ProcurementStep, PurchaseOrder, SupplierInvoice, SupplierPayment } from '../types/procurementWorkflow'
+import type { GRN, ProcurementCase, ProcurementDecisionRecord, ProcurementPolicySettings, ProcurementStep, PurchaseOrder, SupplierInvoice, SupplierPayment } from '../types/procurementWorkflow'
 
 type BackendCase = Record<string, unknown>
 
@@ -51,6 +51,38 @@ function records(value: unknown): BackendCase[] {
   return Array.isArray(value)
     ? value.filter((item): item is BackendCase => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
     : []
+}
+
+function decisionRecord(value: unknown): ProcurementDecisionRecord | undefined {
+  const data = record(value)
+  const items = records(data.items)
+  if (!items.length && !data.note && !data.decidedAt) return undefined
+  return {
+    items: items.map((item) => ({
+      casePartId: text(item.casePartId) || '',
+      partRequestId: text(item.partRequestId) || null,
+      partName: text(item.partName) || 'Requested part',
+      selectedQuotationId: text(item.selectedQuotationId) || '',
+      selectedVendorName: text(item.selectedVendorName) || 'Supplier',
+      unitPrice: numberValue(item.unitPrice),
+      quantity: numberValue(item.quantity) || 1,
+      totalPrice: numberValue(item.totalPrice),
+    })),
+    note: text(data.note),
+    decidedByUserId: text(data.decidedByUserId),
+    decidedByRole: text(data.decidedByRole),
+    decidedAt: text(data.decidedAt),
+    priceSuggestions: records(data.priceSuggestions).map((suggestion) => ({
+      casePartId: text(suggestion.casePartId) || '',
+      partRequestId: text(suggestion.partRequestId) || null,
+      partName: text(suggestion.partName) || 'Requested part',
+      selectedQuotationId: text(suggestion.selectedQuotationId) || '',
+      vendorName: text(suggestion.vendorName) || 'Supplier',
+      originalUnitPrice: numberValue(suggestion.originalUnitPrice),
+      suggestedUnitPrice: numberValue(suggestion.suggestedUnitPrice),
+      quantity: numberValue(suggestion.quantity) || 1,
+    })),
+  }
 }
 
 function stepFor(stage: string | undefined): ProcurementStep {
@@ -153,6 +185,7 @@ export function mapBackendPurchaseReceipt(source: BackendCase, purchaseOrder?: P
         ?? numberValue(item.qty)
       return {
         casePartId,
+        sourceReceiptItemId: text(item.id) || null,
         partName: text(item.description) || text(item.itemName) || text(item.itemCode) || 'Part',
         orderedQty,
         receivedQty: numberValue(item.receivedQty ?? item.qty),
@@ -248,6 +281,16 @@ export function mapBackendProcurementCase(source: BackendCase): ProcurementCase 
     actionDate: text(auditActivity.eventAt) || text(source.updatedAt) || new Date().toISOString(),
     note: text(auditActivity.comment) || text(record(auditActivity.payload).note) || '',
   } : undefined
+  const csProposal = decisionRecord(source.csProposal)
+  const auditDecision = decisionRecord(source.auditDecision)
+  const stageDecisionsRaw = record(source.stageDecisions)
+  const stageDecisions: Record<string, ProcurementDecisionRecord> = {}
+  for (const [stage, value] of Object.entries(stageDecisionsRaw)) {
+    const decision = decisionRecord(value)
+    if (decision) stageDecisions[stage] = decision
+  }
+  const policySettingsRaw = record(source.policySettings)
+  const policySettings = Object.keys(policySettingsRaw).length ? policySettingsRaw as ProcurementPolicySettings : undefined
   return {
     id: text(source.id) || '',
     caseNumber: text(source.id) || '',
@@ -268,6 +311,19 @@ export function mapBackendProcurementCase(source: BackendCase): ProcurementCase 
     updatedAt: text(source.updatedAt) || new Date().toISOString(),
     backendStage: text(source.currentStage),
     compareSheetId: text(source.compareSheetId),
+    csProposal,
+    csDecision: csProposal ? {
+      items: csProposal.items,
+      note: csProposal.note || '',
+      decidedByName: csProposal.decidedByUserId || text(source.currentOwnerUserId) || 'CS team',
+      decidedAt: csProposal.decidedAt || text(source.updatedAt) || new Date().toISOString(),
+    } : undefined,
+    auditDecision,
+    stageDecisions: Object.keys(stageDecisions).length ? stageDecisions : undefined,
+    policyAcknowledgement: text(source.policyAcknowledgement) || null,
+    assignedApproverUserId: text(source.assignedApproverUserId) || null,
+    policySettings,
+    supplierReturns: [],
     purchaseInvoiceId: text(source.purchaseInvoiceId),
     paymentEntryId: text(source.paymentEntryId),
   }
