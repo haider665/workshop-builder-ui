@@ -73,6 +73,7 @@ const MockPartRequestsPage = lazy(() => import('../pages/procurement/MockPartReq
 const MockCustomerApprovalPage = lazy(() => import('../pages/procurement/MockCustomerApprovalPage').then((module) => ({ default: module.MockCustomerApprovalPage })))
 const ProcurementPipelinePage = lazy(() => import('../pages/procurement/ProcurementPipelinePage').then((module) => ({ default: module.ProcurementPipelinePage })))
 const ProcurementCaseDetailPage = lazy(() => import('../pages/procurement/ProcurementCaseDetailPage').then((module) => ({ default: module.ProcurementCaseDetailPage })))
+const MockProcurementPolicyPage = lazy(() => import('../pages/procurement/MockProcurementPolicyPage').then((module) => ({ default: module.MockProcurementPolicyPage })))
 
 export function AppRouter() {
   return (
@@ -228,6 +229,7 @@ export function AppRouter() {
           <Route path="/mock-procurement/approvals" element={<MockCustomerApprovalPage />} />
           <Route path="/mock-procurement/pipeline" element={<ProcurementPipelinePage />} />
           <Route path="/mock-procurement/pipeline/:caseId" element={<ProcurementCaseDetailPage />} />
+          <Route path="/mock-procurement/policy" element={<MockProcurementPolicyPage />} />
 
           <Route path="*" element={<NotFoundPage />} />
         </Route>

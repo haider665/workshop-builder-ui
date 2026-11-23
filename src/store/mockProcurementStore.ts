@@ -12,6 +12,7 @@ import type {
   PurchaseOrder,
   GRN,
   POStatus,
+  ProcurementStep,
 } from '../types/procurementWorkflow'
 import { NEXT_STEP, PREVIOUS_STEP } from '../types/procurementWorkflow'
 
@@ -29,7 +30,7 @@ type MockProcurementState = {
   procurementCases: ProcurementCase[]
 
   // ── Procurement Pipeline actions ──
-  advanceProcurementStep: (caseId: string, record: Omit<StepRecord, 'step'>) => void
+  advanceProcurementStep: (caseId: string, record: Omit<StepRecord, 'step'>, skipSteps?: ProcurementStep[]) => void
   setProcurementPartSelection: (caseId: string, selections: Record<string, boolean>) => void
   rejectProcurementStep: (caseId: string, note: string, actionByName: string) => void
   addQuotation: (caseId: string, quotation: Omit<Quotation, 'id' | 'submittedAt'>) => void
@@ -52,11 +53,14 @@ export const useMockProcurementStore = create<MockProcurementState>((set, get) =
 
   // ── Procurement Pipeline ──
 
-  advanceProcurementStep: (caseId, record) => {
+  advanceProcurementStep: (caseId, record, skipSteps = []) => {
     set((state) => ({
       procurementCases: state.procurementCases.map((c) => {
         if (c.id !== caseId) return c
-        const nextStep = NEXT_STEP[c.currentStep]
+        let nextStep = NEXT_STEP[c.currentStep]
+        while (nextStep && skipSteps.includes(nextStep)) {
+          nextStep = NEXT_STEP[nextStep]
+        }
         const stepRecord: StepRecord = { ...record, step: c.currentStep }
         const updated: ProcurementCase = {
           ...c,

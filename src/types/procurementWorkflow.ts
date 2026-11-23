@@ -245,8 +245,23 @@ export type ProcurementApprovalPolicy = {
   localNonEnlistedManagementMinAmount?: number
   foreignCsMinAmount?: number
   foreignManagementMinAmount?: number
+  advanceMinAmount?: number
+  skipForeignCsSingleVendor?: boolean
+  escalationMinutes?: number
   routeThresholdsConfigured?: boolean
   notes?: string
+}
+
+export type ProcurementPolicyPreview = {
+  policy?: ProcurementApprovalPolicy
+  amount?: number
+  procurementType?: string
+  vendorRoute?: string
+  supplierCount?: number
+  requiredStages: string[]
+  skippedStages: string[]
+  specialCase: boolean
+  singleVendorCsSkipped?: boolean
 }
 
 export type ProcurementPolicySettings = Pick<

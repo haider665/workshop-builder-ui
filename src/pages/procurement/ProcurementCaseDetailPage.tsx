@@ -51,8 +51,8 @@ import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { MOCK_VENDORS } from '../../store/mockProcurementData'
 import { useSessionStore } from '../../store/sessionStore'
 import { colors, radii, shadows } from '../../theme/tokens'
-import type { AuditPriceSuggestion, ProcurementCase, ProcurementDecisionItem, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision, GRNLineItem, SupplierReturn } from '../../types/procurementWorkflow'
-import { PROCUREMENT_STEPS, PROCUREMENT_STEP_LABELS } from '../../types/procurementWorkflow'
+import type { AuditPriceSuggestion, ProcurementCase, ProcurementDecisionItem, ProcurementPolicyPreview, ProcurementStep, Quotation, QuotationLineItem, CSDecisionItem, CSDecision, GRNLineItem, SupplierReturn } from '../../types/procurementWorkflow'
+import { NEXT_STEP, PROCUREMENT_STEPS, PROCUREMENT_STEP_LABELS } from '../../types/procurementWorkflow'
 
 async function hydrateBackendProcurementCase(data: Record<string, unknown>): Promise<ProcurementCase> {
   const mapped = mapBackendProcurementCase(data)
@@ -205,6 +205,26 @@ function StepProgressBar({ currentStep, status }: { currentStep: ProcurementStep
       {PROCUREMENT_STEPS.map((step) => (<Step key={step}><StepLabel>{PROCUREMENT_STEP_LABELS[step]}</StepLabel></Step>))}
     </Stepper>
   )
+}
+
+function formatCountdown(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+  return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+function skippedProcurementSteps(preview: ProcurementPolicyPreview | null): ProcurementStep[] {
+  const skipped = new Set(preview?.skippedStages || [])
+  const steps: ProcurementStep[] = []
+  if (skipped.has('Audit Verification')) steps.push('audit')
+  if (skipped.has('GM Approval') && skipped.has('Management Approval')) steps.push('approval')
+  return steps
+}
+
+function nextMockStep(current: ProcurementStep, preview: ProcurementPolicyPreview | null): ProcurementStep | null {
+  const skipped = skippedProcurementSteps(preview)
+  let next = NEXT_STEP[current]
+  while (next && skipped.includes(next)) next = NEXT_STEP[next]
+  return next
 }
 
 function InfoField({ label, value, chipColor, chipBg }: { label: string; value: string; chipColor?: string; chipBg?: string }) {
@@ -1701,8 +1721,42 @@ export function ProcurementCaseDetailPage() {
     return () => { cancelled = true }
   }, [caseId, selectedCompanyId])
   const pc = backendPc || cases.find((c) => c.id === caseId)
+  const policyAmount = Number(pc?.csDecision?.items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0) || pc?.quotations.reduce((sum, quote) => sum + Number(quote.grandTotal || 0), 0) || 0)
+  const policyProcurementType: 'Local' | 'Foreign' = pc?.parts.some((part) => part.disposition === 'foreign_vendor') ? 'Foreign' : 'Local'
+  const policySupplierCount = new Set(pc?.quotations.map((quote) => quote.vendorName).filter(Boolean) || []).size
+  const policyVendorRoute: 'Enlisted Vendor' | 'Non-enlisted Vendor' | 'Single Vendor' = policyProcurementType === 'Foreign'
+    ? policySupplierCount <= 1 ? 'Single Vendor' : 'Enlisted Vendor'
+    : 'Enlisted Vendor'
+  const [policyPreview, setPolicyPreview] = useState<ProcurementPolicyPreview | null>(null)
+  const escalationMinutes = Number(policyPreview?.policy?.escalationMinutes ?? 10)
+  const [escalationDeadline, setEscalationDeadline] = useState<number | null>(null)
+  const [escalationRemaining, setEscalationRemaining] = useState(escalationMinutes * 60)
+  useEffect(() => {
+    setEscalationDeadline(Date.now() + escalationMinutes * 60 * 1000)
+    setEscalationRemaining(escalationMinutes * 60)
+  }, [caseId, pc?.currentStep, escalationMinutes])
+  useEffect(() => {
+    if (!escalationDeadline) return
+    const tick = () => setEscalationRemaining(Math.max(0, Math.ceil((escalationDeadline - Date.now()) / 1000)))
+    const timer = window.setInterval(tick, 1000)
+    tick()
+    return () => window.clearInterval(timer)
+  }, [escalationDeadline])
+  const escalationLabel = escalationRemaining === 0
+    ? `Escalation due after ${escalationMinutes} min`
+    : `Escalation in ${formatCountdown(escalationRemaining)}`
+  useEffect(() => {
+    if (!caseId || !selectedCompanyId) return
+    let cancelled = false
+    void workshopApi.procurementApprovalPolicyPreview(selectedCompanyId, policyAmount, policyProcurementType, policyVendorRoute, Math.max(policySupplierCount, 1))
+      .then((result) => { if (!cancelled) setPolicyPreview(result) })
+      .catch(() => { if (!cancelled) setPolicyPreview(null) })
+    return () => { cancelled = true }
+  }, [caseId, selectedCompanyId, policyAmount, policyProcurementType, policyVendorRoute, policySupplierCount])
   const [snack, setSnack] = useState<string | null>(null)
   const [actionNote, setActionNote] = useState('')
+  const effectiveActionNote = [actionNote.trim(), escalationRemaining === 0 ? `Escalation due after ${escalationMinutes} minutes; approval note recorded by policy timer.` : undefined]
+    .filter(Boolean).join('\n') || undefined
   const [storeReviewSelections, setStoreReviewSelections] = useState<Record<string, boolean>>({})
   const [showReject, setShowReject] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
@@ -1816,7 +1870,7 @@ export function ProcurementCaseDetailPage() {
             storeReviewStatus: 'Local Shortage',
             procurementType: 'Local',
             vendorRoute: 'Enlisted Vendor',
-            note: actionNote.trim() || undefined,
+            note: effectiveActionNote,
             parts: backendPc.parts.map((part) => {
               const status = part.disposition === 'foreign_vendor' ? 'Foreign Required' : 'Local Shortage'
               return {
@@ -1835,13 +1889,13 @@ export function ProcurementCaseDetailPage() {
           if (!quotationId) throw new Error('Select a supplier quotation before approving.')
           if (!finalSelections.length) throw new Error('Select a final vendor and rate for every part.')
           const finalDecisionNote = `Final CS decision: ${finalSelections.map((selection) => `${selection.partName} → ${selection.selectedVendorName} · ৳${selection.totalPrice.toLocaleString()}`).join('; ')}`
-          await workshopApi.procurementSelectQuotation(backendPc.id, quotationId, [actionNote.trim(), finalDecisionNote].filter(Boolean).join('\n') || 'Supplier quotation selected during approval', finalSelections)
+          await workshopApi.procurementSelectQuotation(backendPc.id, quotationId, [effectiveActionNote, finalDecisionNote].filter(Boolean).join('\n') || 'Supplier quotation selected during approval', finalSelections)
           setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
         } else {
           const actionByStage: Record<string, string> = { 'Quotation Collection': 'complete_quotation_collection', 'Audit Verification': 'audit_verify', 'Supplier Confirmation': 'supplier_confirm', 'Audit Physical Review': 'physical_audit_approve', 'Procurement File Completion': 'file_complete', 'Audit Clearance': 'audit_clear', 'Actual Accounts': 'accounts_verify', Reconciliation: 'reconciliation_confirm', 'Bill Settlement': 'settle_bill' }
           const action = actionByStage[stage]
           if (!action) throw new Error(`No live action is available for stage ${stage || 'Unknown'}.`)
-          const note = actionNote.trim() || undefined
+          const note = effectiveActionNote
           let extra: Record<string, unknown> | undefined
           if (stage === 'Audit Verification') {
             const items = toDecisionItems(auditSelections)
@@ -1875,14 +1929,9 @@ export function ProcurementCaseDetailPage() {
       }
       setProcurementPartSelection(pc.id, storeReviewSelections)
     }
-    // Special: after approval step, also auto-generate POs
-    if (pc.currentStep === 'approval') {
-      advanceStep(pc.id, { action: 'approve', actionByName: userName, actionDate: new Date().toISOString(), note: actionNote.trim() || undefined })
-      // Generate POs right after advancing to PO step
-      setTimeout(() => generatePOs(pc.id), 0)
-    } else {
-      advanceStep(pc.id, { action: pc.currentStep === 'quotations' ? 'submit' : 'approve', actionByName: userName, actionDate: new Date().toISOString(), note: actionNote.trim() || undefined })
-    }
+    const targetStep = nextMockStep(pc.currentStep, policyPreview)
+    advanceStep(pc.id, { action: pc.currentStep === 'quotations' ? 'submit' : 'approve', actionByName: userName, actionDate: new Date().toISOString(), note: effectiveActionNote }, skippedProcurementSteps(policyPreview))
+    if (targetStep === 'po') setTimeout(() => generatePOs(pc.id), 0)
     setActionNote('')
     setSnack(`${PROCUREMENT_STEP_LABELS[pc.currentStep]} — Done`)
     navigate('/mock-procurement/pipeline')
@@ -1934,7 +1983,9 @@ export function ProcurementCaseDetailPage() {
       return
     }
     setCSDecisionStore(pc.id, { items, note: csNote.trim() || 'CS decision submitted', decidedByName: userName })
-    advanceStep(pc.id, { action: 'submit', actionByName: userName, actionDate: new Date().toISOString(), note: csNote.trim() || `Vendors selected for ${items.length} parts` })
+    const targetStep = nextMockStep(pc.currentStep, policyPreview)
+    advanceStep(pc.id, { action: 'submit', actionByName: userName, actionDate: new Date().toISOString(), note: csNote.trim() || `Vendors selected for ${items.length} parts` }, skippedProcurementSteps(policyPreview))
+    if (targetStep === 'po') setTimeout(() => generatePOs(pc.id), 0)
     setSnack('CS Decision submitted')
     navigate('/mock-procurement/pipeline')
   }
@@ -2003,6 +2054,19 @@ export function ProcurementCaseDetailPage() {
               <Alert severity="info" sx={{ borderRadius: radii.sm, mb: 1.5 }}>
                 Policy acknowledgement: {backendPc.policyAcknowledgement}
                 {backendPc.assignedApproverUserId ? ` · Assigned approver: ${backendPc.assignedApproverUserId}` : ''}
+              </Alert>
+            ) : null}
+            {policyPreview ? (
+              <Alert severity={policyPreview.skippedStages.length ? 'info' : 'success'} sx={{ borderRadius: radii.sm, mb: 1.5 }}
+                action={<Button size="small" onClick={() => navigate('/mock-procurement/policy')}>Edit policy</Button>}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
+                  Policy route: {policyPreview.requiredStages.join(' → ') || 'Direct PO'}
+                </Typography>
+                <Typography sx={{ fontSize: '0.78rem' }}>
+                  Skipped by policy: {policyPreview.skippedStages.join(', ') || 'None'}
+                  {policyPreview.singleVendorCsSkipped ? ' · Single-vendor foreign CS skipped' : ''}
+                  {` · ${escalationLabel}`}
+                </Typography>
               </Alert>
             ) : null}
 

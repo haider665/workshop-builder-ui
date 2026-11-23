@@ -229,6 +229,7 @@ export function AppShell() {
       { kind: 'link', label: 'Part Requests', to: '/mock-procurement/requests', icon: <ReceiptLong />, anyOfRoles: ALL_ROLES },
       { kind: 'link', label: 'Customer Approval', to: '/mock-procurement/approvals', icon: <TaskAlt />, anyOfRoles: ALL_ROLES },
       { kind: 'link', label: 'Pipeline', to: '/mock-procurement/pipeline', icon: <ShoppingCart />, anyOfRoles: ALL_ROLES },
+      { kind: 'link', label: 'Policy Settings', to: '/mock-procurement/policy', icon: <Settings />, anyOfRoles: ALL_ROLES },
 
       {
         kind: 'link',

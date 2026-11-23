@@ -33,7 +33,7 @@ import {
   ShoppingCart,
 } from "@mui/icons-material";
 import { workshopApi } from "../../services/workshopApi";
-import type { ProcurementApprovalPolicy, ProcurementApprovalStep } from "../../types/procurementWorkflow";
+import type { ProcurementApprovalPolicy, ProcurementApprovalStep, ProcurementPolicySettings } from "../../types/procurementWorkflow";
 import { useCompanyStore } from "../../store/companyStore";
 import { colors, pageLayout, radii, shadows } from "../../theme/tokens";
 
@@ -59,6 +59,12 @@ type AccountingModule =
   | "payments"
   | "journals";
 type MasterOption = { id: string; label: string; secondary?: string };
+type DemoPolicyResolution = {
+  policy: ProcurementApprovalPolicy | null;
+  requiredStages: string[];
+  skippedStages: string[];
+  specialCase: boolean;
+};
 type QuotationLineDraft = {
   key: string;
   itemCode: string;
@@ -69,6 +75,26 @@ type QuotationLineDraft = {
   materialRequestItemId?: string;
   warehouse?: string;
 };
+
+const DEMO_PROCESS_STAGES = [
+  "Requested",
+  "Procurement Review",
+  "Quotation Collection",
+  "Compare Sheet Preparation",
+  "Audit Verification",
+  "GM Approval",
+  "Management Approval",
+  "PO Creation",
+  "Supplier Confirmation",
+  "Chalan / GRN",
+  "Audit Physical Review",
+  "Procurement File Completion",
+  "Audit Clearance",
+  "Actual Accounts",
+  "Reconciliation",
+  "Bill Settlement",
+  "Paid / Closed",
+];
 
 const PROCUREMENT_DEMO_STEPS = [
   {
@@ -289,79 +315,32 @@ const PROCUREMENT_DEMO_DATA = {
   },
 };
 
-const DEMO_ACTION_CHAIN = [
-  {
-    action: "store_review",
-    label: "Complete store review",
-    toStage: "Procurement Review",
-    owner: "Parts / Store Keeper",
-  },
-  {
-    action: "open_quotation_collection",
-    label: "Start quotation collection",
-    toStage: "Quotation Collection",
-    owner: "Procurement",
-  },
-  {
-    action: "prepare_compare",
-    label: "Prepare comparative statement",
-    toStage: "Compare Sheet Preparation",
-    owner: "Procurement",
-  },
-  {
-    action: "submit_audit_verification",
-    label: "Submit for audit verification",
-    toStage: "Audit Verification",
-    owner: "Audit",
-  },
-  {
-    action: "complete_audit_verification",
-    label: "Complete audit verification",
-    toStage: "GM Approval",
-    owner: "GM - Operations",
-  },
-  {
-    action: "complete_gm_approval",
-    label: "Approve as GM",
-    toStage: "Management Approval",
-    owner: "ED / MD / Chairman",
-  },
-  {
-    action: "complete_management_approval",
-    label: "Complete management approval",
-    toStage: "PO Creation",
-    owner: "Procurement",
-  },
-  {
-    action: "create_purchase_order",
-    label: "Create purchase order",
-    toStage: "Supplier Confirmation",
-    owner: "Procurement",
-  },
-  {
-    action: "confirm_supplier",
-    label: "Confirm supplier and ETA",
-    toStage: "Chalan / GRN",
-    owner: "Store Keeper / Procurement",
-  },
-  {
-    action: "submit_grn",
-    label: "Submit GRN and update stock",
-    toStage: "Actual Accounts",
-    owner: "Accounts",
-  },
-  {
-    action: "post_supplier_invoice",
-    label: "Post supplier invoice",
-    toStage: "Bill Settlement",
-    owner: "Accounts",
-  },
-  {
-    action: "settle_payment",
-    label: "Settle payment",
-    toStage: "Paid / Closed",
-    owner: "Accounts",
-  },
+type DemoStageFlowEntry = {
+  stage: string;
+  toStage: string;
+  action: string;
+  label: string;
+  owner: string;
+  policyStage?: string;
+};
+
+const DEMO_STAGE_FLOW: DemoStageFlowEntry[] = [
+  { stage: "Requested", toStage: "Procurement Review", action: "store_review", label: "Complete store review", owner: "Parts / Store Keeper" },
+  { stage: "Procurement Review", toStage: "Quotation Collection", action: "open_quotation_collection", label: "Start quotation collection", owner: "Procurement" },
+  { stage: "Quotation Collection", toStage: "Compare Sheet Preparation", action: "prepare_compare", label: "Prepare comparative statement", owner: "Procurement" },
+  { stage: "Compare Sheet Preparation", toStage: "Audit Verification", action: "submit_audit_verification", label: "Submit for audit verification", owner: "Audit", policyStage: "Audit Verification" },
+  { stage: "Audit Verification", toStage: "GM Approval", action: "complete_audit_verification", label: "Complete audit verification", owner: "GM - Operations", policyStage: "GM Approval" },
+  { stage: "GM Approval", toStage: "Management Approval", action: "complete_gm_approval", label: "Approve as GM", owner: "ED / MD / Chairman", policyStage: "Management Approval" },
+  { stage: "Management Approval", toStage: "PO Creation", action: "complete_management_approval", label: "Complete management approval", owner: "Procurement" },
+  { stage: "PO Creation", toStage: "Supplier Confirmation", action: "create_purchase_order", label: "Create purchase order", owner: "Procurement" },
+  { stage: "Supplier Confirmation", toStage: "Chalan / GRN", action: "confirm_supplier", label: "Confirm supplier and ETA", owner: "Store Keeper / Procurement" },
+  { stage: "Chalan / GRN", toStage: "Audit Physical Review", action: "submit_grn", label: "Submit GRN and update stock", owner: "Audit / Store Keeper", policyStage: "Audit Physical Review" },
+  { stage: "Audit Physical Review", toStage: "Procurement File Completion", action: "complete_physical_audit", label: "Complete physical audit review", owner: "Procurement" },
+  { stage: "Procurement File Completion", toStage: "Audit Clearance", action: "complete_procurement_file", label: "Complete procurement file", owner: "Audit", policyStage: "Audit Clearance" },
+  { stage: "Audit Clearance", toStage: "Actual Accounts", action: "complete_audit_clearance", label: "Complete audit clearance", owner: "Accounts" },
+  { stage: "Actual Accounts", toStage: "Reconciliation", action: "post_supplier_invoice", label: "Post supplier invoice", owner: "Accounts Manager", policyStage: "Reconciliation" },
+  { stage: "Reconciliation", toStage: "Bill Settlement", action: "confirm_reconciliation", label: "Confirm reconciliation", owner: "Accounts" },
+  { stage: "Bill Settlement", toStage: "Paid / Closed", action: "settle_payment", label: "Settle payment", owner: "Accounts" },
 ];
 
 const PROCESS_PRINT_MODULES: Array<AccountingModule | null> = [
@@ -384,26 +363,66 @@ const PROCESS_PRINT_MODULES: Array<AccountingModule | null> = [
   "payments",
 ];
 
-function demoActionsForStage(stage: string) {
-  const stages = [
-    "Requested",
-    "Procurement Review",
-    "Quotation Collection",
-    "Compare Sheet Preparation",
-    "Audit Verification",
-    "GM Approval",
-    "Management Approval",
-    "PO Creation",
-    "Supplier Confirmation",
-    "Chalan / GRN",
-    "Actual Accounts",
-    "Bill Settlement",
-  ];
-  const next = DEMO_ACTION_CHAIN[stages.indexOf(stage)];
-  if (!next) return [];
+function demoActionsForStage(stage: string, resolution: DemoPolicyResolution | null = null) {
+  const skipped = new Set(resolution?.skippedStages || []);
+  const start = DEMO_STAGE_FLOW.findIndex((item) => item.stage === stage);
+  if (start < 0) return [];
+  let target = start + 1;
+  while (target < DEMO_STAGE_FLOW.length && DEMO_STAGE_FLOW[target].policyStage && skipped.has(DEMO_STAGE_FLOW[target].policyStage!)) target += 1;
+  if (target >= DEMO_STAGE_FLOW.length) return [];
+  const current = DEMO_STAGE_FLOW[start];
+  const next = DEMO_STAGE_FLOW[target];
   return [
-    { ...next, allowed: true, requiresReason: false, disabledReason: null },
+    {
+      ...current,
+      toStage: next.stage,
+      owner: next.owner,
+      allowed: true,
+      requiresReason: false,
+      disabledReason: null,
+    },
   ];
+}
+
+function demoPolicySettings(policy: ProcurementApprovalPolicy | null): ProcurementPolicySettings {
+  return {
+    allowDeliveredProductSelection: policy?.allowDeliveredProductSelection !== false,
+    allowPartialReceive: policy?.allowPartialReceive !== false,
+    allowSingleProductReturn: policy?.allowSingleProductReturn !== false,
+    allowIndividualItemReturn: policy?.allowIndividualItemReturn !== false,
+    allowCreditNoteReturn: policy?.allowCreditNoteReturn !== false,
+    allowDirectReturn: policy?.allowDirectReturn !== false,
+    specialCaseEnabled: Boolean(policy?.specialCaseEnabled),
+    specialCaseMinAmount: Number(policy?.specialCaseMinAmount || 0),
+  };
+}
+
+function demoPolicyApprover(resolution: DemoPolicyResolution | null, policy: ProcurementApprovalPolicy | null): string | null {
+  if (!policy) return null;
+  const amount = Number(PROCUREMENT_DEMO_DATA.case.approvalAmount || 0);
+  const stage =
+    ["Audit Verification", "GM Approval", "Management Approval"].find((name) =>
+      resolution?.requiredStages.includes(name),
+    ) || "";
+  if (resolution?.specialCase) {
+    if (stage === "Audit Verification") return policy.specialCaseAuditApprover || null;
+    if (stage === "GM Approval") return policy.specialCaseApprover || null;
+  }
+  const steps = (policy.approvalSteps || [])
+    .filter((step) => step.stage === stage && Number(step.minAmount || 0) <= amount)
+    .sort((a, b) => Number(b.minAmount || 0) - Number(a.minAmount || 0) || Number(b.sequence || 0) - Number(a.sequence || 0));
+  return steps[0]?.authorizedUserId || null;
+}
+
+function withDemoPolicy<T extends { id: string }>(base: T, resolution: DemoPolicyResolution | null, fallbackPolicy: ProcurementApprovalPolicy | null): T {
+  const policy = resolution?.policy || fallbackPolicy;
+  return {
+    ...base,
+    policyName: policy?.name || "",
+    policyAcknowledgement: policy?.acknowledgement || "",
+    assignedApproverUserId: demoPolicyApprover(resolution, policy),
+    policySettings: policy ? demoPolicySettings(policy) : undefined,
+  } as T;
 }
 
 const cardSx = {
@@ -608,6 +627,8 @@ export function FinanceWorkspacePage({
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoStep, setDemoStep] = useState(0);
   const [demoDataLoaded, setDemoDataLoaded] = useState(false);
+  const [demoCase, setDemoCase] = useState<Record<string, unknown> | null>(null);
+  const [demoPolicyResolution, setDemoPolicyResolution] = useState<DemoPolicyResolution | null>(null);
   const [storeReviewStatus, setStoreReviewStatus] = useState<"Stock Available" | "Local Shortage" | "Foreign Required">("Local Shortage");
   const [storeProcurementType, setStoreProcurementType] = useState<"Local" | "Foreign">("Local");
   const [storeVendorRoute, setStoreVendorRoute] = useState<"Enlisted Vendor" | "Non-enlisted Vendor" | "Single Vendor">("Enlisted Vendor");
@@ -632,11 +653,14 @@ export function FinanceWorkspacePage({
   const [estimateSourcingType, setEstimateSourcingType] = useState<"OEM" | "Genuine" | "Aftermarket">("Genuine");
   const [estimateRemarks, setEstimateRemarks] = useState("");
 
-  function loadDemoData() {
+  async function loadDemoData() {
     setDemoDataLoaded(true);
+    setError(null);
     setTab("procurement");
     setQuery("");
-    setCases([PROCUREMENT_DEMO_DATA.case]);
+    const seededCase = withDemoPolicy(PROCUREMENT_DEMO_DATA.case, demoPolicyResolution, policy);
+    setCases([seededCase as (typeof cases)[number]]);
+    setDemoCase(seededCase);
     setInbox([
       {
         id: "DEMO-TASK-0001",
@@ -690,9 +714,37 @@ export function FinanceWorkspacePage({
         },
       ],
     });
-    setCaseActions(demoActionsForStage("Requested"));
-    setSelectedCase(PROCUREMENT_DEMO_DATA.case);
+    setCaseActions(demoActionsForStage("Requested", demoPolicyResolution));
+    setSelectedCase(seededCase);
     setSelectedRecord(null);
+    if (!selectedCompanyId) {
+      setError("Select a company to resolve the procurement policy for this mock case.");
+      return;
+    }
+    try {
+      const preview = await workshopApi.procurementApprovalPolicyPreview(
+        selectedCompanyId,
+        Number(PROCUREMENT_DEMO_DATA.case.approvalAmount || 0),
+      );
+      const resolution: DemoPolicyResolution = {
+        policy: preview.policy || policy,
+        requiredStages: preview.requiredStages || [],
+        skippedStages: preview.skippedStages || [],
+        specialCase: Boolean(preview.specialCase),
+      };
+      const policyCase = withDemoPolicy(PROCUREMENT_DEMO_DATA.case, resolution, policy);
+      setDemoPolicyResolution(resolution);
+      setDemoCase(policyCase);
+      setCases([policyCase as (typeof cases)[number]]);
+      setSelectedCase(policyCase);
+      setCaseActions(demoActionsForStage("Requested", resolution));
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to resolve the procurement policy for this mock case",
+      );
+    }
   }
 
   async function openDocument(
@@ -719,10 +771,12 @@ export function FinanceWorkspacePage({
     setCaseActions([]);
     setDetailLoading(true);
     if (demoDataLoaded && id === PROCUREMENT_DEMO_DATA.case.id) {
-      setSelectedCase(PROCUREMENT_DEMO_DATA.case);
+      const currentDemoCase = demoCase || withDemoPolicy(PROCUREMENT_DEMO_DATA.case, demoPolicyResolution, policy);
+      setSelectedCase(currentDemoCase);
       setCaseActions(
         demoActionsForStage(
-          String(PROCUREMENT_DEMO_DATA.case.currentStage || "Requested"),
+          String(currentDemoCase.currentStage || "Requested"),
+          demoPolicyResolution,
         ),
       );
       setDetailLoading(false);
@@ -982,18 +1036,26 @@ export function FinanceWorkspacePage({
       return;
     if (demoDataLoaded && selectedCase.id === PROCUREMENT_DEMO_DATA.case.id) {
       const nextStage = action.toStage || selectedCase.currentStage;
-      setSelectedCase({
-        ...selectedCase,
-        currentStage: nextStage,
-        stage: nextStage,
-        status: nextStage === "Paid / Closed" ? "Paid / Closed" : "In Progress",
-        currentOwnerRole:
-          DEMO_ACTION_CHAIN.find((item) => item.toStage === nextStage)?.owner ||
-          selectedCase.currentOwnerRole,
-        lastAction: action.label,
-        note: note || undefined,
-      });
-      setCaseActions(demoActionsForStage(String(nextStage)));
+      const nextCase = withDemoPolicy(
+        {
+          ...selectedCase,
+          id: String(selectedCase.id),
+          currentStage: nextStage,
+          stage: nextStage,
+          status: nextStage === "Paid / Closed" ? "Paid / Closed" : "In Progress",
+          currentOwnerRole:
+            DEMO_STAGE_FLOW.find((item) => item.stage === nextStage)?.owner ||
+            selectedCase.currentOwnerRole,
+          lastAction: action.label,
+          note: note || undefined,
+        },
+        demoPolicyResolution,
+        policy,
+      );
+      setSelectedCase(nextCase);
+      setDemoCase(nextCase);
+      setCases((current) => current.map((item) => (item.id === nextCase.id ? nextCase as (typeof cases)[number] : item)));
+      setCaseActions(demoActionsForStage(String(nextStage), demoPolicyResolution));
       return;
     }
     setBusyId(String(selectedCase.id));
@@ -1403,6 +1465,27 @@ export function FinanceWorkspacePage({
     }
   }
 
+  async function applyDemoPolicyPreview(nextPolicy: ProcurementApprovalPolicy | null) {
+    if (!demoDataLoaded || !selectedCompanyId) return;
+    const base = (demoCase || PROCUREMENT_DEMO_DATA.case) as typeof PROCUREMENT_DEMO_DATA.case;
+    const preview = await workshopApi.procurementApprovalPolicyPreview(
+      selectedCompanyId,
+      Number(base.approvalAmount || PROCUREMENT_DEMO_DATA.case.approvalAmount || 0),
+    );
+    const resolution: DemoPolicyResolution = {
+      policy: preview.policy || nextPolicy,
+      requiredStages: preview.requiredStages || [],
+      skippedStages: preview.skippedStages || [],
+      specialCase: Boolean(preview.specialCase),
+    };
+    const updated = withDemoPolicy(base, resolution, nextPolicy);
+    setDemoPolicyResolution(resolution);
+    setDemoCase(updated);
+    setCases((current) => current.map((item) => (item.id === updated.id ? updated as (typeof cases)[number] : item)));
+    setSelectedCase((current) => (current && current.id === updated.id ? updated : current));
+    setCaseActions(demoActionsForStage(String(updated.currentStage || "Requested"), resolution));
+  }
+
   async function savePolicy() {
     if (!selectedCompanyId || !policy) return;
     setPolicyBusy(true);
@@ -1413,6 +1496,11 @@ export function FinanceWorkspacePage({
         companyId: selectedCompanyId,
       });
       setPolicy(saved);
+      try {
+        await applyDemoPolicyPreview(saved);
+      } catch {
+        setError("Policy saved, but the mock case could not refresh its policy route.");
+      }
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -1679,7 +1767,7 @@ export function FinanceWorkspacePage({
           </Button>
           <Button
             variant="contained"
-            onClick={loadDemoData}
+            onClick={() => void loadDemoData()}
             disabled={workspace !== "procurement"}
           >
             Load mock case
@@ -1698,9 +1786,29 @@ export function FinanceWorkspacePage({
         </Stack>
       </Stack>
       {demoDataLoaded ? (
-        <Alert severity="info" sx={{ mb: 2 }}>
+        <Alert
+          severity="info"
+          sx={{ mb: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={() => setTab("policy")}>
+              Edit policy
+            </Button>
+          }
+        >
           Presentation mock case loaded locally. It is not saved to Frappe and
           will be replaced when you refresh.
+          {demoPolicyResolution ? (
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              {demoPolicyResolution.policy?.name || "Procurement policy"} · Required:{" "}
+              {demoPolicyResolution.requiredStages.join(", ") || "none"} · Skipped:{" "}
+              {demoPolicyResolution.skippedStages.join(", ") || "none"}
+            </Typography>
+          ) : null}
+          {demoPolicyResolution?.policy?.acknowledgement ? (
+            <Typography variant="body2" sx={{ mt: 0.25 }}>
+              {demoPolicyResolution.policy.acknowledgement}
+            </Typography>
+          ) : null}
         </Alert>
       ) : null}
       {error ? (
@@ -2635,25 +2743,7 @@ export function FinanceWorkspacePage({
               <Stepper
                 activeStep={Math.max(
                   0,
-                  [
-                    "Requested",
-                    "Procurement Review",
-                    "Quotation Collection",
-                    "Compare Sheet Preparation",
-                    "Audit Verification",
-                    "GM Approval",
-                    "Management Approval",
-                    "PO Creation",
-                    "Supplier Confirmation",
-                    "Chalan / GRN",
-                    "Audit Physical Review",
-                    "Procurement File Completion",
-                    "Audit Clearance",
-                    "Actual Accounts",
-                    "Reconciliation",
-                    "Bill Settlement",
-                    "Paid / Closed",
-                  ].indexOf(String(selectedCase.currentStage || "Requested")),
+                  DEMO_PROCESS_STAGES.indexOf(String(selectedCase.currentStage || "Requested")),
                 )}
                 alternativeLabel
                 sx={{ overflowX: "auto", py: 1 }}
@@ -2690,6 +2780,16 @@ export function FinanceWorkspacePage({
                 <Chip
                   label={`Owner: ${String(selectedCase.currentOwnerRole || selectedCase.owner || "Unassigned")}`}
                 />
+                {demoDataLoaded && demoPolicyResolution ? (
+                  <Chip
+                    label={`Policy: ${demoPolicyResolution.requiredStages.length} required / ${demoPolicyResolution.skippedStages.length} skipped`}
+                  />
+                ) : null}
+                {demoDataLoaded && selectedCase.assignedApproverUserId ? (
+                  <Chip
+                    label={`Assigned approver: ${String(selectedCase.assignedApproverUserId)}`}
+                  />
+                ) : null}
               </Stack>
               {(() => {
                 const context = selectedCase.requestContext as {
@@ -2765,25 +2865,7 @@ export function FinanceWorkspacePage({
                         PROCUREMENT_DEMO_STEPS.length - 1,
                         Math.max(
                           0,
-                          [
-                            "Requested",
-                            "Procurement Review",
-                            "Quotation Collection",
-                            "Compare Sheet Preparation",
-                            "Audit Verification",
-                            "GM Approval",
-                            "Management Approval",
-                            "PO Creation",
-                            "Supplier Confirmation",
-                            "Chalan / GRN",
-                            "Audit Physical Review",
-                            "Procurement File Completion",
-                            "Audit Clearance",
-                            "Actual Accounts",
-                            "Reconciliation",
-                            "Bill Settlement",
-                            "Paid / Closed",
-                          ].indexOf(
+                          DEMO_PROCESS_STAGES.indexOf(
                             String(selectedCase.currentStage || "Requested"),
                           ),
                         ),
@@ -2830,10 +2912,26 @@ export function FinanceWorkspacePage({
                             "DEMO-PAY-0001",
                           ][index] || ""
                         : "");
-                    const policyText =
-                      index === 4 && policy
-                        ? ` · GM ≥ ৳${Number(policy.gmMinAmount || 0).toLocaleString()}${policy.requireAuditVerification ? `; audit ≥ ৳${Number(policy.auditVerificationMinAmount || 0).toLocaleString()}` : ""}${policy.requireManagementApproval ? `; management ≥ ৳${Number(policy.managementMinAmount || 0).toLocaleString()}` : ""}`
+                    const stageName = DEMO_PROCESS_STAGES[index] || "";
+                    const policyState =
+                      demoPolicyResolution?.requiredStages.includes(stageName)
+                        ? "Required by policy"
+                        : demoPolicyResolution?.skippedStages.includes(stageName)
+                          ? "Skipped by policy"
+                          : "";
+                    const specialState =
+                      demoPolicyResolution?.specialCase &&
+                      ["Audit Verification", "GM Approval"].includes(stageName)
+                        ? "Special case"
                         : "";
+                    const thresholdText =
+                      index === 4 && policy
+                        ? `GM ≥ ৳${Number(policy.gmMinAmount || 0).toLocaleString()}${policy.requireAuditVerification ? `; audit ≥ ৳${Number(policy.auditVerificationMinAmount || 0).toLocaleString()}` : ""}${policy.requireManagementApproval ? `; management ≥ ৳${Number(policy.managementMinAmount || 0).toLocaleString()}` : ""}`
+                        : "";
+                    const policyText = [thresholdText, policyState, specialState]
+                      .filter(Boolean)
+                      .map((text) => ` · ${text}`)
+                      .join("");
                     return (
                       <Stack
                         key={step.title}

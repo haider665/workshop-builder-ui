@@ -1,4 +1,4 @@
-import type { ProcurementApprovalPolicy, ProcurementDecisionRecord, SupplierReturn } from '../types/procurementWorkflow'
+import type { ProcurementApprovalPolicy, ProcurementDecisionRecord, ProcurementPolicyPreview, SupplierReturn } from '../types/procurementWorkflow'
 
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const apiBaseUrl = configuredApiBaseUrl
@@ -2333,8 +2333,8 @@ export const workshopApi = {
   async procurementApprovalPolicies(company?: string): Promise<{ data: ProcurementApprovalPolicy[]; defaults?: ProcurementApprovalPolicy[] }> {
     return request(`/api/method/workshop.api.accounting.approval_policies.list${buildQuery({ company })}`)
   },
-  async procurementApprovalPolicyPreview(company: string, amount: number): Promise<{ requiredStages: string[]; skippedStages: string[]; specialCase: boolean }> {
-    return request(`/api/method/workshop.api.accounting.approval_policies.preview${buildQuery({ company, amount })}`)
+  async procurementApprovalPolicyPreview(company: string, amount: number, procurementType?: 'Local' | 'Foreign', vendorRoute?: 'Enlisted Vendor' | 'Non-enlisted Vendor' | 'Single Vendor', supplierCount?: number): Promise<ProcurementPolicyPreview> {
+    return request(`/api/method/workshop.api.accounting.approval_policies.preview${buildQuery({ company, amount, procurementType, vendorRoute, supplierCount })}`)
   },
   async saveProcurementApprovalPolicy(data: ProcurementApprovalPolicy): Promise<ProcurementApprovalPolicy> {
     return request('/api/method/workshop.api.accounting.approval_policies.save', { method: 'POST', body: { data } })
