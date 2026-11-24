@@ -76,9 +76,10 @@ export function MockCustomerApprovalPage() {
       }))
       const mapped: MockCustomerApproval[] = rows.map((row) => {
         const context = contexts.get(row.appointmentId)
-        const status: CustomerApprovalStatus = row.customerApprovalStatus === 'approved'
+        const decision = row.customerDecision || row.customerApprovalStatus || 'pending'
+        const status: CustomerApprovalStatus = decision.toLowerCase() === 'approved'
           ? 'approved'
-          : row.customerApprovalStatus === 'rejected'
+          : decision.toLowerCase() === 'rejected'
             ? 'rejected'
             : 'pending'
         return {
@@ -97,6 +98,10 @@ export function MockCustomerApprovalPage() {
           vendorName: row.localVendorName,
           foreignNote: row.foreignNote,
           status,
+          customerQuotationId: row.customerQuotationId,
+          customerQuotationGrandTotal: row.customerQuotationGrandTotal,
+          customerQuotationValidTill: row.customerQuotationValidTill,
+          customerDecision: row.customerDecision,
           approvedAt: status === 'approved' ? row.customerApprovalDecidedAt : undefined,
           rejectedAt: status === 'rejected' ? row.customerApprovalDecidedAt : undefined,
           rejectionNote: row.customerApprovalNote,
@@ -117,7 +122,11 @@ export function MockCustomerApprovalPage() {
 
   const handleApprove = async (approval: MockCustomerApproval) => {
     try {
-      await workshopApi.setPartRequestCustomerApproval(approval.id, { status: 'Approved' })
+      if (approval.customerQuotationId) {
+        await workshopApi.setCustomerQuotationDecision(approval.customerQuotationId, 'Approved')
+      } else {
+        await workshopApi.setPartRequestCustomerApproval(approval.id, { status: 'Approved' })
+      }
       setSnackError(false)
       setSnack(`Approved: ${approval.partName}`)
       setRefreshKey((key) => key + 1)
@@ -129,11 +138,20 @@ export function MockCustomerApprovalPage() {
 
   const handleRejectConfirm = async () => {
     if (!rejectDialog) return
+    if (rejectDialog.customerQuotationId && !rejectNote.trim()) {
+      setSnackError(true)
+      setSnack('A rejection note is required for a customer quotation.')
+      return
+    }
     try {
-      await workshopApi.setPartRequestCustomerApproval(rejectDialog.id, {
-        status: 'Rejected',
-        note: rejectNote.trim() || undefined,
-      })
+      if (rejectDialog.customerQuotationId) {
+        await workshopApi.setCustomerQuotationDecision(rejectDialog.customerQuotationId, 'Rejected', rejectNote.trim())
+      } else {
+        await workshopApi.setPartRequestCustomerApproval(rejectDialog.id, {
+          status: 'Rejected',
+          note: rejectNote.trim() || undefined,
+        })
+      }
       setSnackError(false)
       setSnack(`Rejected: ${rejectDialog.partName}`)
       setRefreshKey((key) => key + 1)
@@ -341,6 +359,21 @@ export function MockCustomerApprovalPage() {
                               {a.foreignNote ?? 'Foreign vendor needed'}
                             </Typography>
                           )}
+                          {a.customerQuotationId ? (
+                            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
+                              <Chip size="small" label={a.customerQuotationId} sx={{ fontSize: '0.65rem', height: 18, fontWeight: 700, bgcolor: '#dbeafe', color: '#1d4ed8' }} />
+                              <Typography sx={{ fontSize: '0.7rem', color: colors.slate[600], fontWeight: 700 }}>
+                                ৳{(a.customerQuotationGrandTotal || 0).toLocaleString()}
+                              </Typography>
+                              <Button
+                                size="small"
+                                onClick={() => window.open(workshopApi.customerQuotationPrintUrl(a.customerQuotationId || ''), '_blank', 'noopener,noreferrer')}
+                                sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'none', minWidth: 0, px: 0.75 }}
+                              >
+                                PDF
+                              </Button>
+                            </Stack>
+                          ) : null}
                         </TableCell>
                         <TableCell>
                           <Chip

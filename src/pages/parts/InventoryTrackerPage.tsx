@@ -16,18 +16,17 @@ import {
   Inventory,
   Search,
 } from '@mui/icons-material'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DataTable } from '../../components/DataTable'
 import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
 import { workshopApi } from '../../services/workshopApi'
-import type { CWPart, CWPartStatus } from '../../types/cw'
+import type { CWPartStatus } from '../../types/cw'
+import type { InventoryPosition } from '../../types/inventoryWorkflow'
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
-import { useSessionStore } from '../../store/sessionStore'
 import { useCompanyStore } from '../../store/companyStore'
-import { matchesSearch } from '../../utils/search'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -68,7 +67,6 @@ type PartDraft = {
   binNumber: string
   reorderLevel: string
   defaultSellPrice: string
-  stockCount: string
   status: CWPartStatus
 }
 
@@ -84,7 +82,6 @@ function emptyDraft(): PartDraft {
     binNumber: '',
     reorderLevel: '',
     defaultSellPrice: '',
-    stockCount: '',
     status: 'Active',
   }
 }
@@ -120,7 +117,11 @@ const stockChipProps: Record<StockLevel, { bg: string; color: string }> = {
 /* ─────────────────────── Component ──────────────────────────── */
 
 export function InventoryTrackerPage() {
-  const [parts, setParts] = useState<CWPart[]>([])
+  const [positions, setPositions] = useState<InventoryPosition[]>([])
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedWarehouse, setSelectedWarehouse] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   useBackendData()
   const [lowStockItems, setLowStockItems] = useState<Array<{ id: string; name: string; partNumber: string; reorderLevel: number; stockCount: number; remaining: number; vendorName?: string | null }>>([])
   const [slowMoverItems, setSlowMoverItems] = useState<Array<{ id: string; name: string; partNumber?: string; stockCount: number; daysInStock: number; lastMovementDate: string }>>([])
@@ -133,39 +134,32 @@ export function InventoryTrackerPage() {
   const [draft, setDraft] = useState<PartDraft>(emptyDraft())
 
   const vehicles = useCwStore((s) => s.vehicles)
-  const users = useCwStore((s) => s.users)
-  const sessionUser = useSessionStore((s) => s.user)
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
 
   const modelOptions = useMemo(
     () => [...new Set(vehicles.map((v) => v.modelVariant || v.model).filter(Boolean) as string[]), 'Universal'],
     [vehicles],
   )
-  const getUserName = (id?: string) => users.find((u) => u.id === id)?.fullName || '—'
 
-  const formatSellPrice = (price?: number) =>
-    price != null ? `৳${price.toLocaleString('en-IN')}` : '—'
+  const formatMoney = (value?: number) =>
+    value != null ? `৳${value.toLocaleString('en-IN')}` : '—'
 
-  async function loadInventory() {
+  const loadPositions = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [partsRes, lowRes, slowRes] = await Promise.all([
-        workshopApi.listParts({ pageSize: 100 }),
-        workshopApi.lowStockAlerts(10),
-        workshopApi.slowMovers(90, 10),
-      ])
-      setParts(partsRes.data)
-      setLowStockItems(lowRes.items)
-      setSlowMoverItems(slowRes.items)
+      const result = await workshopApi.listInventory({
+        page,
+        pageSize: 100,
+        search: search || undefined,
+        warehouse: selectedWarehouse || undefined,
+      })
+      setPositions(result.data)
+      setWarehouses(result.meta.warehouses)
+      setTotal(result.meta.total)
       const names: Record<string, string | null> = {}
-      for (const part of partsRes.data.slice(0, 50)) {
-        try {
-          const matrix = await workshopApi.vendorMatrix(part.id)
-          names[part.id] = matrix.vendors[0]?.vendorName ?? null
-        } catch {
-          names[part.id] = null
-        }
+      for (const row of result.data) {
+        if (row.partId) names[row.partId] = row.preferredVendorName
       }
       setVendorNames(names)
     } catch (err) {
@@ -173,30 +167,38 @@ export function InventoryTrackerPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, search, selectedWarehouse])
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const [lowRes, slowRes] = await Promise.all([
+        workshopApi.lowStockAlerts(10),
+        workshopApi.slowMovers(90, 10),
+      ])
+      setLowStockItems(lowRes.items)
+      setSlowMoverItems(slowRes.items)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load inventory alerts')
+    }
+  }, [])
 
   useEffect(() => {
-    // Company context is loaded asynchronously during authentication.  Do not
-    // issue inventory requests before it is selected: the backend correctly
-    // rejects company-scoped reads without an active company.
-    if (selectedCompanyId) void loadInventory()
+    setPage(1)
+    setSelectedWarehouse('')
   }, [selectedCompanyId])
+
+  useEffect(() => {
+    if (selectedCompanyId) void loadAlerts()
+  }, [loadAlerts, selectedCompanyId])
+
+  useEffect(() => {
+    if (selectedCompanyId) void loadPositions()
+  }, [loadPositions, selectedCompanyId])
 
   /* ── Derived data ── */
 
-  const activeParts = useMemo(() => parts.filter((p) => p.status === 'Active'), [parts])
-
-  const filteredParts = useMemo(() => activeParts.filter((p) => {
-    if (!search.trim()) return true
-    return matchesSearch(p, search)
-  }), [activeParts, search])
-
   const lowStockParts = lowStockItems
   const slowMovers = slowMoverItems
-
-  function getPartStockStatus(part: CWPart): StockLevel {
-    return (part.stockStatus ?? (part.stockCount === 0 ? 'Out of Stock' : (part.stockCount ?? 0) <= (part.reorderLevel ?? 0) ? 'Low Stock' : 'In Stock')) as StockLevel
-  }
 
   function getPreferredVendor(partId: string) {
     const name = vendorNames[partId]
@@ -215,22 +217,20 @@ export function InventoryTrackerPage() {
     setError(null)
     try {
       await workshopApi.createPart({
-      name: draft.name.trim(),
-      partNumber: draft.partNumber.trim(),
-      description: draft.description.trim() || undefined,
-      category: draft.category || undefined,
-      brand: draft.brand.trim() || undefined,
-      modelVariant: draft.modelVariant.trim() || undefined,
-      rackLocation: draft.rackLocation.trim() || undefined,
-      binNumber: draft.binNumber.trim() || undefined,
-      reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel) : undefined,
-      defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice) : undefined,
-      stockCount: draft.stockCount.trim() ? Number(draft.stockCount) : undefined,
-      status: draft.status,
-      createdByUserId: sessionUser?.id || '',
-    })
+        name: draft.name.trim(),
+        partNumber: draft.partNumber.trim(),
+        description: draft.description.trim() || undefined,
+        category: draft.category || undefined,
+        brand: draft.brand.trim() || undefined,
+        modelVariant: draft.modelVariant.trim() || undefined,
+        rackLocation: draft.rackLocation.trim() || undefined,
+        binNumber: draft.binNumber.trim() || undefined,
+        reorderLevel: draft.reorderLevel.trim() ? Number(draft.reorderLevel) : undefined,
+        defaultSellPrice: draft.defaultSellPrice.trim() ? Number(draft.defaultSellPrice) : undefined,
+        status: draft.status,
+      })
       setCreateOpen(false)
-      await loadInventory()
+      await Promise.all([loadPositions(), loadAlerts()])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create part')
     }
@@ -238,44 +238,39 @@ export function InventoryTrackerPage() {
 
   /* ── Table Columns ── */
 
-  const columns: Column<CWPart>[] = [
+  const columns: Column<InventoryPosition>[] = [
     {
-      key: 'category',
-      header: 'Category',
-      minWidth: 140,
-      render: (part) => (
-        <Box>
-          <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
-            {part.category ?? '—'}
-          </Typography>
-          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
-            {part.category ?? 'Uncategorized'}
-          </Typography>
-        </Box>
+      key: 'warehouse',
+      header: 'Warehouse',
+      minWidth: 150,
+      render: (row) => (
+        <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
+          {row.warehouseName}
+        </Typography>
       ),
     },
     {
       key: 'partNumber',
       header: 'Part Number',
-      minWidth: 130,
-      render: (part) => (
+      minWidth: 140,
+      render: (row) => (
         <Box>
           <Typography sx={{ fontWeight: 600, color: colors.slate[900], fontSize: '0.875rem' }}>
-            {part.partNumber}
+            {row.partNumber ?? row.itemCode}
           </Typography>
           <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
-            {part.category ?? 'General'}
+            {row.itemCode}
           </Typography>
         </Box>
       ),
     },
     {
-      key: 'name',
+      key: 'itemName',
       header: 'Name',
-      minWidth: 160,
-      render: (part) => (
+      minWidth: 180,
+      render: (row) => (
         <Typography sx={{ fontWeight: 500, color: colors.slate[800], fontSize: '0.875rem' }}>
-          {part.name}
+          {row.itemName}
         </Typography>
       ),
     },
@@ -283,13 +278,12 @@ export function InventoryTrackerPage() {
       key: 'status',
       header: 'Status',
       minWidth: 110,
-      render: (part) => {
-        const status = getPartStockStatus(part)
-        const chip = stockChipProps[status]
+      render: (row) => {
+        const chip = stockChipProps[row.stockStatus]
         return (
           <Chip
             size="small"
-            label={status}
+            label={row.stockStatus}
             sx={{
               fontWeight: 700,
               fontSize: '0.72rem',
@@ -302,49 +296,56 @@ export function InventoryTrackerPage() {
       },
     },
     {
-      key: 'brand',
-      header: 'Brand',
-      render: (part) => (
-        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
-          {part.brand ?? '—'}
-        </Typography>
-      ),
-    },
-    {
-      key: 'modelVariant',
-      header: 'Model Variant',
-      render: (part) => (
-        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
-          {part.modelVariant ?? '—'}
-        </Typography>
-      ),
-    },
-    {
-      key: 'stock',
-      header: 'Stock',
+      key: 'onHand',
+      header: 'On Hand',
       align: 'right',
-      render: (part) => (
+      render: (row) => (
         <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[700] }}>
-          {part.stockCount ?? 0} units
+          {row.onHand} units
         </Typography>
       ),
     },
     {
-      key: 'sellPrice',
-      header: 'Sell Price',
+      key: 'available',
+      header: 'Available / Projected',
       align: 'right',
-      render: (part) => (
+      render: (row) => (
+        <Box>
+          <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[700] }}>
+            {row.available} available
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
+            {row.projected} projected
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'valuationRate',
+      header: 'Valuation Rate',
+      align: 'right',
+      render: (row) => (
         <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[700] }}>
-          {formatSellPrice(part.defaultSellPrice)}
+          {formatMoney(row.valuationRate)}
         </Typography>
       ),
     },
     {
-      key: 'createdBy',
-      header: 'Created By',
-      render: (part) => (
+      key: 'stockValue',
+      header: 'Stock Value',
+      align: 'right',
+      render: (row) => (
+        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[700] }}>
+          {formatMoney(row.stockValue)}
+        </Typography>
+      ),
+    },
+    {
+      key: 'vendor',
+      header: 'Preferred Vendor',
+      render: (row) => (
         <Typography sx={{ fontSize: '0.875rem', color: colors.slate[600] }}>
-          {getUserName(part.createdByUserId)}
+          {row.preferredVendorName ?? '—'}
         </Typography>
       ),
     },
@@ -372,7 +373,7 @@ export function InventoryTrackerPage() {
               Inventory Management
             </Typography>
             <Typography sx={{ color: colors.slate[500], fontSize: '0.875rem' }}>
-              Manage and track all vendors
+              Track live ERPNext stock positions by warehouse
             </Typography>
           </Box>
           <Button variant="contained" startIcon={<Add />} onClick={openCreate} sx={btnSx}>
@@ -406,6 +407,24 @@ export function InventoryTrackerPage() {
               },
             }}
           />
+          <TextField
+            select
+            label="Warehouse"
+            value={selectedWarehouse}
+            onChange={(e) => {
+              setSelectedWarehouse(e.target.value)
+              setPage(1)
+            }}
+            size="small"
+            sx={{ minWidth: 200 }}
+          >
+            <MenuItem value="">All Warehouses</MenuItem>
+            {warehouses.map((warehouse) => (
+              <MenuItem key={warehouse.id} value={warehouse.id}>
+                {warehouse.name}
+              </MenuItem>
+            ))}
+          </TextField>
           <Button
             variant="outlined"
             startIcon={<FilterList />}
@@ -429,18 +448,41 @@ export function InventoryTrackerPage() {
         {/* ── Inventory Table ── */}
         <DataTable
           columns={columns}
-          rows={filteredParts}
+          rows={positions}
           loading={loading}
-          keyExtractor={(part) => part.id}
+          keyExtractor={(row) => `${row.warehouseId}:${row.itemCode}`}
           emptyIcon={<Inventory />}
-          emptyTitle="No parts found"
-          emptyDescription="Add parts to start tracking inventory."
+          emptyTitle="No stock positions found"
+          emptyDescription="Receive stock or add a part to start tracking inventory."
           emptyAction={
             <Button variant="contained" startIcon={<Add />} onClick={openCreate} sx={btnSx}>
               Add Part
             </Button>
           }
         />
+
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', justifyContent: 'flex-end' }}>
+          <Typography sx={{ fontSize: '0.8125rem', color: colors.slate[500] }}>
+            {total} stock positions
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={page <= 1}
+            onClick={() => setPage((value) => Math.max(value - 1, 1))}
+          >
+            Previous
+          </Button>
+          <Typography sx={{ fontSize: '0.8125rem', color: colors.slate[600] }}>Page {page}</Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={page * 100 >= total}
+            onClick={() => setPage((value) => value + 1)}
+          >
+            Next
+          </Button>
+        </Stack>
 
         {/* ── Dashboard Cards ── */}
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
@@ -699,13 +741,6 @@ export function InventoryTrackerPage() {
             type="number"
             value={draft.defaultSellPrice}
             onChange={(e) => setDraft((d) => ({ ...d, defaultSellPrice: e.target.value }))}
-            fullWidth
-          />
-          <TextField
-            label="Stock Count"
-            type="number"
-            value={draft.stockCount}
-            onChange={(e) => setDraft((d) => ({ ...d, stockCount: e.target.value }))}
             fullWidth
           />
         </FormDialog>

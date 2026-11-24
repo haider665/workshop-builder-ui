@@ -2,7 +2,7 @@
 // Phase A: Part Request Triage + Customer Approval
 // Phase B: Procurement Pipeline (Store Review → Quotations → CS → Audit → Approval → PO → GRN)
 
-import type { CWPartRequest } from './cw'
+import type { CWEstimateLine, CWPartRequest } from './cw'
 
 // ── Live Phase A bridge ──
 
@@ -19,6 +19,9 @@ export type LivePartRequest = CWPartRequest & {
   storeReviewStatus?: 'Pending' | 'Stock Available' | 'Local Shortage' | 'Foreign Required'
   procurementType?: 'Local' | 'Foreign'
   stockAvailable?: number
+  stockQuantity?: number
+  stockStatus?: string
+  vin?: string | null
   storeReviewNote?: string
   triageCompleted?: boolean
   disposition?: PartDisposition
@@ -32,6 +35,76 @@ export type LivePartRequest = CWPartRequest & {
   customerApprovalNote?: string
   customerApprovalDecidedBy?: string
   customerApprovalDecidedAt?: string
+  customerQuotationId?: string | null
+  customerQuotationStatus?: string | null
+  customerQuotationGrandTotal?: number
+  customerQuotationValidTill?: string | null
+  customerDecision?: string
+}
+
+export type LiveEstimateLine = CWEstimateLine & {
+  stockQuantity?: number
+  stockStatus?: string
+  vin?: string | null
+  customerQuotationId?: string | null
+}
+
+export type CustomerQuotationLine = {
+  id: string
+  partRequestId?: string | null
+  estimateLineId?: string | null
+  partId?: string | null
+  partName?: string | null
+  partNumber?: string | null
+  description?: string
+  itemCode?: string
+  quantity: number
+  rate: number
+  unitPrice: number
+  currency?: string
+  uom?: string
+  deliveryDate?: string | null
+  estimatedDeliveryDate?: string | null
+}
+
+export type CustomerQuotation = {
+  id: string
+  name: string
+  doctype: 'Quotation'
+  company?: string
+  customer?: string
+  customerName?: string
+  appointmentId?: string
+  partRequestId?: string
+  partRequestIds?: string[]
+  procurementCaseId?: string | null
+  estimateLineIds?: string[]
+  requestLines?: CustomerQuotationLine[]
+  items?: Array<{
+    id: string
+    partRequestId?: string | null
+    estimateLineId?: string | null
+    itemCode?: string
+    itemName?: string
+    description?: string
+    partName?: string
+    partNumber?: string
+    deliveryDate?: string | null
+    qty: number
+    rate: number
+    amount: number
+    uom?: string
+  }>
+  status: 'Draft' | 'Submitted' | 'Cancelled'
+  currency?: string
+  grandTotal?: number
+  validTill?: string
+  terms?: string
+  customerDecision?: 'Not Required' | 'Pending' | 'Approved' | 'Rejected'
+  customerDecisionNote?: string
+  customerDecisionBy?: string
+  customerDecisionAt?: string | null
+  createdAt?: string
 }
 
 // ── Step 1: Part Request Triage ──
@@ -46,6 +119,8 @@ export type PartLineItem = {
   brand?: string
   unitOfMeasure?: string
   quantity: number
+  stockQuantity?: number
+  stockStatus?: string
   disposition: PartDisposition
   includeInProcurement?: boolean
   // For in_stock
@@ -67,12 +142,14 @@ export type MockPartRequest = {
   procurementCaseId?: string
   requestNumber: string
   vehicleName: string
+  vin?: string | null
   customerName: string
   customerPhone: string
   requestedByName: string
   requestedAt: string
   lineItems: PartLineItem[]
   notes?: string
+  customerQuotation?: CustomerQuotation | null
 }
 
 // ── Customer Approval ──
@@ -97,6 +174,10 @@ export type MockCustomerApproval = {
   vendorName?: string
   foreignNote?: string
   status: CustomerApprovalStatus
+  customerQuotationId?: string | null
+  customerQuotationGrandTotal?: number
+  customerQuotationValidTill?: string | null
+  customerDecision?: string
   approvedAt?: string
   rejectedAt?: string
   rejectionNote?: string
@@ -131,6 +212,11 @@ export type CasePart = {
   quantity: number
   disposition: 'local_vendor' | 'foreign_vendor'
   includeInProcurement?: boolean
+  customerQuotationId?: string | null
+  customerQuotationStatus?: string | null
+  customerQuotationGrandTotal?: number
+  customerQuotationValidTill?: string | null
+  customerDecision?: string
 }
 
 // ── Quotation (multi-part per vendor) ──
@@ -413,6 +499,8 @@ export type ProcurementCase = {
   // Source
   partRequestId: string
   customerApprovalIds: string[]
+  customerQuotationIds?: string[]
+  customerDecisionSummary?: Record<string, number>
   // Parts (multiple)
   parts: CasePart[]
   // Display context

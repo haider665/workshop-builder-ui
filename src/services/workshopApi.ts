@@ -1,4 +1,4 @@
-import type { ProcurementApprovalPolicy, ProcurementDecisionRecord, ProcurementPolicyPreview, SupplierReturn } from '../types/procurementWorkflow'
+import type { CustomerQuotation, LiveEstimateLine, ProcurementApprovalPolicy, ProcurementDecisionRecord, ProcurementPolicyPreview, SupplierReturn } from '../types/procurementWorkflow'
 
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const apiBaseUrl = configuredApiBaseUrl
@@ -1989,6 +1989,10 @@ export const workshopApi = {
     return request<ApiListResponse<import('../types/cw').CWPart>>(`/api/method/workshop.api.parts.list${buildQuery(params)}`)
   },
 
+  async listInventory(params: { company?: string; page?: number; pageSize?: number; search?: string; itemCode?: string; partId?: string; warehouse?: string; status?: import('../types/inventoryWorkflow').InventoryStockStatus; category?: string; brand?: string } = {}): Promise<import('../types/inventoryWorkflow').InventoryListResponse> {
+    return request<import('../types/inventoryWorkflow').InventoryListResponse>(`/api/method/workshop.api.parts.inventory${buildQuery(params)}`)
+  },
+
   async getPart(id: string): Promise<import('../types/cw').CWPart> {
     return request<import('../types/cw').CWPart>(`/api/method/workshop.api.parts.get${buildQuery({ id })}`)
   },
@@ -2063,8 +2067,8 @@ export const workshopApi = {
     return request<import('../types/cw').CWEstimateLine>('/api/method/workshop.api.estimate_lines.approve', { method: 'POST', body: { data: { id } } })
   },
 
-  async listEstimateLines(params: { appointmentId?: string; status?: import('../types/cw').CWEstimateLineStatus; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<import('../types/cw').CWEstimateLine>> {
-    return request<ApiListResponse<import('../types/cw').CWEstimateLine>>(`/api/method/workshop.api.estimate_lines.list${buildQuery(params)}`)
+  async listEstimateLines(params: { appointmentId?: string; status?: import('../types/cw').CWEstimateLineStatus; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<LiveEstimateLine>> {
+    return request<ApiListResponse<LiveEstimateLine>>(`/api/method/workshop.api.estimate_lines.list${buildQuery(params)}`)
   },
 
   async identifyEstimateLine(id: string, input: { partId: string }): Promise<import('../types/cw').CWEstimateLine> {
@@ -2075,8 +2079,45 @@ export const workshopApi = {
     return request<import('../types/cw').CWEstimateLine>('/api/method/workshop.api.estimate_lines.price', { method: 'POST', body: { data: { id, ...input } } })
   },
 
-  async submitEstimateLines(appointmentId: string, lineIds: string[]): Promise<{ submitted: number; lockedAt: string; lines: Array<{ id: string; status: import('../types/cw').CWEstimateLineStatus; sellPrice?: number }> }> {
+  async submitEstimateLines(appointmentId: string, lineIds: string[]): Promise<{ submitted: number; lockedAt: string; lines: Array<{ id: string; status: import('../types/cw').CWEstimateLineStatus; sellPrice?: number }>; customerQuotation?: CustomerQuotation | null }> {
     return request('/api/method/workshop.api.estimate_lines.submit', { method: 'POST', body: { data: { appointmentId, lineIds } } })
+  },
+
+  async getCustomerQuotation(id: string): Promise<CustomerQuotation> {
+    return request<CustomerQuotation>(`/api/method/workshop.api.customer_quotations.get${buildQuery({ id })}`)
+  },
+
+  async listCustomerQuotations(params: { appointmentId?: string; partRequestId?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CustomerQuotation>> {
+    return request<ApiListResponse<CustomerQuotation>>(`/api/method/workshop.api.customer_quotations.list${buildQuery(params)}`)
+  },
+
+  async createCustomerQuotation(input: { appointmentId: string; lineIds: string[] }): Promise<CustomerQuotation> {
+    return request<CustomerQuotation>('/api/method/workshop.api.customer_quotations.create', { method: 'POST', body: input })
+  },
+
+  async createCustomerQuotationFromRequest(input: {
+    partRequestId: string
+    lines: Array<{ partRequestId: string; partName: string; quantity: number; rate: number; deliveryDate?: string }>
+    currency?: string
+    validTill?: string
+    terms?: string
+    procurementCaseId?: string
+  }): Promise<CustomerQuotation> {
+    return request<CustomerQuotation>('/api/method/workshop.api.customer_quotations.create_from_request', { method: 'POST', body: input })
+  },
+
+  async updateCustomerQuotation(input: {
+    id: string
+    lines?: Array<{ partRequestId: string; partName: string; quantity: number; rate: number; deliveryDate?: string }>
+    validTill?: string
+    terms?: string
+    reason?: string
+  }): Promise<CustomerQuotation> {
+    return request<CustomerQuotation>('/api/method/workshop.api.customer_quotations.update', { method: 'POST', body: input })
+  },
+
+  async setCustomerQuotationDecision(id: string, status: 'Pending' | 'Approved' | 'Rejected', note?: string): Promise<CustomerQuotation> {
+    return request<CustomerQuotation>('/api/method/workshop.api.customer_quotations.set_decision', { method: 'POST', body: { id, status, note } })
   },
 
   async resolveEstimateFulfillment(id: string, decision: 'accept' | 'reject' | 'return', reason = '', evidenceUrls: string[] = []): Promise<import('../types/cw').CWEstimateLine> {
@@ -2417,6 +2458,9 @@ export const workshopApi = {
   accountingPrintUrl(module: string, id: string): string {
     const doctype: Record<string, string> = { requisitions: 'Material Request', quotations: 'Supplier Quotation', compare_sheets: 'CW Compare Sheet', purchase_orders: 'Purchase Order', receipts: 'Purchase Receipt', invoices: 'Purchase Invoice', payments: 'Payment Entry', journals: 'Journal Entry' }
     return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.document?doctype=${encodeURIComponent(doctype[module] || module)}&name=${encodeURIComponent(id)}`
+  },
+  customerQuotationPrintUrl(id: string): string {
+    return `${apiBaseUrl}/api/method/workshop.api.customer_quotations.print_document?id=${encodeURIComponent(id)}`
   },
   procurementQuotationPacketPrintUrl(caseId: string): string {
     return `${apiBaseUrl}/api/method/workshop.api.accounting.printing.procurement_quotation_packet?id=${encodeURIComponent(caseId)}`

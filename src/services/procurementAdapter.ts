@@ -117,6 +117,11 @@ function requestContextCaseData(source: BackendCase): Pick<ProcurementCase, 'veh
       disposition: part.procurementType === 'Foreign' ? 'foreign_vendor' as const : 'local_vendor' as const,
       includeInProcurement: booleanValue(part.includeInProcurement, true),
       unitOfMeasure: 'pcs',
+      customerQuotationId: text(part.customerQuotationId) || null,
+      customerQuotationStatus: text(part.customerQuotationStatus) || null,
+      customerQuotationGrandTotal: numberValue(part.customerQuotationGrandTotal),
+      customerQuotationValidTill: text(part.customerQuotationValidTill) || null,
+      customerDecision: text(part.customerDecision) || undefined,
     })),
   }
 }
@@ -296,6 +301,8 @@ export function mapBackendProcurementCase(source: BackendCase): ProcurementCase 
     caseNumber: text(source.id) || '',
     partRequestId: text(source.partRequestId) || text(source.materialRequestId) || text(source.id) || '',
     customerApprovalIds: [],
+    customerQuotationIds: Array.isArray(source.customerQuotationIds) ? source.customerQuotationIds.map(String) : [],
+    customerDecisionSummary: record(source.customerDecisionSummary) as Record<string, number>,
     parts,
     vehicleName: contextual.vehicleName,
     customerName: contextual.customerName,

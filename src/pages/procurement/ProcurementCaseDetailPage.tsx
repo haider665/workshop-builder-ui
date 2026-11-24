@@ -348,6 +348,7 @@ function PartsDetailsSection({ pc, selectionMode, selections, onSelectionChange 
               <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Qty</TableCell>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Type</TableCell>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Procurement</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Customer Quote</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -385,6 +386,26 @@ function PartsDetailsSection({ pc, selectionMode, selections, onSelectionChange 
                     />
                   ) : p.includeInProcurement === false ? <ExcludedPartMarker /> : (
                     <Chip size="small" label="Included" sx={{ fontWeight: 700, fontSize: '0.65rem', bgcolor: '#d1fae5', color: '#047857' }} />
+                  )}
+                </TableCell>
+                <TableCell>
+                  {p.customerQuotationId ? (
+                    <Stack spacing={0.5}>
+                      <Chip size="small" label={p.customerQuotationId} sx={{ fontWeight: 700, fontSize: '0.62rem', bgcolor: '#dbeafe', color: '#1d4ed8' }} />
+                      <Typography sx={{ fontSize: '0.7rem', color: colors.slate[600] }}>
+                        ৳{(p.customerQuotationGrandTotal || 0).toLocaleString()} · {p.customerDecision || p.customerQuotationStatus || 'Pending'}
+                      </Typography>
+                      <Button
+                        size="small"
+                        startIcon={<Print sx={{ fontSize: '0.8rem !important' }} />}
+                        onClick={() => window.open(workshopApi.customerQuotationPrintUrl(p.customerQuotationId || ''), '_blank', 'noopener,noreferrer')}
+                        sx={{ fontSize: '0.62rem', fontWeight: 700, textTransform: 'none', minWidth: 0, px: 0.75 }}
+                      >
+                        PDF
+                      </Button>
+                    </Stack>
+                  ) : (
+                    <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>—</Typography>
                   )}
                 </TableCell>
               </TableRow>
@@ -2073,6 +2094,27 @@ export function ProcurementCaseDetailPage() {
             {/* Store Review */}
             {pc.currentStep === 'store_review' && (
               <Stack spacing={2}>
+                {pc.customerQuotationIds?.length ? (
+                  <Alert severity={(pc.customerDecisionSummary?.Rejected || 0) > 0 ? 'warning' : 'success'} sx={{ borderRadius: radii.sm }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', mb: 0.5 }}>Customer quotation decisions</Typography>
+                    <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                      {pc.customerQuotationIds.map((id) => (
+                        <Button
+                          key={id}
+                          size="small"
+                          startIcon={<Print sx={{ fontSize: '0.8rem !important' }} />}
+                          onClick={() => window.open(workshopApi.customerQuotationPrintUrl(id), '_blank', 'noopener,noreferrer')}
+                          sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'none', minWidth: 0, px: 0.75 }}
+                        >
+                          {id}
+                        </Button>
+                      ))}
+                      {Object.entries(pc.customerDecisionSummary || {}).map(([decision, count]) => (
+                        <Chip key={decision} size="small" label={`${decision}: ${count}`} sx={{ fontWeight: 700, fontSize: '0.65rem' }} />
+                      ))}
+                    </Stack>
+                  </Alert>
+                ) : null}
                 <Alert severity="info" sx={{ borderRadius: radii.sm }}>Select the parts that should go to procurement. Unselected parts stay on the case as <b>Not procured</b> with a red cross and are excluded from quotations.</Alert>
                 <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: hasIncludedPart ? '#047857' : '#b91c1c' }}>
                   {Object.values(storeReviewSelections).filter(Boolean).length} of {pc.parts.length} parts selected for procurement

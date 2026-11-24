@@ -18,7 +18,8 @@ import {colors, pageLayout, radii, shadows} from '../../theme/tokens'
 import {workshopApi} from '../../services/workshopApi'
 import {fetchAllPages} from '../../services/pagination'
 import {useCwStore} from '../../store/cwStore'
-import type {CWEstimateLine, CWEstimateLineStatus, CWPart} from '../../types/cw'
+import type {CWEstimateLineStatus, CWPart} from '../../types/cw'
+import type {CustomerQuotation, LiveEstimateLine} from '../../types/procurementWorkflow'
 import {useToast} from '../../hooks/useToast'
 
 /* ─────────────────────── Constants ─────────────────────────── */
@@ -75,13 +76,14 @@ type PricingData = {
 
 export function EstimatorPage() {
   const toast = useToast()
-  const [lines, setLines] = useState<CWEstimateLine[]>([])
+  const [lines, setLines] = useState<LiveEstimateLine[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [queueTab, setQueueTab] = useState<QueueTab>('All')
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null)
   const [pricingMap, setPricingMap] = useState<Map<string, PricingData>>(new Map())
   const [submitting, setSubmitting] = useState(false)
+  const [quotations, setQuotations] = useState<Record<string, CustomerQuotation>>({})
 
   const appointments = useCwStore(s => s.appointments)
   const vehicles = useCwStore(s => s.vehicles)
@@ -101,6 +103,9 @@ export function EstimatorPage() {
       const map = new Map<string, CWPart>()
       for (const p of partsRes) map.set(p.id, p)
       partsMapRef.current = map
+      const quotationIds = [...new Set(linesRes.map(line => line.customerQuotationId).filter((id): id is string => Boolean(id)))]
+      const loadedQuotations = await Promise.all(quotationIds.map(id => workshopApi.getCustomerQuotation(id).catch(() => null)))
+      setQuotations(Object.fromEntries(loadedQuotations.filter((quote): quote is CustomerQuotation => Boolean(quote)).map(quote => [quote.id, quote])))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load estimate lines')
     } finally {
@@ -141,6 +146,15 @@ export function EstimatorPage() {
     () => lines.filter((line) => line.status === 'Approved' && ['Procurement Open', 'Partially Available', 'Integration Attention'].includes(line.fulfillmentStatus ?? '')),
     [lines],
   )
+
+  const quotationGroups = useMemo(() => {
+    const groups = new Map<string, CustomerQuotation[]>()
+    for (const quote of Object.values(quotations)) {
+      if (!quote.appointmentId) continue
+      groups.set(quote.appointmentId, [...(groups.get(quote.appointmentId) ?? []), quote])
+    }
+    return [...groups.entries()]
+  }, [quotations])
 
   /* ── Select Appointment ── */
 
@@ -218,7 +232,11 @@ export function EstimatorPage() {
         })
         lineIds.push(lineId)
       }
-      await workshopApi.submitEstimateLines(selectedApptId, lineIds)
+      const submitted = await workshopApi.submitEstimateLines(selectedApptId, lineIds)
+      const customerQuotation = submitted.customerQuotation
+      if (customerQuotation) {
+        setQuotations(prev => ({ ...prev, [customerQuotation.id]: customerQuotation }))
+      }
       toast.success(`${lineIds.length} part${lineIds.length > 1 ? 's' : ''} priced and sent to the advisor.`)
       setSelectedApptId(null)
       setPricingMap(new Map())
@@ -234,8 +252,10 @@ export function EstimatorPage() {
     const appt = appointments.find(a => a.id === apptId)
     const vehicle = vehicles.find(v => v.id === appt?.vehicleId)
     const customer = customers.find(c => c.id === appt?.customerId)
+    const lineVin = lines.find(l => l.appointmentId === apptId)?.vin
     return {
       vehicle: vehicle ? `${vehicle.make ?? ''} ${vehicle.model ?? ''} · ${vehicle.registrationNo}`.trim() : 'Unknown Vehicle',
+      vin: lineVin ?? vehicle?.vin ?? null,
       customer: customer?.fullName ?? 'Unknown Customer',
     }
   }
@@ -303,6 +323,11 @@ export function EstimatorPage() {
                       <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500], mt: 0.25 }}>
                         {display.customer}
                       </Typography>
+                      {display.vin ? (
+                        <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400], mt: 0.25, fontFamily: 'monospace' }}>
+                          VIN {display.vin}
+                        </Typography>
+                      ) : null}
                       <Stack direction="row" spacing={0.5} sx={{ mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
                         <Chip
                           label={`${linesInGroup.length} part${linesInGroup.length > 1 ? 's' : ''}`}
@@ -356,6 +381,50 @@ export function EstimatorPage() {
               </Stack>
             </Box>
           ) : null}
+
+          {quotationGroups.length > 0 ? (
+            <Box sx={{ mt: 2, bgcolor: colors.bg.card, border: `1px solid ${colors.border.default}`, borderRadius: radii.md, boxShadow: shadows.card, p: 2.5 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: colors.slate[800] }}>
+                Customer quotations
+              </Typography>
+              <Typography sx={{ color: colors.slate[500], fontSize: '0.78rem', mb: 1.5 }}>
+                Draft quotations generated from submitted estimate lines.
+              </Typography>
+              <Stack spacing={1}>
+                {quotationGroups.map(([apptId, quotes]) => {
+                  const display = getApptDisplay(apptId)
+                  return (
+                    <Box key={apptId} sx={{ p: 1.25, border: `1px solid ${colors.border.subtle}`, borderRadius: radii.sm }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>{display.vehicle}</Typography>
+                      {display.vin ? (
+                        <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400], fontFamily: 'monospace' }}>{display.vin}</Typography>
+                      ) : null}
+                      <Stack spacing={0.75} sx={{ mt: 1 }}>
+                        {quotes.map(quote => (
+                          <Stack key={quote.id} direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                            <Box>
+                              <Typography sx={{ fontSize: '0.75rem', fontWeight: 700 }}>{quote.id}</Typography>
+                              <Typography sx={{ fontSize: '0.68rem', color: colors.slate[500] }}>
+                                {quote.status} · {fmtBDT(quote.grandTotal)}
+                              </Typography>
+                            </Box>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => window.open(workshopApi.customerQuotationPrintUrl(quote.id), '_blank', 'noopener,noreferrer')}
+                              sx={{ textTransform: 'none', fontWeight: 700, borderRadius: radii.sm }}
+                            >
+                              Print
+                            </Button>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </Box>
+                  )
+                })}
+              </Stack>
+            </Box>
+          ) : null}
         </Box>
 
         {/* ── Right Panel: Price All Parts for Appointment ── */}
@@ -379,19 +448,25 @@ export function EstimatorPage() {
             ) : (
               <Box sx={{ p: 2.5 }}>
                 {/* Appointment Header */}
-                {(() => {
-                  const display = getApptDisplay(selectedApptId)
-                  return (
-                    <Box sx={{ mb: 2.5, pb: 2, borderBottom: `1px solid ${colors.border.subtle}` }}>
-                      <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', color: colors.slate[900] }}>
-                        {display.vehicle}
-                      </Typography>
-                      <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
-                        {display.customer} · {selectedLines.length} part{selectedLines.length > 1 ? 's' : ''}
-                      </Typography>
-                    </Box>
-                  )
-                })()}
+                  {(() => {
+                    const display = getApptDisplay(selectedApptId)
+                    return (
+                      <Box sx={{ mb: 2.5, pb: 2, borderBottom: `1px solid ${colors.border.subtle}` }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', color: colors.slate[900] }}>
+                          {display.vehicle}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.8rem', color: colors.slate[500] }}>
+                          {display.customer} · {selectedLines.length} part{selectedLines.length > 1 ? 's' : ''}
+                        </Typography>
+                        {display.vin ? (
+                          <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400], fontFamily: 'monospace', mt: 0.25 }}>
+                            VIN {display.vin}
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    )
+                  })()}
+
 
                 {/* Per-line pricing */}
                 <Stack spacing={2.5}>
@@ -416,10 +491,18 @@ export function EstimatorPage() {
                               </Typography>
                             )}
                           </Box>
-                          <Stack direction="row" spacing={0.5}>
-                            {pricing.inStock && (
-                              <Chip label="In Stock" size="small" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: `${colors.status.success}18`, color: colors.status.success }} />
-                            )}
+                          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
+                            <Chip
+                              label={`${line.stockStatus ?? (line.stockQuantity ? 'In Stock' : 'Out of Stock')} · ${line.stockQuantity ?? 0} available`}
+                              size="small"
+                              sx={{
+                                fontWeight: 700,
+                                fontSize: '0.65rem',
+                                height: 20,
+                                bgcolor: line.stockStatus === 'Low Stock' ? `${colors.status.warning}18` : line.stockStatus === 'Out of Stock' || !line.stockQuantity ? `${colors.status.error}18` : `${colors.status.success}18`,
+                                color: line.stockStatus === 'Low Stock' ? colors.status.warning : line.stockStatus === 'Out of Stock' || !line.stockQuantity ? colors.status.error : colors.status.success,
+                              }}
+                            />
                             <Chip
                               label={fmtBDT(lineTotal)}
                               size="small"

@@ -8,16 +8,23 @@ import {
   MenuItem,
   Snackbar,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material'
 import {
   ArrowBack,
   CheckCircle,
+  Description,
   ExpandLess,
   ExpandMore,
   Inventory,
   LocalShipping,
+  Print,
   Public,
   ReceiptLong,
 } from '@mui/icons-material'
@@ -27,7 +34,7 @@ import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { workshopApi } from '../../services/workshopApi'
 import { useCompanyStore } from '../../store/companyStore'
 import { colors, radii, shadows } from '../../theme/tokens'
-import type { LivePartRequest, PartDisposition, PartLineItem } from '../../types/procurementWorkflow'
+import type { CustomerQuotation, LivePartRequest, MockPartRequest, PartDisposition, PartLineItem } from '../../types/procurementWorkflow'
 
 const DISPOSITION_OPTIONS: { value: PartDisposition; label: string }[] = [
   { value: 'pending', label: 'Pending' },
@@ -43,12 +50,33 @@ const dispositionColor: Record<PartDisposition, string> = {
   foreign_vendor: '#d97706',
 }
 
+function stockChip(item: PartLineItem) {
+  const status = item.stockStatus ?? (item.stockQuantity ? 'In Stock' : 'Out of Stock')
+  const color = status === 'In Stock' ? '#059669' : status === 'Low Stock' ? '#d97706' : '#dc2626'
+  return (
+    <Chip
+      size="small"
+      label={`${status} · ${item.stockQuantity ?? 0} available`}
+      sx={{
+        fontWeight: 700,
+        fontSize: '0.68rem',
+        height: 20,
+        bgcolor: `${color}15`,
+        color,
+        borderRadius: radii.sm,
+      }}
+    />
+  )
+}
+
 function lineItemFromServer(row: LivePartRequest): PartLineItem {
   return {
     id: row.id,
     partName: row.partName,
     partNumber: row.partNumber,
     quantity: row.quantity ?? 1,
+    stockQuantity: row.stockQuantity,
+    stockStatus: row.stockStatus,
     disposition: row.disposition ?? 'pending',
     includeInProcurement: row.includeInProcurement !== false,
     pickedFromCounter: row.pickedFromCounter,
@@ -146,6 +174,7 @@ function LineItemRow({
               <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>
                 × {item.quantity}{item.unitOfMeasure ? ` ${item.unitOfMeasure}` : ''}
               </Typography>
+              {stockChip(item)}
               <Chip
                 size="small"
                 label={
@@ -274,10 +303,11 @@ function LineItemRow({
               </Stack>
             ) : null}
           </Box>
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
             <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>
               Qty: {item.quantity}{item.unitOfMeasure ? ` ${item.unitOfMeasure}` : ''}
             </Typography>
+            {stockChip(item)}
             <TextField
               select
               size="small"
@@ -417,6 +447,221 @@ function LineItemRow({
   )
 }
 
+type QuoteLineDraft = {
+  partRequestId: string
+  partName: string
+  quantity: number
+  rate: number
+  deliveryDate: string
+}
+
+function quoteDate(days = 7) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+function quoteLinesFrom(request: MockPartRequest, quote?: CustomerQuotation | null): QuoteLineDraft[] {
+  const rows = quote?.requestLines?.length
+    ? quote.requestLines
+    : (quote?.items ?? []).map((item) => ({
+        id: item.id,
+        partRequestId: item.partRequestId,
+        partName: item.partName || item.itemName || '',
+        quantity: item.qty,
+        rate: item.rate,
+        deliveryDate: item.deliveryDate,
+      }))
+  if (rows.length) {
+    return rows.flatMap((row) => {
+      const partRequestId = String(row.partRequestId || '')
+      if (!partRequestId) return []
+      return [{
+        partRequestId,
+        partName: String(row.partName || request.lineItems.find((line) => line.id === partRequestId)?.partName || 'Requested part'),
+        quantity: Number(row.quantity) || 1,
+        rate: Number(row.rate) || 0,
+        deliveryDate: String(row.deliveryDate || quoteDate()),
+      }]
+    })
+  }
+  return request.lineItems.map((line) => ({
+    partRequestId: line.id,
+    partName: line.partName,
+    quantity: line.quantity,
+    rate: line.localPrice || 0,
+    deliveryDate: quoteDate(Number(line.localDeliveryDays) || 7),
+  }))
+}
+
+function CustomerQuotationPanel({
+  request,
+  onQuoteChange,
+  onNotice,
+}: {
+  request: MockPartRequest
+  onQuoteChange: (requestId: string, quote: CustomerQuotation) => void
+  onNotice: (message: string, error?: boolean) => void
+}) {
+  const quote = request.customerQuotation
+  const [lines, setLines] = useState<QuoteLineDraft[]>(() => quoteLinesFrom(request, quote))
+  const [validTill, setValidTill] = useState(quote?.validTill || quoteDate())
+  const [terms, setTerms] = useState(quote?.terms || 'Prices valid subject to stock confirmation.')
+  const [rejectNote, setRejectNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setLines(quoteLinesFrom(request, quote))
+    setValidTill(quote?.validTill || quoteDate())
+    setTerms(quote?.terms || 'Prices valid subject to stock confirmation.')
+  }, [quote, request])
+
+  const editable = !quote || quote.status === 'Draft'
+  const payloadLines = lines.map((line) => ({
+    partRequestId: line.partRequestId,
+    partName: line.partName,
+    quantity: Number(line.quantity),
+    rate: Number(line.rate),
+    deliveryDate: line.deliveryDate,
+  }))
+  const pricesValid = payloadLines.length > 0 && payloadLines.every((line) => line.quantity > 0 && line.rate > 0)
+
+  const updateLine = (partRequestId: string, patch: Partial<QuoteLineDraft>) => {
+    setLines((current) => current.map((line) => line.partRequestId === partRequestId ? { ...line, ...patch } : line))
+  }
+
+  const createQuote = async () => {
+    if (!pricesValid) {
+      onNotice('Enter a positive unit price and quantity for every part.', true)
+      return
+    }
+    setSaving(true)
+    try {
+      const created = await workshopApi.createCustomerQuotationFromRequest({
+        partRequestId: lines[0].partRequestId,
+        lines: payloadLines,
+        validTill,
+        terms,
+        procurementCaseId: request.procurementCaseId,
+      })
+      onQuoteChange(request.id, created)
+      onNotice(`Customer quotation ${created.id} created`)
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : 'Could not create the customer quotation', true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveQuote = async () => {
+    if (!quote || !pricesValid) {
+      onNotice('Enter a positive unit price and quantity for every part.', true)
+      return
+    }
+    setSaving(true)
+    try {
+      const updated = await workshopApi.updateCustomerQuotation({
+        id: quote.id,
+        lines: payloadLines,
+        validTill,
+        terms,
+        reason: 'Updated from part request triage',
+      })
+      onQuoteChange(request.id, updated)
+      onNotice(`Customer quotation ${updated.id} saved`)
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : 'Could not save the customer quotation', true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const setDecision = async (status: 'Approved' | 'Rejected') => {
+    if (!quote) return
+    if (status === 'Rejected' && !rejectNote.trim()) {
+      onNotice('A rejection note is required.', true)
+      return
+    }
+    setSaving(true)
+    try {
+      const updated = await workshopApi.setCustomerQuotationDecision(quote.id, status, rejectNote.trim() || undefined)
+      onQuoteChange(request.id, updated)
+      onNotice(`Customer quotation ${updated.id} marked ${status.toLowerCase()}`)
+      setRejectNote('')
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : 'Could not record the customer decision', true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Box sx={{ p: 2, borderRadius: radii.sm, border: `1px solid ${colors.border.default}`, bgcolor: colors.slate[50] }}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 1.5 }}>
+        <Description sx={{ color: '#2563eb', fontSize: '1.1rem' }} />
+        <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: colors.slate[900] }}>Customer Quotation</Typography>
+        {quote ? (
+          <>
+            <Chip size="small" label={quote.id} sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: '#dbeafe', color: '#1d4ed8' }} />
+            <Chip size="small" label={quote.status} sx={{ fontWeight: 700, fontSize: '0.68rem' }} />
+            <Chip size="small" label={quote.customerDecision || 'Pending'} sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: quote.customerDecision === 'Approved' ? '#d1fae5' : quote.customerDecision === 'Rejected' ? '#fee2e2' : '#fef3c7' }} />
+            <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: '#047857' }}>৳{(quote.grandTotal || 0).toLocaleString()}</Typography>
+          </>
+        ) : (
+          <Chip size="small" label="Not created" sx={{ fontWeight: 700, fontSize: '0.68rem' }} />
+        )}
+      </Stack>
+      <Box sx={{ overflowX: 'auto' }}>
+        <Table size="small" sx={{ minWidth: 620 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem' }}>Part</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', width: 90 }}>Qty</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', width: 130 }}>Unit Price (৳)</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', width: 150 }}>Delivery Date</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {lines.map((line) => (
+              <TableRow key={line.partRequestId}>
+                <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600 }}>{line.partName}</TableCell>
+                <TableCell>
+                  <TextField size="small" type="number" value={line.quantity} disabled={!editable || saving} onChange={(event) => updateLine(line.partRequestId, { quantity: Number(event.target.value) })} sx={{ width: 80 }} />
+                </TableCell>
+                <TableCell>
+                  <TextField size="small" type="number" value={line.rate || ''} disabled={!editable || saving} onChange={(event) => updateLine(line.partRequestId, { rate: Number(event.target.value) })} sx={{ width: 120 }} />
+                </TableCell>
+                <TableCell>
+                  <TextField size="small" type="date" value={line.deliveryDate} disabled={!editable || saving} onChange={(event) => updateLine(line.partRequestId, { deliveryDate: event.target.value })} sx={{ width: 150 }} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5, alignItems: 'flex-start' }}>
+        <TextField size="small" type="date" label="Valid Till" value={validTill} disabled={!editable || saving} onChange={(event) => setValidTill(event.target.value)} sx={{ minWidth: 170 }} />
+        <TextField size="small" label="Terms" value={terms} disabled={!editable || saving} onChange={(event) => setTerms(event.target.value)} fullWidth />
+      </Stack>
+      {quote ? (
+        <TextField size="small" label="Customer decision note" value={rejectNote} disabled={!editable || saving} onChange={(event) => setRejectNote(event.target.value)} fullWidth sx={{ mt: 1.5 }} />
+      ) : null}
+      <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, flexWrap: 'wrap', gap: 1 }}>
+        {quote ? (
+          <>
+            <Button size="small" variant="contained" disabled={saving || !editable || !pricesValid} onClick={() => void saveQuote()} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Save Changes</Button>
+            <Button size="small" variant="outlined" startIcon={<Print />} disabled={saving} onClick={() => window.open(workshopApi.customerQuotationPrintUrl(quote.id), '_blank', 'noopener,noreferrer')} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Print PDF</Button>
+            <Button size="small" variant="contained" disabled={saving || !editable} onClick={() => void setDecision('Approved')} sx={{ bgcolor: '#059669', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Mark Approved</Button>
+            <Button size="small" variant="outlined" color="error" disabled={saving || !editable} onClick={() => void setDecision('Rejected')} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Mark Rejected</Button>
+          </>
+        ) : (
+          <Button size="small" variant="contained" disabled={saving || !pricesValid || !request.lineItems.length} onClick={() => void createQuote()} sx={{ bgcolor: '#2563eb', fontWeight: 700, textTransform: 'none', borderRadius: radii.sm }}>Create Customer Quotation</Button>
+        )}
+      </Stack>
+    </Box>
+  )
+}
+
 export function MockPartRequestsPage() {
   const navigate = useNavigate()
   const partRequests = useMockProcurementStore((s) => s.partRequests)
@@ -424,6 +669,14 @@ export function MockPartRequestsPage() {
   const [snack, setSnack] = useState<string | null>(null)
   const [snackError, setSnackError] = useState(false)
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
+
+  const handleQuoteChange = (requestId: string, quotation: CustomerQuotation) => {
+    useMockProcurementStore.setState((state) => ({
+      partRequests: state.partRequests.map((request) =>
+        request.id === requestId ? { ...request, customerQuotation: quotation } : request,
+      ),
+    }))
+  }
 
   const handleSave = async (requestId: string, partRequestId: string, details: TriageSave) => {
     try {
@@ -486,17 +739,20 @@ export function MockPartRequestsPage() {
               appointment.vehicleId ? workshopApi.getVehicle(appointment.vehicleId).catch(() => null) : Promise.resolve(null),
             ])
           : [null, null]
+        const quotations = await workshopApi.listCustomerQuotations({ appointmentId, pageSize: 100 }).catch(() => ({ data: [] as CustomerQuotation[] }))
         return {
           id: appointmentId,
           procurementCaseId: caseByAppointment.get(appointmentId),
           requestNumber: appointmentId,
           vehicleName: vehicle ? [vehicle.registrationNo, vehicle.make, vehicle.model].filter(Boolean).join(' · ') : 'Appointment vehicle',
+          vin: rows[0].vin ?? vehicle?.vin ?? null,
           customerName: customer?.fullName || 'Workshop customer',
           customerPhone: customer?.phone || '',
           requestedByName: rows[0].requestedBy,
           requestedAt: rows[0].createdAt,
           notes: appointment?.concerns || appointment?.notes || undefined,
           lineItems: rows.map(lineItemFromServer),
+          customerQuotation: quotations.data[0] || null,
         }
       }))
       // Keep the established visual component and hydrate its data from the API.
@@ -587,6 +843,11 @@ export function MockPartRequestsPage() {
                       <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>
                         {req.vehicleName}
                       </Typography>
+                      {req.vin ? (
+                        <Typography sx={{ fontSize: '0.7rem', color: colors.slate[400], fontFamily: 'monospace' }}>
+                          VIN {req.vin}
+                        </Typography>
+                      ) : null}
                     </Box>
                     <Chip
                       size="small"
@@ -648,6 +909,17 @@ export function MockPartRequestsPage() {
                         onSave={(details) => handleSave(req.id, li.id, details)}
                       />
                     ))}
+
+                    {hasNonStockCompleted ? (
+                      <CustomerQuotationPanel
+                        request={req}
+                        onQuoteChange={handleQuoteChange}
+                        onNotice={(message, error) => {
+                          setSnackError(Boolean(error))
+                          setSnack(message)
+                        }}
+                      />
+                    ) : null}
 
                     {allCompleted && hasNonStockCompleted ? (
                       <Button
