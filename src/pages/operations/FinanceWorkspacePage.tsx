@@ -32,7 +32,7 @@ import {
   Refresh,
   ShoppingCart,
 } from "@mui/icons-material";
-import { workshopApi } from "../../services/workshopApi";
+import { workshopApi, type WorkshopFinancialClearanceDto } from "../../services/workshopApi";
 import type { ProcurementApprovalPolicy, ProcurementApprovalStep, ProcurementPolicySettings } from "../../types/procurementWorkflow";
 import { useCompanyStore } from "../../store/companyStore";
 import { colors, pageLayout, radii, shadows } from "../../theme/tokens";
@@ -453,6 +453,293 @@ function statusColor(
   return "info";
 }
 
+function GatepassSettlementDialog({
+  clearance,
+  onClose,
+  onChanged,
+}: {
+  clearance: WorkshopFinancialClearanceDto;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState(
+    String(Number(clearance.details?.outstandingAmount ?? 0)),
+  );
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentMode, setPaymentMode] = useState("");
+  const [exceptionMethod, setExceptionMethod] = useState<"Credit Note" | "Waiver">("Credit Note");
+  const [exceptionReason, setExceptionReason] = useState("");
+  const [reviewNote, setReviewNote] = useState("");
+  const details = clearance.details ?? {};
+  const requested = clearance.status === "Requested";
+
+  async function run(
+    kind: "invoice" | "payment" | "exception" | "approve" | "reject" | "return",
+  ) {
+    setError(null);
+    if (kind === "payment" && Number(paymentAmount) <= 0) {
+      setError("Enter a payment amount greater than zero.");
+      return;
+    }
+    if (kind === "exception" && !exceptionReason.trim()) {
+      setError("A credit or waiver reason is required.");
+      return;
+    }
+    if ((kind === "reject" || kind === "return") && !reviewNote.trim()) {
+      setError("A review reason is required.");
+      return;
+    }
+    setBusy(kind);
+    try {
+      if (kind === "invoice") {
+        await workshopApi.submitWorkshopClearanceInvoice(clearance.id);
+      } else if (kind === "payment") {
+        await workshopApi.recordWorkshopClearancePayment(clearance.id, {
+          amount: Number(paymentAmount),
+          referenceNo: paymentReference.trim() || undefined,
+          modeOfPayment: paymentMode.trim() || undefined,
+          salesInvoiceId: details.salesInvoiceId || undefined,
+        });
+      } else if (kind === "exception") {
+        await workshopApi.applyWorkshopClearanceException(clearance.id, {
+          method: exceptionMethod,
+          reason: exceptionReason.trim(),
+          salesInvoiceId: details.salesInvoiceId || undefined,
+        });
+      } else if (kind === "approve") {
+        await workshopApi.approveFinancialClearance(
+          clearance.id,
+          reviewNote.trim() || undefined,
+        );
+      } else if (kind === "reject") {
+        await workshopApi.rejectFinancialClearance(
+          clearance.id,
+          reviewNote.trim(),
+        );
+      } else {
+        await workshopApi.returnFinancialClearance(
+          clearance.id,
+          reviewNote.trim(),
+        );
+      }
+      await onChanged();
+      if (kind === "approve" || kind === "reject" || kind === "return") onClose();
+      if (kind === "payment" || kind === "exception") {
+        setPaymentReference("");
+        setExceptionReason("");
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Settlement action failed",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        Gatepass settlement · {clearance.id}
+        <Typography variant="caption" sx={{ display: "block", mt: 0.5 }}>
+          {clearance.appointmentId || "Appointment unavailable"} · {clearance.status || "Requested"}
+        </Typography>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2}>
+          {error ? <Alert severity="error">{error}</Alert> : null}
+          <Box sx={cardSx}>
+            <Typography sx={{ fontWeight: 800, mb: 1.25 }}>
+              Settlement evidence
+            </Typography>
+            <Stack spacing={0.75}>
+              <Typography variant="body2">
+                Service order: {details.serviceOrderId || "—"} · v{details.serviceOrderVersion ?? "—"} · {details.serviceOrderStatus || "status unavailable"}
+              </Typography>
+              <Typography variant="body2">
+                Sales order: {details.salesOrderId || "—"} · docstatus {details.salesOrderDocstatus ?? "—"}
+              </Typography>
+              <Typography variant="body2">
+                QC: {details.qcStatus || "Pending"}
+                {details.qcReviewer ? ` · ${details.qcReviewer}` : ""}
+                {details.qcReviewedAt ? ` · ${new Date(details.qcReviewedAt).toLocaleString()}` : ""}
+              </Typography>
+              <Typography variant="body2">
+                Jobs: {details.jobs?.length ? details.jobs.map((job) => `${job.id} (${job.status || "Pending"})`).join(", ") : "Not generated"}
+              </Typography>
+              <Typography variant="body2">
+                Sales invoice: {details.salesInvoiceId || "Not created"}
+                {details.salesInvoiceDocstatus === 0 ? " · Draft" : ""}
+                {details.salesInvoiceDocstatus === 1 ? " · Submitted" : ""}
+                {details.salesInvoiceDocstatus === 2 ? " · Cancelled" : ""}
+              </Typography>
+              <Typography variant="body2">
+                Invoice total: {Number(details.invoiceTotal || 0).toLocaleString()} · Settled: {Number(details.settledAmount || 0).toLocaleString()} · Outstanding: {Number(details.outstandingAmount || 0).toLocaleString()}
+              </Typography>
+              {details.gatePassIssuedAt ? (
+                <Typography variant="body2">
+                  Gate pass issued: {new Date(details.gatePassIssuedAt).toLocaleString()}
+                </Typography>
+              ) : null}
+            </Stack>
+          </Box>
+          {details.paymentEntries?.length ? (
+            <Box sx={cardSx}>
+              <Typography sx={{ fontWeight: 800, mb: 1 }}>Payment entries</Typography>
+              {details.paymentEntries.map((entry, index) => (
+                <Typography key={String(entry.id ?? index)} variant="body2">
+                  {String(entry.id ?? "—")} · {Number(entry.amount ?? entry.paidAmount ?? entry.totalAmount ?? 0).toLocaleString()}
+                  {entry.referenceNo ? ` · ${String(entry.referenceNo)}` : ""}
+                </Typography>
+              ))}
+            </Box>
+          ) : null}
+          {details.creditNotes?.length ? (
+            <Box sx={cardSx}>
+              <Typography sx={{ fontWeight: 800, mb: 1 }}>Credit notes</Typography>
+              {details.creditNotes.map((entry, index) => (
+                <Typography key={String(entry.id ?? index)} variant="body2">
+                  {String(entry.id ?? "—")} · {Number(entry.total ?? entry.grandTotal ?? 0).toLocaleString()}
+                  {entry.reason ? ` · ${String(entry.reason)}` : ""}
+                </Typography>
+              ))}
+            </Box>
+          ) : null}
+          {requested ? (
+            <Stack spacing={2}>
+              <Divider />
+              {details.draftSalesInvoiceIds?.length ? (
+                <Button
+                  variant="outlined"
+                  disabled={Boolean(busy)}
+                  onClick={() => void run("invoice")}
+                >
+                  {busy === "invoice" ? "Submitting…" : "Submit linked Sales Invoice"}
+                </Button>
+              ) : null}
+              {details.salesInvoiceDocstatus === 1 && Number(details.outstandingAmount || 0) > 0 ? (
+                <Box sx={cardSx}>
+                  <Typography sx={{ fontWeight: 800, mb: 1 }}>
+                    Record Payment Entry
+                  </Typography>
+                  <Stack spacing={1.5}>
+                    <TextField
+                      size="small"
+                      label="Amount"
+                      type="number"
+                      value={paymentAmount}
+                      onChange={(event) => setPaymentAmount(event.target.value)}
+                    />
+                    <TextField
+                      size="small"
+                      label="Reference"
+                      value={paymentReference}
+                      onChange={(event) => setPaymentReference(event.target.value)}
+                    />
+                    <TextField
+                      size="small"
+                      label="Mode of payment"
+                      value={paymentMode}
+                      onChange={(event) => setPaymentMode(event.target.value)}
+                      placeholder="Cash or bank"
+                    />
+                    <Button
+                      variant="contained"
+                      disabled={Boolean(busy)}
+                      onClick={() => void run("payment")}
+                    >
+                      {busy === "payment" ? "Recording…" : "Record payment"}
+                    </Button>
+                  </Stack>
+                </Box>
+              ) : null}
+              {details.salesInvoiceDocstatus === 1 ? (
+                <Box sx={cardSx}>
+                  <Typography sx={{ fontWeight: 800, mb: 1 }}>
+                    Credit or waiver exception
+                  </Typography>
+                  <Stack spacing={1.5}>
+                    <TextField
+                      select
+                      size="small"
+                      label="Method"
+                      value={exceptionMethod}
+                      onChange={(event) =>
+                        setExceptionMethod(event.target.value as "Credit Note" | "Waiver")
+                      }
+                    >
+                      <MenuItem value="Credit Note">Credit Note</MenuItem>
+                      <MenuItem value="Waiver">Waiver</MenuItem>
+                    </TextField>
+                    <TextField
+                      size="small"
+                      label="Audited reason"
+                      value={exceptionReason}
+                      onChange={(event) => setExceptionReason(event.target.value)}
+                    />
+                    <Button
+                      variant="outlined"
+                      disabled={Boolean(busy)}
+                      onClick={() => void run("exception")}
+                    >
+                      {busy === "exception" ? "Applying…" : "Apply exception"}
+                    </Button>
+                  </Stack>
+                </Box>
+              ) : null}
+              {Number(details.outstandingAmount || 0) > 0 ? (
+                <Alert severity="warning">
+                  Outstanding balance must be settled before this gatepass can be accepted.
+                </Alert>
+              ) : null}
+              <TextField
+                label="Review note"
+                value={reviewNote}
+                onChange={(event) => setReviewNote(event.target.value)}
+                fullWidth
+                multiline
+                minRows={2}
+              />
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                <Button
+                  variant="contained"
+                  color="success"
+                  disabled={Boolean(busy) || Number(details.outstandingAmount || 0) > 0}
+                  onClick={() => void run("approve")}
+                >
+                  {busy === "approve" ? "Accepting…" : "Accept gatepass"}
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  disabled={Boolean(busy) || !reviewNote.trim()}
+                  onClick={() => void run("reject")}
+                >
+                  Reject
+                </Button>
+                <Button
+                  variant="outlined"
+                  disabled={Boolean(busy) || !reviewNote.trim()}
+                  onClick={() => void run("return")}
+                >
+                  Return for correction
+                </Button>
+              </Stack>
+            </Stack>
+          ) : null}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={Boolean(busy)}>
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export function FinanceWorkspacePage({
   initialTab = "procurement",
   workspace = "procurement",
@@ -523,26 +810,12 @@ export function FinanceWorkspacePage({
       checklist?: Array<{ label?: string; ready?: boolean }>;
     }>
   >([]);
-  const [clearances, setClearances] = useState<
-    Array<{
-      id: string;
-      type?: string;
-      status?: string;
-      appointmentId?: string;
-      requestedAmount?: number;
-      outstandingAmount?: number;
-      serviceOrderId?: string;
-      serviceOrderStatus?: string;
-      salesOrderId?: string;
-      salesOrderStatus?: string;
-      salesOrderDocstatus?: number;
-      requestedByUserId?: string;
-      requestedAt?: string;
-      reviewedByUserId?: string;
-      reviewedAt?: string;
-      reviewNote?: string;
-    }>
-  >([]);
+  const [clearances, setClearances] = useState<WorkshopFinancialClearanceDto[]>(
+    [],
+  );
+  const [selectedClearanceId, setSelectedClearanceId] = useState<string | null>(
+    null,
+  );
   const [documents, setDocuments] = useState<
     Record<AccountingModule, Array<Record<string, unknown>>>
   >({
@@ -1196,6 +1469,10 @@ export function FinanceWorkspacePage({
       ),
     );
   }, [clearances, query]);
+  const selectedClearance = useMemo(
+    () => clearances.find((item) => item.id === selectedClearanceId) ?? null,
+    [clearances, selectedClearanceId],
+  );
   const tabModule: Record<string, AccountingModule> = {
     requisitions: "requisitions",
     quotations: "quotations",
@@ -2650,6 +2927,15 @@ export function FinanceWorkspacePage({
                     color={statusColor(item.status)}
                   />
                   <Stack direction="row" spacing={0.75}>
+                    {item.type === "Gatepass Settlement" && item.details ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setSelectedClearanceId(item.id)}
+                      >
+                        Details
+                      </Button>
+                    ) : null}
                     {item.status === "Requested" ? (
                       <>
                         <Button
@@ -4021,6 +4307,13 @@ export function FinanceWorkspacePage({
           </Button>
         </DialogActions>
       </Dialog>
+      {selectedClearance ? (
+        <GatepassSettlementDialog
+          clearance={selectedClearance}
+          onClose={() => setSelectedClearanceId(null)}
+          onChanged={load}
+        />
+      ) : null}
     </Box>
   );
 }

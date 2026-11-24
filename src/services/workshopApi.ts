@@ -76,6 +76,73 @@ export type ApiListResponse<T> = {
   }
 }
 
+export type GatepassSettlementDetailDto = {
+  appointmentStatus?: string
+  paymentStatus?: string
+  gatePassIssuedAt?: string | null
+  customerId?: string
+  vehicleId?: string
+  assignedSAUserId?: string | null
+  assignedQCUserId?: string | null
+  serviceOrderId?: string | null
+  serviceOrderStatus?: string | null
+  serviceOrderVersion?: number
+  serviceOrderTotal?: number
+  jobs?: Array<{ id: string; status?: string }>
+  salesOrderId?: string | null
+  salesOrderDocstatus?: number | null
+  qcStatus?: string | null
+  qcReviewer?: string | null
+  qcReviewedAt?: string | null
+  qcNote?: string
+  salesInvoiceIds?: string[]
+  salesInvoiceId?: string | null
+  draftSalesInvoiceIds?: string[]
+  salesInvoiceDocstatus?: number | null
+  salesInvoiceStatus?: string
+  invoiceTotal?: number
+  outstandingAmount?: number
+  settledAmount?: number
+  paymentEntries?: Array<Record<string, unknown>>
+  creditNotes?: Array<Record<string, unknown>>
+  settlementMethod?: string | null
+  settlementAmount?: number
+  [key: string]: unknown
+}
+
+export type WorkshopFinancialClearanceDto = {
+  id: string
+  type?: string
+  status?: string
+  appointmentId?: string
+  serviceOrderId?: string | null
+  salesOrderId?: string | null
+  salesOrderStatus?: string | null
+  salesOrderDocstatus?: number | null
+  requestedAmount?: number
+  outstandingAmount?: number
+  requestedByUserId?: string | null
+  requestedAt?: string | null
+  reviewedByUserId?: string | null
+  reviewedAt?: string | null
+  reviewNote?: string | null
+  requestNote?: string | null
+  details?: GatepassSettlementDetailDto
+}
+
+export type GuardExitCheckDto = {
+  allowed: boolean
+  reason: string
+  registrationNo: string
+  pendingVehicleId?: string | null
+  appointmentId?: string | null
+  appointmentStatus?: string | null
+  jobId?: string | null
+  jobStatus?: string | null
+  testDrive?: { id: string; status?: string } | null
+  gateEvent?: unknown
+}
+
 export type RegistrationOcrResult = {
   fileId: string
   fileUrl: string
@@ -1265,8 +1332,8 @@ export const workshopApi = {
     })
   },
 
-  async guardExitCheck(registrationNo: string): Promise<unknown> {
-    return request<unknown>(`/api/method/workshop.api.guard.exit_check${buildQuery({ registrationNo })}`)
+  async guardExitCheck(registrationNo: string): Promise<GuardExitCheckDto> {
+    return request<GuardExitCheckDto>(`/api/method/workshop.api.guard.exit_check${buildQuery({ registrationNo })}`)
   },
 
   async guardExit(input: { registrationNo: string }): Promise<{ allowed: boolean; gateEvent?: unknown; pendingVehicle?: unknown }> {
@@ -2393,7 +2460,7 @@ export const workshopApi = {
   async saveProcurementApprovalPolicy(data: ProcurementApprovalPolicy): Promise<ProcurementApprovalPolicy> {
     return request('/api/method/workshop.api.accounting.approval_policies.save', { method: 'POST', body: { data } })
   },
-  async financialClearances(company?: string): Promise<ApiListResponse<{ id: string; type?: string; status?: string; appointmentId?: string; requestedAmount?: number; outstandingAmount?: number; requestedByUserId?: string; requestedAt?: string; reviewedByUserId?: string; reviewedAt?: string; reviewNote?: string; details?: Record<string, unknown> }>> {
+  async financialClearances(company?: string): Promise<ApiListResponse<WorkshopFinancialClearanceDto>> {
     return request(`/api/method/workshop.api.financial_clearances.list${buildQuery({ company, pageSize: 100 })}`)
   },
   async approveFinancialClearance(id: string, note?: string) { return request(`/api/method/workshop.api.financial_clearances.approve`, { method: 'POST', body: { id, data: { note } } }) },

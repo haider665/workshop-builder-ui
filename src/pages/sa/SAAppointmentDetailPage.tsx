@@ -30,7 +30,6 @@ import {
   ReportProblem,
   Build,
   Chat,
-  CheckCircle,
   Payment,
   AssignmentTurnedIn,
   ErrorOutlined,
@@ -98,7 +97,6 @@ export function SAAppointmentDetailPage() {
   const users = useCwStore((s) => s.users)
   const sessionUser = useSessionStore((s) => s.user)
   const canAdminEdit = Boolean(sessionUser?.isAdministrator || sessionUser?.isWorkshopAdmin || sessionUser?.roles.includes('Admin'))
-  const canAccountsSettle = Boolean(sessionUser?.isAdministrator || sessionUser?.roles.some((role) => ['Accounts', 'Accounts User', 'Accounts Manager', 'System Manager'].includes(role)))
   const services = useCwStore((s) => s.services)
   const submitInspection = useCwStore((s) => s.submitInspection)
   const setAppointmentStatus = useCwStore((s) => s.setAppointmentStatus)
@@ -244,7 +242,7 @@ export function SAAppointmentDetailPage() {
         const row = (response.data ?? [])
           .filter((item) => item.type === 'Gatepass Settlement' && item.appointmentId === appt.id)
           .sort((left, right) => String(right.requestedAt || '').localeCompare(String(left.requestedAt || '')))[0]
-        setGatepassRequest(row ? { id: row.id, status: row.status, reviewNote: row.reviewNote, details: row.details } : null)
+        setGatepassRequest(row ? { id: row.id, status: row.status, reviewNote: row.reviewNote ?? undefined, details: row.details } : null)
       })
       .catch(() => { if (!cancelled) setGatepassRequest(null) })
     return () => { cancelled = true }
@@ -325,13 +323,6 @@ export function SAAppointmentDetailPage() {
     billingStatus: undefined,
     billingError: undefined,
   }
-  // Payment confirmation is an Accounts action, and only becomes actionable
-  // after a customer Sales Invoice has actually been submitted.  A linked
-  // draft (or a stale appointment DTO) must not expose a button that can only
-  // fail with CUSTOMER_INVOICE_REQUIRED.
-  const hasSubmittedCustomerInvoice = currentBillingOrder.billingStatus === 'Invoiced' && Boolean(currentBillingOrder.salesInvoiceId)
-  const canConfirmPayment = isPaymentPending && canAccountsSettle && hasSubmittedCustomerInvoice
-  const paymentNeedsAccounts = isPaymentPending && (!canAccountsSettle || !hasSubmittedCustomerInvoice)
   const gatepassStatus = gatepassRequest?.status ?? ''
   const gatepassNeedsResubmission = ['Rejected', 'Returned for Correction'].includes(gatepassStatus)
   const canSubmitGatepass = isQCApproved && (!gatepassRequest || gatepassNeedsResubmission)
@@ -443,18 +434,6 @@ export function SAAppointmentDetailPage() {
       pushTimeline(appt!.id, { actor: 'SA', action: `Customer rejected${approvalNote.trim() ? `: ${approvalNote.trim()}` : ''}` })
     }
     setApprovalNote('')
-  }
-
-  async function handleConfirmPayment() {
-    if (!appt) return
-    const reason = auditReason()
-    try {
-      const updated = await workshopApi.confirmPayment(appt.id, { actorName: 'SA' })
-      setAppointmentStatus(updated.id, updated.status, reason)
-      toast.success('Payment confirmed by Accounts. Gate-pass processing can continue.')
-    } catch (cause) {
-      toast.error(cause, 'Payment cannot be confirmed until the submitted invoice is fully settled.')
-    }
   }
 
   async function handleSubmitGatepass() {
@@ -969,25 +948,10 @@ export function SAAppointmentDetailPage() {
           </SectionCard>
         )}
 
-        {/* ── Confirm Payment ── */}
-        {canConfirmPayment && (
-          <SectionCard title="Confirm Payment Received" icon={<CheckCircle sx={{ fontSize: '1rem' }} />}>
-            <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500], mb: 1.5 }}>
-              Gate pass will be auto-issued upon confirmation.
-            </Typography>
-            <Button variant="contained" color="success" size="large" onClick={handleConfirmPayment}
-              sx={{ fontWeight: 900, borderRadius: radii.md }}>
-              Payment Received — Issue Gate Pass
-            </Button>
-          </SectionCard>
-        )}
-
-        {paymentNeedsAccounts && (
+        {isPaymentPending && (
           <SectionCard title="Payment pending Accounts settlement" icon={<Payment sx={{ fontSize: '1rem' }} />}>
             <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>
-              {!hasSubmittedCustomerInvoice
-                ? 'Accounts must submit the customer Sales Invoice first. After posting it, record the allocated Payment Entry and approve Payment Confirmation before the gate pass can be issued.'
-                : 'Accounts must record the allocated Payment Entry and approve Payment Confirmation before the gate pass can be issued.'}
+              Accounts completes the Gatepass Settlement request: submit the customer Sales Invoice, record the Payment Entry or approved credit, then accept the request. The gate pass is issued only by that approved settlement.
             </Typography>
           </SectionCard>
         )}

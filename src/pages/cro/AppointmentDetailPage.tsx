@@ -11,11 +11,6 @@ import {
   IconButton,
   MenuItem,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from '@mui/material'
@@ -47,7 +42,6 @@ import { workshopApi } from '../../services/workshopApi'
 import { useToast } from '../../hooks/useToast'
 import { useSessionStore } from '../../store/sessionStore'
 import type { CWAppointmentComment, CWAppointmentFeedback, CWInspectionCheck, CWVehicleViewCheck } from '../../types/cw'
-import { headerCellSx, bodyCellSx } from '../../theme/tableStyles'
 import { colors, radii, shadows } from '../../theme/tokens'
 
 function fmtBDT(n: number) {
@@ -132,7 +126,6 @@ export function AppointmentDetailPage() {
   const users = useCwStore((s) => s.users)
   const sessionUser = useSessionStore((s) => s.user)
   const canAdminEdit = Boolean(sessionUser?.roles.includes('Admin'))
-  const canAccountsSettle = Boolean(sessionUser?.isAdministrator || sessionUser?.roles.some((role) => ['Accounts', 'Accounts User', 'Accounts Manager', 'System Manager'].includes(role)))
   const bays = useCwStore((s) => s.bays)
   const catalogServices = useCwStore((s) => s.services)
   const partRequests = useCwStore((s) => s.partRequests)
@@ -181,15 +174,6 @@ export function AppointmentDetailPage() {
       return shopById.get(shopId)?.name ?? ''
     }
   }, [allConcerns, concernCategories, shopById])
-
-  // Service → shop name lookup: serviceId → service → shopId → shop
-  const getServiceShopName = useMemo(() => {
-    const sMap = new Map(catalogServices.map((s) => [s.id, s]))
-    return (serviceId: string) => {
-      const svc = sMap.get(serviceId)
-      return svc ? shopById.get(svc.shopId)?.name ?? '' : ''
-    }
-  }, [catalogServices, shopById])
 
   const [waDialogOpen, setWaDialogOpen] = useState(false)
   const [waMessage, setWaMessage] = useState('')
@@ -399,13 +383,7 @@ export function AppointmentDetailPage() {
   const canAssignQC = isServiceComplete
   const canSendPaymentWA = isQCApproved
 
-  // The release endpoint intentionally rejects payment until Accounts has
-  // posted the customer invoice. Keep the action out of the active state
-  // while the invoice is missing, rather than showing a button that can only
-  // return CUSTOMER_INVOICE_REQUIRED.
-  const hasSubmittedCustomerInvoice = appt.salesInvoiceDocstatus === 1 && Boolean(appt.salesInvoiceId)
-  const canConfirmPayment = isPaymentPending && canAccountsSettle && hasSubmittedCustomerInvoice
-  const paymentNeedsAccounts = isPaymentPending && (!canAccountsSettle || !hasSubmittedCustomerInvoice)
+
 
   function openWhatsApp(purpose: 'concern-approval' | 'service-approval' | 'payment') {
     setWaDialogPurpose(purpose)
@@ -790,65 +768,6 @@ export function AppointmentDetailPage() {
           )}
         </SectionCard>
 
-        {false && <>
-        {/* ── Services ── */}
-        <SectionCard title={'Services (' + (appt?.serviceItems ?? []).length + ')'} icon={<Build sx={{ fontSize: '1rem' }} />} defaultCollapsed>
-          {(appt?.serviceItems ?? []).length === 0 ? (
-            <Box sx={{ px: 3, py: 2 }}>
-              <Typography sx={{ fontSize: '0.85rem', color: colors.slate[500] }}>No services listed.</Typography>
-            </Box>
-          ) : (
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ '& .MuiTableCell-head': headerCellSx }}>
-                  <TableCell>Service</TableCell>
-                  <TableCell>Shop</TableCell>
-                  <TableCell>Price</TableCell>
-                  <TableCell>SA</TableCell>
-                  <TableCell>Bay</TableCell>
-                  <TableCell>Technicians</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(appt?.serviceItems ?? []).map((s) => {
-                  const svcShopName = getServiceShopName(s.serviceId)
-                  return (
-                  <TableRow key={s.id} sx={{ '& .MuiTableCell-body': bodyCellSx }}>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: colors.slate[900] }}>{s.serviceDescription}</Typography>
-                      <Typography sx={{ fontSize: '0.72rem', color: colors.slate[400] }}>{s.serviceCode}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      {svcShopName ? <Chip size="small" label={svcShopName} color="secondary" variant="outlined" sx={{ fontWeight: 700, fontSize: '0.72rem' }} /> : '—'}
-                    </TableCell>
-                    <TableCell><Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{fmtBDT(s.price)}</Typography></TableCell>
-                    <TableCell><Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{s.assignedSEUserId ? (userNameById.get(s.assignedSEUserId) ?? '—') : '—'}</Typography></TableCell>
-                    <TableCell><Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>{s.bayId ? (bayNameById.get(s.bayId) ?? '—') : '—'}</Typography></TableCell>
-                    <TableCell>
-                      <Typography sx={{ fontSize: '0.82rem', color: colors.slate[700] }}>
-                        {s.technicianAssignments.map((ta) => userNameById.get(ta.technicianUserId)).filter(Boolean).join(', ') || '—'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {s.workStatus ? (
-                        <Chip
-                          label={s.workStatus}
-                          size="small"
-                          color={s.workStatus === 'Completed' ? 'success' : s.workStatus === 'In Progress' ? 'primary' : 'warning'}
-                          sx={{ fontWeight: 700, fontSize: '0.72rem' }}
-                        />
-                      ) : '—'}
-                    </TableCell>
-                  </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </SectionCard>
-        </>}
-
         {/* ── WhatsApp: Concern Approval (1st round) ── */}
         {canSendConcernWA && (
           <ActionCard borderColor={colors.status.info}>
@@ -941,35 +860,13 @@ export function AppointmentDetailPage() {
           </ActionCard>
         )}
 
-        {/* ── Confirm Payment ── */}
-        {canConfirmPayment && (
-          <ActionCard borderColor={colors.status.success}>
-            <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.success, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-              Confirm Payment Received
-            </Typography>
-            <Button variant="contained" size="large"
-              onClick={async () => {
-                try {
-                  const updated = await workshopApi.confirmPayment(appt.id, { actorName: 'CRE' })
-                  setAppointmentStatus(updated.id, updated.status)
-                  toast.success('Payment confirmed by Accounts. Gate-pass processing can continue.')
-                } catch (cause) {
-                  toast.error(cause, 'Payment cannot be confirmed until the submitted invoice is fully settled.')
-                }
-              }}
-              sx={{ bgcolor: colors.status.success, fontWeight: 800, borderRadius: '10px', px: 3, '&:hover': { bgcolor: '#059669' } }}>
-              Payment Received — Issue Gate Pass
-            </Button>
-          </ActionCard>
-        )}
-
-        {paymentNeedsAccounts && (
+        {isPaymentPending && (
           <ActionCard borderColor={colors.status.warning}>
             <Typography sx={{ fontWeight: 800, mb: 1, color: colors.status.warning, fontSize: '0.95rem' }}>
               Payment pending Accounts settlement
             </Typography>
             <Typography sx={{ color: colors.slate[600], fontSize: '0.85rem' }}>
-              Accounts must submit the customer Sales Invoice, record the allocated Payment Entry, and approve Payment Confirmation before the gate pass can be issued.
+              Accounts completes the Gatepass Settlement request. The gate pass is issued by that approved settlement, not by a CRE or SA payment assertion.
             </Typography>
           </ActionCard>
         )}

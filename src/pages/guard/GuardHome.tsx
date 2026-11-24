@@ -50,6 +50,13 @@ type ExitResult = {
   reason: string
   job?: CWJob
   pending?: CWPendingVehicle
+  appointmentId?: string
+  appointmentStatus?: string
+  jobId?: string
+  jobStatus?: string
+  pendingVehicleId?: string
+  testDrive?: { id: string; status?: string } | null
+  gateEvent?: unknown
 }
 
 type MatchResult = {
@@ -130,7 +137,6 @@ export function GuardHome() {
   const users = useCwStore((s) => s.users)
   const createPendingVehicle = useCwStore((s) => s.createPendingVehicle)
   const setAppointmentGateEntry = useCwStore((s) => s.setAppointmentGateEntry)
-  const releaseVehicle = useCwStore((s) => s.releaseVehicle)
 
   const [searchMode, setSearchMode] = useState<SearchMode>('registration')
   const [searchValue, setSearchValue] = useState('')
@@ -518,7 +524,7 @@ export function GuardHome() {
     setReentryInfo(null)
   }
 
-  function runExitCheck() {
+  async function runExitCheck() {
     setError(null)
     if (!normalizedValue) {
       setError(searchMode === 'registration' ? 'Registration number is required' : 'VIN is required')
@@ -526,68 +532,32 @@ export function GuardHome() {
     }
 
     const vehicle = findVehicle()
-    if (!vehicle) {
-      setExitResult({ allowed: false, reason: 'No vehicle found' })
-      setStep('exit-result')
+    const registrationNo = vehicle?.registrationNo || (searchMode === 'registration' ? normalizedValue : '')
+    if (!registrationNo) {
+      setError('No vehicle is linked to this VIN. Search by registration number instead.')
       return
     }
 
-    const regKey = normalizeKey(vehicle.registrationNo)
-    const pending = findLatestPending(regKey)
-    const job = findLatestJob(regKey)
-
-    const appt = appointments
-      .filter((a) => a.vehicleId === vehicle.id)
-      .slice()
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .at(0) ?? null
-
-    if (appt) {
-      if (appt.status === 'Payment Done' || appt.status === 'Released') {
-        setExitResult({
-          allowed: true,
-          reason: appt.status === 'Released' ? 'Already released' : `Payment done — Gate pass issued at ${appt.gatePassIssuedAt ? new Date(appt.gatePassIssuedAt).toLocaleString() : '—'}`,
-          job: job ?? undefined,
-          pending: pending ?? undefined,
-        })
-        setStep('exit-result')
-        return
-      }
-
+    try {
+      const check = await workshopApi.guardExitCheck(registrationNo)
+      const regKey = normalizeKey(registrationNo)
       setExitResult({
-        allowed: false,
-        reason: `Appointment status: ${appt.status}`,
-        job: job ?? undefined,
-        pending: pending ?? undefined,
+        allowed: check.allowed,
+        reason: check.reason,
+        appointmentId: check.appointmentId ?? undefined,
+        appointmentStatus: check.appointmentStatus ?? undefined,
+        jobId: check.jobId ?? undefined,
+        jobStatus: check.jobStatus ?? undefined,
+        pendingVehicleId: check.pendingVehicleId ?? undefined,
+        testDrive: check.testDrive ?? null,
+        gateEvent: check.gateEvent,
+        job: findLatestJob(regKey) ?? undefined,
+        pending: findLatestPending(regKey) ?? undefined,
       })
       setStep('exit-result')
-      return
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Exit check failed')
     }
-
-    if (!job) {
-      setExitResult({
-        allowed: false,
-        reason: pending?.status === 'Pending' ? 'Pending job creation' : 'No job found',
-        pending: pending ?? undefined,
-      })
-      setStep('exit-result')
-      return
-    }
-
-    if (job.status === 'Job Finished') {
-      setExitResult({ allowed: true, reason: 'Job finished', job, pending: pending ?? undefined })
-      setStep('exit-result')
-      return
-    }
-
-    if (job.status === 'Test Drive Approved') {
-      setExitResult({ allowed: true, reason: 'Test drive approved', job, pending: pending ?? undefined })
-      setStep('exit-result')
-      return
-    }
-
-    setExitResult({ allowed: false, reason: 'Job still active', job, pending: pending ?? undefined })
-    setStep('exit-result')
   }
 
   /* ─── Shared styles ─── */
@@ -981,7 +951,7 @@ export function GuardHome() {
                     Entry
                   </Button>
                   <Button
-                    variant="outlined" size="large" onClick={runExitCheck} disabled={!normalizedValue}
+                    variant="outlined" size="large" onClick={() => void runExitCheck()} disabled={!normalizedValue}
                     startIcon={<ExitToApp />}
                     sx={{
                       py: 2, fontSize: 18, fontWeight: 700, flex: 1, borderRadius: '12px',
@@ -1050,6 +1020,21 @@ export function GuardHome() {
                           Pending status: {exitResult.pending.status}
                         </Typography>
                       ) : null}
+                      {exitResult.appointmentStatus ? (
+                        <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>
+                          Appointment status: {exitResult.appointmentStatus}
+                        </Typography>
+                      ) : null}
+                      {exitResult.jobStatus ? (
+                        <Typography sx={{ color: colors.slate[500], fontSize: '0.85rem' }}>
+                          Backend job status: {exitResult.jobStatus}
+                        </Typography>
+                      ) : null}
+                      {exitResult.testDrive ? (
+                        <Typography sx={{ color: colors.status.error, fontSize: '0.85rem' }}>
+                          Open test drive: {exitResult.testDrive.id} ({exitResult.testDrive.status || 'unknown'})
+                        </Typography>
+                      ) : null}
                     </Stack>
 
                     {exitResult.job?.status === 'Test Drive Approved' ? (
@@ -1070,17 +1055,18 @@ export function GuardHome() {
                     ) : null}
 
                     <Stack direction="row" spacing={2}>
-                      {exitResult.allowed && (() => {
-                        const veh = findVehicle()
-                        const relAppt = veh
-                          ? appointments.find((a) => a.vehicleId === veh.id && a.status === 'Payment Done')
-                          : null
+                      {exitResult.appointmentStatus === 'Payment Done' && !exitResult.testDrive && (!exitResult.jobStatus || exitResult.jobStatus === 'Job Finished') && (() => {
+                        const relAppt = appointments.find((a) => a.id === exitResult.appointmentId)
+                          ?? appointments.find((a) => a.status === 'Payment Done' && a.vehicleId === findVehicle()?.id)
                         return relAppt ? (
                           <Button variant="contained" color="success" size="large"
                             onClick={async () => {
                               try {
-                                await workshopApi.releaseVehicle(relAppt.id)
-                                releaseVehicle({ appointmentId: relAppt.id })
+                                const updated = await workshopApi.releaseVehicle(relAppt.id)
+                                useCwStore.setState((state) => ({
+                                  appointments: state.appointments.map((item) => item.id === updated.id ? updated : item),
+                                }))
+                                await workshopApi.guardExit({ registrationNo: findVehicle()?.registrationNo || normalizedValue })
                                 reset()
                               } catch (cause) {
                                 setError(cause instanceof Error ? cause.message : 'Vehicle cannot be released until Accounts clearance is complete.')
