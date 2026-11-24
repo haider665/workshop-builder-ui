@@ -50,13 +50,27 @@ const dispositionColor: Record<PartDisposition, string> = {
   foreign_vendor: '#d97706',
 }
 
+type StockSnapshot = {
+  stockQuantity?: number
+  stockStatus?: string
+  quantity?: number
+}
+
+function hasCounterStock(item: StockSnapshot) {
+  const available = Number(item.stockQuantity ?? 0)
+  if (available <= 0) return false
+  if (item.stockStatus === 'In Stock') return true
+  return available >= Number(item.quantity ?? 1)
+}
+
 function stockChip(item: PartLineItem) {
-  const status = item.stockStatus ?? (item.stockQuantity ? 'In Stock' : 'Out of Stock')
-  const color = status === 'In Stock' ? '#059669' : status === 'Low Stock' ? '#d97706' : '#dc2626'
+  const available = hasCounterStock(item)
+  const label = available ? `In Stock · ${item.stockQuantity ?? 0} available` : 'Pending'
+  const color = available ? '#059669' : '#d97706'
   return (
     <Chip
       size="small"
-      label={`${status} · ${item.stockQuantity ?? 0} available`}
+      label={label}
       sx={{
         fontWeight: 700,
         fontSize: '0.68rem',
@@ -70,6 +84,11 @@ function stockChip(item: PartLineItem) {
 }
 
 function lineItemFromServer(row: LivePartRequest): PartLineItem {
+  const completed = Boolean(row.triageCompleted) || row.status === 'Fulfilled' || row.status === 'Rejected'
+  const available = hasCounterStock(row)
+  let disposition = row.disposition ?? 'pending'
+  if (!completed && available) disposition = 'in_stock'
+  if (!completed && !available && disposition === 'in_stock') disposition = 'pending'
   return {
     id: row.id,
     partName: row.partName,
@@ -77,15 +96,16 @@ function lineItemFromServer(row: LivePartRequest): PartLineItem {
     quantity: row.quantity ?? 1,
     stockQuantity: row.stockQuantity,
     stockStatus: row.stockStatus,
-    disposition: row.disposition ?? 'pending',
+    disposition,
     includeInProcurement: row.includeInProcurement !== false,
+    price: row.price,
     pickedFromCounter: row.pickedFromCounter,
     localVendorName: row.localVendorName,
     localPrice: row.localPrice,
     localQuantity: row.localQuantity,
     localDeliveryDays: row.localDeliveryDays,
     foreignNote: row.foreignNote,
-    completed: Boolean(row.triageCompleted) || row.status === 'Fulfilled' || row.status === 'Rejected',
+    completed,
   }
 }
 
@@ -93,6 +113,7 @@ type TriageSave = {
   disposition: PartDisposition
   partName: string
   partNumber?: string
+  price?: number
   localVendorName?: string
   localPrice?: number
   localQuantity?: number
@@ -113,12 +134,14 @@ function LineItemRow({
   const [saving, setSaving] = useState(false)
   const [partName, setPartName] = useState(item.partName)
   const [partNumber, setPartNumber] = useState(item.partNumber ?? '')
+  const [price, setPrice] = useState(item.price ?? item.localPrice ?? 0)
 
   const [localVendorName, setLocalVendorName] = useState(item.localVendorName ?? '')
   const [localPrice, setLocalPrice] = useState(item.localPrice ?? 0)
   const [localQty, setLocalQty] = useState(item.localQuantity ?? item.quantity)
   const [localDays, setLocalDays] = useState(item.localDeliveryDays ?? 0)
   const [foreignNote, setForeignNote] = useState(item.foreignNote ?? '')
+  const counterStockAvailable = hasCounterStock(item)
 
   const save = async (details: TriageDetails) => {
     if (!onSave) return
@@ -128,6 +151,7 @@ function LineItemRow({
         ...details,
         partName: partName.trim(),
         partNumber: partNumber.trim() || undefined,
+        ...(details.disposition === 'in_stock' ? { price } : {}),
       })
     } finally {
       setSaving(false)
@@ -177,13 +201,16 @@ function LineItemRow({
               {stockChip(item)}
               <Chip
                 size="small"
-                label={
-                  item.disposition === 'in_stock'
-                    ? 'Picked from counter'
-                    : item.disposition === 'local_vendor'
-                      ? `Local: ${item.localVendorName} — ৳${item.localPrice?.toLocaleString()}`
-                      : 'Foreign vendor required'
-                }
+                  label={
+                    item.disposition === 'in_stock'
+                      ? 'Picked from counter'
+                      : item.disposition === 'local_vendor'
+                        ? `Local: ${item.localVendorName} — ৳${item.localPrice?.toLocaleString()}`
+                        : item.disposition === 'foreign_vendor'
+                          ? 'Foreign vendor required'
+                          : 'Pending'
+                  }
+
                 sx={{
                   fontWeight: 700,
                   fontSize: '0.7rem',
@@ -250,7 +277,11 @@ function LineItemRow({
           <Button
             variant="outlined"
             size="small"
-            disabled={saving || !partName.trim()}
+            disabled={
+              saving
+              || !partName.trim()
+              || (selectedDisposition === 'in_stock' && (!counterStockAvailable || !price || price <= 0))
+            }
             onClick={() => void save({ disposition: selectedDisposition })}
             sx={{ height: 40, textTransform: 'none', fontWeight: 700, borderRadius: radii.sm }}
           >
@@ -315,7 +346,7 @@ function LineItemRow({
               onChange={(e) => setSelectedDisposition(e.target.value as PartDisposition)}
               sx={{ minWidth: 160, '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }}
             >
-              {DISPOSITION_OPTIONS.map((opt) => (
+              {DISPOSITION_OPTIONS.filter((opt) => opt.value !== 'in_stock' || counterStockAvailable).map((opt) => (
                 <MenuItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </MenuItem>
@@ -325,23 +356,35 @@ function LineItemRow({
         </Stack>
 
         {selectedDisposition === 'in_stock' && (
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<Inventory />}
-            disabled={saving || !partName.trim()}
-            onClick={() => void save({ disposition: 'in_stock' })}
-            sx={{
-              alignSelf: 'flex-start',
-              bgcolor: '#059669',
-              fontWeight: 700,
-              borderRadius: radii.sm,
-              textTransform: 'none',
-              '&:hover': { bgcolor: '#047857' },
-            }}
-          >
-            Pick from Counter
-          </Button>
+          <Stack spacing={1.5}>
+            <TextField
+              size="small"
+              label="Customer Price (৳)"
+              type="number"
+              value={price || ''}
+              onChange={(e) => setPrice(Number(e.target.value))}
+              disabled={saving}
+              helperText="Used on the customer quotation for this stock part"
+              sx={{ maxWidth: 240, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
+            />
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<Inventory />}
+              disabled={saving || !partName.trim() || !counterStockAvailable || !price || price <= 0}
+              onClick={() => void save({ disposition: 'in_stock' })}
+              sx={{
+                alignSelf: 'flex-start',
+                bgcolor: '#059669',
+                fontWeight: 700,
+                borderRadius: radii.sm,
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#047857' },
+              }}
+            >
+              Pick from Counter
+            </Button>
+          </Stack>
         )}
 
         {selectedDisposition === 'local_vendor' && (
@@ -450,6 +493,7 @@ function LineItemRow({
 type QuoteLineDraft = {
   partRequestId: string
   partName: string
+  partNumber: string
   quantity: number
   rate: number
   deliveryDate: string
@@ -468,6 +512,7 @@ function quoteLinesFrom(request: MockPartRequest, quote?: CustomerQuotation | nu
         id: item.id,
         partRequestId: item.partRequestId,
         partName: item.partName || item.itemName || '',
+        partNumber: item.partNumber,
         quantity: item.qty,
         rate: item.rate,
         deliveryDate: item.deliveryDate,
@@ -476,22 +521,27 @@ function quoteLinesFrom(request: MockPartRequest, quote?: CustomerQuotation | nu
     return rows.flatMap((row) => {
       const partRequestId = String(row.partRequestId || '')
       if (!partRequestId) return []
+      const sourceLine = request.lineItems.find((line) => line.id === partRequestId)
       return [{
         partRequestId,
-        partName: String(row.partName || request.lineItems.find((line) => line.id === partRequestId)?.partName || 'Requested part'),
+        partName: String(row.partName || sourceLine?.partName || 'Requested part'),
+        partNumber: String(row.partNumber || sourceLine?.partNumber || ''),
         quantity: Number(row.quantity) || 1,
         rate: Number(row.rate) || 0,
         deliveryDate: String(row.deliveryDate || quoteDate()),
       }]
     })
   }
-  return request.lineItems.map((line) => ({
-    partRequestId: line.id,
-    partName: line.partName,
-    quantity: line.quantity,
-    rate: line.localPrice || 0,
-    deliveryDate: quoteDate(Number(line.localDeliveryDays) || 7),
-  }))
+  return request.lineItems
+    .filter((line) => line.completed)
+    .map((line) => ({
+      partRequestId: line.id,
+      partName: line.partName,
+      partNumber: line.partNumber || '',
+      quantity: line.quantity,
+      rate: Number(line.price ?? line.localPrice ?? 0),
+      deliveryDate: quoteDate(Number(line.localDeliveryDays) || 7),
+    }))
 }
 
 function CustomerQuotationPanel({
@@ -520,6 +570,7 @@ function CustomerQuotationPanel({
   const payloadLines = lines.map((line) => ({
     partRequestId: line.partRequestId,
     partName: line.partName,
+    partNumber: line.partNumber || undefined,
     quantity: Number(line.quantity),
     rate: Number(line.rate),
     deliveryDate: line.deliveryDate,
@@ -612,10 +663,11 @@ function CustomerQuotationPanel({
         )}
       </Stack>
       <Box sx={{ overflowX: 'auto' }}>
-        <Table size="small" sx={{ minWidth: 620 }}>
+        <Table size="small" sx={{ minWidth: 760 }}>
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem' }}>Part</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', width: 130 }}>Part Number</TableCell>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', width: 90 }}>Qty</TableCell>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', width: 130 }}>Unit Price (৳)</TableCell>
               <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', width: 150 }}>Delivery Date</TableCell>
@@ -625,6 +677,9 @@ function CustomerQuotationPanel({
             {lines.map((line) => (
               <TableRow key={line.partRequestId}>
                 <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600 }}>{line.partName}</TableCell>
+                <TableCell>
+                  <TextField size="small" value={line.partNumber} disabled={!editable || saving} onChange={(event) => updateLine(line.partRequestId, { partNumber: event.target.value })} sx={{ width: 120 }} placeholder="Optional" />
+                </TableCell>
                 <TableCell>
                   <TextField size="small" type="number" value={line.quantity} disabled={!editable || saving} onChange={(event) => updateLine(line.partRequestId, { quantity: Number(event.target.value) })} sx={{ width: 80 }} />
                 </TableCell>
@@ -807,6 +862,7 @@ export function MockPartRequestsPage() {
           const total = req.lineItems.length
           const allCompleted = completedCount === total
           const isExpanded = expanded[req.id] ?? false
+          const hasCompleted = req.lineItems.some((li) => li.completed)
           const hasNonStockCompleted = req.lineItems.some(
             (li) => li.completed && li.disposition !== 'in_stock',
           )
@@ -910,7 +966,7 @@ export function MockPartRequestsPage() {
                       />
                     ))}
 
-                    {hasNonStockCompleted ? (
+                    {hasCompleted ? (
                       <CustomerQuotationPanel
                         request={req}
                         onQuoteChange={handleQuoteChange}
@@ -941,7 +997,7 @@ export function MockPartRequestsPage() {
 
                     {allCompleted && !hasNonStockCompleted ? (
                       <Alert severity="success" sx={{ borderRadius: radii.sm }}>
-                        All items picked from stock. No procurement needed.
+                        All items picked from stock. Add customer prices in the quotation panel below.
                       </Alert>
                     ) : null}
                   </Stack>

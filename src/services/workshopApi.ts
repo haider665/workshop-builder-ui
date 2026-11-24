@@ -2097,7 +2097,7 @@ export const workshopApi = {
 
   async createCustomerQuotationFromRequest(input: {
     partRequestId: string
-    lines: Array<{ partRequestId: string; partName: string; quantity: number; rate: number; deliveryDate?: string }>
+    lines: Array<{ partRequestId: string; partName: string; partNumber?: string; quantity: number; rate: number; deliveryDate?: string }>
     currency?: string
     validTill?: string
     terms?: string
@@ -2282,6 +2282,7 @@ export const workshopApi = {
     disposition: import('../types/procurementWorkflow').PartDisposition
     partName?: string
     partNumber?: string
+    price?: number
     includeInProcurement?: boolean
     localVendorName?: string
     localPrice?: number

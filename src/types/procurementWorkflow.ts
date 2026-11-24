@@ -123,6 +123,7 @@ export type PartLineItem = {
   stockStatus?: string
   disposition: PartDisposition
   includeInProcurement?: boolean
+  price?: number
   // For in_stock
   pickedFromCounter?: boolean
   // For local_vendor (rough quote for customer)

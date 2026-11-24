@@ -40,7 +40,7 @@ import {
   Print,
   Receipt,
 } from '@mui/icons-material'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SectionCard } from '../../components/SectionCard'
 import { RequestMasterDataButton } from '../../components/RequestMasterDataButton'
@@ -440,6 +440,16 @@ function VehicleInfoSection({ pc }: { pc: ProcurementCase }) {
 
 /* ═══ Multi-Part Quotation Dialog ═══ */
 
+type QuotationDraft = {
+  vendorId: string
+  lineItems: QuotationLineItem[]
+  notes: string
+  files: { name: string; url: string }[]
+  vendorChangedByUser: boolean
+}
+
+const quotationDialogDrafts = new Map<string, QuotationDraft>()
+
 function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseId, masterDataRequests, onMasterDataRequested }: {
   open: boolean
   onClose: () => void
@@ -453,36 +463,42 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
 }) {
   const includedPartIds = new Set(parts.map((part) => part.id))
   const defaultLines = () => parts.map((part) => ({ casePartId: part.id, partName: part.partName, unitPrice: 0, quantity: part.quantity, totalPrice: 0, deliveryUnit: 'Days' as const }))
-  const initialLines = initial?.lineItems.filter((line) => includedPartIds.has(line.casePartId)) ?? defaultLines()
-  const [vendorId, setVendorId] = useState(initial ? MOCK_VENDORS.find((v) => v.name === initial.vendorName)?.id ?? '' : '')
+  const draftKey = `${caseId ?? ''}:${initial?.id ?? 'new'}`
+  const persistedDraft = quotationDialogDrafts.get(draftKey)
+  const [vendorId, setVendorId] = useState(persistedDraft?.vendorId ?? (initial ? MOCK_VENDORS.find((v) => v.name === initial.vendorName)?.id ?? '' : ''))
   const [liveVendors, setLiveVendors] = useState<Array<{ id: string; name: string; type?: string }>>([])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [lineItems, setLineItems] = useState<QuotationLineItem[]>(initialLines)
-  const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [lineItems, setLineItems] = useState<QuotationLineItem[]>(persistedDraft?.lineItems ?? initial?.lineItems.filter((line) => includedPartIds.has(line.casePartId)) ?? defaultLines())
+  const [notes, setNotes] = useState(persistedDraft?.notes ?? initial?.notes ?? '')
   const [files, setFiles] = useState<{ name: string; url: string }[]>(
-    initial?.attachmentUrls?.map((url, i) => ({ name: initial.attachmentNames?.[i] ?? `file-${i + 1}`, url })) ?? [],
+    persistedDraft?.files ?? initial?.attachmentUrls?.map((url, i) => ({ name: initial.attachmentNames?.[i] ?? `file-${i + 1}`, url })) ?? [],
   )
+  const [vendorChangedByUser, setVendorChangedByUser] = useState(persistedDraft?.vendorChangedByUser ?? false)
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpenRef.current) {
       setSaveError(null)
       setSaving(false)
-      setVendorId(initial ? MOCK_VENDORS.find((vendor) => vendor.name === initial.vendorName)?.id ?? '' : '')
-      const openPartIds = new Set(parts.map((part) => part.id))
-      setLineItems(initial?.lineItems.filter((line) => openPartIds.has(line.casePartId)) ?? parts.map((part) => ({ casePartId: part.id, partName: part.partName, unitPrice: 0, quantity: part.quantity, totalPrice: 0, deliveryUnit: 'Days' as const })))
-      setNotes(initial?.notes ?? '')
-      setFiles(initial?.attachmentUrls?.map((url, index) => ({ name: initial.attachmentNames?.[index] ?? `file-${index + 1}`, url })) ?? [])
       if (company) {
         void workshopApi.accountingSuppliers().then((response) => setLiveVendors(response.data)).catch(() => setLiveVendors([]))
       }
     }
-  }, [open, company, initial, parts])
+    wasOpenRef.current = open
+  }, [open, company])
   useEffect(() => {
-    if (!open || !initial || !liveVendors.length) return
+    if (!open) {
+      quotationDialogDrafts.delete(draftKey)
+      return
+    }
+    quotationDialogDrafts.set(draftKey, { vendorId, lineItems, notes, files, vendorChangedByUser })
+  }, [open, draftKey, vendorId, lineItems, notes, files, vendorChangedByUser])
+  useEffect(() => {
+    if (!open || !initial || !liveVendors.length || vendorChangedByUser) return
     if (liveVendors.some((vendor) => vendor.id === vendorId)) return
     const matchingVendor = liveVendors.find((vendor) => vendor.name.trim().toLowerCase() === initial.vendorName.trim().toLowerCase())
     if (matchingVendor) setVendorId(matchingVendor.id)
-  }, [open, initial, liveVendors, vendorId])
+  }, [open, initial, liveVendors, vendorId, vendorChangedByUser])
   const fileRef = useRef<HTMLInputElement>(null)
   const selectedLiveVendor = liveVendors.find((v) => v.id === vendorId)
   const selectedMockVendor = MOCK_VENDORS.find((v) => v.id === vendorId)
@@ -534,7 +550,7 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
           <Alert severity="info" sx={{ borderRadius: radii.sm }}>
             Parts are preloaded from this appointment. If a part is not yet in the Item master, saving the quotation creates a traceable provisional purchase reference and sends the Item Master request for admin review; quotation and CS work can continue meanwhile.
           </Alert>
-          <TextField select size="small" label="Select Vendor *" value={vendorId} onChange={(e) => setVendorId(e.target.value)} fullWidth>
+          <TextField select size="small" label="Select Vendor *" value={vendorId} onChange={(e) => { setVendorChangedByUser(true); setVendorId(e.target.value) }} fullWidth>
             {(company && liveVendors.length ? liveVendors.map((v) => ({ ...v, contact: '', phone: '', sourcingType: v.type === 'Foreign' ? 'Foreign' as const : 'Local' as const })) : MOCK_VENDORS).map((v) => (
               <MenuItem key={v.id} value={v.id}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -1710,6 +1726,8 @@ export function ProcurementCaseDetailPage() {
   const [masterDataRequests, setMasterDataRequests] = useState<CWMasterDataRequest[]>([])
   const [backendError, setBackendError] = useState<string | null>(null)
   const [approvalQuotationId, setApprovalQuotationId] = useState('')
+  const [quotationDialog, setQuotationDialog] = useState(false)
+  const [editQuotation, setEditQuotation] = useState<Quotation | undefined>(undefined)
   const refreshBackendCase = async () => {
     if (!backendPc) return
     setBackendPc(await hydrateBackendProcurementCase(await workshopApi.procurementCase(backendPc.id)))
@@ -1742,6 +1760,10 @@ export function ProcurementCaseDetailPage() {
     return () => { cancelled = true }
   }, [caseId, selectedCompanyId])
   const pc = backendPc || cases.find((c) => c.id === caseId)
+  const procurementParts = useMemo(
+    () => (pc?.parts || []).filter((part) => part.includeInProcurement !== false),
+    [pc?.parts],
+  )
   const policyAmount = Number(pc?.csDecision?.items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0) || pc?.quotations.reduce((sum, quote) => sum + Number(quote.grandTotal || 0), 0) || 0)
   const policyProcurementType: 'Local' | 'Foreign' = pc?.parts.some((part) => part.disposition === 'foreign_vendor') ? 'Foreign' : 'Local'
   const policySupplierCount = new Set(pc?.quotations.map((quote) => quote.vendorName).filter(Boolean) || []).size
@@ -1757,12 +1779,12 @@ export function ProcurementCaseDetailPage() {
     setEscalationRemaining(escalationMinutes * 60)
   }, [caseId, pc?.currentStep, escalationMinutes])
   useEffect(() => {
-    if (!escalationDeadline) return
+    if (!escalationDeadline || quotationDialog) return
     const tick = () => setEscalationRemaining(Math.max(0, Math.ceil((escalationDeadline - Date.now()) / 1000)))
     const timer = window.setInterval(tick, 1000)
     tick()
     return () => window.clearInterval(timer)
-  }, [escalationDeadline])
+  }, [escalationDeadline, quotationDialog])
   const escalationLabel = escalationRemaining === 0
     ? `Escalation due after ${escalationMinutes} min`
     : `Escalation in ${formatCountdown(escalationRemaining)}`
@@ -1781,8 +1803,6 @@ export function ProcurementCaseDetailPage() {
   const [storeReviewSelections, setStoreReviewSelections] = useState<Record<string, boolean>>({})
   const [showReject, setShowReject] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
-  const [quotationDialog, setQuotationDialog] = useState(false)
-  const [editQuotation, setEditQuotation] = useState<Quotation | undefined>(undefined)
   // CS selections: casePartId → { quotationId, vendorName, ... }
   const [csSelections, setCsSelections] = useState<Record<string, { quotationId: string; vendorName: string; unitPrice: number; quantity: number; totalPrice: number }>>({})
   // Audit may recommend a different quotation per requested part. The final
@@ -1835,7 +1855,6 @@ export function ProcurementCaseDetailPage() {
 
   const currentIdx = PROCUREMENT_STEPS.indexOf(pc.currentStep)
   const isCompleted = pc.status === 'approved' || pc.status === 'rejected'
-  const procurementParts = pc.parts.filter((part) => part.includeInProcurement !== false)
   const hasIncludedPart = Object.values(storeReviewSelections).some(Boolean)
   const printQuotation = (quotation: Quotation) => {
     if (!backendPc) {
@@ -2285,7 +2304,7 @@ export function ProcurementCaseDetailPage() {
         </Dialog>
 
         {/* Quotation Dialog */}
-        <QuotationDialog open={quotationDialog} onClose={() => setQuotationDialog(false)} parts={procurementParts} initial={editQuotation} company={selectedCompanyId} caseId={pc.id} masterDataRequests={masterDataRequests}
+        <QuotationDialog key={`${pc.id}:${editQuotation?.id ?? 'new'}`} open={quotationDialog} onClose={() => setQuotationDialog(false)} parts={procurementParts} initial={editQuotation} company={selectedCompanyId} caseId={pc.id} masterDataRequests={masterDataRequests}
           onMasterDataRequested={(request) => setMasterDataRequests((current) => [...current, request])}
           onSave={async (q) => {
             if (backendPc) {
