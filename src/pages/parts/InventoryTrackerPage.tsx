@@ -3,6 +3,11 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
   InputAdornment,
   MenuItem,
   Stack,
@@ -12,6 +17,7 @@ import {
 import {
   Add,
   CalendarToday,
+  Edit,
   FilterList,
   Inventory,
   Search,
@@ -22,7 +28,7 @@ import { FormDialog } from '../../components/FormDialog'
 import type { Column } from '../../components/DataTable'
 import { workshopApi } from '../../services/workshopApi'
 import type { CWPartStatus } from '../../types/cw'
-import type { InventoryPosition } from '../../types/inventoryWorkflow'
+import type { AdjustStockInput, InventoryDetailResponse, InventoryPosition, UpdateInventoryInput } from '../../types/inventoryWorkflow'
 import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
@@ -129,6 +135,18 @@ export function InventoryTrackerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [activePosition, setActivePosition] = useState<InventoryPosition | null>(null)
+  const [detail, setDetail] = useState<InventoryDetailResponse | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editDraft, setEditDraft] = useState({ reorderLevel: '', rackLocation: '', binNumber: '', defaultSellPrice: '', reason: '' })
+  const [stockOpen, setStockOpen] = useState(false)
+  const [stockSaving, setStockSaving] = useState(false)
+  const [stockDraft, setStockDraft] = useState({ quantity: '', valuationRate: '', postingDate: '', reason: '' })
+
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [draft, setDraft] = useState<PartDraft>(emptyDraft())
@@ -143,6 +161,27 @@ export function InventoryTrackerPage() {
 
   const formatMoney = (value?: number) =>
     value != null ? `৳${value.toLocaleString('en-IN')}` : '—'
+
+  async function loadDetail(position: InventoryPosition) {
+    setActivePosition(position)
+    setDetailOpen(true)
+    setDetailLoading(true)
+    setDetailError(null)
+    try {
+      const result = await workshopApi.getInventoryDetail({
+        company: selectedCompanyId || undefined,
+        partId: position.partId || undefined,
+        itemCode: position.partId ? undefined : position.itemCode,
+        warehouseId: position.warehouseId,
+      })
+      setDetail(result)
+    } catch (err) {
+      setDetail(null)
+      setDetailError(err instanceof Error ? err.message : 'Failed to load inventory detail')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
 
   const loadPositions = useCallback(async () => {
     setLoading(true)
@@ -233,6 +272,79 @@ export function InventoryTrackerPage() {
       await Promise.all([loadPositions(), loadAlerts()])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create part')
+    }
+  }
+
+  function openEditDetails() {
+    if (!detail?.part) return
+    setEditDraft({
+      reorderLevel: String(detail.part.reorderLevel ?? ''),
+      rackLocation: detail.part.rackLocation ?? '',
+      binNumber: detail.part.binNumber ?? '',
+      defaultSellPrice: String(detail.part.defaultSellPrice ?? ''),
+      reason: '',
+    })
+    setEditOpen(true)
+  }
+
+  async function submitEditDetails() {
+    if (!detail?.part || !editDraft.reason.trim()) return
+    setEditSaving(true)
+    setDetailError(null)
+    try {
+      const payload: UpdateInventoryInput = {
+        company: selectedCompanyId || undefined,
+        partId: detail.part.id,
+        reason: editDraft.reason.trim(),
+      }
+      if (editDraft.reorderLevel.trim()) payload.reorderLevel = Number(editDraft.reorderLevel)
+      if (editDraft.rackLocation.trim()) payload.rackLocation = editDraft.rackLocation.trim()
+      if (editDraft.binNumber.trim()) payload.binNumber = editDraft.binNumber.trim()
+      if (editDraft.defaultSellPrice.trim()) payload.defaultSellPrice = Number(editDraft.defaultSellPrice)
+      await workshopApi.updateInventoryDetails(payload)
+      setEditOpen(false)
+      await Promise.all([loadPositions(), loadAlerts()])
+      await loadDetail(detail.position)
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : 'Failed to update inventory details')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  function openStockDialog() {
+    setStockDraft({ quantity: '', valuationRate: '', postingDate: '', reason: '' })
+    setStockOpen(true)
+  }
+
+  async function submitStockAdjustment() {
+    if (!detail || !stockDraft.reason.trim()) return
+    const quantity = Number(stockDraft.quantity)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setDetailError('Quantity must be greater than zero.')
+      return
+    }
+    setStockSaving(true)
+    setDetailError(null)
+    try {
+      const payload: AdjustStockInput = {
+        company: selectedCompanyId || undefined,
+        partId: detail.part?.id || undefined,
+        itemCode: detail.part ? undefined : detail.position.itemCode,
+        warehouseId: detail.position.warehouseId,
+        quantity,
+        reason: stockDraft.reason.trim(),
+      }
+      if (stockDraft.valuationRate.trim()) payload.valuationRate = Number(stockDraft.valuationRate)
+      if (stockDraft.postingDate) payload.postingDate = stockDraft.postingDate
+      await workshopApi.adjustStock(payload)
+      setStockOpen(false)
+      await Promise.all([loadPositions(), loadAlerts()])
+      await loadDetail(detail.position)
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : 'Failed to add stock')
+    } finally {
+      setStockSaving(false)
     }
   }
 
@@ -450,6 +562,7 @@ export function InventoryTrackerPage() {
           columns={columns}
           rows={positions}
           loading={loading}
+          onRowClick={(row) => void loadDetail(row)}
           keyExtractor={(row) => `${row.warehouseId}:${row.itemCode}`}
           emptyIcon={<Inventory />}
           emptyTitle="No stock positions found"
@@ -741,6 +854,237 @@ export function InventoryTrackerPage() {
             type="number"
             value={draft.defaultSellPrice}
             onChange={(e) => setDraft((d) => ({ ...d, defaultSellPrice: e.target.value }))}
+            fullWidth
+          />
+        </FormDialog>
+
+        <Dialog open={detailOpen} onClose={() => setDetailOpen(false)} fullWidth maxWidth="md">
+          <DialogTitle sx={{ fontWeight: 700, color: colors.slate[900] }}>
+            {activePosition
+              ? `${activePosition.partNumber ?? activePosition.itemCode} · ${activePosition.warehouseName}`
+              : 'Inventory Detail'}
+          </DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2.5}>
+              {detailLoading ? (
+                <Typography sx={{ fontSize: '0.875rem', color: colors.slate[500] }}>Loading inventory detail…</Typography>
+              ) : null}
+              {detailError ? (
+                <Typography sx={{ fontSize: '0.875rem', color: colors.status.error }}>{detailError}</Typography>
+              ) : null}
+              {detail ? (
+                <>
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, color: colors.slate[900], mb: 1.25 }}>
+                      Stock Position
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5 }}>
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                        Source: <strong>{detail.position.source}</strong>
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                        Warehouse: <strong>{detail.position.warehouseName}</strong>
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                        On hand: <strong>{detail.position.onHand}</strong>
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                        Available: <strong>{detail.position.available}</strong>
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                        Projected: <strong>{detail.position.projected}</strong>
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                        Valuation: <strong>{formatMoney(detail.position.valuationRate)}</strong>
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Divider sx={{ borderColor: colors.border.subtle }} />
+
+                  {detail.part ? (
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, color: colors.slate[900], mb: 1.25 }}>
+                        Part Catalogue
+                      </Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5 }}>
+                        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                          Rack: <strong>{detail.part.rackLocation || '—'}</strong>
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                          Bin: <strong>{detail.part.binNumber || '—'}</strong>
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                          Reorder level: <strong>{detail.part.reorderLevel ?? 0}</strong>
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                          Default sell price: <strong>{formatMoney(detail.part.defaultSellPrice)}</strong>
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ) : null}
+
+                  {detail.item ? (
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, color: colors.slate[900], mb: 1.25 }}>
+                        ERPNext Item
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[700] }}>
+                        {detail.item.itemName} ({detail.item.itemCode}) · {detail.item.uom || '—'} · valuation{' '}
+                        <strong>{formatMoney(detail.item.valuationRate)}</strong>
+                      </Typography>
+                    </Box>
+                  ) : null}
+
+                  <Divider sx={{ borderColor: colors.border.subtle }} />
+
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, color: colors.slate[900], mb: 1.25 }}>
+                      Recent Stock Movements
+                    </Typography>
+                    {detail.movements.length ? (
+                      <Stack spacing={1}>
+                        {detail.movements.map((movement) => (
+                          <Box
+                            key={movement.id}
+                            sx={{
+                              border: `1px solid ${colors.border.default}`,
+                              borderRadius: radii.sm,
+                              p: 1.5,
+                            }}
+                          >
+                            <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
+                              <Box>
+                                <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[800] }}>
+                                  {movement.voucherId} · {movement.voucherType}
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
+                                  {movement.postingDate || '—'} {movement.warehouseId}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'right' }}>
+                                <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: colors.slate[800] }}>
+                                  {movement.quantity > 0 ? '+' : ''}{movement.quantity}
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
+                                  balance {movement.balanceQty}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography sx={{ fontSize: '0.875rem', color: colors.slate[400] }}>
+                        No stock movements recorded.
+                      </Typography>
+                    )}
+                  </Box>
+
+                  {!detail.permissions.canEdit && !detail.permissions.canAdjustStock ? (
+                    <Typography sx={{ fontSize: '0.8125rem', color: colors.slate[500] }}>
+                      Read-only view. Editing and manual stock receipts require a stock manager role.
+                    </Typography>
+                  ) : null}
+                </>
+              ) : null}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+            {detail?.permissions.canEdit ? (
+              <Button startIcon={<Edit />} onClick={openEditDetails}>Edit details</Button>
+            ) : null}
+            {detail?.permissions.canAdjustStock ? (
+              <Button variant="contained" startIcon={<Add />} onClick={openStockDialog} sx={btnSx}>
+                Add stock
+              </Button>
+            ) : null}
+            <Button onClick={() => setDetailOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+
+        <FormDialog
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          title="Edit Inventory Details"
+          icon={<Edit />}
+          onSubmit={() => void submitEditDetails()}
+          submitLabel={editSaving ? 'Saving…' : 'Save details'}
+          submitDisabled={editSaving || !editDraft.reason.trim()}
+        >
+          <TextField
+            label="Reorder Level"
+            type="number"
+            value={editDraft.reorderLevel}
+            onChange={(e) => setEditDraft((d) => ({ ...d, reorderLevel: e.target.value }))}
+            fullWidth
+          />
+          <TextField
+            label="Rack Location"
+            value={editDraft.rackLocation}
+            onChange={(e) => setEditDraft((d) => ({ ...d, rackLocation: e.target.value }))}
+            fullWidth
+          />
+          <TextField
+            label="Bin Number"
+            value={editDraft.binNumber}
+            onChange={(e) => setEditDraft((d) => ({ ...d, binNumber: e.target.value }))}
+            fullWidth
+          />
+          <TextField
+            label="Default Sell Price"
+            type="number"
+            value={editDraft.defaultSellPrice}
+            onChange={(e) => setEditDraft((d) => ({ ...d, defaultSellPrice: e.target.value }))}
+            fullWidth
+          />
+          <TextField
+            label="Reason"
+            value={editDraft.reason}
+            onChange={(e) => setEditDraft((d) => ({ ...d, reason: e.target.value }))}
+            required
+            fullWidth
+          />
+        </FormDialog>
+
+        <FormDialog
+          open={stockOpen}
+          onClose={() => setStockOpen(false)}
+          title="Add Stock"
+          icon={<Inventory />}
+          onSubmit={() => void submitStockAdjustment()}
+          submitLabel={stockSaving ? 'Posting…' : 'Post receipt'}
+          submitDisabled={stockSaving || !stockDraft.reason.trim() || Number(stockDraft.quantity) <= 0}
+        >
+          <TextField
+            label="Quantity"
+            type="number"
+            value={stockDraft.quantity}
+            onChange={(e) => setStockDraft((d) => ({ ...d, quantity: e.target.value }))}
+            required
+            fullWidth
+          />
+          <TextField
+            label="Valuation Rate"
+            type="number"
+            value={stockDraft.valuationRate}
+            onChange={(e) => setStockDraft((d) => ({ ...d, valuationRate: e.target.value }))}
+            helperText="Leave blank to use the ERPNext item valuation rate."
+            fullWidth
+          />
+          <TextField
+            label="Posting Date"
+            type="date"
+            value={stockDraft.postingDate}
+            onChange={(e) => setStockDraft((d) => ({ ...d, postingDate: e.target.value }))}
+            slotProps={{ inputLabel: { shrink: true } }}
+            fullWidth
+          />
+          <TextField
+            label="Reason"
+            value={stockDraft.reason}
+            onChange={(e) => setStockDraft((d) => ({ ...d, reason: e.target.value }))}
+            required
             fullWidth
           />
         </FormDialog>

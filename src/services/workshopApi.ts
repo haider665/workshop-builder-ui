@@ -1993,6 +1993,18 @@ export const workshopApi = {
     return request<import('../types/inventoryWorkflow').InventoryListResponse>(`/api/method/workshop.api.parts.inventory${buildQuery(params)}`)
   },
 
+  async getInventoryDetail(params: { company?: string; partId?: string; itemCode?: string; warehouseId?: string }): Promise<import('../types/inventoryWorkflow').InventoryDetailResponse> {
+    return request<import('../types/inventoryWorkflow').InventoryDetailResponse>(`/api/method/workshop.api.parts.inventory_detail${buildQuery(params)}`)
+  },
+
+  async updateInventoryDetails(input: import('../types/inventoryWorkflow').UpdateInventoryInput): Promise<import('../types/cw').CWPart> {
+    return request<import('../types/cw').CWPart>('/api/method/workshop.api.parts.inventory_update', { method: 'POST', body: { data: input } })
+  },
+
+  async adjustStock(input: import('../types/inventoryWorkflow').AdjustStockInput): Promise<import('../types/inventoryWorkflow').AdjustStockResponse> {
+    return request<import('../types/inventoryWorkflow').AdjustStockResponse>('/api/method/workshop.api.parts.adjust_stock', { method: 'POST', body: { data: input } })
+  },
+
   async getPart(id: string): Promise<import('../types/cw').CWPart> {
     return request<import('../types/cw').CWPart>(`/api/method/workshop.api.parts.get${buildQuery({ id })}`)
   },
