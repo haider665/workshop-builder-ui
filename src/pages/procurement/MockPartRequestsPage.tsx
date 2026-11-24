@@ -52,12 +52,17 @@ const dispositionColor: Record<PartDisposition, string> = {
 
 type StockSnapshot = {
   stockQuantity?: number
+  stockAvailable?: number
   stockStatus?: string
   quantity?: number
 }
 
+function counterStockCount(item: StockSnapshot) {
+  return Number(item.stockQuantity ?? item.stockAvailable ?? 0)
+}
+
 function hasCounterStock(item: StockSnapshot) {
-  const available = Number(item.stockQuantity ?? 0)
+  const available = counterStockCount(item)
   if (available <= 0) return false
   if (item.stockStatus === 'In Stock') return true
   return available >= Number(item.quantity ?? 1)
@@ -65,8 +70,10 @@ function hasCounterStock(item: StockSnapshot) {
 
 function stockChip(item: PartLineItem) {
   const available = hasCounterStock(item)
-  const label = available ? `In Stock · ${item.stockQuantity ?? 0} available` : 'Pending'
-  const color = available ? '#059669' : '#d97706'
+  const count = counterStockCount(item)
+  const status = item.stockStatus || (available ? 'In Stock' : 'Out of Stock')
+  const label = `${status} · ${count} available`
+  const color = status === 'In Stock' ? '#059669' : status === 'Low Stock' ? '#d97706' : '#dc2626'
   return (
     <Chip
       size="small"
@@ -95,6 +102,7 @@ function lineItemFromServer(row: LivePartRequest): PartLineItem {
     partNumber: row.partNumber,
     quantity: row.quantity ?? 1,
     stockQuantity: row.stockQuantity,
+    stockAvailable: row.stockAvailable,
     stockStatus: row.stockStatus,
     disposition,
     includeInProcurement: row.includeInProcurement !== false,
@@ -346,7 +354,7 @@ function LineItemRow({
               onChange={(e) => setSelectedDisposition(e.target.value as PartDisposition)}
               sx={{ minWidth: 160, '& .MuiOutlinedInput-root': { borderRadius: radii.sm } }}
             >
-              {DISPOSITION_OPTIONS.filter((opt) => opt.value !== 'in_stock' || counterStockAvailable).map((opt) => (
+              {DISPOSITION_OPTIONS.map((opt) => (
                 <MenuItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </MenuItem>
@@ -364,7 +372,7 @@ function LineItemRow({
               value={price || ''}
               onChange={(e) => setPrice(Number(e.target.value))}
               disabled={saving}
-              helperText="Used on the customer quotation for this stock part"
+              helperText={counterStockAvailable ? 'Used on the customer quotation for this stock part' : `No counter stock (${counterStockCount(item)} available); use a vendor option`}
               sx={{ maxWidth: 240, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
             />
             <Button

@@ -120,6 +120,7 @@ export type PartLineItem = {
   unitOfMeasure?: string
   quantity: number
   stockQuantity?: number
+  stockAvailable?: number
   stockStatus?: string
   disposition: PartDisposition
   includeInProcurement?: boolean
