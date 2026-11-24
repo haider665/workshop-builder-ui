@@ -34,6 +34,7 @@ import { useMockProcurementStore } from '../../store/mockProcurementStore'
 import { workshopApi } from '../../services/workshopApi'
 import { useCompanyStore } from '../../store/companyStore'
 import { colors, radii, shadows } from '../../theme/tokens'
+import type { CWPart } from '../../types/cw'
 import type { CustomerQuotation, LivePartRequest, MockPartRequest, PartDisposition, PartLineItem } from '../../types/procurementWorkflow'
 
 const DISPOSITION_OPTIONS: { value: PartDisposition; label: string }[] = [
@@ -55,6 +56,46 @@ type StockSnapshot = {
   stockAvailable?: number
   stockStatus?: string
   quantity?: number
+}
+
+type PartStockEntry = {
+  partId: string
+  stockQuantity: number
+  stockStatus?: string
+  defaultSellPrice: number
+}
+
+const normalizePartNumber = (value?: string | null) => (value || '').trim().toLocaleUpperCase()
+
+function buildPartStockCatalog(parts: CWPart[]) {
+  const catalog: Record<string, PartStockEntry> = {}
+  for (const part of parts) {
+    const entry: PartStockEntry = {
+      partId: part.id,
+      stockQuantity: Number(part.stockCount ?? 0),
+      stockStatus: part.stockStatus,
+      defaultSellPrice: Number(part.defaultSellPrice ?? 0),
+    }
+    for (const number of [part.partNumber, ...(part.alternatePartNumbers || [])]) {
+      const key = normalizePartNumber(number)
+      if (key && !catalog[key]) catalog[key] = entry
+    }
+  }
+  return catalog
+}
+
+function lookupPartStock(partNumber?: string | null, catalog?: Record<string, PartStockEntry>, catalogLoaded = false) {
+  if (!catalogLoaded || !catalog) return undefined
+  const key = normalizePartNumber(partNumber)
+  return key ? catalog[key] : undefined
+}
+
+function resolveStockItem(item: PartLineItem, partNumber?: string | null, catalog?: Record<string, PartStockEntry>, catalogLoaded = false) {
+  const match = lookupPartStock(partNumber, catalog, catalogLoaded)
+  if (!match) {
+    return { ...item, stockQuantity: 0, stockAvailable: 0, stockStatus: 'No Match' }
+  }
+  return { ...item, stockQuantity: match.stockQuantity, stockAvailable: match.stockQuantity, stockStatus: match.stockStatus }
 }
 
 function counterStockCount(item: StockSnapshot) {
@@ -84,6 +125,23 @@ function stockChip(item: PartLineItem) {
         height: 20,
         bgcolor: `${color}15`,
         color,
+        borderRadius: radii.sm,
+      }}
+    />
+  )
+}
+
+function inventoryPriceChip(price: number) {
+  return (
+    <Chip
+      size="small"
+      label={`Inventory price · ৳${price.toLocaleString()}`}
+      sx={{
+        fontWeight: 700,
+        fontSize: '0.68rem',
+        height: 20,
+        bgcolor: '#2563eb15',
+        color: '#2563eb',
         borderRadius: radii.sm,
       }}
     />
@@ -134,9 +192,13 @@ type TriageDetails = Omit<TriageSave, 'partName' | 'partNumber'>
 function LineItemRow({
   item,
   onSave,
+  partStockCatalog,
+  partCatalogLoaded,
 }: {
   item: PartLineItem
   onSave?: (details: TriageSave) => Promise<void>
+  partStockCatalog: Record<string, PartStockEntry>
+  partCatalogLoaded: boolean
 }) {
   const [selectedDisposition, setSelectedDisposition] = useState<PartDisposition>(item.disposition)
   const [saving, setSaving] = useState(false)
@@ -149,7 +211,16 @@ function LineItemRow({
   const [localQty, setLocalQty] = useState(item.localQuantity ?? item.quantity)
   const [localDays, setLocalDays] = useState(item.localDeliveryDays ?? 0)
   const [foreignNote, setForeignNote] = useState(item.foreignNote ?? '')
-  const counterStockAvailable = hasCounterStock(item)
+  const activePartNumber = item.completed ? item.partNumber : partNumber
+  const matchedPartStock = lookupPartStock(activePartNumber, partStockCatalog, partCatalogLoaded)
+  const stockItem = resolveStockItem(item, activePartNumber, partStockCatalog, partCatalogLoaded)
+  const inventoryPrice = Number(matchedPartStock?.defaultSellPrice ?? 0)
+  const counterStockAvailable = hasCounterStock(stockItem)
+
+  useEffect(() => {
+    if (item.completed || !partCatalogLoaded || !partNumber.trim()) return
+    setPrice(inventoryPrice)
+  }, [inventoryPrice, item.completed, partCatalogLoaded, partNumber])
 
   const save = async (details: TriageDetails) => {
     if (!onSave) return
@@ -206,7 +277,8 @@ function LineItemRow({
               <Typography sx={{ fontSize: '0.78rem', color: colors.slate[500] }}>
                 × {item.quantity}{item.unitOfMeasure ? ` ${item.unitOfMeasure}` : ''}
               </Typography>
-              {stockChip(item)}
+              {stockChip(stockItem)}
+              {matchedPartStock ? inventoryPriceChip(inventoryPrice) : null}
               <Chip
                 size="small"
                   label={
@@ -346,7 +418,8 @@ function LineItemRow({
             <Typography sx={{ fontSize: '0.8rem', color: colors.slate[600] }}>
               Qty: {item.quantity}{item.unitOfMeasure ? ` ${item.unitOfMeasure}` : ''}
             </Typography>
-            {stockChip(item)}
+            {stockChip(stockItem)}
+              {matchedPartStock ? inventoryPriceChip(inventoryPrice) : null}
             <TextField
               select
               size="small"
@@ -372,7 +445,11 @@ function LineItemRow({
               value={price || ''}
               onChange={(e) => setPrice(Number(e.target.value))}
               disabled={saving}
-              helperText={counterStockAvailable ? 'Used on the customer quotation for this stock part' : `No counter stock (${counterStockCount(item)} available); use a vendor option`}
+              helperText={!counterStockAvailable
+                ? `No counter stock (${counterStockCount(stockItem)} available); use a vendor option`
+                : matchedPartStock
+                  ? 'Defaulted from inventory price; edit before saving if needed'
+                  : 'Used on the customer quotation for this stock part'}
               sx={{ maxWidth: 240, '& .MuiOutlinedInput-root': { borderRadius: radii.sm, fontSize: '0.85rem' } }}
             />
             <Button
@@ -732,6 +809,39 @@ export function MockPartRequestsPage() {
   const [snack, setSnack] = useState<string | null>(null)
   const [snackError, setSnackError] = useState(false)
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
+  const [partStockCatalog, setPartStockCatalog] = useState<Record<string, PartStockEntry>>({})
+  const [partCatalogLoaded, setPartCatalogLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!selectedCompanyId) {
+      setPartStockCatalog({})
+      setPartCatalogLoaded(false)
+      return
+    }
+    let cancelled = false
+    setPartCatalogLoaded(false)
+    void (async () => {
+      try {
+        const first = await workshopApi.listParts({ page: 1, pageSize: 100, status: 'Active' })
+        const parts = [...first.data]
+        const totalPages = Math.min(Math.ceil((first.meta.total || 0) / 100), 20)
+        for (let page = 2; page <= totalPages; page += 1) {
+          const response = await workshopApi.listParts({ page, pageSize: 100, status: 'Active' })
+          parts.push(...response.data)
+        }
+        if (!cancelled) {
+          setPartStockCatalog(buildPartStockCatalog(parts))
+          setPartCatalogLoaded(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setPartStockCatalog({})
+          setPartCatalogLoaded(false)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [selectedCompanyId])
 
   const handleQuoteChange = (requestId: string, quotation: CustomerQuotation) => {
     useMockProcurementStore.setState((state) => ({
@@ -971,6 +1081,8 @@ export function MockPartRequestsPage() {
                         key={li.id}
                         item={li}
                         onSave={(details) => handleSave(req.id, li.id, details)}
+                        partStockCatalog={partStockCatalog}
+                        partCatalogLoaded={partCatalogLoaded}
                       />
                     ))}
 
