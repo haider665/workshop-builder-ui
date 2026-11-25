@@ -17,9 +17,11 @@ import {
 import {
   Add,
   CalendarToday,
+  CloudUpload,
   Edit,
   FilterList,
   Inventory,
+  Print,
   Search,
 } from '@mui/icons-material'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -74,6 +76,18 @@ type PartDraft = {
   reorderLevel: string
   defaultSellPrice: string
   status: CWPartStatus
+}
+
+type StockDraft = {
+  quantity: string
+  valuationRate: string
+  postingDate: string
+  reason: string
+  grnNo: string
+  poNo: string
+  piNo: string
+  challanNo: string
+  files: File[]
 }
 
 function emptyDraft(): PartDraft {
@@ -145,7 +159,7 @@ export function InventoryTrackerPage() {
   const [editDraft, setEditDraft] = useState({ reorderLevel: '', rackLocation: '', binNumber: '', defaultSellPrice: '', reason: '' })
   const [stockOpen, setStockOpen] = useState(false)
   const [stockSaving, setStockSaving] = useState(false)
-  const [stockDraft, setStockDraft] = useState({ quantity: '', valuationRate: '', postingDate: '', reason: '' })
+  const [stockDraft, setStockDraft] = useState<StockDraft>({ quantity: '', valuationRate: '', postingDate: '', reason: '', grnNo: '', poNo: '', piNo: '', challanNo: '', files: [] })
 
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
@@ -313,7 +327,7 @@ export function InventoryTrackerPage() {
   }
 
   function openStockDialog() {
-    setStockDraft({ quantity: '', valuationRate: '', postingDate: '', reason: '' })
+    setStockDraft({ quantity: '', valuationRate: '', postingDate: '', reason: '', grnNo: '', poNo: '', piNo: '', challanNo: '', files: [] })
     setStockOpen(true)
   }
 
@@ -327,6 +341,11 @@ export function InventoryTrackerPage() {
     setStockSaving(true)
     setDetailError(null)
     try {
+      const attachmentFileIds: string[] = []
+      for (const file of stockDraft.files) {
+        const uploaded = await workshopApi.uploadFile(file, { isPrivate: true })
+        attachmentFileIds.push(uploaded.name)
+      }
       const payload: AdjustStockInput = {
         company: selectedCompanyId || undefined,
         partId: detail.part?.id || undefined,
@@ -334,9 +353,14 @@ export function InventoryTrackerPage() {
         warehouseId: detail.position.warehouseId,
         quantity,
         reason: stockDraft.reason.trim(),
+        attachmentFileIds,
       }
       if (stockDraft.valuationRate.trim()) payload.valuationRate = Number(stockDraft.valuationRate)
       if (stockDraft.postingDate) payload.postingDate = stockDraft.postingDate
+      if (stockDraft.grnNo.trim()) payload.grnNo = stockDraft.grnNo.trim()
+      if (stockDraft.poNo.trim()) payload.poNo = stockDraft.poNo.trim()
+      if (stockDraft.piNo.trim()) payload.piNo = stockDraft.piNo.trim()
+      if (stockDraft.challanNo.trim()) payload.challanNo = stockDraft.challanNo.trim()
       await workshopApi.adjustStock(payload)
       setStockOpen(false)
       await Promise.all([loadPositions(), loadAlerts()])
@@ -971,6 +995,17 @@ export function InventoryTrackerPage() {
                                 </Typography>
                               </Box>
                             </Stack>
+                            {movement.voucherType === 'Stock Entry' ? (
+                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                                <Button
+                                  size="small"
+                                  startIcon={<Print />}
+                                  onClick={() => window.open(workshopApi.stockEntryPrintUrl(movement.voucherId), '_blank', 'noopener,noreferrer')}
+                                >
+                                  Print
+                                </Button>
+                              </Box>
+                            ) : null}
                           </Box>
                         ))}
                       </Stack>
@@ -1087,6 +1122,76 @@ export function InventoryTrackerPage() {
             required
             fullWidth
           />
+          <Box>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: colors.slate[500], mb: 1 }}>
+              Evidence references
+            </Typography>
+            <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  label="GRN No"
+                  value={stockDraft.grnNo}
+                  onChange={(e) => setStockDraft((d) => ({ ...d, grnNo: e.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  label="PO No"
+                  value={stockDraft.poNo}
+                  onChange={(e) => setStockDraft((d) => ({ ...d, poNo: e.target.value }))}
+                  fullWidth
+                />
+              </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  label="PI No"
+                  value={stockDraft.piNo}
+                  onChange={(e) => setStockDraft((d) => ({ ...d, piNo: e.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  label="Challan No"
+                  value={stockDraft.challanNo}
+                  onChange={(e) => setStockDraft((d) => ({ ...d, challanNo: e.target.value }))}
+                  fullWidth
+                />
+              </Stack>
+            </Stack>
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: colors.slate[500], mb: 1 }}>
+              Attached documents
+            </Typography>
+            <Button component="label" variant="outlined" startIcon={<CloudUpload />} disabled={stockSaving}>
+              Attach GRN / PO / PI
+              <input
+                hidden
+                type="file"
+                multiple
+                accept=".pdf,image/*"
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files ?? [])
+                  setStockDraft((d) => ({ ...d, files: [...d.files, ...selected] }))
+                  e.target.value = ''
+                }}
+              />
+            </Button>
+            {stockDraft.files.length ? (
+              <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
+                {stockDraft.files.map((file, index) => (
+                  <Chip
+                    key={`${file.name}-${index}`}
+                    label={file.name}
+                    size="small"
+                    onDelete={() => setStockDraft((d) => ({ ...d, files: d.files.filter((_, i) => i !== index) }))}
+                  />
+                ))}
+              </Stack>
+            ) : (
+              <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400], mt: 1 }}>
+                Optional PDF or image files up to 25 MB each.
+              </Typography>
+            )}
+          </Box>
         </FormDialog>
       </Stack>
     </Box>

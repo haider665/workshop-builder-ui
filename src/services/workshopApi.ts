@@ -2072,6 +2072,10 @@ export const workshopApi = {
     return request<import('../types/inventoryWorkflow').AdjustStockResponse>('/api/method/workshop.api.parts.adjust_stock', { method: 'POST', body: { data: input } })
   },
 
+  stockEntryPrintUrl(id: string): string {
+    return `${apiBaseUrl}/api/method/workshop.api.parts.stock_entry_print${buildQuery({ id })}`
+  },
+
   async getPart(id: string): Promise<import('../types/cw').CWPart> {
     return request<import('../types/cw').CWPart>(`/api/method/workshop.api.parts.get${buildQuery({ id })}`)
   },

@@ -100,11 +100,27 @@ export interface AdjustStockInput {
   valuationRate?: number
   postingDate?: string
   reason: string
+  grnNo?: string
+  poNo?: string
+  piNo?: string
+  challanNo?: string
+  purchaseReceiptId?: string
+  purchaseOrderId?: string
+  purchaseInvoiceId?: string
+  attachmentFileIds?: string[]
+}
+
+export interface InventoryStockAttachment {
+  id: string
+  fileName: string
+  fileUrl: string
 }
 
 export interface AdjustStockResponse {
   movement: InventoryStockEntry
   position: InventoryPosition | null
+  evidence?: Record<string, string>
+  attachments?: InventoryStockAttachment[]
 }
 
 export interface InventoryListResponse {
