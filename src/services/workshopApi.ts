@@ -159,15 +159,23 @@ export type RegistrationOcrResult = {
 export type CWMasterDataRequest = {
   id: string
   company?: string | null
+  requestType: 'Master Data' | 'Stock Entry'
   targetDoctype: string
   targetField: string
   requestedValue: string
   sourceRoute?: string
   context?: Record<string, unknown>
-  sourceDetails?: { appointmentId?: string | null; customerId?: string | null; customerName?: string | null; vehicleId?: string | null; registrationNo?: string | null; appointmentStatus?: string | null }
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
+  stockPayload?: import('../types/inventoryWorkflow').StockRequestPayload
+  sourceDetails?: { appointmentId?: string | null; customerId?: string | null; customerName?: string | null; vehicleId?: string | null; registrationNo?: string | null; appointmentStatus?: string | null; itemCode?: string | null; warehouseId?: string | null; quantity?: number | null; stockEntry?: string | null; stockStatus?: string | null }
+  status: 'Pending' | 'Accepted' | 'Accounts Review' | 'Approved' | 'Rejected' | 'Cancelled'
   requestedBy: string
   requestedAt: string
+  acceptedBy?: string | null
+  acceptedAt?: string | null
+  acceptNote?: string | null
+  accountsRequestedBy?: string | null
+  accountsRequestedAt?: string | null
+  accountsRequestNote?: string | null
   reviewedBy?: string | null
   reviewedAt?: string | null
   reviewNote?: string | null
@@ -2394,8 +2402,14 @@ export const workshopApi = {
   async ensureProvisionalItemRequest(id: string): Promise<CWMasterDataRequest> {
     return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.ensure_provisional_item', { method: 'POST', body: { data: { id } } })
   },
-  async listMasterDataRequests(params: { company?: string; status?: string; mine?: boolean; search?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
+  async listMasterDataRequests(params: { company?: string; status?: string; requestType?: string; mine?: boolean; search?: string; page?: number; pageSize?: number } = {}): Promise<ApiListResponse<CWMasterDataRequest>> {
     return request<ApiListResponse<CWMasterDataRequest>>(`/api/method/workshop.api.master_data_requests.list${buildQuery(params)}`)
+  },
+  async acceptMasterDataRequest(id: string, note?: string): Promise<CWMasterDataRequest> {
+    return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.accept', { method: 'POST', body: { data: { id, note } } })
+  },
+  async requestAccountsForMasterDataRequest(id: string, note?: string): Promise<CWMasterDataRequest> {
+    return request<CWMasterDataRequest>('/api/method/workshop.api.master_data_requests.request_accounts', { method: 'POST', body: { data: { id, note } } })
   },
   async masterDataRequestFields(doctype: string): Promise<{ data: Array<{ fieldname: string; label: string; fieldtype: string; options?: string | null; choices?: string[]; required: boolean; default?: unknown }> }> {
     return request(`/api/method/workshop.api.master_data_requests.fields${buildQuery({ doctype })}`)

@@ -107,6 +107,9 @@ export function AppRouter() {
             <Route path="/admin/parts" element={<PartsPage />} />
             <Route path="/admin/part-requests" element={<PartRequestsPage />} />
             <Route path="/admin/reports" element={<AdminReportsPage />} />
+          </Route>
+
+          <Route element={<RequireRole anyOf={['Admin', 'Parts Manager', 'Store Keeper', 'Accounts', 'Accounts User', 'Accounts Manager']} />}>
             <Route path="/admin/data-requests" element={<AdminDataRequestsPage />} />
           </Route>
 

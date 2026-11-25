@@ -35,6 +35,7 @@ import { colors, pageLayout, shadows, radii } from '../../theme/tokens'
 import { useCwStore } from '../../store/cwStore'
 import { useBackendData } from '../../hooks/useCREData'
 import { useCompanyStore } from '../../store/companyStore'
+import { useToast } from '../../hooks/useToast'
 
 /* ─────────────────────── Constants ─────────────────────────── */
 
@@ -137,6 +138,7 @@ const stockChipProps: Record<StockLevel, { bg: string; color: string }> = {
 /* ─────────────────────── Component ──────────────────────────── */
 
 export function InventoryTrackerPage() {
+  const toast = useToast()
   const [positions, setPositions] = useState<InventoryPosition[]>([])
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([])
   const [selectedWarehouse, setSelectedWarehouse] = useState('')
@@ -361,9 +363,9 @@ export function InventoryTrackerPage() {
       if (stockDraft.poNo.trim()) payload.poNo = stockDraft.poNo.trim()
       if (stockDraft.piNo.trim()) payload.piNo = stockDraft.piNo.trim()
       if (stockDraft.challanNo.trim()) payload.challanNo = stockDraft.challanNo.trim()
-      await workshopApi.adjustStock(payload)
+      const response = await workshopApi.adjustStock(payload)
       setStockOpen(false)
-      await Promise.all([loadPositions(), loadAlerts()])
+      toast.success(response.request ? 'Draft stock receipt created. Accept and forward it from Data Requests before inventory is posted.' : 'Stock added.')
       await loadDetail(detail.position)
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : 'Failed to add stock')
@@ -957,6 +959,61 @@ export function InventoryTrackerPage() {
                         {detail.item.itemName} ({detail.item.itemCode}) · {detail.item.uom || '—'} · valuation{' '}
                         <strong>{formatMoney(detail.item.valuationRate)}</strong>
                       </Typography>
+                    </Box>
+                  ) : null}
+
+                  {detail.pendingReceipts?.length ? (
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, color: colors.slate[900], mb: 1.25 }}>
+                        Pending Stock Receipts
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: colors.slate[500], mb: 1.25 }}>
+                        Draft receipts are awaiting acceptance/Accounts approval and are not included in stock balance yet.
+                      </Typography>
+                      <Stack spacing={1}>
+                        {detail.pendingReceipts.map((receipt) => (
+                          <Box
+                            key={receipt.id}
+                            sx={{
+                              border: `1px solid ${colors.border.default}`,
+                              borderRadius: radii.sm,
+                              p: 1.5,
+                              bgcolor: colors.slate[50],
+                            }}
+                          >
+                            <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
+                              <Box>
+                                <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                  <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: colors.slate[800] }}>
+                                    {receipt.stockEntry}
+                                  </Typography>
+                                  <Chip size="small" label={receipt.status} />
+                                </Stack>
+                                <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
+                                  Request {receipt.id} · {receipt.requestedBy} · {receipt.reason || 'No reason'}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'right' }}>
+                                <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: colors.slate[800] }}>
+                                  +{receipt.quantity}
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.75rem', color: colors.slate[400] }}>
+                                  pending
+                                </Typography>
+                              </Box>
+                            </Stack>
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                              <Button
+                                size="small"
+                                startIcon={<Print />}
+                                onClick={() => window.open(workshopApi.stockEntryPrintUrl(receipt.stockEntry), '_blank', 'noopener,noreferrer')}
+                              >
+                                Print draft
+                              </Button>
+                            </Box>
+                          </Box>
+                        ))}
+                      </Stack>
                     </Box>
                   ) : null}
 

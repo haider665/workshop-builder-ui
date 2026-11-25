@@ -73,11 +73,22 @@ export interface InventoryPermissions {
   canAdjustStock: boolean
 }
 
+export interface InventoryPendingReceipt {
+  id: string
+  status: 'Pending' | 'Accepted' | 'Accounts Review'
+  stockEntry: string
+  quantity: number
+  reason: string
+  requestedBy: string
+  createdAt: string
+}
+
 export interface InventoryDetailResponse {
   position: InventoryPosition
   part: import('./cw').CWPart | null
   item: InventoryItemDetail | null
   movements: InventoryMovement[]
+  pendingReceipts: InventoryPendingReceipt[]
   permissions: InventoryPermissions
 }
 
@@ -116,11 +127,35 @@ export interface InventoryStockAttachment {
   fileUrl: string
 }
 
+export interface StockRequestPayload {
+  stockEntry: string
+  itemCode: string
+  partId?: string | null
+  warehouseId: string
+  quantity: number
+  valuationRate: number
+  postingDate: string
+  reason: string
+  evidence: Record<string, string>
+  attachments: InventoryStockAttachment[]
+  postedAt?: string
+  postedBy?: string
+  approvalNote?: string
+}
+
+export interface StockRequestSummary {
+  id: string
+  status: 'Pending' | 'Accepted' | 'Accounts Review' | 'Approved' | 'Rejected' | 'Cancelled'
+  requestType: 'Master Data' | 'Stock Entry'
+  stockPayload?: StockRequestPayload
+}
+
 export interface AdjustStockResponse {
   movement: InventoryStockEntry
   position: InventoryPosition | null
   evidence?: Record<string, string>
   attachments?: InventoryStockAttachment[]
+  request?: StockRequestSummary
 }
 
 export interface InventoryListResponse {

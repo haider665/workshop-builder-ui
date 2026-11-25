@@ -620,6 +620,7 @@ function QuotationDialog({ open, onClose, onSave, parts, initial, company, caseI
                                 onMasterDataRequested?.({
                                   id: requestId,
                                   company,
+                                  requestType: 'Master Data',
                                   targetDoctype: 'Item',
                                   targetField: 'item_name',
                                   requestedValue: requestedValue || li.partName,
