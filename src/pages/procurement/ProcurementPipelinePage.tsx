@@ -224,7 +224,7 @@ export function ProcurementPipelinePage() {
                     <TableRow
                       key={c.id}
                       hover
-                      onClick={() => navigate(`/mock-procurement/pipeline/${c.id}`)}
+                      onClick={() => navigate(`/procurement/pipeline/${c.id}`)}
                       sx={{
                         cursor: 'pointer',
                         '& .MuiTableCell-body': bodyCellSx,

@@ -17,6 +17,9 @@ export type Role =
   | 'Accounts'
   | 'Accounts User'
   | 'Accounts Manager'
+  | 'Audit'
+  | 'GM'
+  | 'Management'
 
 export const CORE_ROLES: Role[] = ['Admin', 'Guard', 'Job Creation']
 
@@ -36,6 +39,9 @@ export const OPTIONAL_ROLES: Role[] = [
   'Accounts',
   'Accounts User',
   'Accounts Manager',
+  'Audit',
+  'GM',
+  'Management',
 ]
 
 export const ALL_ROLES: Role[] = [...CORE_ROLES, ...OPTIONAL_ROLES]

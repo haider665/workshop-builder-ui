@@ -2424,7 +2424,7 @@ export const workshopApi = {
   async procurementCase(id: string): Promise<Record<string, unknown>> {
     return request(`/api/method/workshop.api.accounting.procurement_cases.get${buildQuery({ id })}`)
   },
-  async procurementCaseActions(id: string): Promise<{ caseId: string; stage: string; actions: Array<{ action: string; label: string; allowed: boolean; requiresReason: boolean; disabledReason?: string | null; toStage: string }> }> {
+  async procurementCaseActions(id: string): Promise<{ caseId: string; stage: string; actions: Array<{ action: string; label: string; requiredRole?: string | null; allowed: boolean; roleAllowed?: boolean; missing?: string[]; requiresReason: boolean; disabledReason?: string | null; toStage: string }>; roles?: string[] }> {
     return request(`/api/method/workshop.api.accounting.procurement_cases.available_actions${buildQuery({ id })}`)
   },
   async procurementCaseAction(id: string, action: string, note?: string, extra?: Record<string, unknown>): Promise<Record<string, unknown>> {

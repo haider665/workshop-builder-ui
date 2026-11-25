@@ -1044,7 +1044,7 @@ export function MockPartRequestsPage() {
                         variant="outlined"
                         onClick={(event) => {
                           event.stopPropagation()
-                          navigate(`/mock-procurement/pipeline/${req.procurementCaseId}`)
+                          navigate(`/procurement/pipeline/${req.procurementCaseId}`)
                         }}
                         sx={{ textTransform: 'none', fontWeight: 700, borderRadius: radii.sm }}
                       >
@@ -1101,7 +1101,7 @@ export function MockPartRequestsPage() {
                       <Button
                         variant="contained"
                         size="large"
-                        onClick={() => navigate('/mock-procurement/approvals')}
+                        onClick={() => navigate('/procurement/approvals')}
                         sx={{
                           mt: 1,
                           bgcolor: colors.slate[900],

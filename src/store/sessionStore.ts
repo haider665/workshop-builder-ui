@@ -50,6 +50,18 @@ function roleFromBackend(session: AuthSessionDto): Role[] {
   if (hasAnyRole(roleIds, ['Service Engineer', 'SE', 'CW Service Engineer'])) roles.add('Service Engineer')
   if (hasAnyRole(roleIds, ['QC', 'Quality Controller', 'CW QC'])) roles.add('QC')
   if (hasAnyRole(roleIds, ['Parts', 'CW Parts', 'Store Keeper', 'Picker', 'Estimator', 'Parts Buyer / Estimator', 'Parts Manager'])) roles.add('Parts')
+  if (hasAnyRole(roleIds, ['Parts Manager', 'CW Parts Manager'])) roles.add('Parts Manager')
+  if (hasAnyRole(roleIds, ['Parts Buyer / Estimator', 'Estimator', 'CW Parts Buyer / Estimator'])) roles.add('Parts Buyer / Estimator')
+  if (hasAnyRole(roleIds, ['Store Keeper', 'CW Store Keeper'])) roles.add('Store Keeper')
+  if (hasAnyRole(roleIds, ['Procurement', 'CW Procurement'])) roles.add('Procurement')
+  if (hasAnyRole(roleIds, ['Procurement User', 'Purchase User', 'CW Procurement User'])) roles.add('Procurement User')
+  if (hasAnyRole(roleIds, ['Procurement Manager', 'Purchase Manager', 'CW Procurement Manager'])) roles.add('Procurement Manager')
+  if (hasAnyRole(roleIds, ['Accounts', 'CW Accounts'])) roles.add('Accounts')
+  if (hasAnyRole(roleIds, ['Accounts User', 'CW Accounts User'])) roles.add('Accounts User')
+  if (hasAnyRole(roleIds, ['Accounts Manager', 'CW Accounts Manager'])) roles.add('Accounts Manager')
+  if (hasAnyRole(roleIds, ['Audit', 'CS Approver', 'CW Audit'])) roles.add('Audit')
+  if (hasAnyRole(roleIds, ['GM', 'General Manager', 'CW GM'])) roles.add('GM')
+  if (hasAnyRole(roleIds, ['Management', 'ED', 'MD', 'Chairman', 'CW Management'])) roles.add('Management')
 
   return [...roles]
 }

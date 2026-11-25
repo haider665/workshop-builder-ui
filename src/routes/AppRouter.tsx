@@ -1,7 +1,8 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { Box, CircularProgress } from '@mui/material'
 import { RequireAuth, RequireRole } from './ProtectedRoute'
+import type { Role } from '../types/roles'
 import { AppShell } from '../components/AppShell'
 const LoginPage = lazy(() => import('../pages/LoginPage').then((module) => ({ default: module.LoginPage })))
 const LandingRedirect = lazy(() => import('../pages/LandingRedirect').then((module) => ({ default: module.LandingRedirect })))
@@ -75,6 +76,13 @@ const ProcurementPipelinePage = lazy(() => import('../pages/procurement/Procurem
 const ProcurementCaseDetailPage = lazy(() => import('../pages/procurement/ProcurementCaseDetailPage').then((module) => ({ default: module.ProcurementCaseDetailPage })))
 const MockProcurementPolicyPage = lazy(() => import('../pages/procurement/MockProcurementPolicyPage').then((module) => ({ default: module.MockProcurementPolicyPage })))
 
+const PROCUREMENT_GUIDED_ROLES: Role[] = ['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Procurement', 'Procurement User', 'Procurement Manager', 'Accounts', 'Accounts User', 'Accounts Manager', 'Audit', 'GM', 'Management', 'Admin']
+
+function LegacyProcurementCaseRedirect() {
+  const { caseId } = useParams<{ caseId: string }>()
+  return <Navigate to={`/procurement/pipeline/${caseId ?? ''}`} replace />
+}
+
 export function AppRouter() {
   return (
     <Suspense fallback={<Box sx={{ minHeight: '40vh', display: 'grid', placeItems: 'center' }}><CircularProgress size={28} /></Box>}>
@@ -120,8 +128,15 @@ export function AppRouter() {
             <Route path="/parts/vendors" element={<VendorManagementPage />} />
           </Route>
 
-          <Route element={<RequireRole anyOf={['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Procurement', 'Procurement User', 'Procurement Manager', 'Accounts', 'Accounts User', 'Accounts Manager', 'Admin']} />}>
-            <Route path="/procurement" element={<FinanceWorkspacePage workspace="procurement" initialTab="procurement" />} />
+          <Route element={<RequireRole anyOf={PROCUREMENT_GUIDED_ROLES} />}>
+            <Route path="/procurement" element={<ProcurementPipelinePage />} />
+            <Route path="/procurement/requests" element={<MockPartRequestsPage />} />
+            <Route path="/procurement/approvals" element={<MockCustomerApprovalPage />} />
+            <Route path="/procurement/pipeline/:caseId" element={<ProcurementCaseDetailPage />} />
+            <Route path="/procurement/policy" element={<MockProcurementPolicyPage />} />
+            <Route path="/procurement/workspace" element={<FinanceWorkspacePage workspace="procurement" initialTab="procurement" />} />
+          </Route>
+          <Route element={<RequireRole anyOf={['Accounts', 'Accounts User', 'Accounts Manager', 'Admin']} />}>
             <Route path="/accounting" element={<FinanceWorkspacePage workspace="accounting" initialTab="accounting" />} />
           </Route>
 
@@ -224,12 +239,12 @@ export function AppRouter() {
 
           <Route path="/notifications" element={<NotificationsPage />} />
 
-          {/* Mock Procurement — no role gating */}
-          <Route path="/mock-procurement/requests" element={<MockPartRequestsPage />} />
-          <Route path="/mock-procurement/approvals" element={<MockCustomerApprovalPage />} />
-          <Route path="/mock-procurement/pipeline" element={<ProcurementPipelinePage />} />
-          <Route path="/mock-procurement/pipeline/:caseId" element={<ProcurementCaseDetailPage />} />
-          <Route path="/mock-procurement/policy" element={<MockProcurementPolicyPage />} />
+          <Route path="/mock-procurement" element={<Navigate to="/procurement" replace />} />
+          <Route path="/mock-procurement/requests" element={<Navigate to="/procurement/requests" replace />} />
+          <Route path="/mock-procurement/approvals" element={<Navigate to="/procurement/approvals" replace />} />
+          <Route path="/mock-procurement/pipeline" element={<Navigate to="/procurement" replace />} />
+          <Route path="/mock-procurement/pipeline/:caseId" element={<LegacyProcurementCaseRedirect />} />
+          <Route path="/mock-procurement/policy" element={<Navigate to="/procurement/policy" replace />} />
 
           <Route path="*" element={<NotFoundPage />} />
         </Route>

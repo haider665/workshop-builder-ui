@@ -25,7 +25,7 @@ export function RequireRole(props: { anyOf: Role[] }) {
   // Administrator account or Workshop Admin. A regular Admin is limited to
   // the workspace links; the two elevated tiers retain their broader access.
   const regularAdmin = user.roles.includes('Admin') && !user.isWorkshopAdmin && !user.isAdministrator
-  const workspacePath = ['/admin', '/test-drives', '/service-orders'].includes(location.pathname)
+  const workspacePath = ['/admin', '/test-drives', '/service-orders'].includes(location.pathname) || location.pathname.startsWith('/procurement')
   const allowed = user.isAdministrator || user.isWorkshopAdmin
     ? true
     : regularAdmin

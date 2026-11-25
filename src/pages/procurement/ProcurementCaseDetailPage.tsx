@@ -1724,6 +1724,7 @@ export function ProcurementCaseDetailPage() {
   const selectedCompanyId = useCompanyStore((s) => s.selectedCompanyId)
   const [backendPc, setBackendPc] = useState<ProcurementCase | null>(null)
   const [masterDataRequests, setMasterDataRequests] = useState<CWMasterDataRequest[]>([])
+  const [caseActions, setCaseActions] = useState<{ stage: string; actions: Array<{ action: string; label: string; requiredRole?: string | null; allowed: boolean; roleAllowed?: boolean; missing?: string[]; disabledReason?: string | null; toStage: string }>; roles?: string[] } | null>(null)
   const [backendError, setBackendError] = useState<string | null>(null)
   const [approvalQuotationId, setApprovalQuotationId] = useState('')
   const [quotationDialog, setQuotationDialog] = useState(false)
@@ -1759,6 +1760,14 @@ export function ProcurementCaseDetailPage() {
       .catch(() => { if (!cancelled) setMasterDataRequests([]) })
     return () => { cancelled = true }
   }, [caseId, selectedCompanyId])
+  useEffect(() => {
+    if (!backendPc?.id || !selectedCompanyId) return
+    let cancelled = false
+    void workshopApi.procurementCaseActions(backendPc.id)
+      .then((result) => { if (!cancelled) setCaseActions(result) })
+      .catch(() => { if (!cancelled) setCaseActions(null) })
+    return () => { cancelled = true }
+  }, [backendPc?.id, backendPc?.currentStep, backendPc?.status, selectedCompanyId])
   const pc = backendPc || cases.find((c) => c.id === caseId)
   const procurementParts = useMemo(
     () => (pc?.parts || []).filter((part) => part.includeInProcurement !== false),
@@ -1848,7 +1857,7 @@ export function ProcurementCaseDetailPage() {
     return (
       <Box sx={{ py: 6, textAlign: 'center' }}>
         <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: colors.slate[600] }}>{backendError || 'Case not found'}</Typography>
-        <Button onClick={() => navigate('/mock-procurement/pipeline')} sx={{ mt: 2 }}>Back to Pipeline</Button>
+        <Button onClick={() => navigate('/procurement')} sx={{ mt: 2 }}>Back to Pipeline</Button>
       </Box>
     )
   }
@@ -1974,7 +1983,7 @@ export function ProcurementCaseDetailPage() {
     if (targetStep === 'po') setTimeout(() => generatePOs(pc.id), 0)
     setActionNote('')
     setSnack(`${PROCUREMENT_STEP_LABELS[pc.currentStep]} — Done`)
-    navigate('/mock-procurement/pipeline')
+    navigate('/procurement')
   }
 
   const handleReject = async () => {
@@ -1992,7 +2001,7 @@ export function ProcurementCaseDetailPage() {
     setRejectNote('')
     setShowReject(false)
     setSnack(`${PROCUREMENT_STEP_LABELS[pc.currentStep]} — Rejected`)
-    navigate('/mock-procurement/pipeline')
+    navigate('/procurement')
   }
 
   const handleCSSubmit = async () => {
@@ -2027,7 +2036,7 @@ export function ProcurementCaseDetailPage() {
     advanceStep(pc.id, { action: 'submit', actionByName: userName, actionDate: new Date().toISOString(), note: csNote.trim() || `Vendors selected for ${items.length} parts` }, skippedProcurementSteps(policyPreview))
     if (targetStep === 'po') setTimeout(() => generatePOs(pc.id), 0)
     setSnack('CS Decision submitted')
-    navigate('/mock-procurement/pipeline')
+    navigate('/procurement')
   }
 
   return (
@@ -2039,7 +2048,7 @@ export function ProcurementCaseDetailPage() {
 
         {/* Header */}
         <Stack direction="row" sx={{ alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-          <IconButton onClick={() => navigate('/mock-procurement/pipeline')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
+          <IconButton onClick={() => navigate('/procurement')} sx={{ border: `1px solid ${colors.border.default}`, borderRadius: '10px' }}>
             <ArrowBack sx={{ fontSize: '1.1rem', color: colors.slate[600] }} />
           </IconButton>
           <Box sx={{ flex: 1 }}>
@@ -2098,7 +2107,7 @@ export function ProcurementCaseDetailPage() {
             ) : null}
             {policyPreview ? (
               <Alert severity={policyPreview.skippedStages.length ? 'info' : 'success'} sx={{ borderRadius: radii.sm, mb: 1.5 }}
-                action={<Button size="small" onClick={() => navigate('/mock-procurement/policy')}>Edit policy</Button>}>
+                action={<Button size="small" onClick={() => navigate('/procurement/policy')}>Edit policy</Button>}>
                 <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
                   Policy route: {policyPreview.requiredStages.join(' → ') || 'Direct PO'}
                 </Typography>
@@ -2106,6 +2115,25 @@ export function ProcurementCaseDetailPage() {
                   Skipped by policy: {policyPreview.skippedStages.join(', ') || 'None'}
                   {policyPreview.singleVendorCsSkipped ? ' · Single-vendor foreign CS skipped' : ''}
                   {` · ${escalationLabel}`}
+                </Typography>
+              </Alert>
+            ) : null}
+            {caseActions?.actions.length ? (
+              <Alert severity={caseActions.actions.some((action) => action.allowed) ? 'success' : 'warning'} sx={{ borderRadius: radii.sm, mb: 1.5 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', mb: 0.75 }}>Role authorization for this step</Typography>
+                <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                  {caseActions.actions.map((action) => (
+                    <Chip
+                      key={action.action}
+                      size="small"
+                      color={action.allowed ? 'success' : action.roleAllowed ? 'warning' : 'default'}
+                      label={`${action.label}: ${action.allowed ? 'can approve' : action.roleAllowed ? 'blocked by checklist' : `needs ${action.requiredRole || 'stage role'}`}`}
+                    />
+                  ))}
+                </Stack>
+                <Typography sx={{ fontSize: '0.72rem', mt: 0.75 }}>
+                  Server result: {caseActions.actions.filter((action) => action.allowed).map((action) => action.label).join(', ') || 'no action available to this user'}
+                  {caseActions.roles?.length ? ` · Active roles: ${caseActions.roles.join(', ')}` : ''}
                 </Typography>
               </Alert>
             ) : null}

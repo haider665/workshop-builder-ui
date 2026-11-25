@@ -53,7 +53,6 @@ import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Role } from '../types/roles'
-import { ALL_ROLES } from '../types/roles'
 import { supportedLocales, useLocalization } from '../i18n/LocalizationContext'
 import { useSessionStore } from '../store/sessionStore'
 import { useCwStore } from '../store/cwStore'
@@ -69,7 +68,8 @@ const SPRING_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const PARTS_ROLES: Role[] = ['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Store Keeper', 'Admin']
 const PROCUREMENT_ROLES: Role[] = ['Procurement', 'Procurement User', 'Procurement Manager', 'Admin']
 const ACCOUNTING_ROLES: Role[] = ['Accounts', 'Accounts User', 'Accounts Manager', 'Admin']
-const FINANCE_ROLES: Role[] = [...new Set([...PARTS_ROLES, ...PROCUREMENT_ROLES, ...ACCOUNTING_ROLES])] as Role[]
+const PROCUREMENT_APPROVER_ROLES: Role[] = ['Audit', 'GM', 'Management']
+const FINANCE_ROLES: Role[] = [...new Set([...PARTS_ROLES, ...PROCUREMENT_ROLES, ...ACCOUNTING_ROLES, ...PROCUREMENT_APPROVER_ROLES])] as Role[]
 
 /* ─────────────────── Dark Sidebar Palette ─────────────────── */
 
@@ -215,21 +215,21 @@ export function AppShell() {
       { kind: 'link', label: 'Inventory Tracker', to: '/parts/inventory', icon: <Inventory />, anyOfRoles: PARTS_ROLES },
       { kind: 'link', label: 'Estimator', to: '/parts/estimator', icon: <Calculate />, anyOfRoles: ['Parts', 'Parts Manager', 'Parts Buyer / Estimator', 'Admin'] },
       { kind: 'link', label: 'Part Requests', to: '/parts/part-requests', icon: <ReceiptLong />, anyOfRoles: PARTS_ROLES },
-      { kind: 'section', label: 'Procurement', anyOfRoles: PROCUREMENT_ROLES },
+      { kind: 'section', label: 'Procurement', anyOfRoles: FINANCE_ROLES },
+      { kind: 'link', label: 'Pipeline', to: '/procurement', icon: <ShoppingCart />, anyOfRoles: FINANCE_ROLES },
+      { kind: 'link', label: 'Request Triage', to: '/procurement/requests', icon: <ReceiptLong />, anyOfRoles: FINANCE_ROLES },
+      { kind: 'link', label: 'Customer Approval', to: '/procurement/approvals', icon: <TaskAlt />, anyOfRoles: FINANCE_ROLES },
+      { kind: 'link', label: 'Policy Settings', to: '/procurement/policy', icon: <Settings />, anyOfRoles: FINANCE_ROLES },
+      { kind: 'link', label: 'Workspace (Legacy)', to: '/procurement/workspace', icon: <ShoppingCart />, anyOfRoles: FINANCE_ROLES },
       { kind: 'link', label: 'Purchase Orders & Receipts', to: '/parts/purchase-orders', icon: <ShoppingCart />, anyOfRoles: PROCUREMENT_ROLES },
       { kind: 'link', label: 'Supplier Management', to: '/parts/vendors', icon: <Storefront />, anyOfRoles: PROCUREMENT_ROLES },
       { kind: 'link', label: 'Procurement Requests', to: '/parts/part-requests', icon: <ReceiptLong />, anyOfRoles: PROCUREMENT_ROLES },
       { kind: 'section', label: 'Accounting Handoff', anyOfRoles: ACCOUNTING_ROLES },
       { kind: 'link', label: 'Service Orders & Billing', to: '/service-orders', icon: <ReceiptLong />, anyOfRoles: ACCOUNTING_ROLES },
       { kind: 'section', label: 'Accounting & Procurement', anyOfRoles: FINANCE_ROLES },
-      { kind: 'link', label: 'Procurement Workspace', to: '/procurement', icon: <ShoppingCart />, anyOfRoles: [...new Set([...PARTS_ROLES, ...PROCUREMENT_ROLES])] as Role[] },
+      { kind: 'link', label: 'Procurement Pipeline', to: '/procurement', icon: <ShoppingCart />, anyOfRoles: FINANCE_ROLES },
+      { kind: 'link', label: 'Procurement Workspace (Legacy)', to: '/procurement/workspace', icon: <ShoppingCart />, anyOfRoles: FINANCE_ROLES },
       { kind: 'link', label: 'Accounting Workspace', to: '/accounting', icon: <Calculate />, anyOfRoles: ACCOUNTING_ROLES },
-
-      { kind: 'section', label: 'Mock Procurement', anyOfRoles: ALL_ROLES },
-      { kind: 'link', label: 'Part Requests', to: '/mock-procurement/requests', icon: <ReceiptLong />, anyOfRoles: ALL_ROLES },
-      { kind: 'link', label: 'Customer Approval', to: '/mock-procurement/approvals', icon: <TaskAlt />, anyOfRoles: ALL_ROLES },
-      { kind: 'link', label: 'Pipeline', to: '/mock-procurement/pipeline', icon: <ShoppingCart />, anyOfRoles: ALL_ROLES },
-      { kind: 'link', label: 'Policy Settings', to: '/mock-procurement/policy', icon: <Settings />, anyOfRoles: ALL_ROLES },
 
       {
         kind: 'link',

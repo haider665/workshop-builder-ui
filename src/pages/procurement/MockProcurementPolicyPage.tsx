@@ -141,7 +141,7 @@ export function MockProcurementPolicyPage() {
       </Snackbar>
       <Stack spacing={3}>
         <Stack direction="row" sx={{ alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-          <Button startIcon={<ArrowBack />} onClick={() => navigate('/mock-procurement/pipeline')} sx={{ fontWeight: 700, textTransform: 'none' }}>Back to Pipeline</Button>
+          <Button startIcon={<ArrowBack />} onClick={() => navigate('/procurement')} sx={{ fontWeight: 700, textTransform: 'none' }}>Back to Pipeline</Button>
           <Box sx={{ flex: 1 }}>
             <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.3rem', md: '1.6rem' }, color: colors.slate[900], letterSpacing: '-0.02em' }}>
               CWL Parts Procurement Policy
