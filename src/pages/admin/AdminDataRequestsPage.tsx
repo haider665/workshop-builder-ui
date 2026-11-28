@@ -1,6 +1,7 @@
 import { Assignment, CheckCircle, Close, Refresh, Send } from '@mui/icons-material'
 import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { workshopApi, type CWMasterDataRequest } from '../../services/workshopApi'
 import { useToast } from '../../hooks/useToast'
 import { SectionCard } from '../../components/SectionCard'
@@ -20,6 +21,7 @@ function statusColor(status: string): 'default' | 'info' | 'warning' | 'success'
 
 export function AdminDataRequestsPage() {
   const toast = useToast()
+  const navigate = useNavigate()
   const [rows, setRows] = useState<CWMasterDataRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [review, setReview] = useState<{ row: CWMasterDataRequest; action: ReviewAction } | null>(null)
@@ -138,7 +140,7 @@ export function AdminDataRequestsPage() {
       </Stack>
     </Box>
     <Alert severity="info" sx={{ mb: 3 }}>
-      Stock receipts remain drafts until a stock manager accepts them, the requester sends them to Accounts, and Accounts approves them. Approval posts the ERPNext Stock Entry and permanently changes inventory.
+      Stock receipts remain drafts until a stock manager accepts them, the requester sends them to Accounts, and The Accountant approves the linked Stock Receipt Settlement clearance. Approval posts the ERPNext Stock Entry, creates the supplier payable, and permanently changes inventory.
     </Alert>
     <SectionCard title={`${status === 'All' ? 'All' : status} requests (${rows.length})`} icon={<Assignment />}>
       <Tabs value={status} onChange={(_, value: RequestStatus) => setStatus(value)} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
@@ -183,7 +185,9 @@ export function AdminDataRequestsPage() {
                   </Typography>}
                   {Boolean(row.context?.requesterNote) && <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>Note: {String(row.context?.requesterNote)}</Typography>}
                   {row.acceptedBy && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Accepted by {row.acceptedBy} · {row.acceptedAt ? new Date(row.acceptedAt).toLocaleString() : '—'} · {row.acceptNote || 'No note'}</Typography>}
-                  {row.accountsRequestedBy && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Sent to Accounts by {row.accountsRequestedBy} · {row.accountsRequestedAt ? new Date(row.accountsRequestedAt).toLocaleString() : '—'} · {row.accountsRequestNote || 'No note'}</Typography>}
+                   {row.accountsRequestedBy && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Sent to Accounts by {row.accountsRequestedBy} · {row.accountsRequestedAt ? new Date(row.accountsRequestedAt).toLocaleString() : '—'} · {row.accountsRequestNote || 'No note'}</Typography>}
+                   {row.sourceDetails?.accountsClearanceId && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Accountant clearance: {row.sourceDetails.accountsClearanceId} · {row.sourceDetails.accountsClearanceStatus || 'Requested'}</Typography>}
+
                   {row.reviewedBy && <Box sx={{ mt: 1, p: 1.25, bgcolor: row.status === 'Approved' ? 'success.50' : 'error.50', borderRadius: 1.5 }}>
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.status} by {row.reviewedBy} · {row.reviewedAt ? new Date(row.reviewedAt).toLocaleString() : '—'}</Typography>
                     <Typography variant="body2" color="text.secondary">Reason / review note: {row.reviewNote || 'No reason recorded.'}</Typography>
@@ -198,10 +202,15 @@ export function AdminDataRequestsPage() {
                     <Button size="small" variant="contained" startIcon={<Send />} onClick={() => openReview(row, 'requestAccounts')}>Request Accounts</Button>
                     <Button size="small" variant="outlined" color="error" startIcon={<Close />} onClick={() => openReview(row, 'reject')}>Reject</Button>
                   </>}
-                  {isStock && row.status === 'Accounts Review' && <>
-                    <Button size="small" variant="contained" color="success" startIcon={<CheckCircle />} onClick={() => openReview(row, 'approve')}>Approve</Button>
-                    <Button size="small" variant="outlined" color="error" startIcon={<Close />} onClick={() => openReview(row, 'reject')}>Reject</Button>
-                  </>}
+                  {isStock && row.status === 'Accounts Review' && <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<Send />}
+                    disabled={!row.sourceDetails?.accountsClearanceId}
+                    onClick={() => navigate(`/accounting?clearance=${encodeURIComponent(row.sourceDetails?.accountsClearanceId || '')}`)}
+                  >
+                    Open in The Accountant
+                  </Button>}
                   {!isStock && row.status === 'Pending' && <>
                     <Button size="small" variant="contained" color="success" startIcon={<CheckCircle />} onClick={() => openReview(row, 'approve')}>Approve</Button>
                     <Button size="small" variant="outlined" color="error" startIcon={<Close />} onClick={() => openReview(row, 'reject')}>Reject</Button>

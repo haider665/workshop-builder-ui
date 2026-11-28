@@ -110,6 +110,31 @@ export type GatepassSettlementDetailDto = {
   [key: string]: unknown
 }
 
+export type StockSettlementDetailDto = {
+  masterDataRequestId?: string | null
+  masterDataRequestStatus?: string | null
+  stockEntryId?: string | null
+  stockEntryDocstatus?: number | null
+  itemCode?: string | null
+  warehouseId?: string | null
+  quantity?: number
+  valuationRate?: number
+  reason?: string | null
+  evidence?: Record<string, string>
+  attachments?: Array<{ id: string; fileName: string; fileUrl: string }>
+  purchaseReceiptId?: string | null
+  purchaseOrderId?: string | null
+  purchaseInvoiceId?: string | null
+  payableStatus?: string | null
+  invoiceTotal?: number
+  invoiceDocstatus?: number | null
+  settlementReference?: string | null
+  reconciliationStatus?: string | null
+  reconciledBy?: string | null
+  reconciledAt?: string | null
+  bankTransactionId?: string | null
+}
+
 export type WorkshopFinancialClearanceDto = {
   id: string
   type?: string
@@ -127,7 +152,22 @@ export type WorkshopFinancialClearanceDto = {
   reviewedAt?: string | null
   reviewNote?: string | null
   requestNote?: string | null
-  details?: GatepassSettlementDetailDto
+  companyId?: string | null
+  shopId?: string | null
+  masterDataRequestId?: string | null
+  stockEntryId?: string | null
+  purchaseReceiptId?: string | null
+  purchaseOrderId?: string | null
+  purchaseInvoiceId?: string | null
+  bankTransactionId?: string | null
+  paymentEntryId?: string | null
+  settlementMethod?: string | null
+  settlementAmount?: number
+  settlementReference?: string | null
+  reconciliationStatus?: string | null
+  reconciledByUserId?: string | null
+  reconciledAt?: string | null
+  details?: GatepassSettlementDetailDto & StockSettlementDetailDto
 }
 
 export type GuardExitCheckDto = {
@@ -166,7 +206,7 @@ export type CWMasterDataRequest = {
   sourceRoute?: string
   context?: Record<string, unknown>
   stockPayload?: import('../types/inventoryWorkflow').StockRequestPayload
-  sourceDetails?: { appointmentId?: string | null; customerId?: string | null; customerName?: string | null; vehicleId?: string | null; registrationNo?: string | null; appointmentStatus?: string | null; itemCode?: string | null; warehouseId?: string | null; quantity?: number | null; stockEntry?: string | null; stockStatus?: string | null }
+  sourceDetails?: { appointmentId?: string | null; customerId?: string | null; customerName?: string | null; vehicleId?: string | null; registrationNo?: string | null; appointmentStatus?: string | null; itemCode?: string | null; warehouseId?: string | null; quantity?: number | null; stockEntry?: string | null; stockStatus?: string | null; accountsClearanceId?: string | null; accountsClearanceStatus?: string | null }
   status: 'Pending' | 'Accepted' | 'Accounts Review' | 'Approved' | 'Rejected' | 'Cancelled'
   requestedBy: string
   requestedAt: string
@@ -2482,6 +2522,15 @@ export const workshopApi = {
     return request(`/api/method/workshop.api.financial_clearances.list${buildQuery({ company, pageSize: 100 })}`)
   },
   async approveFinancialClearance(id: string, note?: string) { return request(`/api/method/workshop.api.financial_clearances.approve`, { method: 'POST', body: { id, data: { note } } }) },
+  async submitStockPayable(id: string): Promise<WorkshopFinancialClearanceDto> {
+    return request<WorkshopFinancialClearanceDto>(`/api/method/workshop.api.financial_clearances.submit_stock_payable`, { method: 'POST', body: { id, data: {} } })
+  },
+  async recordStockSettlement(id: string, data: { amount?: number; referenceNo?: string; modeOfPayment?: string; postingDate?: string; paidFrom?: string; note?: string }): Promise<WorkshopFinancialClearanceDto> {
+    return request<WorkshopFinancialClearanceDto>(`/api/method/workshop.api.financial_clearances.record_stock_settlement`, { method: 'POST', body: { id, data } })
+  },
+  async confirmStockReconciliation(id: string, data: { bankTransactionId?: string; note?: string }): Promise<WorkshopFinancialClearanceDto> {
+    return request<WorkshopFinancialClearanceDto>(`/api/method/workshop.api.financial_clearances.confirm_stock_reconciliation`, { method: 'POST', body: { id, data } })
+  },
   async submitWorkshopClearanceInvoice(id: string) { return request(`/api/method/workshop.api.financial_clearances.submit_linked_invoice`, { method: 'POST', body: { id, data: {} } }) },
   async recordWorkshopClearancePayment(id: string, data: Record<string, unknown>) { return request(`/api/method/workshop.api.financial_clearances.record_linked_payment`, { method: 'POST', body: { id, data } }) },
   async applyWorkshopClearanceException(id: string, data: Record<string, unknown>) { return request(`/api/method/workshop.api.financial_clearances.apply_exception`, { method: 'POST', body: { id, data } }) },

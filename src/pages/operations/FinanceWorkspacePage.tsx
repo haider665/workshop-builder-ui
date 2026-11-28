@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Alert,
   Autocomplete,
@@ -14,6 +15,7 @@ import {
   Divider,
   Drawer,
   FormControlLabel,
+  Link,
   MenuItem,
   Stack,
   Step,
@@ -740,6 +742,213 @@ function GatepassSettlementDialog({
   );
 }
 
+function StockReceiptSettlementDialog({
+  clearance,
+  onClose,
+  onChanged,
+}: {
+  clearance: WorkshopFinancialClearanceDto;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+  const [amount, setAmount] = useState(
+    String(Number(clearance.outstandingAmount ?? clearance.details?.outstandingAmount ?? 0)),
+  );
+  const [referenceNo, setReferenceNo] = useState("");
+  const [modeOfPayment, setModeOfPayment] = useState("");
+  const [bankTransactionId, setBankTransactionId] = useState("");
+  const [reconciliationNote, setReconciliationNote] = useState("");
+  const details = clearance.details ?? {};
+  const requested = clearance.status === "Requested";
+  const approved = clearance.status === "Approved";
+  const invoiceId = details.purchaseInvoiceId || clearance.purchaseInvoiceId;
+  const invoiceDraft = details.invoiceDocstatus === 0;
+  const invoiceSubmitted = details.invoiceDocstatus === 1;
+  const outstanding = Number(clearance.outstandingAmount ?? details.outstandingAmount ?? 0);
+  const reconciled =
+    clearance.reconciliationStatus === "Reconciled" ||
+    details.reconciliationStatus === "Reconciled";
+
+  async function run(kind: "approve" | "reject" | "return" | "invoice" | "payment" | "reconcile") {
+    setError(null);
+    if ((kind === "reject" || kind === "return") && !reviewNote.trim()) {
+      setError("A review reason is required.");
+      return;
+    }
+    if (kind === "payment" && Number(amount) <= 0) {
+      setError("Enter a payment amount greater than zero.");
+      return;
+    }
+    setBusy(kind);
+    try {
+      if (kind === "approve") {
+        await workshopApi.approveFinancialClearance(clearance.id, reviewNote.trim() || undefined);
+      } else if (kind === "reject") {
+        await workshopApi.rejectFinancialClearance(clearance.id, reviewNote.trim());
+      } else if (kind === "return") {
+        await workshopApi.returnFinancialClearance(clearance.id, reviewNote.trim());
+      } else if (kind === "invoice") {
+        await workshopApi.submitStockPayable(clearance.id);
+      } else if (kind === "payment") {
+        await workshopApi.recordStockSettlement(clearance.id, {
+          amount: Number(amount),
+          referenceNo: referenceNo.trim() || undefined,
+          modeOfPayment: modeOfPayment.trim() || undefined,
+          note: reviewNote.trim() || undefined,
+        });
+      } else {
+        await workshopApi.confirmStockReconciliation(clearance.id, {
+          bankTransactionId: bankTransactionId.trim() || undefined,
+          note: reconciliationNote.trim() || undefined,
+        });
+      }
+      await onChanged();
+      if (kind === "approve" || kind === "reject" || kind === "return") onClose();
+      if (kind === "payment") {
+        setReferenceNo("");
+        setModeOfPayment("");
+      }
+      if (kind === "reconcile") setReconciliationNote("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Stock settlement action failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        Stock Receipt Settlement · {clearance.id}
+        <Typography variant="caption" sx={{ display: "block", mt: 0.5 }}>
+          {clearance.masterDataRequestId || details.masterDataRequestId || "Data request unavailable"} · {clearance.status || "Requested"}
+        </Typography>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2}>
+          {error ? <Alert severity="error">{error}</Alert> : null}
+          <Box sx={cardSx}>
+            <Typography sx={{ fontWeight: 800, mb: 1.25 }}>Stock evidence</Typography>
+            <Stack spacing={0.75}>
+              <Typography variant="body2">
+                Data request: {details.masterDataRequestId || clearance.masterDataRequestId || "—"} · {details.masterDataRequestStatus || "status unavailable"}
+              </Typography>
+              <Typography variant="body2">
+                Stock Entry: {details.stockEntryId || clearance.stockEntryId || "—"} · docstatus {details.stockEntryDocstatus ?? "—"}
+              </Typography>
+              <Typography variant="body2">
+                Item: {details.itemCode || "—"} · {Number(details.quantity || 0).toLocaleString()} units · {details.warehouseId || "—"}
+              </Typography>
+              <Typography variant="body2">
+                Rate: {Number(details.valuationRate || 0).toLocaleString()} · Reason: {details.reason || "—"}
+              </Typography>
+              <Typography variant="body2">
+                Evidence: {Object.entries(details.evidence || {}).map(([key, value]) => `${key} ${value}`).join(" · ") || "None"}
+              </Typography>
+              {(details.attachments || []).map((attachment) => (
+                <Link key={attachment.id} href={attachment.fileUrl} target="_blank" rel="noreferrer" variant="caption">
+                  {attachment.fileName}
+                </Link>
+              ))}
+            </Stack>
+          </Box>
+          <Box sx={cardSx}>
+            <Typography sx={{ fontWeight: 800, mb: 1.25 }}>Supplier payable</Typography>
+            <Stack spacing={0.75}>
+              <Typography variant="body2">
+                Payable: {invoiceId || "Not Required"} · {details.payableStatus || clearance.reconciliationStatus || "status unavailable"}
+              </Typography>
+              <Typography variant="body2">
+                Invoice total: {Number(details.invoiceTotal || 0).toLocaleString()} · Outstanding: {Number(outstanding || 0).toLocaleString()}
+              </Typography>
+              {clearance.paymentEntryId ? (
+                <Typography variant="body2">
+                  Payment Entry: {clearance.paymentEntryId} · {Number(clearance.settlementAmount || details.settlementAmount || 0).toLocaleString()}
+                  {clearance.settlementReference ? ` · ${clearance.settlementReference}` : ""}
+                </Typography>
+              ) : null}
+              <Typography variant="body2">
+                Reconciliation: {clearance.reconciliationStatus || details.reconciliationStatus || "Not Started"}
+                {clearance.reconciledByUserId ? ` · ${clearance.reconciledByUserId}` : ""}
+              </Typography>
+            </Stack>
+          </Box>
+          {requested ? (
+            <Stack spacing={2}>
+              <Alert severity="warning">
+                Approval posts the draft Stock Entry, permanently changes inventory, and creates a supplier payable when linked source documents exist.
+              </Alert>
+              <TextField
+                label="Review note"
+                value={reviewNote}
+                onChange={(event) => setReviewNote(event.target.value)}
+                fullWidth
+                multiline
+                minRows={2}
+              />
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                <Button variant="contained" color="success" disabled={Boolean(busy)} onClick={() => void run("approve")}>
+                  {busy === "approve" ? "Approving…" : "Approve stock receipt"}
+                </Button>
+                <Button variant="outlined" color="error" disabled={Boolean(busy) || !reviewNote.trim()} onClick={() => void run("reject")}>
+                  Reject
+                </Button>
+                <Button variant="outlined" disabled={Boolean(busy) || !reviewNote.trim()} onClick={() => void run("return")}>
+                  Return for correction
+                </Button>
+              </Stack>
+            </Stack>
+          ) : null}
+          {approved && invoiceId && invoiceDraft ? (
+            <Button variant="contained" disabled={Boolean(busy)} onClick={() => void run("invoice")}>
+              {busy === "invoice" ? "Submitting…" : "Submit supplier payable"}
+            </Button>
+          ) : null}
+          {approved && invoiceSubmitted && outstanding > 0 ? (
+            <Box sx={cardSx}>
+              <Typography sx={{ fontWeight: 800, mb: 1 }}>Record settlement</Typography>
+              <Stack spacing={1.5}>
+                <TextField size="small" label="Amount" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                <TextField size="small" label="Reference" value={referenceNo} onChange={(event) => setReferenceNo(event.target.value)} />
+                <TextField size="small" label="Mode of payment" value={modeOfPayment} onChange={(event) => setModeOfPayment(event.target.value)} placeholder="Cash or bank" />
+                <Button variant="contained" disabled={Boolean(busy)} onClick={() => void run("payment")}>
+                  {busy === "payment" ? "Recording…" : "Record settlement"}
+                </Button>
+              </Stack>
+            </Box>
+          ) : null}
+          {approved && invoiceSubmitted && outstanding <= 0 && !reconciled ? (
+            <Box sx={cardSx}>
+              <Typography sx={{ fontWeight: 800, mb: 1 }}>Confirm reconciliation</Typography>
+              <Stack spacing={1.5}>
+                <TextField size="small" label="Bank transaction ID (optional)" value={bankTransactionId} onChange={(event) => setBankTransactionId(event.target.value)} />
+                <TextField size="small" label="Reconciliation note" value={reconciliationNote} onChange={(event) => setReconciliationNote(event.target.value)} />
+                <Button variant="contained" disabled={Boolean(busy)} onClick={() => void run("reconcile")}>
+                  {busy === "reconcile" ? "Confirming…" : "Confirm reconciliation"}
+                </Button>
+              </Stack>
+            </Box>
+          ) : null}
+          {approved && !invoiceId ? (
+            <Alert severity="success">Stock was posted. No linked supplier payable requires settlement.</Alert>
+          ) : null}
+          {reconciled ? (
+            <Alert severity="success">
+              Stock receipt settlement reconciled by {clearance.reconciledByUserId || clearance.reconciliationStatus || "Accounts"}.
+            </Alert>
+          ) : null}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={Boolean(busy)}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export function FinanceWorkspacePage({
   initialTab = "procurement",
   workspace = "procurement",
@@ -750,6 +959,8 @@ export function FinanceWorkspacePage({
   initialCaseId?: string;
 }) {
   const { selectedCompanyId, companies } = useCompanyStore();
+  const [searchParams] = useSearchParams();
+  const linkedClearanceId = searchParams.get("clearance");
   const company = companies.find((item) => item.id === selectedCompanyId);
   const [tab, setTab] = useState<TabId>(initialTab);
   const [dashboard, setDashboard] = useState<{
@@ -816,6 +1027,14 @@ export function FinanceWorkspacePage({
   const [selectedClearanceId, setSelectedClearanceId] = useState<string | null>(
     null,
   );
+  const linkedClearanceAvailable = Boolean(
+    linkedClearanceId && clearances.some((item) => item.id === linkedClearanceId),
+  );
+  useEffect(() => {
+    if (!linkedClearanceId || !linkedClearanceAvailable) return;
+    setTab("accounting");
+    setSelectedClearanceId(linkedClearanceId);
+  }, [linkedClearanceId, linkedClearanceAvailable]);
   const [documents, setDocuments] = useState<
     Record<AccountingModule, Array<Record<string, unknown>>>
   >({
@@ -2904,7 +3123,7 @@ export function FinanceWorkspacePage({
                   <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontWeight: 800 }}>
                       {item.type || "Financial clearance"} ·{" "}
-                      {item.appointmentId || item.id}
+                      {item.appointmentId || item.masterDataRequestId || item.id}
                     </Typography>
                     <Typography variant="caption">
                       Requested by {item.requestedByUserId || "user"} ·{" "}
@@ -2920,6 +3139,12 @@ export function FinanceWorkspacePage({
                         Sales Order: {item.salesOrderId || "being prepared"} · {item.salesOrderStatus || "Draft"}
                       </Typography>
                     ) : null}
+                    {item.type === "Stock Receipt Settlement" ? (
+                      <Typography variant="caption" sx={{ display: "block", mt: 0.5, fontWeight: 700 }}>
+                        Stock Entry: {item.stockEntryId || "draft"} · Payable: {item.purchaseInvoiceId || item.details?.payableStatus || "Not Required"}
+                        {item.reconciliationStatus ? ` · ${item.reconciliationStatus}` : ""}
+                      </Typography>
+                    ) : null}
                   </Box>
                   <Chip
                     size="small"
@@ -2927,7 +3152,7 @@ export function FinanceWorkspacePage({
                     color={statusColor(item.status)}
                   />
                   <Stack direction="row" spacing={0.75}>
-                    {item.type === "Gatepass Settlement" && item.details ? (
+                    {(item.type === "Gatepass Settlement" || item.type === "Stock Receipt Settlement") && item.details ? (
                       <Button
                         size="small"
                         variant="outlined"
@@ -2936,7 +3161,7 @@ export function FinanceWorkspacePage({
                         Details
                       </Button>
                     ) : null}
-                    {item.status === "Requested" ? (
+                    {item.status === "Requested" && item.type !== "Stock Receipt Settlement" ? (
                       <>
                         <Button
                           size="small"
@@ -4307,8 +4532,15 @@ export function FinanceWorkspacePage({
           </Button>
         </DialogActions>
       </Dialog>
-      {selectedClearance ? (
+      {selectedClearance && selectedClearance.type === "Gatepass Settlement" ? (
         <GatepassSettlementDialog
+          clearance={selectedClearance}
+          onClose={() => setSelectedClearanceId(null)}
+          onChanged={load}
+        />
+      ) : null}
+      {selectedClearance && selectedClearance.type === "Stock Receipt Settlement" ? (
+        <StockReceiptSettlementDialog
           clearance={selectedClearance}
           onClose={() => setSelectedClearanceId(null)}
           onChanged={load}
